@@ -1,24 +1,50 @@
-# Mergen Scope
+# Spectrum Analyzer .DAT File Viewer — Mergen Scope
 
 [![Live Demo](https://img.shields.io/badge/demo-live-brightgreen)](https://alpgoxd.github.io/mergen-scope/)
 [![License: GPL-3.0-only](https://img.shields.io/badge/License-GPL--3.0--only-blue.svg)](LICENSE)
 
-Mergen Scope is a fragile single-file browser app for viewing Rohde & Schwarz spectrum analyzer `.dat` exports. It runs without a build step and is designed to work directly from a GitHub Pages repo using only files hosted in the repository.
+**Open and visualize .dat files from any spectrum analyzer — R&S ZNB, HP/Agilent, Keysight, and more. Free, browser-based, zero dependencies.**
+
+[**→ Try it online now**](https://alpgoxd.github.io/mergen-scope/mergen_scope.html)
+
+---
+
+## Features
+
+Mergen Scope is a browser-based **spectrum analyzer .dat file viewer** and measurement analysis tool. Load, visualize, and analyze RF and microwave measurement exports directly in your browser with no installation, no licensing, and no external dependencies.
+
+- 📊 **Multi-trace support** — Load and compare multiple spectrum measurements side-by-side
+- 🎯 **Interactive markers** — Place markers, search for peaks and minima, track frequency points
+- 📈 **Noise PSD panel** — Visualize noise power spectral density across the spectrum
+- ⚡ **IP3/TOI measurement tool** — Calculate third-order intercept and tone of interest in 4 clicks
+- 🔍 **Zoom & pan** — Navigate large frequency ranges with oscilloscope-style division readout
+- 💾 **Import/export** — Save marked measurements and analysis results
+- 🚀 **No installation required** — Runs entirely in your modern web browser
+- 📦 **Vendor-free, offline** — React, Recharts, and all dependencies bundled locally
+
+---
+
+## Supported File Formats
+
+Mergen Scope parses and visualizes .dat measurement files from:
+
+- **R&S Spectrum Analyzers** — Rohde & Schwarz ZNB series (ZNB8, etc.) and compatible instruments
+- **Keysight Network Analyzers** — E5063A, E5071C, and similar formats
+- **HP Agilent Equipment** — Legacy network analyzer exports
+- **Additional formats** — Modular parser architecture supports future additions
+
+---
 
 ## Why I Built This
 
-I am an electrical and electronics engineer, and like many EE people I do not have much time to learn a full frontend stack like React and the rest of the web ecosystem in depth just to inspect waveform and spectrum data.
+As an RF engineer, I needed a quick, offline tool to visualize spectrum analyzer exports without proprietary software licenses or learning a full frontend stack. Mergen Scope fills that gap—it's a no-nonsense measurement viewer designed for day-to-day RF engineering work.
 
-When I looked for simple browser tools to visualize spectrum analyzer exports and other waveform-style files, I could not find something that matched what I wanted. So I vibecoded this project into existence.
+The longer-term goal:
+- Support more waveform and instrument-export file types
+- Remain as dependency-light and vendor-free as possible
+- Become a general-purpose online waveform viewer for RF/microwave engineers
 
-Right now I have only tested it with Rohde & Schwarz spectrum analyzer `.dat` files, but the longer-term goal is bigger than that:
-
-- make the tool genuinely useful for day-to-day measurement work
-- keep it as dependency-light and vendor-free as possible
-- support more waveform and instrument-export file types over time
-- eventually make it useful as a general online waveform viewer
-
-If you want to help shape it, feel free to open issues, suggest changes, and help make the tool cooler.
+**Found a bug? Have a feature idea?** [Open an issue](https://github.com/alpgoxd/mergen-scope/issues) or [submit a pull request](https://github.com/alpgoxd/mergen-scope/pulls).
 
 ## Current Status
 
@@ -159,6 +185,24 @@ Detector;RMS
 - Export and workspace/session features
 - Performance cleanup and decimation
 
+## About
+
+Built for RF engineers and microwave researchers who need quick, offline access to spectrum analyzer measurements without proprietary software licenses.
+
+Developed as part of the **Mergen 21** 21 cm hydrogen-line radio telescope project at Özyeğin University.
+
+---
+
 ## License
 
 This project is licensed under GNU GPL-3.0-only. See [LICENSE](LICENSE).
+
+---
+
+## Contact
+
+**Alp Gökalp**
+RF/Microwave Engineering • Analog IC Design
+
+📧 [alpgokalp@hotmail.com.tr](mailto:alpgokalp@hotmail.com.tr)
+🔗 [GitHub](https://github.com/alpgoxd)
