@@ -5,6 +5,21 @@
 
 Mergen Scope is a fragile single-file browser app for viewing Rohde & Schwarz spectrum analyzer `.dat` exports. It runs without a build step and is designed to work directly from a GitHub Pages repo using only files hosted in the repository.
 
+## Why I Built This
+
+I am an electrical and electronics engineer, and like many EE people I do not have much time to learn a full frontend stack like React and the rest of the web ecosystem in depth just to inspect waveform and spectrum data.
+
+When I looked for simple browser tools to visualize spectrum analyzer exports and other waveform-style files, I could not find something that matched what I wanted. So I vibecoded this project into existence.
+
+Right now I have only tested it with Rohde & Schwarz spectrum analyzer `.dat` files, but the longer-term goal is bigger than that:
+
+- make the tool genuinely useful for day-to-day measurement work
+- keep it as dependency-light and vendor-free as possible
+- support more waveform and instrument-export file types over time
+- eventually make it useful as a general online waveform viewer
+
+If you want to help shape it, feel free to open issues, suggest changes, and help make the tool cooler.
+
 ## Current Status
 
 Phase 1 is feature-complete and in signoff testing. The app currently focuses on:
