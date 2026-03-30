@@ -1,13 +1,13 @@
 # Mergen Scope
 
 [![Live Demo](https://img.shields.io/badge/demo-live-brightgreen)](https://alpgoxd.github.io/mergen-scope/)
-[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
+[![License: GPL-3.0-only](https://img.shields.io/badge/License-GPL--3.0--only-blue.svg)](LICENSE)
 
 Mergen Scope is a fragile single-file browser app for viewing Rohde & Schwarz spectrum analyzer `.dat` exports. It runs without a build step and is designed to work directly from a GitHub Pages repo using only files hosted in the repository.
 
 ## Current Status
 
-Phase 1 is implemented and in final signoff / hardening. The app currently focuses on:
+Phase 1 is feature-complete and in signoff testing. The app currently focuses on:
 
 - stable single-file startup
 - local vendored runtime dependencies
@@ -146,4 +146,4 @@ Detector;RMS
 
 ## License
 
-This project is licensed under the GNU GPL v3. See [LICENSE](LICENSE).
+This project is licensed under GNU GPL-3.0-only. See [LICENSE](LICENSE).
