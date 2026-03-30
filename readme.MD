@@ -189,8 +189,6 @@ Detector;RMS
 
 Built for RF engineers and microwave researchers who need quick, offline access to spectrum analyzer measurements without proprietary software licenses.
 
-Developed as part of the **Mergen 21** 21 cm hydrogen-line radio telescope project at Özyeğin University.
-
 ---
 
 ## License
