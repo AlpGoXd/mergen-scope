@@ -4,189 +4,309 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-  <!-- SEO Meta Tags -->
-  <title>Spectrum Analyzer .DAT File Viewer | Mergen Scope</title>
+  <title>Mergen Scope — Spectrum Analyzer .DAT Viewer</title>
   <meta name="description" content="Open and visualize .dat files from spectrum analyzers. Multi-trace support, markers, noise PSD, IP3/TOI measurements. Free, browser-based, no dependencies.">
   <meta name="keywords" content="spectrum analyzer, .dat viewer, .dat file opener, R&S ZNB, network analyzer, RF measurements, open source">
   <meta name="author" content="Alp Gökalp">
   <meta name="robots" content="index, follow">
 
-  <!-- Open Graph -->
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://alpgoxd.github.io/mergen-scope/">
-  <meta property="og:title" content="Spectrum Analyzer .DAT File Viewer">
+  <meta property="og:title" content="Mergen Scope — Spectrum Analyzer .DAT Viewer">
   <meta property="og:description" content="Visualize spectrum analyzer measurements in your browser. Multi-trace, markers, IP3/TOI tools included.">
   <meta property="og:image" content="https://alpgoxd.github.io/mergen-scope/og-image.png">
 
-  <!-- Twitter Card -->
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="Spectrum Analyzer .DAT File Viewer">
+  <meta name="twitter:title" content="Mergen Scope — Spectrum Analyzer .DAT Viewer">
   <meta name="twitter:description" content="Open-source .dat file viewer for RF/microwave measurements">
 
-  <!-- Canonical URL -->
   <link rel="canonical" href="https://alpgoxd.github.io/mergen-scope/">
 
   <style>
     :root {
       color-scheme: light dark;
-      --bg: #fff;
-      --text: #1f2328;
-      --muted: #656d76;
-      --accent: #0078d4;
-      --border: #d1d9e0;
-      --badge-bg: #f6f8fa;
-      --btn-bg: #1f6feb;
-      --btn-hover: #388bfd;
+      --bg:       #ffffff;
+      --surface:  #f6f8fa;
+      --border:   #d1d9e0;
+      --text:     #1f2328;
+      --muted:    #656d76;
+      --accent:   #0969da;
+      --accent2:  #1a7f37;
+      --btn:      #0969da;
+      --btn-h:    #0550ae;
     }
-
     @media (prefers-color-scheme: dark) {
       :root {
-        --bg: #0d1117;
-        --text: #e6edf3;
-        --muted: #8b949e;
-        --accent: #58a6ff;
-        --border: #30363d;
-        --badge-bg: #161b22;
-        --btn-bg: #238636;
-        --btn-hover: #2ea043;
+        --bg:       #0d1117;
+        --surface:  #161b22;
+        --border:   #30363d;
+        --text:     #e6edf3;
+        --muted:    #8b949e;
+        --accent:   #58a6ff;
+        --accent2:  #3fb950;
+        --btn:      #238636;
+        --btn-h:    #2ea043;
       }
     }
 
     * { margin: 0; padding: 0; box-sizing: border-box; }
+
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       background: var(--bg);
       color: var(--text);
       line-height: 1.6;
-      transition: background 0.3s, color 0.3s;
     }
-    .container {
-      max-width: 900px;
+
+    .page {
+      max-width: 860px;
       margin: 0 auto;
-      padding: 3rem 2rem;
+      padding: 4rem 2rem 3rem;
     }
-    h1 {
-      font-size: 2.5rem;
-      margin-bottom: 1rem;
-      color: var(--accent);
+
+    /* ── Hero ── */
+    .hero {
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 2.5rem;
+      margin-bottom: 2.5rem;
     }
-    h2 {
-      font-size: 1.8rem;
-      margin-top: 2rem;
-      margin-bottom: 1rem;
-      color: var(--accent);
-    }
-    p {
-      font-size: 1.1rem;
-      margin-bottom: 1.5rem;
+    .hero-label {
+      font-size: 0.8rem;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
       color: var(--muted);
+      margin-bottom: 0.75rem;
     }
-    .cta-button {
+    .hero h1 {
+      font-size: 3rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: var(--text);
+      line-height: 1.1;
+      margin-bottom: 1rem;
+    }
+    .hero p {
+      font-size: 1.15rem;
+      color: var(--muted);
+      max-width: 580px;
+      margin-bottom: 1.75rem;
+    }
+    .hero-actions {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+    .btn-primary {
       display: inline-block;
-      background: var(--btn-bg);
-      color: #ffffff;
-      padding: 1rem 2rem;
+      background: var(--btn);
+      color: #fff;
+      padding: 0.65rem 1.5rem;
       border-radius: 6px;
       text-decoration: none;
       font-weight: 600;
-      font-size: 1.1rem;
-      margin: 1.5rem 0;
-      transition: background 0.2s;
-    }
-    .cta-button:hover {
-      background: var(--btn-hover);
-    }
-    ul {
-      list-style: none;
-      margin-left: 2rem;
-      margin-bottom: 1.5rem;
-    }
-    li {
-      padding: 0.5rem 0;
-      font-size: 1.05rem;
-    }
-    li:before {
-      content: "–";
-      margin-right: 0.6rem;
-      color: var(--accent);
-    }
-    .footer {
-      margin-top: 3rem;
-      padding-top: 2rem;
-      border-top: 1px solid var(--border);
-      color: var(--muted);
       font-size: 0.95rem;
+      transition: background 0.15s;
     }
-    a {
+    .btn-primary:hover { background: var(--btn-h); }
+    .btn-secondary {
+      display: inline-block;
       color: var(--accent);
       text-decoration: none;
+      font-size: 0.95rem;
+      font-weight: 500;
     }
-    a:hover {
-      text-decoration: underline;
+    .btn-secondary:hover { text-decoration: underline; }
+
+    /* ── Section ── */
+    section { margin-bottom: 2.5rem; }
+    section h2 {
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 1rem;
     }
-    .badge {
-      display: inline-block;
-      background: var(--badge-bg);
-      padding: 0.25rem 0.75rem;
-      border-radius: 20px;
-      font-size: 0.9rem;
-      margin-right: 0.5rem;
-      margin-bottom: 0.5rem;
+
+    /* ── Feature grid ── */
+    .features {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1px;
+      background: var(--border);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .feature {
+      background: var(--bg);
+      padding: 1.25rem 1.5rem;
+    }
+    .feature-name {
+      font-weight: 600;
+      font-size: 0.95rem;
       color: var(--text);
+      margin-bottom: 0.25rem;
+    }
+    .feature-desc {
+      font-size: 0.875rem;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    /* ── Formats table ── */
+    .formats {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .format-row {
+      display: grid;
+      grid-template-columns: 1fr 2fr;
+      gap: 1rem;
+      padding: 0.85rem 1.25rem;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.9rem;
+    }
+    .format-row:last-child { border-bottom: none; }
+    .format-row:first-child {
+      background: var(--surface);
+      font-weight: 600;
+      font-size: 0.78rem;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .format-name { color: var(--text); font-family: monospace; }
+    .format-note { color: var(--muted); }
+
+    /* ── Stack ── */
+    .stack {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+    .tag {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.3rem 0.75rem;
+      font-size: 0.85rem;
+      color: var(--text);
+    }
+
+    /* ── Footer ── */
+    footer {
+      border-top: 1px solid var(--border);
+      padding-top: 1.75rem;
+      margin-top: 1rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      font-size: 0.875rem;
+      color: var(--muted);
+    }
+    footer a { color: var(--muted); text-decoration: none; }
+    footer a:hover { color: var(--accent); }
+
+    @media (max-width: 600px) {
+      .hero h1 { font-size: 2.2rem; }
+      .features { grid-template-columns: 1fr; }
+      footer { flex-direction: column; align-items: flex-start; }
     }
   </style>
 </head>
 <body>
-  <div class="container">
-    <h1>Spectrum Analyzer .DAT File Viewer</h1>
+  <div class="page">
 
-    <p><strong>Open and visualize .dat files from any spectrum analyzer — R&S ZNB, HP/Agilent, Keysight, and more. Free, browser-based, zero dependencies.</strong></p>
-
-    <a href="mergen_scope.html" class="cta-button">→ Open Viewer</a>
-
-    <h2>Features</h2>
-    <ul class="feature-list">
-      <li><strong>Multi-trace support</strong> – Load and compare multiple measurements</li>
-      <li><strong>Interactive markers</strong> – Place and track peaks, identify frequency points</li>
-      <li><strong>Noise PSD panel</strong> – Visualize noise density across spectrum</li>
-      <li><strong>IP3/TOI measurement tool</strong> – 4-click intermodulation point calculation</li>
-      <li><strong>Zoom & pan</strong> – Navigate large frequency ranges</li>
-      <li><strong>Import/export</strong> – Save marked measurements and analysis</li>
-    </ul>
-
-    <h2>Supported File Formats</h2>
-    <p>Compatible with spectrum analyzers and network analyzers from:</p>
-    <ul>
-      <li>R&S ZNB series (ZNB8 and compatible)</li>
-      <li>Keysight and HP Agilent network analyzers</li>
-      <li>Additional formats via modular parser architecture</li>
-    </ul>
-
-    <h2>Technology</h2>
-    <p>
-      <span class="badge">Vanilla JavaScript (ES6+)</span>
-      <span class="badge">Recharts</span>
-      <span class="badge">GitHub Pages</span>
-      <span class="badge">GPL-3.0 License</span>
-    </p>
-
-    <h2>Quick Start</h2>
-    <ol style="list-style: decimal; margin-left: 2rem; margin-bottom: 1.5rem;">
-      <li style="padding: 0.5rem 0;">Click the "Open Viewer" button above</li>
-      <li style="padding: 0.5rem 0;">Click <strong>Load File</strong> and select your .dat file</li>
-      <li style="padding: 0.5rem 0;">Use markers to annotate points of interest</li>
-      <li style="padding: 0.5rem 0;">Calculate IP3 or TOI in 4 clicks</li>
-    </ol>
-
-    <div class="footer">
-      <p>Built for RF engineers and microwave researchers who need a quick, free tool to visualize spectrum measurements.</p>
-      <p>
-        <strong>Built by <a href="https://github.com/alpgoxd">Alp Gökalp</a></strong>
-      </p>
-      <p>
-        <a href="https://github.com/alpgoxd/mergen-scope">GitHub Repository</a>
-      </p>
+    <div class="hero">
+      <p class="hero-label">Open Source / Browser-Based</p>
+      <h1>Mergen Scope</h1>
+      <p>A free, no-install viewer for spectrum analyzer measurement files. Load .dat exports directly in your browser — no software license required.</p>
+      <div class="hero-actions">
+        <a href="mergen_scope.html" class="btn-primary">Open Viewer</a>
+        <a href="https://github.com/alpgoxd/mergen-scope" class="btn-secondary">View on GitHub</a>
+      </div>
     </div>
+
+    <section>
+      <h2>Features</h2>
+      <div class="features">
+        <div class="feature">
+          <div class="feature-name">Multi-trace</div>
+          <div class="feature-desc">Load and overlay multiple measurement files for direct comparison.</div>
+        </div>
+        <div class="feature">
+          <div class="feature-name">Markers</div>
+          <div class="feature-desc">Place markers, search for peaks and minima, create delta markers between points.</div>
+        </div>
+        <div class="feature">
+          <div class="feature-name">Noise PSD</div>
+          <div class="feature-desc">Compute noise power spectral density from any loaded trace.</div>
+        </div>
+        <div class="feature">
+          <div class="feature-name">IP3 / TOI</div>
+          <div class="feature-desc">Marker-driven third-order intercept calculation for two-tone measurements.</div>
+        </div>
+        <div class="feature">
+          <div class="feature-name">Zoom and pan</div>
+          <div class="feature-desc">X and Y zoom, pan, and oscilloscope-style division readout.</div>
+        </div>
+        <div class="feature">
+          <div class="feature-name">No dependencies</div>
+          <div class="feature-desc">All libraries vendored locally. Works offline, no CDN calls at runtime.</div>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Supported Formats</h2>
+      <div class="formats">
+        <div class="format-row">
+          <span>Format</span>
+          <span>Notes</span>
+        </div>
+        <div class="format-row">
+          <span class="format-name">R&amp;S .dat</span>
+          <span class="format-note">Rohde &amp; Schwarz ZNB series — tested, primary target</span>
+        </div>
+        <div class="format-row">
+          <span class="format-name">Amplitude-only .dat</span>
+          <span class="format-note">Frequency axis reconstructed from Start/Stop metadata</span>
+        </div>
+        <div class="format-row">
+          <span class="format-name">Other formats</span>
+          <span class="format-note">Goal is to support any waveform file in the future — contributions welcome</span>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Technology</h2>
+      <div class="stack">
+        <span class="tag">Vanilla JavaScript (ES6+)</span>
+        <span class="tag">React 18 — vendored</span>
+        <span class="tag">Recharts — vendored</span>
+        <span class="tag">GitHub Pages</span>
+        <span class="tag">GPL-3.0</span>
+      </div>
+    </section>
+
+    <footer>
+      <span>Built by <a href="https://github.com/alpgoxd">Alp Gökalp</a></span>
+      <span>
+        <a href="https://github.com/alpgoxd/mergen-scope">GitHub</a>
+        &nbsp;&middot;&nbsp;
+        <a href="https://github.com/alpgoxd/mergen-scope/issues">Issues</a>
+        &nbsp;&middot;&nbsp;
+        <a href="https://github.com/alpgoxd/mergen-scope/blob/main/LICENSE">GPL-3.0</a>
+      </span>
+    </footer>
+
   </div>
 </body>
 </html>
