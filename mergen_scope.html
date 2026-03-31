@@ -1,10 +1,9 @@
 <!--
   Mergen Scope
-  Phase 1 changelog:
-  - Fixed: IP3 now uses visible marker-role assignments instead of the old disconnected click-step flow.
-  - Added: selected-marker behavior, Min / Next Min, import normalization, saved-result normalization, manual regression checklist, local vendored runtime imports.
-  - Phase 2 groundwork: traces now carry stable ids plus raw/derived model fields for future trace operations.
-  - Later: raw vs derived traces, trace math, multi-pane evolution, synchronized pane cursor/readout.
+  Recent changes:
+  - Phase 1: marker selection, minima search, marker-driven IP3, import normalization, saved-result cleanup, local vendored runtime imports.
+  - Phase 2: raw/derived trace model, Trace Ops, smoothing methods, trace math, interpolation choices, unit-aware warnings.
+  - Later: multi-pane layout, synchronized cursor/readout, more analysis functions.
 
   Manual regression checklist:
   1. Normal single trace: import one regular trace, verify startup, chart render, hover, X/Y zoom, markers, Peak, Next Peak, Min, Next Min.
@@ -23,8 +22,8 @@
   - Noise PSD saves and stays consistent after source-trace changes.
   - IP3 works from visible marker roles and saves normalized results.
   - Zoom, pan, crosshair, raw table, and saved-result panels still work after the above checks.
-  Multi-trace spectrum analyzer file viewer with noise PSD, IP3, crosshair, Y-zoom, reference lines.
-  Dependencies: React 18 (MIT), React DOM 18 (MIT), PropTypes (MIT), Recharts 2 (MIT) - vendored locally for GitHub Pages.
+  Multi-trace spectrum analyzer file viewer with noise PSD, IP3, crosshair, Y-zoom, and reference lines.
+  Dependencies: React 18, React DOM 18, PropTypes, and Recharts 2 are vendored locally for GitHub Pages.
 -->
 <!DOCTYPE html>
 <html lang="en"><head>
@@ -35,7 +34,7 @@
 <!-- SEO Meta Tags -->
 <title>Spectrum Analyzer .DAT File Viewer | Mergen Scope</title>
 <meta name="description" content="Open and visualize .dat files from spectrum analyzers. Multi-trace support, markers, noise PSD, IP3/TOI measurements. Free, browser-based, no dependencies.">
-<meta name="keywords" content="spectrum analyzer, .dat viewer, .dat file opener, R&S ZNB, network analyzer, RF measurements, open source, Keysight, HP Agilent">
+<meta name="keywords" content="spectrum analyzer, .dat viewer, Rohde and Schwarz .dat, RF measurements, open source, browser waveform viewer">
 <meta name="author" content="Alp Gökalp">
 <meta name="robots" content="index, follow">
 <meta name="language" content="English">
@@ -215,6 +214,240 @@ function createDerivedTrace(sourceTrace, operationType, parameters, data, displa
     dn:displayName||((getTraceLabel(sourceTrace)||"Trace")+" ["+(operationType||"derived")+"]")
   };
 }
+function setDerivedTraceYUnit(trace, unit){
+  if(!trace)return trace;
+  var nextUnits=trace.units?Object.assign({},trace.units):{x:null,y:null};
+  nextUnits.y=unit;
+  trace.units=nextUnits;
+  return trace;
+}
+function normalizeUnitName(unit){
+  return String(unit||"").trim().toLowerCase().replace(/\s+/g,"");
+}
+function isDbRatioUnit(unit){
+  return normalizeUnitName(unit)==="db";
+}
+function isLogLevelUnit(unit){
+  var u=normalizeUnitName(unit);
+  return ["dbm","dbw","dbuv","dbµv","dbμv"].indexOf(u)!==-1;
+}
+function isLogUnit(unit){
+  return isDbRatioUnit(unit)||isLogLevelUnit(unit);
+}
+function resolveTraceMathResultUnit(aUnit, bUnit, op){
+  var aNorm=normalizeUnitName(aUnit);
+  var bNorm=normalizeUnitName(bUnit);
+  if(!aNorm||!bNorm)return aUnit||bUnit||"";
+  if(op==="subtract"&&aNorm===bNorm){
+    if(isDbRatioUnit(aNorm))return "dB";
+    if(isLogLevelUnit(aNorm))return "dB";
+  }
+  return aUnit||bUnit||"";
+}
+function ampsFromExactMatch(data, freq){
+  for(var i=0;i<data.length;i++){
+    var p=data[i];
+    if(p&&isFinite(p.freq)&&p.freq===freq&&isFinite(p.amp))return p.amp;
+    if(p&&isFinite(p.freq)&&p.freq>freq)break;
+  }
+  return null;
+}
+function cubicInterpolateSegment(p0,p1,p2,p3,x){
+  if(!p1||!p2||!isFinite(x)||!isFinite(p1.freq)||!isFinite(p2.freq)||p1.freq===p2.freq)return null;
+  var t=(x-p1.freq)/(p2.freq-p1.freq);
+  if(!isFinite(t))return null;
+  var y0=(p0&&isFinite(p0.amp))?p0.amp:p1.amp;
+  var y1=p1.amp;
+  var y2=p2.amp;
+  var y3=(p3&&isFinite(p3.amp))?p3.amp:p2.amp;
+  return 0.5*((2*y1)+(-y0+y2)*t+(2*y0-5*y1+4*y2-y3)*t*t+(-y0+3*y1-3*y2+y3)*t*t*t);
+}
+function interpolateAmpAtFreq(data, freq, method){
+  if(!Array.isArray(data)||!data.length||!isFinite(freq))return null;
+  var mode=method||"linear";
+  var prev=null;
+  for(var i=0;i<data.length;i++){
+    var p=data[i];
+    if(!p||!isFinite(p.freq)||!isFinite(p.amp))continue;
+    if(p.freq===freq)return p.amp;
+    if(p.freq>freq){
+      if(!prev)return null;
+      if(mode==="exact")return null;
+      if(mode==="nearest"){
+        return Math.abs(freq-prev.freq)<=Math.abs(p.freq-freq)?prev.amp:p.amp;
+      }
+      if(mode==="previous")return prev.amp;
+      if(mode==="next")return p.amp;
+      if(mode==="cubic"){
+        var p0=null,p3=null;
+        for(var j=i-2;j>=0;j--){ if(data[j]&&isFinite(data[j].freq)&&isFinite(data[j].amp)){ p0=data[j]; break; } }
+        for(var k=i+1;k<data.length;k++){ if(data[k]&&isFinite(data[k].freq)&&isFinite(data[k].amp)){ p3=data[k]; break; } }
+        var cubicAmp=cubicInterpolateSegment(p0,prev,p,p3,freq);
+        if(isFinite(cubicAmp))return cubicAmp;
+      }
+      var ip=interpolatePointAtX(prev,p,freq);
+      return ip&&isFinite(ip.amp)?ip.amp:null;
+    }
+    prev=p;
+  }
+  return null;
+}
+function getOverlapWindow(aData,bData){
+  if(!Array.isArray(aData)||!Array.isArray(bData)||!aData.length||!bData.length)return null;
+  var left=Math.max(aData[0].freq,bData[0].freq);
+  var right=Math.min(aData[aData.length-1].freq,bData[bData.length-1].freq);
+  return (isFinite(left)&&isFinite(right)&&right>=left)?{left:left,right:right}:null;
+}
+function getDataInWindow(data, window){
+  if(!window)return [];
+  return (data||[]).filter(function(p){return p&&isFinite(p.freq)&&p.freq>=window.left&&p.freq<=window.right&&isFinite(p.amp);});
+}
+function overlapArraysMatchExactly(aData,bData){
+  if(aData.length!==bData.length||!aData.length)return false;
+  for(var i=0;i<aData.length;i++){
+    if(aData[i].freq!==bData[i].freq)return false;
+  }
+  return true;
+}
+function normalizeOddWindowSize(raw, maxLen, minVal){
+  var win=Math.round(parseFloat(raw));
+  if(!isFinite(win))win=minVal||3;
+  if(win<(minVal||3))win=minVal||3;
+  if(win%2===0)win=win+1;
+  if(isFinite(maxLen)&&maxLen>0&&win>maxLen){
+    win=maxLen;
+    if(win%2===0)win=Math.max((minVal||1),win-1);
+  }
+  return Math.max((minVal||1),win);
+}
+function medianOfNumbers(vals){
+  if(!vals||!vals.length)return null;
+  var sorted=vals.slice().sort(function(a,b){return a-b;});
+  var mid=Math.floor(sorted.length/2);
+  return (sorted.length%2)?sorted[mid]:(sorted[mid-1]+sorted[mid])/2;
+}
+function solveLinearSystem(mat, vec){
+  var n=mat.length;
+  var a=mat.map(function(row,i){return row.slice().concat([vec[i]]);});
+  for(var col=0;col<n;col++){
+    var pivot=col;
+    for(var row=col+1;row<n;row++){
+      if(Math.abs(a[row][col])>Math.abs(a[pivot][col]))pivot=row;
+    }
+    if(Math.abs(a[pivot][col])<1e-12)return null;
+    if(pivot!==col){
+      var tmp=a[col];a[col]=a[pivot];a[pivot]=tmp;
+    }
+    var div=a[col][col];
+    for(var j=col;j<=n;j++)a[col][j]/=div;
+    for(var r=0;r<n;r++){
+      if(r===col)continue;
+      var factor=a[r][col];
+      if(!factor)continue;
+      for(var c=col;c<=n;c++)a[r][c]-=factor*a[col][c];
+    }
+  }
+  return a.map(function(row){return row[n];});
+}
+function savitzkyGolayValue(data, idx, window, order){
+  var half=Math.floor(window/2);
+  var lo=Math.max(0,idx-half),hi=Math.min(data.length-1,idx+half);
+  var xs=[],ys=[];
+  for(var i=lo;i<=hi;i++){
+    if(!data[i]||!isFinite(data[i].amp))continue;
+    xs.push(i-idx);
+    ys.push(data[i].amp);
+  }
+  var deg=Math.min(order, xs.length-1);
+  if(xs.length===0)return null;
+  if(deg<=0)return ys.reduce(function(a,b){return a+b;},0)/ys.length;
+  var size=deg+1, mat=[], vec=[];
+  for(var r=0;r<size;r++){
+    mat[r]=[];
+    for(var c=0;c<size;c++){
+      var sum=0;
+      for(var k=0;k<xs.length;k++)sum+=Math.pow(xs[k],r+c);
+      mat[r][c]=sum;
+    }
+    var rhs=0;
+    for(var m=0;m<xs.length;m++)rhs+=ys[m]*Math.pow(xs[m],r);
+    vec[r]=rhs;
+  }
+  var coeff=solveLinearSystem(mat,vec);
+  return coeff&&isFinite(coeff[0])?coeff[0]:ys.reduce(function(a,b){return a+b;},0)/ys.length;
+}
+function smoothTraceData(data, method, window, polyOrder){
+  var src=Array.isArray(data)?data:[];
+  if(!src.length)return {data:[],window:window,polyOrder:polyOrder};
+  var mode=method||"moving-average";
+  if(mode==="none"){
+    return {data:src.map(function(p){return {freq:p.freq,amp:p.amp};}),window:1,polyOrder:null};
+  }
+  var win=normalizeOddWindowSize(window, src.length, 3);
+  if(win>src.length&&src.length>0)win=normalizeOddWindowSize(src.length, src.length, 1);
+  if(win<3){
+    return {data:src.map(function(p){return {freq:p.freq,amp:p.amp};}),window:win,polyOrder:polyOrder};
+  }
+  var half=Math.floor(win/2);
+  if(mode==="moving-average"){
+    return {data:src.map(function(p,idx){
+      var lo=Math.max(0,idx-half),hi=Math.min(src.length-1,idx+half),sum=0,count=0;
+      for(var i=lo;i<=hi;i++){ if(isFinite(src[i].amp)){sum+=src[i].amp;count++;} }
+      return {freq:p.freq,amp:count?sum/count:p.amp};
+    }),window:win,polyOrder:null};
+  }
+  if(mode==="median-filter"){
+    return {data:src.map(function(p,idx){
+      var lo=Math.max(0,idx-half),hi=Math.min(src.length-1,idx+half),vals=[];
+      for(var i=lo;i<=hi;i++){ if(isFinite(src[i].amp))vals.push(src[i].amp); }
+      var med=medianOfNumbers(vals);
+      return {freq:p.freq,amp:isFinite(med)?med:p.amp};
+    }),window:win,polyOrder:null};
+  }
+  if(mode==="savitzky-golay"){
+    var ord=Math.round(parseFloat(polyOrder));
+    if(!isFinite(ord))ord=2;
+    ord=Math.max(1,Math.min(ord,win-1));
+    return {data:src.map(function(p,idx){
+      var y=savitzkyGolayValue(src,idx,win,ord);
+      return {freq:p.freq,amp:isFinite(y)?y:p.amp};
+    }),window:win,polyOrder:ord};
+  }
+  return {data:src.map(function(p){return {freq:p.freq,amp:p.amp};}),window:win,polyOrder:polyOrder};
+}
+function applyBinaryTraceMathOp(aAmp, bAmp, op){
+  if(!isFinite(aAmp)||!isFinite(bAmp))return null;
+  if(op==="add")return aAmp+bAmp;
+  if(op==="subtract")return aAmp-bAmp;
+  if(op==="multiply")return aAmp*bAmp;
+  if(op==="divide"){
+    if(bAmp===0)return null;
+    return aAmp/bAmp;
+  }
+  return null;
+}
+function computeBinaryTraceMathData(aData, bData, requestedInterpolation, operation){
+  var window=getOverlapWindow(aData,bData);
+  if(!window)return {error:"No overlap between the selected traces."};
+  var aOverlap=getDataInWindow(aData,window);
+  var bOverlap=getDataInWindow(bData,window);
+  if(!aOverlap.length||!bOverlap.length)return {error:"No overlap between the selected traces."};
+  var effectiveInterpolation=requestedInterpolation;
+  var exactAligned=overlapArraysMatchExactly(aOverlap,bOverlap);
+  if(requestedInterpolation==="auto")effectiveInterpolation=exactAligned?"exact":"linear";
+  if(requestedInterpolation==="exact"&&!exactAligned){
+    return {error:"Exact only requires matching X samples over the overlap range."};
+  }
+  var dropped=0;
+  var data=aOverlap.map(function(p){
+    var bAmp=(effectiveInterpolation==="exact")?ampsFromExactMatch(bOverlap,p.freq):interpolateAmpAtFreq(bData,p.freq,effectiveInterpolation);
+    var amp=applyBinaryTraceMathOp(p.amp,bAmp,operation);
+    if(!isFinite(amp)){ dropped++; return null; }
+    return {freq:p.freq,amp:amp};
+  }).filter(Boolean);
+  if(!data.length)return {error:operation==="divide"?"A / B produced no valid points over the overlap range.":"No valid points were produced over the overlap range."};
+  return {data:data,appliedInterpolation:effectiveInterpolation,droppedPoints:dropped};
+}
 function traceSig(tr){
   if(!tr||!tr.data||!tr.data.length)return "";
   var a=tr.data[0],b=tr.data[tr.data.length-1];
@@ -383,9 +616,81 @@ function clampYValue(v){
   if(!isFinite(v))return null;
   return Math.max(-300,Math.min(300,v));
 }
+function interpolatePointAtX(a,b,x){
+  if(!a||!b||!isFinite(x)||!isFinite(a.freq)||!isFinite(b.freq)||!isFinite(a.amp)||!isFinite(b.amp))return null;
+  if(a.freq===b.freq)return {freq:x,amp:b.amp};
+  var t=(x-a.freq)/(b.freq-a.freq);
+  if(!isFinite(t))return null;
+  return {freq:x,amp:a.amp + (b.amp-a.amp)*t};
+}
 function getVisibleTraceData(tr,zoom){
   var data=getTraceData(tr);
-  return zoom?data.filter(function(p){return p.freq>=zoom.left&&p.freq<=zoom.right;}):data;
+  if(!zoom||!isFinite(zoom.left)||!isFinite(zoom.right)||zoom.right<=zoom.left)return data;
+  if(!data.length)return [];
+  var left=zoom.left,right=zoom.right;
+  var out=[];
+  var i;
+  for(i=0;i<data.length;i++){
+    var p=data[i];
+    if(!p||!isFinite(p.freq)||!isFinite(p.amp))continue;
+    if(p.freq<left)continue;
+    if(p.freq>right)break;
+    out.push(p);
+  }
+  var leftIdx=-1,rightIdx=-1;
+  for(i=0;i<data.length;i++){
+    if(data[i]&&isFinite(data[i].freq)){
+      if(data[i].freq<=left)leftIdx=i;
+      if(rightIdx===-1&&data[i].freq>=right)rightIdx=i;
+    }
+  }
+  if(out.length){
+    if(out[0].freq>left&&leftIdx>=0&&leftIdx+1<data.length){
+      var leftPt=interpolatePointAtX(data[leftIdx],data[leftIdx+1],left);
+      if(leftPt)out.unshift(leftPt);
+    } else if(out[0].freq===left){
+      out[0]={freq:left,amp:out[0].amp};
+    }
+    var last=out[out.length-1];
+    if(last.freq<right&&rightIdx>=0&&rightIdx-1>=0){
+      var rightPt=interpolatePointAtX(data[rightIdx-1],data[rightIdx],right);
+      if(rightPt)out.push(rightPt);
+    } else if(last.freq===right){
+      out[out.length-1]={freq:right,amp:last.amp};
+    }
+    return out;
+  }
+  if(leftIdx>=0&&leftIdx+1<data.length){
+    var a=data[leftIdx],b=data[leftIdx+1];
+    if(a&&b&&isFinite(a.freq)&&isFinite(b.freq)&&a.freq<=left&&b.freq>=right){
+      var pLeft=interpolatePointAtX(a,b,left);
+      var pRight=interpolatePointAtX(a,b,right);
+      return [pLeft,pRight].filter(Boolean);
+    }
+  }
+  return [];
+}
+function findHorizontalCrossings(tr, yVal, zoom){
+  var data=getVisibleTraceData(tr,zoom).filter(function(p){return p&&isFinite(p.freq)&&isFinite(p.amp);});
+  if(data.length<2||!isFinite(yVal))return [];
+  var out=[];
+  function pushFreq(freq){
+    if(!isFinite(freq))return;
+    for(var i=0;i<out.length;i++){ if(Math.abs(out[i]-freq)<=1e-9)return; }
+    out.push(freq);
+  }
+  for(var i=0;i<data.length;i++){
+    if(data[i].amp===yVal)pushFreq(data[i].freq);
+    if(i===0)continue;
+    var a=data[i-1],b=data[i];
+    var da=a.amp-yVal, db=b.amp-yVal;
+    if(da===0||db===0)continue;
+    if(da*db<0){
+      var freq=(isFinite(a.freq)&&isFinite(b.freq)&&b.amp!==a.amp)?(a.freq + (b.freq-a.freq)*((yVal-a.amp)/(b.amp-a.amp))):null;
+      pushFreq(freq);
+    }
+  }
+  return out;
 }
 function getSafeYRangeFromData(allTr,vis,zoom){
   var mn=Infinity,mx=-Infinity,found=false;
@@ -423,6 +728,16 @@ function sanitizeYDomain(z){
 }
 function makeYTicksFromDomain(domain){
   return makeNiceTicks(domain,9);
+}
+function getPrimaryTickStep(ticks, fallbackSpan){
+  if(ticks&&ticks.length>1){
+    for(var i=1;i<ticks.length;i++){
+      var step=Math.abs(ticks[i]-ticks[i-1]);
+      if(isFinite(step)&&step>0)return step;
+    }
+  }
+  if(isFinite(fallbackSpan)&&fallbackSpan>0)return fallbackSpan/8;
+  return null;
 }
 function makeNiceTicks(domain,count){
   if(!domain||!isFinite(domain.min)||!isFinite(domain.max)||domain.max<=domain.min)return undefined;
@@ -715,7 +1030,7 @@ function MarkerItem(props){
   return h("div",{onClick:function(){onSelect(i);},style:{marginBottom:6,padding:"4px 6px",background:bg,border:"1px solid "+bd,borderRadius:4,cursor:"pointer"}},inner);
 }
 function RefLineItem(props){
-  var rl=props.refLine, allTr=props.allTr, vis=props.vis, yU=props.yU, setRefLines=props.setRefLines, C=props.C;
+  var rl=props.refLine, allTr=props.allTr, vis=props.vis, yU=props.yU, setRefLines=props.setRefLines, C=props.C, zoom=props.zoom;
   var selected=props.selectedRefLineId===rl.id;
   var col=rl.type==="h"?C.refH:C.refV;
   var vScale=Math.abs(rl.value)>=1e9?1e9:Math.abs(rl.value)>=1e6?1e6:Math.abs(rl.value)>=1e3?1e3:1;
@@ -749,6 +1064,13 @@ function RefLineItem(props){
       var np=nearestPoint(tr,rl.value,null,null);
       if(!np||!isFinite(np.amp))return;
       block.push(h(MR,{key:"rlv-"+rl.id+"-"+tr.name,label:tr.dn||tr.name,value:np.amp.toFixed(2)+" "+yU,vc:C.tr[i%C.tr.length],hlColor:C.tr[i%C.tr.length]}));
+    });
+  } else {
+    allTr.filter(function(tr){return vis[tr.name];}).forEach(function(tr,i){
+      var hits=findHorizontalCrossings(tr,rl.value,zoom);
+      hits.forEach(function(freq,hitIdx){
+        block.push(h(MR,{key:"rlh-hit-"+rl.id+"-"+tr.name+"-"+hitIdx,label:(tr.dn||tr.name)+(hits.length>1?(" #"+(hitIdx+1)):""),value:fmtF(freq,true),vc:C.tr[i%C.tr.length],hlColor:C.tr[i%C.tr.length]}));
+      });
     });
   }
   return h("div",{onClick:function(){props.onSelect(rl.id);},style:{marginBottom:6,padding:"4px 6px",background:selected?(col+"11"):"var(--card)",border:"1px solid "+(selected?col:"var(--border)"),borderRadius:4,cursor:"pointer"}},block);
@@ -1094,7 +1416,8 @@ function useChartNav(dep){
       if(ev.shiftKey){
         var span=base.max-base.min;
         if(!(isFinite(span)&&span>0))return;
-        var step=Math.max(span*0.08,0.25);
+        var step=getPrimaryTickStep(makeYTicksFromDomain(base),span);
+        if(!(isFinite(step)&&step>0))return;
         var delta=ev.deltaY>0 ? -step : step;
         var next=sanitizeYDomain({min:base.min+delta,max:base.max+delta});
         if(!next)return;
@@ -1663,24 +1986,50 @@ function useIP3Workflow(dep){
 }
 
 
-function deriveAxisInfo(files,fUnit,hasData){
+function getTraceYUnit(tr){
+  return (tr&&tr.units&&typeof tr.units.y==="string"&&tr.units.y.trim())?tr.units.y.trim():"";
+}
+function getEffectiveTraceYUnit(tr){
+  var unit=getTraceYUnit(tr);
+  if(unit)return unit;
+  if(tr&&isDerivedTrace(tr)&&tr.operationType==="subtract")return "dB";
+  return "";
+}
+function getYAxisTextForUnit(unit, tr){
+  var u=(unit||"").trim();
+  var norm=normalizeUnitName(u);
+  if(!u)return "Amplitude";
+  if(norm==="dbm"||norm==="dbw")return "Power ("+u+")";
+  if(norm==="dbuv"||norm==="dbµv"||norm==="dbμv"||norm==="dbmv")return "Level ("+u+")";
+  if(norm==="db"){
+    if(tr&&tr.operationType==="subtract")return "Level Difference (dB)";
+    return "Magnitude (dB)";
+  }
+  return "Amplitude ("+u+")";
+}
+function deriveAxisInfo(allTr, vis, selectedTraceName, fUnit, hasData){
   var xName=hasData?"Frequency":"";
-  var yName=hasData?"Amplitude":"";
-  var yUnit="dBm";
-  for(var i=0;i<(files||[]).length;i++){
-    var meta=files[i]?.meta||{};
-    var cand=[meta["Ref Level"],meta["Level"],meta["Amplitude"],meta["Unit"]];
-    for(var j=0;j<cand.length;j++){
-      var v=cand[j];
-      if(typeof v==="object"&&v&&typeof v.unit==="string"&&v.unit.trim()){yUnit=v.unit.trim();break;}
-      if(typeof v==="string"&&/^[a-zA-Z%/]+$/.test(v.trim())){yUnit=v.trim();break;}
-    }
-    if(yUnit!=="dBm")break;
+  var visible=(allTr||[]).filter(function(tr){return vis&&vis[tr.name]&&getTraceData(tr).length;});
+  var active=(selectedTraceName?((allTr||[]).find(function(tr){return tr.name===selectedTraceName;})||null):null);
+  var target=(active&&visible.some(function(tr){return tr.name===active.name;}))?active:(visible[0]||null);
+  var unitsSeen={};
+  visible.forEach(function(tr){ var u=getEffectiveTraceYUnit(tr); if(u)unitsSeen[normalizeUnitName(u)]=u; });
+  var unitKeys=Object.keys(unitsSeen);
+  var yUnit=target?getEffectiveTraceYUnit(target):"";
+  var yLabel="Amplitude";
+  if(unitKeys.length>1){
+    yUnit="";
+    yLabel="Amplitude";
+  } else if(yUnit){
+    yLabel=getYAxisTextForUnit(yUnit,target);
+  } else if(unitKeys.length===1){
+    yUnit=unitsSeen[unitKeys[0]];
+    yLabel=getYAxisTextForUnit(yUnit,target);
   }
   return {
     xLabel:hasData?(xName+" ("+(fUnit||"Hz")+")"):"",
-    yLabel:hasData?(yName+" ("+yUnit+")"):"",
-    yUnit:yUnit
+    yLabel:hasData?yLabel:"",
+    yUnit:yUnit||""
   };
 }
 
@@ -1785,6 +2134,146 @@ function NoisePSDCard(props){
   return items;
 }
 
+function TraceOpsCard(props){
+  var C=props.C, items=[];
+  function opBtn(key,label,color){
+    var active=!!props.openOps[key];
+    return h("button",{key:key,onClick:function(){props.setOpenOps(function(prev){var next=Object.assign({},prev);next[key]=!next[key];return next;});},style:{padding:"5px 8px",background:active?(color+"22"):"transparent",border:"1px solid "+(active?color:"var(--border)"),color:active?color:"var(--muted)",borderRadius:4,cursor:"pointer",fontSize:11}},label);
+  }
+  items.push(h(AnalysisFeatureCard,{key:"head",first:true,title:"Trace Operations",description:"Create derived traces without changing the imported raw source. This is the Phase 2 home for offset, smoothing, subtraction, and future trace math."}));
+  if(!props.traceOptions.length){
+    items.push(h("div",{key:"none",style:{fontSize:11,color:"var(--muted)"}},"Import at least one raw trace to enable derived operations."));
+    return items;
+  }
+  items.push(h("div",{key:"op-tabs",style:{display:"flex",gap:6,marginBottom:10,flexWrap:"wrap"}},
+    opBtn("offset","Offset",C.tr[4]),
+    opBtn("scale","Scale",C.tr[3]||C.accent),
+    opBtn("smoothing","Smoothing",C.tr[5]||C.accent),
+    opBtn("subtract","Trace Math",C.tr[1])
+  ));
+  if(props.openOps.offset){
+    items.push(h(Sec,{key:"offset-sec"},"Offset"));
+    items.push(h("div",{key:"src",style:{display:"flex",alignItems:"center",gap:6,marginBottom:6}},
+      h("span",{style:{fontSize:11,color:"var(--muted)",minWidth:46}},"Source"),
+      h("select",{value:props.offsetSource,onChange:function(ev){props.setOffsetSource(ev.target.value);},style:{flex:1,background:"var(--bg)",color:"var(--text)",border:"1px solid var(--border)",borderRadius:4,fontSize:11,padding:"3px 6px"}},
+        props.traceOptions.map(function(tr){return h("option",{key:tr.name,value:tr.name},getTraceLabel(tr));}))
+    ));
+    items.push(h("div",{key:"offset",style:{display:"flex",alignItems:"center",gap:6,marginBottom:8}},
+      h("span",{style:{fontSize:11,color:"var(--muted)",minWidth:46}},"Offset"),
+      h("input",{type:"number",value:props.offsetValue,onChange:function(ev){props.setOffsetValue(ev.target.value);},step:"0.1",style:{flex:1,background:"var(--bg)",color:"var(--text)",border:"1px solid var(--border)",borderRadius:4,fontSize:11,padding:"3px 6px"}}),
+      h("span",{style:{fontSize:11,color:"var(--muted)"}},"dB")
+    ));
+    items.push(h("button",{key:"create",onClick:props.createOffsetDerivedTrace,disabled:!props.offsetSource||!isFinite(parseFloat(props.offsetValue)),style:{width:"100%",padding:"5px 8px",background:"transparent",border:"1px solid var(--border)",color:C.tr[4],borderRadius:4,cursor:!props.offsetSource||!isFinite(parseFloat(props.offsetValue))?"not-allowed":"pointer",fontSize:11,opacity:!props.offsetSource||!isFinite(parseFloat(props.offsetValue))?0.55:1,marginBottom:8}},"Create Offset Trace"));
+    items.push(h("div",{key:"note",style:{fontSize:11,color:"var(--muted)",lineHeight:1.4}},"Flat amplitude correction on a copied trace. The source trace stays unchanged."));
+  }
+  if(props.openOps.scale){
+    items.push(h(Sec,{key:"scale-sec"},"Scale"));
+    items.push(h("div",{key:"scale-src",style:{display:"flex",alignItems:"center",gap:6,marginBottom:6}},
+      h("span",{style:{fontSize:11,color:"var(--muted)",minWidth:46}},"Source"),
+      h("select",{value:props.scaleSource,onChange:function(ev){props.setScaleSource(ev.target.value);},style:{flex:1,background:"var(--bg)",color:"var(--text)",border:"1px solid var(--border)",borderRadius:4,fontSize:11,padding:"3px 6px"}},
+        props.traceOptions.map(function(tr){return h("option",{key:"sc-"+tr.name,value:tr.name},getTraceLabel(tr));}))
+    ));
+    items.push(h("div",{key:"scale-val",style:{display:"flex",alignItems:"center",gap:6,marginBottom:8}},
+      h("span",{style:{fontSize:11,color:"var(--muted)",minWidth:46}},"Factor"),
+      h("input",{type:"number",value:props.scaleValue,onChange:function(ev){props.setScaleValue(ev.target.value);},step:"0.1",style:{flex:1,background:"var(--bg)",color:"var(--text)",border:"1px solid var(--border)",borderRadius:4,fontSize:11,padding:"3px 6px"}}),
+      h("span",{style:{fontSize:11,color:"var(--muted)"}},"x")
+    ));
+    items.push(h("button",{key:"scale-create",onClick:props.createScaledDerivedTrace,disabled:!props.scaleSource||!isFinite(parseFloat(props.scaleValue)),style:{width:"100%",padding:"5px 8px",background:"transparent",border:"1px solid var(--border)",color:C.tr[3]||C.accent,borderRadius:4,cursor:!props.scaleSource||!isFinite(parseFloat(props.scaleValue))?"not-allowed":"pointer",fontSize:11,opacity:!props.scaleSource||!isFinite(parseFloat(props.scaleValue))?0.55:1,marginBottom:8}},"Create Scaled Trace"));
+    items.push(h("div",{key:"scale-note",style:{fontSize:11,color:"var(--muted)",lineHeight:1.4}},"Scale multiplies the source trace amplitudes by a constant factor. Use it when you want multiplicative correction instead of additive offset."));
+  }
+  if(props.openOps.smoothing){
+    items.push(h(Sec,{key:"smooth-sec"},"Smoothing"));
+    items.push(h("div",{key:"sm-src",style:{display:"flex",alignItems:"center",gap:6,marginBottom:6}},
+      h("span",{style:{fontSize:11,color:"var(--muted)",minWidth:46}},"Source"),
+      h("select",{value:props.smoothSource,onChange:function(ev){props.setSmoothSource(ev.target.value);},style:{flex:1,background:"var(--bg)",color:"var(--text)",border:"1px solid var(--border)",borderRadius:4,fontSize:11,padding:"3px 6px"}},
+        props.traceOptions.map(function(tr){return h("option",{key:"sm-"+tr.name,value:tr.name},getTraceLabel(tr));}))
+    ));
+    items.push(h("div",{key:"sm-method",style:{display:"flex",alignItems:"center",gap:6,marginBottom:6}},
+      h("span",{style:{fontSize:11,color:"var(--muted)",minWidth:46}},"Method"),
+      h("select",{value:props.smoothMethod,onChange:function(ev){props.setSmoothMethod(ev.target.value);},style:{flex:1,background:"var(--bg)",color:"var(--text)",border:"1px solid var(--border)",borderRadius:4,fontSize:11,padding:"3px 6px"}},
+        h("option",{value:"none"},"None"),
+        h("option",{value:"moving-average"},"Moving Average"),
+        h("option",{value:"median-filter"},"Median Filter"),
+        h("option",{value:"savitzky-golay"},"Savitzky-Golay")
+      )
+    ));
+    if(props.smoothMethod!=="none"){
+      items.push(h("div",{key:"sm-win",style:{display:"flex",alignItems:"center",gap:6,marginBottom:6}},
+        h("span",{style:{fontSize:11,color:"var(--muted)",minWidth:46}},"Window"),
+        h("input",{type:"number",value:props.smoothWindow,onChange:function(ev){props.setSmoothWindow(ev.target.value);},min:"3",step:"2",style:{flex:1,background:"var(--bg)",color:"var(--text)",border:"1px solid var(--border)",borderRadius:4,fontSize:11,padding:"3px 6px"}}),
+        h("span",{style:{fontSize:11,color:"var(--muted)"}},"pts")
+      ));
+    }
+    if(props.smoothMethod==="savitzky-golay"){
+      items.push(h("div",{key:"sm-poly",style:{display:"flex",alignItems:"center",gap:6,marginBottom:8}},
+        h("span",{style:{fontSize:11,color:"var(--muted)",minWidth:46}},"Order"),
+        h("input",{type:"number",value:props.smoothPolyOrder,onChange:function(ev){props.setSmoothPolyOrder(ev.target.value);},min:"1",step:"1",style:{flex:1,background:"var(--bg)",color:"var(--text)",border:"1px solid var(--border)",borderRadius:4,fontSize:11,padding:"3px 6px"}}),
+        h("span",{style:{fontSize:11,color:"var(--muted)"}},"poly")
+      ));
+    }
+    items.push(h("button",{key:"sm-create",onClick:props.createSmoothedDerivedTrace,disabled:!props.smoothSource,style:{width:"100%",padding:"5px 8px",background:"transparent",border:"1px solid var(--border)",color:C.tr[5]||C.accent,borderRadius:4,cursor:!props.smoothSource?"not-allowed":"pointer",fontSize:11,opacity:!props.smoothSource?0.55:1,marginBottom:8}},props.smoothMethod==="none"?"Create Raw Copy":"Create Smoothed Trace"));
+    items.push(h("div",{key:"sm-note",style:{fontSize:11,color:"var(--muted)",lineHeight:1.4}},
+      props.smoothMethod==="none"
+        ?"None keeps the source trace unchanged and creates a direct copy with no smoothing."
+        :props.smoothMethod==="moving-average"
+          ?"Moving Average is the current simple smoother and uses an odd window size."
+          :props.smoothMethod==="median-filter"
+            ?"Median Filter is useful for removing isolated spikes while keeping the baseline stable."
+            :"Savitzky-Golay smooths while preserving peak shape better than Moving Average, but still needs sensible window/order settings."
+    ));
+  }
+  if(props.openOps.subtract){
+    items.push(h(Sec,{key:"sub-sec"},"Trace Math"));
+    items.push(h("div",{key:"sub-op",style:{display:"flex",alignItems:"center",gap:6,marginBottom:6}},
+      h("span",{style:{fontSize:11,color:"var(--muted)",minWidth:46}},"Op"),
+      h("select",{value:props.traceMathOperation,onChange:function(ev){props.setTraceMathOperation(ev.target.value);},style:{flex:1,background:"var(--bg)",color:"var(--text)",border:"1px solid var(--border)",borderRadius:4,fontSize:11,padding:"3px 6px"}},
+        h("option",{value:"subtract"},"A - B"),
+        h("option",{value:"add"},"A + B"),
+        h("option",{value:"multiply"},"A * B"),
+        h("option",{value:"divide"},"A / B")
+      )
+    ));
+    items.push(h("div",{key:"sub-a",style:{display:"flex",alignItems:"center",gap:6,marginBottom:6}},
+      h("span",{style:{fontSize:11,color:"var(--muted)",minWidth:46}},"A"),
+      h("select",{value:props.subtractA,onChange:function(ev){props.setSubtractA(ev.target.value);},style:{flex:1,background:"var(--bg)",color:"var(--text)",border:"1px solid var(--border)",borderRadius:4,fontSize:11,padding:"3px 6px"}},
+        props.traceOptions.map(function(tr){return h("option",{key:"sub-a-"+tr.name,value:tr.name},getTraceLabel(tr));}))
+    ));
+    items.push(h("div",{key:"sub-b",style:{display:"flex",alignItems:"center",gap:6,marginBottom:8}},
+      h("span",{style:{fontSize:11,color:"var(--muted)",minWidth:46}},"B"),
+      h("select",{value:props.subtractB,onChange:function(ev){props.setSubtractB(ev.target.value);},style:{flex:1,background:"var(--bg)",color:"var(--text)",border:"1px solid var(--border)",borderRadius:4,fontSize:11,padding:"3px 6px"}},
+        props.traceOptions.map(function(tr){return h("option",{key:"sub-b-"+tr.name,value:tr.name},getTraceLabel(tr));}))
+    ));
+    items.push(h("div",{key:"sub-int",style:{display:"flex",alignItems:"center",gap:6,marginBottom:8}},
+      h("span",{style:{fontSize:11,color:"var(--muted)",minWidth:46}},"Interp"),
+      h("select",{value:props.subtractInterpolation,onChange:function(ev){props.setSubtractInterpolation(ev.target.value);},style:{flex:1,background:"var(--bg)",color:"var(--text)",border:"1px solid var(--border)",borderRadius:4,fontSize:11,padding:"3px 6px"}},
+        h("option",{value:"auto"},"Auto"),
+        h("option",{value:"exact"},"Exact only"),
+        h("option",{value:"linear"},"Linear"),
+        h("option",{value:"nearest"},"Nearest"),
+        h("option",{value:"previous"},"Previous"),
+        h("option",{value:"next"},"Next"),
+        h("option",{value:"cubic"},"Cubic spline")
+      )
+    ));
+    items.push(h("button",{key:"sub-create",onClick:props.createTraceMathDerivedTrace,disabled:!props.subtractA||!props.subtractB||props.subtractA===props.subtractB,style:{width:"100%",padding:"5px 8px",background:"transparent",border:"1px solid var(--border)",color:C.tr[1],borderRadius:4,cursor:!props.subtractA||!props.subtractB||props.subtractA===props.subtractB?"not-allowed":"pointer",fontSize:11,opacity:!props.subtractA||!props.subtractB||props.subtractA===props.subtractB?0.55:1,marginBottom:8}},props.traceMathOperation==="subtract"?"Create A - B Trace":props.traceMathOperation==="add"?"Create A + B Trace":props.traceMathOperation==="multiply"?"Create A * B Trace":"Create A / B Trace"));
+    if(props.traceMathUnitWarning)items.push(h("div",{key:"sub-unit-note",style:{fontSize:11,color:"#b8860b",lineHeight:1.4,marginBottom:6}},props.traceMathUnitWarning));
+    if(props.traceOpsError)items.push(h("div",{key:"sub-err",style:{fontSize:11,color:"#f55",lineHeight:1.4,marginBottom:6}},props.traceOpsError));
+    items.push(h("div",{key:"sub-note",style:{fontSize:11,color:"var(--muted)",lineHeight:1.4}},"Binary trace math uses A's grid over the overlap range only. Auto uses exact matching when possible, otherwise linear. Exact only rejects mismatched X grids. Previous/Next are step modes, and cubic can overshoot measured RF data."));
+  }
+  return items;
+}
+
+function AnalysisMenuCard(props){
+  var C=props.C, items=[];
+  items.push(h(AnalysisFeatureCard,{key:"head",first:!props.hasTraceOps,title:"Analysis",description:"Measurement and numeric analysis tools live here. Open one or more functions below."}));
+  items.push(h("div",{key:"btns",style:{display:"flex",gap:6,marginBottom:8,flexWrap:"wrap"}},
+    h("button",{onClick:function(){props.setShowNoise(function(p){return !p;});},style:{padding:"5px 8px",background:props.showNoise?C.noiseTr+"22":"transparent",border:"1px solid "+(props.showNoise?C.noiseTr:"var(--border)"),color:props.showNoise?C.noiseTr:"var(--muted)",borderRadius:4,cursor:"pointer",fontSize:11}},"Noise PSD"),
+    h("button",{onClick:function(){props.setShowIP3(function(p){return !p;});},style:{padding:"5px 8px",background:props.showIP3?C.ip3C+"22":"transparent",border:"1px solid "+(props.showIP3?C.ip3C:"var(--border)"),color:props.showIP3?C.ip3C:"var(--muted)",borderRadius:4,cursor:"pointer",fontSize:11}},"IP3 / TOI")
+  ));
+  if(!props.showNoise&&!props.showIP3)items.push(h("div",{key:"idle",style:{fontSize:11,color:"var(--muted)",lineHeight:1.4}},"Choose a function to open its controls here. Future items like OBW and THD will live in this same Analysis panel."));
+  return items;
+}
+
 function IP3Card(props){
   var C=props.C, items=[];
   items.push(h(AnalysisFeatureCard,{key:"head",title:"IP3 / TOI (saved numbers)",description:"Select a visible marker, assign it to F1/F2/IM3L/IM3U, and compute IP3 directly from those marker roles. Auto-pick can fill the remaining points on the same trace from the selected marker."}));
@@ -1886,8 +2375,25 @@ function App(){
   var _do=useState(false),showDots=_do[0],setShowDots=_do[1];
   var _sm=useState(false),showMeta=_sm[0],setShowMeta=_sm[1];
   var _ssb=useState(true),showSidebar=_ssb[0],setShowSidebar=_ssb[1];
+  var _sto=useState(false),showTraceOps=_sto[0],setShowTraceOps=_sto[1];
+  var _toos=useState({offset:false,scale:false,smoothing:false,subtract:false}),traceOpsOpenSections=_toos[0],setTraceOpsOpenSections=_toos[1];
+  var _sap=useState(false),showAnalysisPanel=_sap[0],setShowAnalysisPanel=_sap[1];
   var _sd=useState("right"),searchDirection=_sd[0],setSearchDirection=_sd[1];
   var _nm=useState(false),newMarkerArmed=_nm[0],setNewMarkerArmed=_nm[1];
+  var _drv=useState([]),derivedTraces=_drv[0],setDerivedTraces=_drv[1];
+  var _ofsSrc=useState(""),offsetSource=_ofsSrc[0],setOffsetSource=_ofsSrc[1];
+  var _ofsVal=useState("0"),offsetValue=_ofsVal[0],setOffsetValue=_ofsVal[1];
+  var _sclSrc=useState(""),scaleSource=_sclSrc[0],setScaleSource=_sclSrc[1];
+  var _sclVal=useState("1"),scaleValue=_sclVal[0],setScaleValue=_sclVal[1];
+  var _smSrc=useState(""),smoothSource=_smSrc[0],setSmoothSource=_smSrc[1];
+  var _smMeth=useState("moving-average"),smoothMethod=_smMeth[0],setSmoothMethod=_smMeth[1];
+  var _smWin=useState("5"),smoothWindow=_smWin[0],setSmoothWindow=_smWin[1];
+  var _smPoly=useState("2"),smoothPolyOrder=_smPoly[0],setSmoothPolyOrder=_smPoly[1];
+  var _subA=useState(""),subtractA=_subA[0],setSubtractA=_subA[1];
+  var _subB=useState(""),subtractB=_subB[0],setSubtractB=_subB[1];
+  var _subOp=useState("subtract"),traceMathOperation=_subOp[0],setTraceMathOperation=_subOp[1];
+  var _subI=useState("auto"),subtractInterpolation=_subI[0],setSubtractInterpolation=_subI[1];
+  var _toe=useState(""),traceOpsError=_toe[0],setTraceOpsError=_toe[1];
   var markerCtl=useMarkers(),showMarkers=markerCtl.showMarkers,setShowMarkers=markerCtl.setShowMarkers,markers=markerCtl.markers,setMarkers=markerCtl.setMarkers,mkrMode=markerCtl.mkrMode,setMkrMode=markerCtl.setMkrMode,markerTrace=markerCtl.markerTrace,setMarkerTrace=markerCtl.setMarkerTrace,dRef=markerCtl.dRef,setDRef=markerCtl.setDRef,rmMkr=markerCtl.rmMkr,selectedMkrIdx=markerCtl.selectedMkrIdx,setSelectedMkrIdx=markerCtl.setSelectedMkrIdx;
   var _dt=useState(false),showDT=_dt[0],setShowDT=_dt[1];
   var _dtT=useState(null),dtTrace=_dtT[0],setDtTrace=_dtT[1];
@@ -1915,8 +2421,10 @@ function App(){
     panRef:panRef,suppressClickRef:suppressClickRef,
     clearMarkers:clearMarkers,resetIP3:ip3Ctl.resetIP3
   });
-  var files=fileCtl.files,setFiles=fileCtl.setFiles,error=fileCtl.error,setError=fileCtl.setError,vis=fileCtl.vis,setVis=fileCtl.setVis,allTr=fileCtl.allTr,fileMap=fileCtl.fileMap,m0=fileCtl.m0;
-  var loadFiles=fileCtl.loadFiles,onDrop=fileCtl.onDrop,removeFile=fileCtl.removeFile,removeTrace=fileCtl.removeTrace,clearAllFiles=fileCtl.clearAllFiles;
+  var files=fileCtl.files,setFiles=fileCtl.setFiles,error=fileCtl.error,setError=fileCtl.setError,vis=fileCtl.vis,setVis=fileCtl.setVis,rawTr=fileCtl.allTr,fileMap=fileCtl.fileMap,m0=fileCtl.m0;
+  var loadFiles=fileCtl.loadFiles,onDrop=fileCtl.onDrop,removeFile=fileCtl.removeFile,removeRawTrace=fileCtl.removeTrace,baseClearAllFiles=fileCtl.clearAllFiles;
+  var allTr=useMemo(function(){return rawTr.concat(derivedTraces);},[rawTr,derivedTraces]);
+  var traceOptions=useMemo(function(){return allTr.filter(function(tr){return tr&&getTraceData(tr).length;});},[allTr]);
 
   function getTraceByName(name){return allTr.find(function(t){return t.name===name;})||null;}
   function getTraceById(id){return allTr.find(function(t){return getTraceId(t)===id;})||null;}
@@ -1928,14 +2436,258 @@ function App(){
     var f=getTraceFile(name);
     return f?f.meta:{};
   }
+  function getTraceMathUnitWarning(aName,bName,op){
+    var a=getTraceByName(aName),b=getTraceByName(bName);
+    var aUnit=getEffectiveTraceYUnit(a);
+    var bUnit=getEffectiveTraceYUnit(b);
+    var aNorm=normalizeUnitName(aUnit);
+    var bNorm=normalizeUnitName(bUnit);
+    if(!aNorm||!bNorm)return "";
+    var sameUnit=aNorm===bNorm;
+    var aRatio=isDbRatioUnit(aNorm), bRatio=isDbRatioUnit(bNorm);
+    var aAbs=isLogLevelUnit(aNorm), bAbs=isLogLevelUnit(bNorm);
+    if(!sameUnit){
+      if((aAbs&&bRatio)||(aRatio&&bAbs)){
+        if(op==="add"||op==="subtract")return "";
+        return "Warning: direct multiply/divide on logarithmic units is usually not physically meaningful.";
+      }
+      if((isLogUnit(aNorm)||isLogUnit(bNorm))&&(op==="multiply"||op==="divide")){
+        return "Warning: direct multiply/divide on logarithmic units is usually not physically meaningful.";
+      }
+      if((aAbs||bAbs)&&(op==="add"||op==="subtract"))return "Warning: direct math between mixed logarithmic units may not be physically meaningful.";
+      return "";
+    }
+    if(isDbRatioUnit(aNorm)){
+      if(op==="multiply"||op==="divide")return "Warning: direct math on dB values is usually not physically meaningful.";
+      return "";
+    }
+    if(isLogLevelUnit(aNorm)){
+      if(op==="add")return "Warning: adding absolute logarithmic levels directly is not true physical addition.";
+      if(op==="subtract")return "Note: subtracting absolute logarithmic levels gives a level difference in dB.";
+      if(op==="multiply"||op==="divide")return "Warning: direct multiply/divide on logarithmic units is usually not physically meaningful.";
+    }
+    return "";
+  }
+  function buildDerivedLabel(base){
+    var idx=1;
+    var candidate=base+" "+idx;
+    var used={};
+    allTr.forEach(function(tr){
+      used[getTraceLabel(tr)]=true;
+      used[tr.name]=true;
+    });
+    while(used[candidate]){
+      idx++;
+      candidate=base+" "+idx;
+    }
+    return candidate;
+  }
+  function addDerivedTrace(drv){
+    setDerivedTraces(function(prev){return prev.concat([drv]);});
+    setVis(function(v){var nv=Object.assign({},v);nv[drv.name]=true;return nv;});
+  }
+  function removeDerivedTrace(traceName){
+    var doomed=getTraceByName(traceName);
+    if(!doomed||!isDerivedTrace(doomed))return;
+    setDerivedTraces(function(prev){return prev.filter(function(tr){return tr.name!==traceName;});});
+    setVis(function(v){var nv=Object.assign({},v);delete nv[traceName];return nv;});
+    setMarkers(function(prev){return prev.filter(function(mk){return mk.trace!==traceName;});});
+    setNoiseResults(function(lst){return lst.filter(function(r){return r.sourceTraceId!==getTraceId(doomed)&&r.sourceTraceName!==traceName;});});
+    setIP3Results(function(lst){return lst.filter(function(r){
+      var roles=r.parameters&&r.parameters.roles?r.parameters.roles:{};
+      return [r.sourceTraceId,r.sourceTraceName,roles.f1Trace,roles.f2Trace,roles.im3lTrace,roles.im3uTrace].indexOf(traceName)===-1;
+    });});
+    if(dtTrace===traceName)setDtTrace(null);
+    if(noiseSource===traceName)setNoiseSource(null);
+    if(dRef!=null&&markers[dRef]&&markers[dRef].trace===traceName)setDRef(null);
+    if(selectedMkrIdx!==null&&selectedMkrIdx!==undefined&&markers[selectedMkrIdx]&&markers[selectedMkrIdx].trace===traceName)setSelectedMkrIdx(null);
+  }
+  function removeTrace(traceName){
+    var tr=getTraceByName(traceName);
+    if(tr&&isDerivedTrace(tr))removeDerivedTrace(traceName);
+    else removeRawTrace(traceName);
+  }
+  function clearAllFiles(){
+    setDerivedTraces([]);
+    setOffsetSource("");
+    setOffsetValue("0");
+    setScaleSource("");
+    setScaleValue("1");
+    setSmoothSource("");
+    setSmoothMethod("moving-average");
+    setSmoothWindow("5");
+    setSmoothPolyOrder("2");
+    setSubtractA("");
+    setSubtractB("");
+    setTraceMathOperation("subtract");
+    setSubtractInterpolation("auto");
+    setTraceOpsError("");
+    setShowTraceOps(false);
+    setShowAnalysisPanel(false);
+    baseClearAllFiles();
+  }
+  function createOffsetDerivedTrace(){
+    var src=getTraceByName(offsetSource)||traceOptions[0]||null;
+    var offsetDb=parseFloat(offsetValue);
+    if(!src||!isFinite(offsetDb))return;
+    var srcData=getTraceData(src);
+    if(!srcData.length)return;
+    var sign=offsetDb>=0?"+":"";
+    var label=buildDerivedLabel((getTraceLabel(src)||src.name)+" ["+sign+offsetDb.toFixed(2)+" dB]");
+    var data=srcData.map(function(p){return {freq:p.freq,amp:p.amp+offsetDb};});
+    var drv=createDerivedTrace(src,"offset",{offsetDb:offsetDb},data,label);
+    addDerivedTrace(drv);
+    setTraceOpsError("");
+  }
+  function createScaledDerivedTrace(){
+    var src=getTraceByName(scaleSource)||traceOptions[0]||null;
+    var factor=parseFloat(scaleValue);
+    if(!src||!isFinite(factor))return;
+    var srcData=getTraceData(src);
+    if(!srcData.length)return;
+    var label=buildDerivedLabel((getTraceLabel(src)||src.name)+" [x"+factor.toFixed(3)+"]");
+    var data=srcData.map(function(p){return {freq:p.freq,amp:p.amp*factor};});
+    var drv=createDerivedTrace(src,"scale",{factor:factor},data,label);
+    addDerivedTrace(drv);
+    setTraceOpsError("");
+  }
+  function createSmoothedDerivedTrace(){
+    var src=getTraceByName(smoothSource)||traceOptions[0]||null;
+    if(!src)return;
+    var srcData=getTraceData(src);
+    if(!srcData.length)return;
+    var method=smoothMethod||"moving-average";
+    var result=smoothTraceData(srcData,method,smoothWindow,smoothPolyOrder);
+    var data=result.data;
+    var methodLabel=method==="none"?"none":method==="moving-average"?"ma":method==="median-filter"?"median":"sgolay";
+    var label=buildDerivedLabel((getTraceLabel(src)||src.name)+" [smooth "+methodLabel+(result.window>1?(" "+result.window):"")+(result.polyOrder!=null?(" p"+result.polyOrder):"")+"]");
+    var drv=createDerivedTrace(src,"smoothing",{method:method,windowPoints:result.window,polyOrder:result.polyOrder},data,label);
+    addDerivedTrace(drv);
+    setSmoothWindow(String(result.window||1));
+    if(result.polyOrder!=null)setSmoothPolyOrder(String(result.polyOrder));
+    setTraceOpsError("");
+  }
+  function createTraceMathDerivedTrace(){
+    var a=getTraceByName(subtractA)||traceOptions[0]||null;
+    var b=getTraceByName(subtractB)||traceOptions[1]||null;
+    if(!a||!b||a.name===b.name){
+      setTraceOpsError("Choose two different source traces for trace math.");
+      return;
+    }
+    var aUnits=a.units||{},bUnits=b.units||{};
+    if((aUnits.y||"")!== (bUnits.y||"")){
+      setTraceOpsError("Trace math requires matching Y units.");
+      return;
+    }
+    var aData=getTraceData(a),bData=getTraceData(b);
+    if(!aData.length||!bData.length){
+      setTraceOpsError("Trace math requires both traces to have data.");
+      return;
+    }
+    var calc=computeBinaryTraceMathData(aData,bData,subtractInterpolation,traceMathOperation);
+    if(calc.error){
+      setTraceOpsError(calc.error);
+      return;
+    }
+    var opSymbol=traceMathOperation==="add"?"+":traceMathOperation==="subtract"?"-":traceMathOperation==="multiply"?"*":"/";
+    var opType=traceMathOperation==="add"?"add":traceMathOperation==="subtract"?"subtract":traceMathOperation==="multiply"?"multiply":"divide";
+    var label=buildDerivedLabel((getTraceLabel(a)||a.name)+" "+opSymbol+" "+(getTraceLabel(b)||b.name));
+    var drv=createDerivedTrace(a,opType,{sourceA:getTraceId(a),sourceB:getTraceId(b),sourceATrace:a.name,sourceBTrace:b.name,policy:"overlap-only",requestedInterpolation:subtractInterpolation,appliedInterpolation:calc.appliedInterpolation,grid:"A",operation:traceMathOperation,droppedPoints:calc.droppedPoints},calc.data,label);
+    var resolvedYUnit=resolveTraceMathResultUnit(getEffectiveTraceYUnit(a),getEffectiveTraceYUnit(b),traceMathOperation);
+    if(resolvedYUnit)setDerivedTraceYUnit(drv,resolvedYUnit);
+    drv.sourceTraceIds=[getTraceId(a),getTraceId(b)].filter(Boolean);
+    addDerivedTrace(drv);
+    setTraceOpsError("");
+  }
+  useEffect(function(){
+    if(offsetSource&&traceOptions.some(function(tr){return tr.name===offsetSource;}))return;
+    setOffsetSource(traceOptions[0]?traceOptions[0].name:"");
+  },[offsetSource,traceOptions]);
+  useEffect(function(){
+    if(scaleSource&&traceOptions.some(function(tr){return tr.name===scaleSource;}))return;
+    setScaleSource(traceOptions[0]?traceOptions[0].name:"");
+  },[scaleSource,traceOptions]);
+  useEffect(function(){
+    if(smoothSource&&traceOptions.some(function(tr){return tr.name===smoothSource;}))return;
+    setSmoothSource(traceOptions[0]?traceOptions[0].name:"");
+  },[smoothSource,traceOptions]);
+  useEffect(function(){
+    if(subtractA&&traceOptions.some(function(tr){return tr.name===subtractA;}))return;
+    setSubtractA(traceOptions[0]?traceOptions[0].name:"");
+  },[subtractA,traceOptions]);
+  useEffect(function(){
+    if(subtractB&&traceOptions.some(function(tr){return tr.name===subtractB&&tr.name!==subtractA;}))return;
+    var fallback=traceOptions.find(function(tr){return tr.name!==subtractA;})||traceOptions[0]||null;
+    setSubtractB(fallback?fallback.name:"");
+  },[subtractB,subtractA,traceOptions]);
+  useEffect(function(){
+    var validIds={};
+    rawTr.forEach(function(tr){ validIds[getTraceId(tr)]=true; });
+    setDerivedTraces(function(prev){
+      var next=prev.filter(function(tr){
+        var srcIds=getTraceSourceIds(tr);
+        return srcIds.length&&srcIds.every(function(id){return !!validIds[id];});
+      });
+      return next.length===prev.length?prev:next;
+    });
+  },[rawTr]);
+  useEffect(function(){
+    var validNames={};
+    allTr.forEach(function(tr){ validNames[tr.name]=true; });
+    setMarkers(function(prev){
+      var next=prev.filter(function(mk){return !!validNames[mk.trace];});
+      return next.length===prev.length?prev:next;
+    });
+    setNoiseResults(function(lst){
+      var next=lst.filter(function(r){return !r.sourceTraceName||!!validNames[r.sourceTraceName];});
+      return next.length===lst.length?lst:next;
+    });
+    setIP3Results(function(lst){
+      var next=lst.filter(function(r){
+        var roles=r.parameters&&r.parameters.roles?r.parameters.roles:{};
+        return [r.sourceTraceName,roles.f1Trace,roles.f2Trace,roles.im3lTrace,roles.im3uTrace].every(function(name){return !name||!!validNames[name];});
+      });
+      return next.length===lst.length?lst:next;
+    });
+  },[allTr,setMarkers,setNoiseResults,setIP3Results]);
+  useEffect(function(){
+    var names={};
+    allTr.forEach(function(tr){ names[tr.name]=true; });
+    setVis(function(prev){
+      var next={},changed=false;
+      Object.keys(prev||{}).forEach(function(name){
+        if(names[name])next[name]=prev[name];
+        else changed=true;
+      });
+      allTr.forEach(function(tr){
+        if(!(tr.name in next)){ next[tr.name]=true; changed=true; }
+      });
+      return changed?next:prev;
+    });
+  },[allTr,setVis]);
+  useEffect(function(){
+    if(dtTrace&&allTr.some(function(t){return t.name===dtTrace;}))return;
+    setDtTrace(allTr[0]?allTr[0].name:null);
+  },[dtTrace,allTr,setDtTrace]);
+  useEffect(function(){
+    if(noiseSource&&allTr.some(function(t){return t.name===noiseSource&&getTraceData(t).length;}))return;
+    var first=allTr.find(function(t){return t&&getTraceData(t).length;});
+    if(first)setNoiseSource(first.name);
+  },[noiseSource,allTr,setNoiseSource]);
 
   var paneCtl=usePaneLayout(allTr);
   var panes=paneCtl.panes,primaryPaneId=paneCtl.primaryPaneId,primaryPaneTraces=paneCtl.primaryPaneTraces,tracePaneMap=paneCtl.tracePaneMap;
   var analysisRegistry=useAnalysisRegistry({showNoise:showNoise,showIP3:showIP3,noiseResults:noiseResults,ip3Results:ip3Results});
   var featureRegistry=useFeatureRegistry({analysisRegistry:analysisRegistry});
+  var traceMathUnitWarning=useMemo(function(){
+    return getTraceMathUnitWarning(subtractA,subtractB,traceMathOperation);
+  },[subtractA,subtractB,traceMathOperation]);
   var analysisButtons=useMemo(function(){
-    return buildAnalysisButtons(featureRegistry.analysis,{showNoise:showNoise,setShowNoise:setShowNoise,showIP3:showIP3,setShowIP3:setShowIP3,resetIP3:function(){ip3Ctl.resetIP3(setMarkers);},C:C});
-  },[featureRegistry.analysis,showNoise,setShowNoise,showIP3,setShowIP3,ip3Ctl,setMarkers,C]);
+    return [
+      {id:"trace-ops",title:"Trace Ops",active:showTraceOps,color:C.tr[4],onClick:function(){setShowTraceOps(function(p){return !p;});}},
+      {id:"analysis",title:"Analysis",active:showAnalysisPanel,color:C.tr[5]||C.accent,onClick:function(){setShowAnalysisPanel(function(p){return !p;});}}
+    ];
+  },[showTraceOps,setShowTraceOps,showAnalysisPanel,setShowAnalysisPanel,C]);
 
   var noiseMeta=noiseSource?getTraceMeta(noiseSource):m0;
   var nav=useChartNav({allTr:allTr,vis:vis,cData:[],cTr:allTr,fDiv:1,colors:C.tr,yZoom:yZoom,syncYInputs:syncYInputs,resetY:resetYZ,chartRef:chartRef,panRef:panRef,suppressClickRef:suppressClickRef,mouseBtnRef:mouseBtnRef,crosshair:crosshair});
@@ -2002,7 +2754,7 @@ function App(){
     var m=new Map();
     cTr.forEach(function(tr){
       if(!vis[tr.name])return;
-      var d=zoom?tr.data.filter(function(p){return p.freq>=zoom.left&&p.freq<=zoom.right;}):tr.data;
+      var d=getVisibleTraceData(tr,zoom);
       d.forEach(function(p){if(!m.has(p.freq))m.set(p.freq,{freq:p.freq});m.get(p.freq)[tr.name]=p.amp;});
     });
     var sorted=Array.from(m.values()).sort(function(a,b){return a.freq-b.freq;});
@@ -2019,7 +2771,7 @@ function App(){
 
   var stats=useMemo(function(){
     var st={};allTr.forEach(function(tr){
-      var d=zoom?tr.data.filter(function(p){return p.freq>=zoom.left&&p.freq<=zoom.right;}):tr.data;
+      var d=getVisibleTraceData(tr,zoom);
       if(!d.length)return;
       var pk=d.reduce(function(a,b){return a.amp>b.amp?a:b;});
       var mn=d.reduce(function(a,b){return a.amp<b.amp?a:b;});
@@ -2159,7 +2911,8 @@ function App(){
 
   var mKeys=["Type","Mode","Date","Center Freq","Span","Start","Stop","Ref Level","Rf Att","RBW","VBW","SWT","Preamplifier","Detector","Trace Mode","Sweep Count"];
   var hasData=files.length>0;
-  var axisInfo=deriveAxisInfo(files,fUnit,hasData);
+  var activeAxisTraceName=(selectedMkrIdx!==null&&selectedMkrIdx!==undefined&&markers[selectedMkrIdx]&&markers[selectedMkrIdx].trace)?markers[selectedMkrIdx].trace:(dtTrace||noiseSource||null);
+  var axisInfo=deriveAxisInfo(allTr,vis,activeAxisTraceName,fUnit,hasData);
   var yU=axisInfo.yUnit;
 
   /* ═══ SUB-RENDERS ═══ */
@@ -2217,7 +2970,7 @@ function App(){
     }
     items.push(h(Sec,{key:"st"},"Traces ("+allTr.length+")"));
     allTr.forEach(function(tr,i){
-      items.push(h(TraceRow,{key:"tr-"+tr.name,tr:tr,i:i,vis:vis,setVis:setVis,C:C}));
+      items.push(h(TraceRow,{key:"tr-"+tr.name,tr:tr,i:i,vis:vis,setVis:setVis,C:C,onRemove:isDerivedTrace(tr)?function(){removeDerivedTrace(tr.name);}:null}));
     });
     if(showMarkers&&markers.length){
       items.push(h(Sec,{key:"sm"},"Markers ("+markers.length+")"));
@@ -2228,7 +2981,7 @@ function App(){
     if(refLines.length){
       items.push(h(Sec,{key:"srl"},"Ref Lines ("+refLines.length+")"));
       refLines.forEach(function(rl){
-        items.push(h(RefLineItem,{key:"rl-"+rl.id,refLine:rl,allTr:allTr,vis:vis,yU:yU,setRefLines:setRefLines,C:C,selectedRefLineId:selectedRefLineId,onSelect:function(id){setSelectedMkrIdx(null);setSelectedRefLineId(id);}}));
+        items.push(h(RefLineItem,{key:"rl-"+rl.id,refLine:rl,allTr:allTr,vis:vis,zoom:zoom,yU:yU,setRefLines:setRefLines,C:C,selectedRefLineId:selectedRefLineId,onSelect:function(id){setSelectedMkrIdx(null);setSelectedRefLineId(id);}}));
       });
       items.push(h("button",{key:"rl-clr",className:"clr-btn",onClick:function(){setSelectedRefLineId(null);setRefLines([]);},
         style:{width:"100%",padding:"6px 10px",background:"transparent",border:"1px solid var(--border)",color:"var(--muted)",borderRadius:4,cursor:"pointer",fontSize:12,fontWeight:600,marginTop:4}},"Clear All Lines"));
@@ -2241,8 +2994,14 @@ function App(){
   }
 
   function renderAnalysis(){
-    if(!showNoise&&!showIP3)return null;
+    if(!showTraceOps&&!showAnalysisPanel&&!showNoise&&!showIP3)return null;
     var sections=[];
+    if(showTraceOps){
+      sections.push(h(TraceOpsCard,{key:"trace-ops-card",C:C,openOps:traceOpsOpenSections,setOpenOps:setTraceOpsOpenSections,traceOptions:traceOptions,offsetSource:offsetSource,setOffsetSource:setOffsetSource,offsetValue:offsetValue,setOffsetValue:setOffsetValue,createOffsetDerivedTrace:createOffsetDerivedTrace,scaleSource:scaleSource,setScaleSource:setScaleSource,scaleValue:scaleValue,setScaleValue:setScaleValue,createScaledDerivedTrace:createScaledDerivedTrace,smoothSource:smoothSource,setSmoothSource:setSmoothSource,smoothMethod:smoothMethod,setSmoothMethod:setSmoothMethod,smoothWindow:smoothWindow,setSmoothWindow:setSmoothWindow,smoothPolyOrder:smoothPolyOrder,setSmoothPolyOrder:setSmoothPolyOrder,createSmoothedDerivedTrace:createSmoothedDerivedTrace,subtractA:subtractA,setSubtractA:setSubtractA,subtractB:subtractB,setSubtractB:setSubtractB,traceMathOperation:traceMathOperation,setTraceMathOperation:setTraceMathOperation,subtractInterpolation:subtractInterpolation,setSubtractInterpolation:setSubtractInterpolation,createTraceMathDerivedTrace:createTraceMathDerivedTrace,traceMathUnitWarning:traceMathUnitWarning,traceOpsError:traceOpsError}));
+    }
+    if(showAnalysisPanel){
+      sections.push(h(AnalysisMenuCard,{key:"analysis-menu",C:C,hasTraceOps:showTraceOps,showNoise:showNoise,setShowNoise:setShowNoise,showIP3:showIP3,setShowIP3:setShowIP3}));
+    }
     if(showNoise){
       sections.push(h(NoisePSDCard,{key:"noise-card",C:C,allTr:allTr,noiseSource:noiseSource,setNoiseSource:setNoiseSource,noiseFilter:noiseFilter,setNoiseFilter:setNoiseFilter,npsdStats:npsdStats,addSavedNoise:addSavedNoise,noiseResults:noiseResults,removeNoise:function(id){setNoiseResults(function(lst){return lst.filter(function(x){return x.id!==id;});});}}));
     }
@@ -2278,14 +3037,14 @@ function App(){
         h(Btn,{key:"bn",active:mkrMode==="normal"&&!refMode,onClick:function(){setNewMarkerArmed(false);setMkrMode("normal");setRefMode(null);}},"Normal"),
         h(Btn,{key:"bd",active:mkrMode==="delta"&&!refMode,color:C.md,onClick:function(){setNewMarkerArmed(false);setMkrMode("delta");setRefMode(null);if(markers.length>0&&dRef===null)setDRef(0);}},"Delta"),
         h(Btn,{key:"bnew",active:newMarkerArmed,color:C.accent,onClick:function(){setSelectedRefLineId(null);setRefMode(null);setMkrMode("normal");setNewMarkerArmed(function(prev){return !prev;});}},"New Marker"),
-        h(Btn,{key:"bun",color:C.accent,onClick:function(){setNewMarkerArmed(false);setSelectedMkrIdx(null);},disabled:selectedMkrIdx===null||selectedMkrIdx===undefined},"Unselect")
+        h(Btn,{key:"bun",color:C.accent,onClick:function(){setNewMarkerArmed(false);setSelectedMkrIdx(null);setSelectedRefLineId(null);},disabled:(selectedMkrIdx===null||selectedMkrIdx===undefined)&&(selectedRefLineId===null||selectedRefLineId===undefined)},"Unselect")
       ]),
       group("Search",[
         h(Btn,{key:"bp",color:C.mp,onClick:function(){setNewMarkerArmed(false);setRefMode(null);peakSrch();}},"Peak"),
         h(Btn,{key:"bnp",color:C.mp,onClick:function(){setNewMarkerArmed(false);setRefMode(null);nxtPeak();},disabled:!markers.length&&!allTr.length},"Next Peak"),
         h(Btn,{key:"bm",color:C.mn,onClick:function(){setNewMarkerArmed(false);setRefMode(null);minSrch();}},"Min"),
         h(Btn,{key:"bnm",color:C.mn,onClick:function(){setNewMarkerArmed(false);setRefMode(null);nxtMin();},disabled:!markers.length&&!allTr.length},"Next Min"),
-        h(Btn,{key:"sdir",active:true,color:searchDirection==="right"?"#8b3dbb":"#ff6699",onClick:function(){setSearchDirection(function(prev){return prev==="right"?"left":"right";});}},searchDirection==="right"?"Dir: L -> R":"Dir: R -> L"),
+        h(Btn,{key:"sdir",active:true,color:searchDirection==="right"?"#8b3dbb":"#ff6699",onClick:function(){setSearchDirection(function(prev){return prev==="right"?"left":"right";});}},searchDirection==="right"?"Dir: L -> R":"Dir: L <- R"),
         h("span",{key:"mtl",style:{fontSize:12,color:"var(--dim)",marginLeft:4},title:"Auto uses the selected marker's trace when one is selected. Otherwise search and placement fall back to the visible trace under the cursor, then other visible traces."},"Search Trace:"),
         h("select",{key:"mts",value:markerTrace,onChange:function(ev){setMarkerTrace(ev.target.value);},title:"Auto uses the selected marker trace first, then visible traces under the cursor / search set.",
           style:{maxWidth:180,background:"var(--card)",color:"var(--text)",border:"1px solid var(--border)",borderRadius:4,padding:"3px 6px",fontSize:12}},
@@ -2325,7 +3084,7 @@ function App(){
     var lines=[];
     allTr.forEach(function(tr,i){
       if(!vis[tr.name])return;
-      lines.push(h(Line,{key:tr.name,type:"monotone",dataKey:tr.name,name:tr.dn||tr.name,
+      lines.push(h(Line,{key:tr.name,type:"linear",dataKey:tr.name,name:tr.dn||tr.name,
         stroke:C.tr[i%C.tr.length],strokeWidth:1.3,
         dot:showDots?{r:1.5,fill:C.tr[i%C.tr.length]}:false,
         activeDot:showDots?{r:3}:{r:2},isAnimationActive:false,connectNulls:true}));
@@ -2380,6 +3139,7 @@ function App(){
     chartDomainRef.current=yBase;
     var yTicks=yBase?makeYTicksFromDomain(yBase):undefined;
     var xTicks=makeNiceTicks({min:cData[0].fs,max:cData[cData.length-1].fs},11);
+    var xDomain=[cData[0].fs,cData[cData.length-1].fs];
     var zeroLine=h(ReferenceLine,{key:"zero",y:0,stroke:"var(--muted)",strokeWidth:1,strokeDasharray:"6 4"});
 
     var crosshairBox=null;
@@ -2400,13 +3160,13 @@ function App(){
       dragOverlay,
       h(ResponsiveContainer,{width:"100%",height:"100%"},
         h(LineChart,{data:cData,onClick:chartClick,onMouseDown:mDown,onMouseMove:chartMMWithDrag,onMouseUp:mUp,onMouseLeave:chartML,
-          margin:{top:8,right:16,bottom:36,left:16}},
+          margin:{top:8,right:16,bottom:36,left:18}},
           h(CartesianGrid,{strokeDasharray:"2 2",stroke:C.grid}),
-          h(XAxis,{dataKey:"fs",type:"number",domain:["dataMin","dataMax"],ticks:xTicks,tickFormatter:function(v){return v.toFixed(tickDp);},stroke:C.muted,fontSize:11,
+          h(XAxis,{dataKey:"fs",type:"number",scale:"linear",domain:xDomain,allowDataOverflow:true,padding:{left:0,right:0},ticks:xTicks,tickFormatter:function(v){return v.toFixed(tickDp);},stroke:C.muted,fontSize:11,
             label:{value:axisInfo.xLabel,position:"bottom",offset:18,fill:C.muted,fontSize:12}}),
-          h(YAxis,{stroke:C.muted,fontSize:11,domain:yDomain,ticks:yTicks,allowDataOverflow:true,
+          h(YAxis,{stroke:C.muted,fontSize:11,domain:yDomain,ticks:yTicks,allowDataOverflow:true,width:86,
             tickFormatter:function(v){return Number(v).toFixed(2);},
-            label:{value:axisInfo.yLabel,angle:-90,position:"insideLeft",offset:0,fill:C.muted,fontSize:12}}),
+            label:{value:axisInfo.yLabel,angle:-90,position:"insideLeft",offset:2,dx:-6,fill:C.muted,fontSize:12}}),
           h(Tooltip,{content:function(){return null;}}),
           (allTr.length>1||showNoise)?h(Legend,{wrapperStyle:{fontSize:11}}):null,
           lines,zeroLine,mLines,uLines,crossLine,selArea)));
@@ -2415,7 +3175,7 @@ function App(){
   function renderDT(){
     if(!showDT||!hasData)return null;
     var tr=allTr.find(function(t){return t.name===dtTrace;});
-    var data=tr?(zoom?tr.data.filter(function(d){return d.freq>=zoom.left&&d.freq<=zoom.right;}):tr.data):[];
+    var data=tr?getVisibleTraceData(tr,zoom):[];
     return h("div",{style:{width:240,background:"var(--card)",borderLeft:"1px solid var(--border)",display:"flex",flexDirection:"column",flexShrink:0}},
       h("div",{style:{padding:"8px 10px",borderBottom:"1px solid var(--border)",display:"flex",alignItems:"center",gap:6}},
         h("span",{style:{fontSize:11,color:"var(--muted)",textTransform:"uppercase",letterSpacing:1}},"Data"),
@@ -2445,7 +3205,7 @@ function App(){
   /* ═══ ROOT ═══ */
   var main;
   var rp=[];
-  if(showNoise||showIP3)rp.push(renderAnalysis());
+  if(showTraceOps||showAnalysisPanel||showNoise||showIP3)rp.push(renderAnalysis());
   if(showDT)rp.push(h(DataTablePane,{render:renderDT}));
   main=h("div",{style:{flex:1,display:"flex",overflow:"hidden"}},
     showSidebar?h(SidebarPane,{render:renderSidebar}):null,

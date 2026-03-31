@@ -3,7 +3,7 @@
 [![Live Demo](https://img.shields.io/badge/demo-live-brightgreen)](https://alpgoxd.github.io/mergen-scope/)
 [![License: GPL-3.0-only](https://img.shields.io/badge/License-GPL--3.0--only-blue.svg)](LICENSE)
 
-Mergen Scope is a free, open-source, browser-based viewer for Rohde & Schwarz spectrum analyzer .dat files. Visualize RF spectrum data, waveforms, and spectral measurements online — no installation required.
+Mergen Scope is a free, open-source, browser-based viewer for Rohde & Schwarz spectrum analyzer `.dat` files. Visualize RF spectrum data, waveforms, and spectral measurements online with no installation required.
 
 [**Open the viewer**](https://alpgoxd.github.io/mergen-scope/)
 
@@ -11,14 +11,20 @@ Mergen Scope is a free, open-source, browser-based viewer for Rohde & Schwarz sp
 
 ## Features
 
-- Multi-trace support — load and compare multiple measurements
-- Interactive markers — place markers, search for peaks and minima, track frequency points
-- Noise PSD panel — visualize noise power spectral density across the spectrum
-- IP3/TOI measurement tool — marker-driven intermodulation point calculation
-- Zoom and pan — navigate large frequency ranges with oscilloscope-style division readout
-- Import/export — save marked measurements and analysis results
-- No installation required — runs in any modern browser
-- No CDN dependencies — all libraries vendored locally, works offline
+- Multi-trace support: load and compare multiple measurements
+- Interactive markers: place markers, search for peaks and minima, track frequency points
+- Trace Ops panel: create derived traces without changing the raw source
+- Offset and Scale: additive or multiplicative amplitude correction as derived traces
+- Smoothing: None, Moving Average, Median Filter, and Savitzky-Golay
+- Trace Math: `A + B`, `A - B`, `A * B`, `A / B` with overlap-only math on A's grid
+- Interpolation control for trace math: Auto, Exact only, Linear, Nearest, Previous, Next, Cubic spline
+- Trace Math warnings: short unit-aware warning notes for logarithmic and mixed-logarithmic math, with no blocking and no automatic unit conversion
+- Noise PSD panel: visualize noise power spectral density across the spectrum
+- IP3/TOI measurement tool: marker-driven intermodulation point calculation
+- Zoom and pan: navigate large frequency ranges with oscilloscope-style division readout
+- Import/export: save marked measurements and analysis results
+- No installation required: runs in any modern browser
+- No CDN dependencies: all libraries are vendored locally and work offline
 
 ---
 
@@ -26,9 +32,8 @@ Mergen Scope is a free, open-source, browser-based viewer for Rohde & Schwarz sp
 
 | Format | Instruments | Notes |
 |--------|-------------|-------|
-| R&S semicolon-delimited `.dat` | ZNB8 and compatible | Tested |
+| R&S semicolon-delimited `.dat` | Rohde & Schwarz instruments | Tested |
 | Amplitude-only `.dat` | R&S instruments | Frequency reconstructed from metadata |
-| Keysight / HP Agilent | Network analyzers | Compatible format |
 
 ---
 
@@ -40,7 +45,7 @@ Mergen Scope is a free, open-source, browser-based viewer for Rohde & Schwarz sp
 git clone https://github.com/AlpGoXd/mergen-scope.git
 ```
 
-Open `mergen_scope.html` directly in a modern browser. No build step, no install.
+Open `mergen_scope.html` directly in a modern browser. No build step and no install.
 
 ### GitHub Pages Deployment
 
@@ -52,11 +57,24 @@ Push to `main`. GitHub Actions deploys automatically via `.github/workflows/depl
 
 ### Loading a File
 
-Click **Load File** and select a `.dat` export from your spectrum analyzer. Use **Append** to add a second trace on top.
+Click **Load File** and select a `.dat` export from your spectrum analyzer. Use **Append** to add more traces.
 
 ### Markers and Peak Search
 
 Click the chart to place a marker. Select a marker to make it active, then use **Peak**, **Next Peak**, **Min**, or **Next Min** to move it to signal features.
+
+### Trace Ops
+
+Open **Trace Ops** to create derived traces from existing traces:
+
+- **Offset** adds a constant value
+- **Scale** multiplies by a constant factor
+- **Smoothing** supports None, Moving Average, Median Filter, and Savitzky-Golay
+- **Trace Math** supports `A + B`, `A - B`, `A * B`, `A / B`
+
+Trace Math works over the overlapping X range only, uses A's grid, and offers interpolation control for mapping trace B onto A.
+
+Trace Math also shows short warning-only notes when logarithmic units can make the result misleading. That includes same-unit logarithmic math such as `dBm + dBm`, `dB * dB`, and mixed logarithmic-unit math such as `dB * dBm`. These notes do not block the operation and do not change the math.
 
 ### Noise PSD
 
@@ -64,7 +82,7 @@ Open the **Noise PSD** panel, set the resolution bandwidth, and the tool compute
 
 ### IP3 / TOI Measurement
 
-Assign marker roles (F1, F2, IM3L, IM3U) using the marker panel, then run **Calculate IP3**. The tool computes third-order intercept from the marked points.
+Assign marker roles (F1, F2, IM3L, IM3U) using the marker panel, then compute IP3 from the marked points.
 
 ---
 
@@ -91,16 +109,20 @@ Detector;RMS
 
 ## Architecture
 
-Single HTML file. No build step. React 18, React DOM, PropTypes, and Recharts are vendored locally under `vendor/` — no CDN calls at runtime. The app runs entirely from files served by GitHub Pages.
+Single HTML file. No build step. React 18, React DOM, PropTypes, and Recharts are vendored locally under `vendor/`. There are no CDN calls at runtime. The app runs entirely from files served by GitHub Pages.
+
+The app now has a practical raw-vs-derived trace model:
+
+- imported files create immutable raw traces
+- Trace Ops creates derived traces
+- derived traces keep source-trace references plus operation metadata
+- current derived operations include offset, scale, smoothing, and trace math
 
 ---
 
 ## Roadmap
 
-- Raw vs derived trace model
-- Trace math (A - B)
-- Offset / amplitude correction
-- Smoothing / averaging
+- Phase 2 hardening and cleanup for derived traces
 - Multi-pane layout
 - Synchronized pane cursor
 - OBW / THD analysis functions
@@ -111,7 +133,7 @@ Single HTML file. No build step. React 18, React DOM, PropTypes, and Recharts ar
 
 ## Known Limitations
 
-- Only tested with R&S `.dat` exports — other formats may need parser adjustments
+- Only tested with R&S `.dat` exports. Other formats may need parser adjustments
 - Single HTML file architecture is intentional but not modular
 - No PWA / offline install support
 - Large trace files (>10k points) may affect chart performance
@@ -120,7 +142,7 @@ Single HTML file. No build step. React 18, React DOM, PropTypes, and Recharts ar
 
 ## Why I Built This
 
-I'm an EE engineer. Like most of us, I don't have time to go deep into React or the rest of the web stack — that's not what I do. But when I went looking for something simple to visualize spectrum analyzer exports and other waveform files in the browser, I couldn't find anything that fit. So I vibecoded this into existence.
+I'm an EE engineer. Like most of us, I don't have time to go deep into React or the rest of the web stack. That's not what I do. But when I went looking for something simple to visualize spectrum analyzer exports and other waveform files in the browser, I couldn't find anything that fit. So I vibecoded this into existence.
 
 Right now it's only been tested with Rohde & Schwarz `.dat` files, but the goal is to eventually open any type of waveform or instrument export file, online, with no software to install.
 
@@ -142,6 +164,6 @@ GNU GPL-3.0-only. See [LICENSE](LICENSE).
 
 ## Contact
 
-**Alp Gökalp** — RF/Microwave Engineering, Analog IC Design
+**Alp Gokalp** - RF/Microwave Engineering, Analog IC Design
 
-[GitHub](https://github.com/alpgoxd) · [alpgokalp@hotmail.com.tr](mailto:alpgokalp@hotmail.com.tr)
+[GitHub](https://github.com/alpgoxd) | [alpgokalp@hotmail.com.tr](mailto:alpgokalp@hotmail.com.tr)
