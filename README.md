@@ -118,6 +118,16 @@ Single HTML file. No build step. React 18, React DOM, PropTypes, and Recharts ar
 
 ---
 
+## Why I Built This
+
+I'm an EE engineer. Like most of us, I don't have time to go deep into React or the rest of the web stack — that's not what I do. But when I went looking for something simple to visualize spectrum analyzer exports and other waveform files in the browser, I couldn't find anything that fit. So I vibecoded this into existence.
+
+Right now it's only been tested with Rohde & Schwarz `.dat` files, but the goal is to eventually open any type of waveform or instrument export file, online, with no software to install.
+
+Feel free to open issues, suggest changes, and help make this tool better. The aim is to keep it as dependency-free as possible and useful for day-to-day measurement work.
+
+---
+
 ## Contributing
 
 Open an issue or submit a pull request. When testing changes, verify against the regression checklist in the HTML comment at the top of `mergen_scope.html`.
