@@ -32,7 +32,7 @@ jobs:
         run: |
           mkdir -p _site
           cp index.html mergen_scope.html mergen-scope-preview.png robots.txt sitemap.xml _site/
-          cp mergen-scope-icon.svg _site/
+          cp mergen-scope-icon.svg mergen-scope-icon.png _site/
           cp -r vendor _site/
           cp -r app-modules _site/
 
@@ -44,6 +44,7 @@ jobs:
           test -f _site/app-modules/trace-model.js
           test -f _site/app-modules/trace-helpers.js
           test -f _site/mergen-scope-icon.svg
+          test -f _site/mergen-scope-icon.png
           test -f _site/mergen-scope-preview.png
 
       - name: Upload artifact
