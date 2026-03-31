@@ -3,7 +3,7 @@
 [![Live Demo](https://img.shields.io/badge/demo-live-brightgreen)](https://alpgoxd.github.io/mergen-scope/)
 [![License: GPL-3.0-only](https://img.shields.io/badge/License-GPL--3.0--only-blue.svg)](LICENSE)
 
-Browser-based viewer for RF spectrum analyzer .dat files — markers, Noise PSD, and IP3 built in.
+Mergen Scope is a free, open-source, browser-based viewer for Rohde & Schwarz spectrum analyzer .dat files. Visualize RF spectrum data, waveforms, and spectral measurements online — no installation required.
 
 [**Open the viewer**](https://alpgoxd.github.io/mergen-scope/)
 
