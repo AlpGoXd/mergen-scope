@@ -1,7 +1,7 @@
 # Mergen Scope
 
 <p>
-  <img src="mergen-scope-icon.png" alt="Mergen Scope icon" width="72">
+  <img src="mergen-scope-icon.svg" alt="Mergen Scope icon" width="72">
 </p>
 
 [![Live Demo](https://img.shields.io/badge/demo-live-brightgreen)](https://alpgoxd.github.io/mergen-scope/)
