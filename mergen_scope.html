@@ -3,6 +3,7 @@
   Phase 1 changelog:
   - Fixed: IP3 now uses visible marker-role assignments instead of the old disconnected click-step flow.
   - Added: selected-marker behavior, Min / Next Min, import normalization, saved-result normalization, manual regression checklist, local vendored runtime imports.
+  - Phase 2 groundwork: traces now carry stable ids plus raw/derived model fields for future trace operations.
   - Later: raw vs derived traces, trace math, multi-pane evolution, synchronized pane cursor/readout.
 
   Manual regression checklist:
@@ -163,13 +164,61 @@ var LineChart=RC.LineChart,Line=RC.Line,XAxis=RC.XAxis,YAxis=RC.YAxis,
 /* ═══ PARSER ═══ */
 var _fc=0;
 var _fid=0;
+var _tid=0;
+function makeTraceId(){
+  _tid++;
+  return "trace-"+_tid;
+}
 function makeTrace(prefix,fileName,traceLabel){
-  return {name:prefix+traceLabel+"_"+_fc,mode:"",detector:"",data:[],file:fileName,dn:prefix+traceLabel};
+  var id=makeTraceId();
+  return {
+    id:id,
+    kind:"raw",
+    sourceTraceIds:[id],
+    operationType:null,
+    parameters:null,
+    units:{x:null,y:null},
+    paneId:null,
+    name:prefix+traceLabel+"_"+_fc,
+    mode:"",
+    detector:"",
+    data:[],
+    file:fileName,
+    dn:prefix+traceLabel
+  };
+}
+function isRawTrace(tr){ return !!tr&&(tr.kind||"raw")==="raw"; }
+function isDerivedTrace(tr){ return !!tr&&tr.kind==="derived"; }
+function getTraceId(tr){ return tr?(tr.id||tr.name||null):null; }
+function getTraceLabel(tr){ return tr?(tr.dn||tr.name||tr.id||""):""; }
+function getTraceSourceIds(tr){
+  if(!tr)return [];
+  if(isRawTrace(tr))return getTraceId(tr)?[getTraceId(tr)]:[];
+  return Array.isArray(tr.sourceTraceIds)?tr.sourceTraceIds.filter(Boolean):[];
+}
+function getTraceData(tr){ return tr&&Array.isArray(tr.data)?tr.data:[]; }
+function createDerivedTrace(sourceTrace, operationType, parameters, data, displayName){
+  var id=makeTraceId();
+  return {
+    id:id,
+    kind:"derived",
+    sourceTraceIds:getTraceSourceIds(sourceTrace),
+    operationType:operationType||"derived",
+    parameters:parameters||{},
+    units:sourceTrace&&sourceTrace.units?Object.assign({},sourceTrace.units):{x:null,y:null},
+    paneId:sourceTrace&&sourceTrace.paneId!=null?sourceTrace.paneId:null,
+    name:"drv_"+operationType+"_"+id,
+    mode:sourceTrace&&sourceTrace.mode?sourceTrace.mode:"",
+    detector:sourceTrace&&sourceTrace.detector?sourceTrace.detector:"",
+    data:Array.isArray(data)?data:[],
+    file:sourceTrace&&sourceTrace.file?sourceTrace.file:null,
+    dn:displayName||((getTraceLabel(sourceTrace)||"Trace")+" ["+(operationType||"derived")+"]")
+  };
 }
 function traceSig(tr){
   if(!tr||!tr.data||!tr.data.length)return "";
   var a=tr.data[0],b=tr.data[tr.data.length-1];
-  return [tr.dn||"",tr.mode||"",tr.detector||"",tr.data.length,
+  return [tr.kind||"raw",tr.operationType||"",tr.dn||"",tr.mode||"",tr.detector||"",tr.data.length,
     a.freq!==undefined?a.freq:"na",a.amp,b.freq!==undefined?b.freq:"na",b.amp].join("|");
 }
 function dedupeParsedTraces(traces){
@@ -319,6 +368,10 @@ function parseRSDat(text,fileName){
       tr.data.forEach(function(d,idx){d.freq=sf+(idx/Math.max(n-1,1))*(ef-sf);});
     }
     tr.data=normalizeTraceData(tr.data);
+    tr.units={
+      x:(meta["StartXAxis"]&&meta["StartXAxis"].unit)||(meta["StopXAxis"]&&meta["StopXAxis"].unit)||(meta["Center Freq"]&&meta["Center Freq"].unit)||"Hz",
+      y:(meta["Ref Level"]&&meta["Ref Level"].unit)||"dBm"
+    };
   });
   traces=dedupeParsedTraces(traces.filter(function(t){return t.data&&t.data.length>0;}));
   return {meta:meta,traces:traces};
@@ -331,8 +384,8 @@ function clampYValue(v){
   return Math.max(-300,Math.min(300,v));
 }
 function getVisibleTraceData(tr,zoom){
-  if(!tr||!tr.data)return [];
-  return zoom?tr.data.filter(function(p){return p.freq>=zoom.left&&p.freq<=zoom.right;}):tr.data;
+  var data=getTraceData(tr);
+  return zoom?data.filter(function(p){return p.freq>=zoom.left&&p.freq<=zoom.right;}):data;
 }
 function getSafeYRangeFromData(allTr,vis,zoom){
   var mn=Infinity,mx=-Infinity,found=false;
@@ -458,8 +511,8 @@ function makeSavedNoiseResult(npsdStats,noiseFilter,trace){
   return {
     id:Date.now()+Math.random(),
     functionType:"noise-psd",
-    traceLabel:trace.dn||trace.name,
-    sourceTraceId:trace.name,
+    traceLabel:getTraceLabel(trace),
+    sourceTraceId:getTraceId(trace),
     sourceTraceName:trace.name,
     parameters:{
       filter:noiseFilter,
@@ -702,10 +755,13 @@ function RefLineItem(props){
 }
 function TraceRow(p){
   var tr=p.tr,i=p.i,vis=p.vis,setVis=p.setVis,C=p.C;
+  var isDerived=isDerivedTrace(tr);
   return h("label",{style:{display:"flex",alignItems:"center",gap:6,padding:"3px 0",cursor:"pointer",fontSize:12}},
     h("input",{type:"checkbox",checked:!!vis[tr.name],onChange:function(){setVis(function(v){var nv=Object.assign({},v);nv[tr.name]=!nv[tr.name];return nv;});},style:{accentColor:C.tr[i%C.tr.length]}}),
     h("span",{style:{color:C.tr[i%C.tr.length],fontWeight:600,fontSize:11}},tr.dn||tr.name),
-    h("span",{style:{color:"var(--dim)",marginLeft:"auto",fontSize:10}},(tr.mode||"")+(tr.detector?"\u00B7 "+tr.detector:"")));
+    isDerived?h("span",{style:{fontSize:10,color:C.accent,border:"1px solid "+C.accent,borderRadius:999,padding:"1px 6px",lineHeight:1.2}},"derived"):null,
+    h("span",{style:{color:"var(--dim)",marginLeft:"auto",fontSize:10}},(tr.mode||"")+(tr.detector?"\u00B7 "+tr.detector:"")),
+    p.onRemove?h("button",{onClick:function(ev){ev.preventDefault();ev.stopPropagation();p.onRemove();},title:"Remove trace",style:{background:"none",border:"none",color:"#f55",cursor:"pointer",fontSize:13,padding:0,lineHeight:"1"}},"\u00D7"):null);
 }
 function Btn(p){
   var a=p.active,c=p.color||"var(--accent)";
@@ -847,7 +903,7 @@ function useFileStore(dep){
   },[dep]);
 
   var clearAllFiles=useCallback(function(){
-    _fc=0;_fid=0;
+    _fc=0;_fid=0;_tid=0;
     dep.panRef.current=null;
     dep.suppressClickRef.current=false;
     setFiles([]);dep.clearMarkers();dep.setZoom(null);dep.setYZoom(null);dep.setShowDT(false);setError(null);setVis({});
@@ -1828,7 +1884,7 @@ function App(){
 
   var _dr=useState(false),isDrag=_dr[0],setIsDrag=_dr[1];
   var _do=useState(false),showDots=_do[0],setShowDots=_do[1];
-  var _sm=useState(true),showMeta=_sm[0],setShowMeta=_sm[1];
+  var _sm=useState(false),showMeta=_sm[0],setShowMeta=_sm[1];
   var _ssb=useState(true),showSidebar=_ssb[0],setShowSidebar=_ssb[1];
   var _sd=useState("right"),searchDirection=_sd[0],setSearchDirection=_sd[1];
   var _nm=useState(false),newMarkerArmed=_nm[0],setNewMarkerArmed=_nm[1];
@@ -1863,6 +1919,7 @@ function App(){
   var loadFiles=fileCtl.loadFiles,onDrop=fileCtl.onDrop,removeFile=fileCtl.removeFile,removeTrace=fileCtl.removeTrace,clearAllFiles=fileCtl.clearAllFiles;
 
   function getTraceByName(name){return allTr.find(function(t){return t.name===name;})||null;}
+  function getTraceById(id){return allTr.find(function(t){return getTraceId(t)===id;})||null;}
   function getTraceFile(name){
     var tr=getTraceByName(name);
     return tr&&tr.fileId!=null?fileMap[tr.fileId]||null:null;
@@ -2145,19 +2202,22 @@ function App(){
       }
       if(idx<files.length-1)items.push(h("div",{key:"sep-"+f.id,style:{height:8}}));
     });
+    if(showMeta){
+      items.push(h(Sec,{key:"stmeta"},"Trace Metadata"));
+      Object.entries(stats).forEach(function(e){
+        var name=e[0],st=e[1];
+        var dn=allTr.find(function(t){return t.name===name;});
+        items.push(h(Sec,{key:"ss-"+name},dn?.dn||name));
+        items.push(h(MR,{key:"sn-"+name,label:"Points",value:st.n}));
+        items.push(h(MR,{key:"sp-"+name,label:"Peak",value:st.pk.amp.toFixed(2)+" "+yU}));
+        items.push(h(MR,{key:"spf-"+name,label:"Peak Freq",value:fmtF(st.pk.freq,true)}));
+        items.push(h(MR,{key:"smn-"+name,label:"Min",value:st.mn.amp.toFixed(2)+" "+yU}));
+        items.push(h(MR,{key:"sd-"+name,label:"\u0394",value:st.delta.toFixed(2)+" dB"}));
+      });
+    }
     items.push(h(Sec,{key:"st"},"Traces ("+allTr.length+")"));
     allTr.forEach(function(tr,i){
       items.push(h(TraceRow,{key:"tr-"+tr.name,tr:tr,i:i,vis:vis,setVis:setVis,C:C}));
-    });
-    Object.entries(stats).forEach(function(e){
-      var name=e[0],st=e[1];if(!vis[name])return;
-      var dn=allTr.find(function(t){return t.name===name;});
-      items.push(h(Sec,{key:"ss-"+name},dn?.dn||name));
-      items.push(h(MR,{key:"sn-"+name,label:"Points",value:st.n}));
-      items.push(h(MR,{key:"sp-"+name,label:"Peak",value:st.pk.amp.toFixed(2)+" "+yU}));
-      items.push(h(MR,{key:"spf-"+name,label:"Peak Freq",value:fmtF(st.pk.freq,true)}));
-      items.push(h(MR,{key:"smn-"+name,label:"Min",value:st.mn.amp.toFixed(2)+" "+yU}));
-      items.push(h(MR,{key:"sd-"+name,label:"\u0394",value:st.delta.toFixed(2)+" dB"}));
     });
     if(showMarkers&&markers.length){
       items.push(h(Sec,{key:"sm"},"Markers ("+markers.length+")"));
@@ -2225,7 +2285,7 @@ function App(){
         h(Btn,{key:"bnp",color:C.mp,onClick:function(){setNewMarkerArmed(false);setRefMode(null);nxtPeak();},disabled:!markers.length&&!allTr.length},"Next Peak"),
         h(Btn,{key:"bm",color:C.mn,onClick:function(){setNewMarkerArmed(false);setRefMode(null);minSrch();}},"Min"),
         h(Btn,{key:"bnm",color:C.mn,onClick:function(){setNewMarkerArmed(false);setRefMode(null);nxtMin();},disabled:!markers.length&&!allTr.length},"Next Min"),
-        h(Btn,{key:"sdir",active:true,color:searchDirection==="right"?"#8b3dbb":"#ff6699",onClick:function(){setSearchDirection(function(prev){return prev==="right"?"left":"right";});}},searchDirection==="right"?"Dir: L -> R":"Dir: R <- L"),
+        h(Btn,{key:"sdir",active:true,color:searchDirection==="right"?"#8b3dbb":"#ff6699",onClick:function(){setSearchDirection(function(prev){return prev==="right"?"left":"right";});}},searchDirection==="right"?"Dir: L -> R":"Dir: R -> L"),
         h("span",{key:"mtl",style:{fontSize:12,color:"var(--dim)",marginLeft:4},title:"Auto uses the selected marker's trace when one is selected. Otherwise search and placement fall back to the visible trace under the cursor, then other visible traces."},"Search Trace:"),
         h("select",{key:"mts",value:markerTrace,onChange:function(ev){setMarkerTrace(ev.target.value);},title:"Auto uses the selected marker trace first, then visible traces under the cursor / search set.",
           style:{maxWidth:180,background:"var(--card)",color:"var(--text)",border:"1px solid var(--border)",borderRadius:4,padding:"3px 6px",fontSize:12}},
