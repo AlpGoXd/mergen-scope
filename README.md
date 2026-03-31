@@ -1,5 +1,9 @@
 # Mergen Scope
 
+<p>
+  <img src="mergen-scope-icon.png" alt="Mergen Scope icon" width="72">
+</p>
+
 [![Live Demo](https://img.shields.io/badge/demo-live-brightgreen)](https://alpgoxd.github.io/mergen-scope/)
 [![License: GPL-3.0-only](https://img.shields.io/badge/License-GPL--3.0--only-blue.svg)](LICENSE)
 
@@ -26,7 +30,7 @@ Mergen Scope is a free, open-source, browser-based viewer for Rohde & Schwarz sp
 - IP3/TOI measurement tool: marker-driven intermodulation point calculation
 - Expanded analysis toolkit: peak/spur table, marker delta table, range statistics, bandwidth helper, threshold crossings, ripple/flatness, occupied bandwidth, and guarded channel power
 - Zoom and pan: navigate large frequency ranges with oscilloscope-style division readout
-- Import/export: save marked measurements and analysis results
+- Saved results: keep Noise PSD and IP3 results inside the current workspace
 - No installation required: runs in any modern browser
 - No CDN dependencies: all libraries are vendored locally and work offline
 
@@ -154,6 +158,24 @@ No build step. The app still runs directly in the browser from GitHub Pages usin
 
 The main UI stays in `mergen_scope.html`, and shared helper logic is now starting to move into local helper files under `app-modules/` so the codebase can keep growing without a framework rewrite.
 
+`mergen_scope.html` is still the main runtime entrypoint and orchestration file. It intentionally still owns the more fragile interactive paths:
+
+- React app state
+- top toolbar and sidebar wiring
+- chart rendering
+- marker placement and dragging
+- reference line placement and dragging
+- pane activation and chart interaction handoff
+- app-level import/reset flows
+
+The helper split is meant to keep pure logic out of that file without forcing a risky rewrite. The current rule is:
+
+- keep direct file-open support
+- keep GitHub Pages compatibility
+- keep local plain scripts attached to `window`
+- move pure/model/helper-heavy blocks first
+- avoid aggressively splitting the chart interaction core until interfaces are clearer
+
 Current helper split:
 
 - `app-modules/trace-helpers.js` for chart/window helpers
@@ -176,14 +198,49 @@ The app now has a practical raw-vs-derived trace model:
 - derived traces keep source-trace references plus operation metadata
 - current derived operations include offset, scale, smoothing, and trace math
 
+Current multi-pane model:
+
+- 1 to 4 stacked panes
+- shared or pane-local X navigation depending on the `Zoom All` toggle
+- independent Y scaling per pane
+- pane-local active trace
+- pane-local reference lines by default, with optional linked lock mode
+- marker and analysis actions act on the selected trace in the active pane
+
+Current sync philosophy:
+
+- no permanent synchronized pane cursor line
+- no always-on shared vertical guide line
+- future pane synchronization should prefer marker-linked sync or hover-linked readout sync when needed, not a forced global cursor
+
 ---
 
 ## Roadmap
 
-- Synchronized pane cursor
-- THD and later analysis functions
-- Chart export (PNG / SVG)
-- Session persistence / workspace JSON
+Current status:
+
+- Phase 3 is complete
+- Phase 4 is complete
+- next work should focus on the remaining phases in order, starting with Phase 5
+
+Roadmap in order:
+
+1. First usable multi-pane release
+   Status: completed
+2. Expanded analysis toolkit
+   Status: completed
+3. Export and session portability
+   Status: next priority
+   Planned scope: chart export, trace/data export, saved analysis export, and workspace/session JSON export/import
+4. Touchstone import support
+5. Touchstone measurement tools
+6. Performance and scaling pass
+7. Oscilloscope waveform support
+
+Not planned right now:
+
+- a permanent synchronized pane cursor
+- an always-on shared pane guide line
 
 ---
 
@@ -191,6 +248,10 @@ The app now has a practical raw-vs-derived trace model:
 
 - Only tested with R&S `.dat` exports. Other formats may need parser adjustments
 - Multi-pane is currently limited to 1 to 4 stacked panes
+- Export/session portability is the next planned phase and is not fully implemented yet
+- Touchstone support is intentionally deferred to a later format-expansion phase
+- Oscilloscope waveform support is intentionally deferred to a later format-expansion phase
+- Pane synchronization does not use a permanent shared cursor line
 - Channel power is intentionally gated unless the trace unit is explicit spectral power density such as dBm/Hz or dBW/Hz
 - No PWA / offline install support
 - Large trace files (>10k points) may affect chart performance
