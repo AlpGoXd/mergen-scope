@@ -3,7 +3,8 @@
   Recent changes:
   - Phase 1: marker selection, minima search, marker-driven IP3, import normalization, saved-result cleanup, local vendored runtime imports.
   - Phase 2: raw/derived trace model, Trace Ops, smoothing methods, trace math, interpolation choices, unit-aware warnings.
-  - Later: multi-pane layout, synchronized cursor/readout, more analysis functions.
+  - Phase 3: multi-pane layout, pane-local lines, pane-targeted import, and shared or pane-local X navigation.
+  - Phase 4: expanded analysis toolkit including peak/spur tables, range stats, bandwidth, crossings, ripple, OBW, and guarded channel power.
 
   Manual regression checklist:
   1. Normal single trace: import one regular trace, verify startup, chart render, hover, X/Y zoom, markers, Peak, Next Peak, Min, Next Min.
@@ -13,6 +14,8 @@
   5. Sparse vs dense pair: import one sparse and one dense trace, verify nearest-point marker placement plus Next Peak / Next Min sequence behavior.
   6. Noisy PSD trace: run Noise PSD, save a result, remove the source trace, and confirm the saved-result panel stays consistent.
   7. Two-tone IP3 trace: create/select markers, assign F1/F2/IM3L/IM3U, try auto-pick, move a labeled marker, save IP3, and verify values update from marker positions.
+  8. Multi-pane pass: switch panes, drag traces between panes, test locked lines, and verify Zoom All on/off behavior.
+  9. Phase 4 pass: open Peak / Spur Table, Range Statistics, and Threshold Crossings, then confirm results follow the active pane and visible range.
 
   Phase 1 signoff:
   - Startup works from repo-hosted files only.
@@ -498,7 +501,7 @@ function TraceRow(p){
     h("span",{style:{color:C.tr[i%C.tr.length],fontWeight:600,fontSize:11}},tr.dn||tr.name),
     paneBadge?h("span",{style:{fontSize:10,color:"var(--dim)",border:"1px solid var(--border)",borderRadius:999,padding:"1px 5px",lineHeight:1.2}},paneBadge):null,
     isDerived?h("span",{style:{fontSize:10,color:C.accent,border:"1px solid "+C.accent,borderRadius:999,padding:"1px 6px",lineHeight:1.2}},"derived"):null,
-    h("span",{style:{color:"var(--dim)",marginLeft:"auto",fontSize:10}},(tr.mode||"")+(tr.detector?"\u00B7 "+tr.detector:"")),
+    h("span",{style:{marginLeft:"auto"}}),
     p.onRemove?h("button",{onClick:function(ev){ev.preventDefault();ev.stopPropagation();p.onRemove();},title:"Remove trace",style:{background:"none",border:"none",color:"#f55",cursor:"pointer",fontSize:13,padding:0,lineHeight:"1"}},"\u00D7"):null);
 }
 function Btn(p){
@@ -577,6 +580,66 @@ function useYControls(activePaneId){
     setYMxI(next.max.toFixed(3));
   },[paneId,yZoom]);
   return {yZoom:yZoom,setYZoom:setYZoom,paneYZooms:paneYZooms,setPaneYZooms:setPaneYZooms,clearAllPaneYZooms:clearAllPaneYZooms,yMnI:yMnI,setYMnI:setYMnI,yMxI:yMxI,setYMxI:setYMxI,applyYZ:applyYZ,resetYZ:resetYZ,syncYInputs:syncYInputs,syncYInputsForPane:syncYInputsForPane};
+}
+
+function useXControls(activePaneId, panes){
+  var _za=useState(true),zoomAll=_za[0],setZoomAllRaw=_za[1];
+  var _sz=useState(null),sharedZoom=_sz[0],setSharedZoom=_sz[1];
+  var _pz=useState({}),paneXZooms=_pz[0],setPaneXZooms=_pz[1];
+  useEffect(function(){
+    var paneIds=(panes||[]).map(function(pane){return pane.id;});
+    setPaneXZooms(function(prev){
+      var next={},changed=false;
+      Object.keys(prev||{}).forEach(function(key){
+        if(paneIds.indexOf(key)!==-1)next[key]=prev[key];
+        else changed=true;
+      });
+      return changed?next:prev;
+    });
+  },[panes]);
+  var zoom=zoomAll?sharedZoom:(paneXZooms[activePaneId]||null);
+  var setZoom=useCallback(function(nextOrUpdater,forPaneId){
+    if(zoomAll){
+      setSharedZoom(function(prev){return typeof nextOrUpdater==="function"?nextOrUpdater(prev):nextOrUpdater;});
+      return;
+    }
+    var paneId=forPaneId||activePaneId||"pane-1";
+    setPaneXZooms(function(prev){
+      var current=(prev&&prev[paneId])||null;
+      var nextValue=typeof nextOrUpdater==="function"?nextOrUpdater(current):nextOrUpdater;
+      var next=Object.assign({},prev||{});
+      if(nextValue&&isFinite(nextValue.left)&&isFinite(nextValue.right)&&nextValue.right>nextValue.left)next[paneId]=nextValue;
+      else delete next[paneId];
+      return next;
+    });
+  },[zoomAll,activePaneId]);
+  var getPaneZoom=useCallback(function(paneId){
+    return zoomAll?sharedZoom:((paneXZooms&&paneXZooms[paneId])||null);
+  },[zoomAll,sharedZoom,paneXZooms]);
+  var clearAllXZooms=useCallback(function(){
+    setSharedZoom(null);
+    setPaneXZooms({});
+  },[]);
+  var setZoomAll=useCallback(function(nextValue){
+    var target=typeof nextValue==="function"?nextValue(zoomAll):!!nextValue;
+    if(target===zoomAll)return;
+    if(target){
+      var activeZoom=(paneXZooms&&paneXZooms[activePaneId])||sharedZoom||null;
+      setSharedZoom(activeZoom);
+    } else {
+      var base=sharedZoom;
+      setPaneXZooms(function(prev){
+        var next=Object.assign({},prev||{});
+        (panes||[]).forEach(function(pane){
+          if(base&&isFinite(base.left)&&isFinite(base.right)&&base.right>base.left)next[pane.id]=base;
+          else delete next[pane.id];
+        });
+        return next;
+      });
+    }
+    setZoomAllRaw(target);
+  },[zoomAll,paneXZooms,activePaneId,sharedZoom,panes]);
+  return {zoomAll:zoomAll,setZoomAll:setZoomAll,zoom:zoom,setZoom:setZoom,paneXZooms:paneXZooms,getPaneZoom:getPaneZoom,clearAllXZooms:clearAllXZooms};
 }
 
 function useFileStore(dep){
@@ -703,7 +766,7 @@ function useFileStore(dep){
 }
 
 function useChartNav(dep){
-  var _z=useState(null),zoom=_z[0],setZoom=_z[1];
+  var zoom=dep.zoom||null,setZoom=dep.setZoom;
   var _sA=useState(null),selA=_sA[0],setSelA=_sA[1];
   var _sB=useState(null),selB=_sB[0],setSelB=_sB[1];
   var hoverX=dep.crosshair.hoverX,setHoverX=dep.crosshair.setHoverX;
@@ -1031,9 +1094,7 @@ function usePaneLayout(allTr){
       return next;
     });
   },[]);
-  var primaryPaneId=panes[0]?panes[0].id:"pane-1";
-  var primaryPaneTraces=useMemo(function(){return getPaneTracesForId(primaryPaneId);},[getPaneTracesForId,primaryPaneId]);
-  return {paneMode:paneCount,setPaneMode:setPaneMode,panes:panes,activePaneId:activePaneId,setActivePaneId:setActivePaneId,tracePaneMap:tracePaneMap,setTracePaneMap:setTracePaneMap,assignTraceToPane:assignTraceToPane,clearPane:clearPane,getPaneTraces:getPaneTracesForId,primaryPaneId:primaryPaneId,primaryPaneTraces:primaryPaneTraces,paneActiveTraceMap:paneActiveTraceMap,getPaneActiveTraceName:getPaneActiveTraceName,setPaneActiveTrace:setPaneActiveTrace};
+  return {paneMode:paneCount,setPaneMode:setPaneMode,panes:panes,activePaneId:activePaneId,setActivePaneId:setActivePaneId,tracePaneMap:tracePaneMap,setTracePaneMap:setTracePaneMap,assignTraceToPane:assignTraceToPane,clearPane:clearPane,getPaneTraces:getPaneTracesForId,getPaneActiveTraceName:getPaneActiveTraceName,setPaneActiveTrace:setPaneActiveTrace};
 }
 
 function useAnalysisRegistry(dep){
@@ -1043,41 +1104,6 @@ function useAnalysisRegistry(dep){
       "ip3":(dep.ip3Results||[]).length
     });
   },[dep.analysisOpenState,dep.noiseResults,dep.ip3Results]);
-}
-
-function useFeatureRegistry(dep){
-  return useMemo(function(){
-    return {
-      analysis: dep.analysisRegistry||[],
-      traceOps: [
-        {id:"trace-math",title:"Trace Math (A - B)",kind:"trace-op",status:"planned"},
-        {id:"trace-offset",title:"Offset / Amplitude Correction",kind:"trace-op",status:"planned"},
-        {id:"trace-smoothing",title:"Smoothing / Averaging",kind:"trace-op",status:"planned"}
-      ],
-      workflow: [
-        {id:"limit-lines",title:"Limit Lines",kind:"workflow",status:"planned"},
-        {id:"export-chart",title:"Export Chart",kind:"workflow",status:"planned"},
-        {id:"export-unified-csv",title:"Export Unified CSV",kind:"workflow",status:"planned"},
-        {id:"session-persist",title:"Session Persistence",kind:"workflow",status:"planned"}
-      ],
-      performance: [
-        {id:"render-decimation",title:"Render Decimation",kind:"perf",status:"planned"}
-      ]
-    };
-  },[dep.analysisRegistry]);
-}
-
-function buildAnalysisButtons(registry, dep){
-  return (registry||[]).map(function(item){
-    return {
-      id:item.id,
-      title:item.title,
-      tooltip:"Open or close the "+item.title+" analysis card.",
-      active:!!item.isOpen,
-      color:getAnalysisColor(item,dep.C),
-      onClick:function(){dep.toggleAnalysisOpen(item.id);}
-    };
-  });
 }
 
   function useRefLines(){
@@ -1142,7 +1168,6 @@ function buildAnalysisButtons(registry, dep){
   }
 
 function useNoisePSD(){
-  var _sN=useState(false),showNoise=_sN[0],setShowNoise=_sN[1];
   var _nF=useState("gaussian"),noiseFilter=_nF[0],setNoiseFilter=_nF[1];
   var _nS=useState(null),noiseSource=_nS[0],setNoiseSource=_nS[1];
   var _nR=useState([]),noiseResults=_nR[0],setNoiseResults=_nR[1];
@@ -1150,12 +1175,11 @@ function useNoisePSD(){
     var saved=makeSavedNoiseResult(npsdStats,noiseFilter,npsdStats&&npsdStats.src);
     if(!saved)return;
     setNoiseResults(function(lst){return lst.concat([saved]);});
-  },[noiseFilter,noiseSource]);
-  return {showNoise:showNoise,setShowNoise:setShowNoise,noiseFilter:noiseFilter,setNoiseFilter:setNoiseFilter,noiseSource:noiseSource,setNoiseSource:setNoiseSource,noiseResults:noiseResults,setNoiseResults:setNoiseResults,addSavedNoise:addSavedNoise};
+  },[noiseFilter]);
+  return {noiseFilter:noiseFilter,setNoiseFilter:setNoiseFilter,noiseSource:noiseSource,setNoiseSource:setNoiseSource,noiseResults:noiseResults,setNoiseResults:setNoiseResults,addSavedNoise:addSavedNoise};
 }
 
 function useIP3(){
-  var _sI=useState(false),showIP3=_sI[0],setShowIP3=_sI[1];
   var _iP=useState({f1:null,f2:null,im3l:null,im3u:null}),ip3Pts=_iP[0],setIP3Pts=_iP[1];
   var _iR=useState(null),ip3Res=_iR[0],setIP3Res=_iR[1];
   var _iG=useState(""),ip3Gain=_iG[0],setIP3Gain=_iG[1];
@@ -1178,7 +1202,7 @@ function useIP3(){
     if(!saved)return;
     setIP3Results(function(lst){return lst.concat([saved]);});
   },[ip3Res,ip3Pts,ip3Gain]);
-  return {showIP3:showIP3,setShowIP3:setShowIP3,ip3Pts:ip3Pts,setIP3Pts:setIP3Pts,ip3Res:ip3Res,setIP3Res:setIP3Res,ip3Gain:ip3Gain,setIP3Gain:setIP3Gain,ip3Results:ip3Results,setIP3Results:setIP3Results,stripIP3Markers:stripIP3Markers,resetIP3:resetIP3,syncFromMarkers:syncFromMarkers,saveIP3:saveIP3};
+  return {ip3Pts:ip3Pts,setIP3Pts:setIP3Pts,ip3Res:ip3Res,setIP3Res:setIP3Res,ip3Gain:ip3Gain,setIP3Gain:setIP3Gain,ip3Results:ip3Results,setIP3Results:setIP3Results,stripIP3Markers:stripIP3Markers,resetIP3:resetIP3,syncFromMarkers:syncFromMarkers,saveIP3:saveIP3};
 }
 
 function useMarkers(){
@@ -1744,12 +1768,24 @@ function PeakSpurTableCard(props){
     items.push(h("div",{key:"none",style:{fontSize:11,color:"var(--muted)"}},"No peaks matched the current threshold and spacing filters."));
     return items;
   }
+  items.push(h("div",{key:"actions",style:{display:"flex",justifyContent:"flex-end",marginBottom:8}},
+    h("button",{
+      title:"Place peak markers on all rows in this table for the selected trace.",
+      onClick:function(){if(props.addAllPeakMarkers)props.addAllPeakMarkers(target,peaks);},
+      style:{padding:"5px 8px",background:"transparent",border:"1px solid "+C.tr[2],color:C.tr[2],borderRadius:4,cursor:"pointer",fontSize:11}
+    },"Mark All")
+  ));
   items.push(h("div",{key:"rows",style:{display:"grid",gap:4}},
     peaks.map(function(row){
-      return h("div",{key:"peak-"+row.rank,style:{display:"grid",gridTemplateColumns:"38px 1fr 1fr",gap:8,fontSize:11,padding:"4px 6px",border:"1px solid var(--border)",borderRadius:4,background:"var(--bg)"}},
+      return h("div",{key:"peak-"+row.rank,style:{display:"grid",gridTemplateColumns:"38px 1fr 1fr auto",gap:8,fontSize:11,padding:"4px 6px",border:"1px solid var(--border)",borderRadius:4,background:"var(--bg)"}},
         h("span",{style:{color:C.tr[2],fontWeight:600}},"#"+row.rank),
         h("span",{style:{fontFamily:"monospace"}},fmtF(row.freq,true)),
-        h("span",{style:{fontFamily:"monospace"}},row.amp.toFixed(3)+(target.yUnit?(" "+target.yUnit):"")));
+        h("span",{style:{fontFamily:"monospace"}},row.amp.toFixed(3)+(target.yUnit?(" "+target.yUnit):"")),
+        h("button",{
+          title:"Place a peak marker at this peak on the selected trace.",
+          onClick:function(){if(props.addPeakMarker)props.addPeakMarker(target,row);},
+          style:{padding:"2px 6px",background:"transparent",border:"1px solid "+C.tr[2],color:C.tr[2],borderRadius:4,cursor:"pointer",fontSize:11}
+        },"Mark"));
     })
   ));
   return items;
@@ -1976,6 +2012,7 @@ function TopBar(props){
     btns.push(h(Btn,{key:"pane-tools",active:props.showPaneTools,soft:true,color:props.C.tr[1],title:"Show or hide pane controls for multi-pane layout and fitting.",onClick:function(){props.setShowPaneTools(function(p){return!p;});}},"Pane"));
     btns.push(h(Btn,{key:"search-tools",active:props.showSearchTools,soft:true,color:props.C.tr[2],title:"Show or hide peak, minimum, and search-direction controls.",onClick:function(){props.setShowSearchTools(function(p){return!p;});}},"Search"));
     btns.push(h(Btn,{key:"line-tools",active:props.showLineTools,soft:true,color:props.C.refV,title:"Show or hide reference line controls.",onClick:function(){props.setShowLineTools(function(p){return!p;});}},"Lines"));
+    btns.push(h(Btn,{key:"view-tools",active:props.showViewTools,soft:true,color:props.C.accent,title:"Show or hide view controls such as Zoom All, X/div, Y/div, and resets.",onClick:function(){props.setShowViewTools(function(p){return!p;});}},"View"));
     btns.push(dotSep("sep-view"));
     btns.push(h(Btn,{key:"dots",active:props.showDots,soft:true,color:props.C.md,title:"Show or hide plotted sample dots on top of the trace lines.",onClick:function(){props.setShowDots(function(p){return!p;});}},"Dots"));
     btns.push(h(Btn,{key:"dt",active:props.showDT,soft:true,color:props.C.tr[4],title:"Show or hide the raw data table for the selected trace.",onClick:function(){props.setShowDT(function(p){return!p;});}},"Data"));
@@ -2035,9 +2072,10 @@ function App(){
   var _sap=useState(false),showAnalysisPanel=_sap[0],setShowAnalysisPanel=_sap[1];
   var _aos=useState(getDefaultAnalysisOpenState?getDefaultAnalysisOpenState():{}),analysisOpenState=_aos[0],setAnalysisOpenStateRaw=_aos[1];
   var _smt=useState(true),showMarkerTools=_smt[0],setShowMarkerTools=_smt[1];
-  var _spt=useState(false),showPaneTools=_spt[0],setShowPaneTools=_spt[1];
+  var _spt=useState(true),showPaneTools=_spt[0],setShowPaneTools=_spt[1];
   var _sst=useState(true),showSearchTools=_sst[0],setShowSearchTools=_sst[1];
   var _slt=useState(false),showLineTools=_slt[0],setShowLineTools=_slt[1];
+  var _svt=useState(true),showViewTools=_svt[0],setShowViewTools=_svt[1];
   var _lll=useState(false),lockLinesAcrossPanes=_lll[0],setLockLinesAcrossPanes=_lll[1];
   var _sd=useState("right"),searchDirection=_sd[0],setSearchDirection=_sd[1];
   var _nm=useState(false),newMarkerArmed=_nm[0],setNewMarkerArmed=_nm[1];
@@ -2118,9 +2156,10 @@ function App(){
   var allTr=useMemo(function(){return rawTr.concat(derivedTraces);},[rawTr,derivedTraces]);
   var traceOptions=useMemo(function(){return allTr.filter(function(tr){return tr&&getTraceData(tr).length;});},[allTr]);
   var paneCtl=usePaneLayout(allTr);
-  var paneMode=paneCtl.paneMode,setPaneMode=paneCtl.setPaneMode,panes=paneCtl.panes,activePaneId=paneCtl.activePaneId,setActivePaneId=paneCtl.setActivePaneId,tracePaneMap=paneCtl.tracePaneMap,assignTraceToPane=paneCtl.assignTraceToPane,clearPane=paneCtl.clearPane,getPaneTracesForId=paneCtl.getPaneTraces,paneActiveTraceMap=paneCtl.paneActiveTraceMap,getPaneActiveTraceName=paneCtl.getPaneActiveTraceName,setPaneActiveTrace=paneCtl.setPaneActiveTrace;
-  var yCtl=useYControls(activePaneId),yZoom=yCtl.yZoom,setYZoom=yCtl.setYZoom,paneYZooms=yCtl.paneYZooms,clearAllPaneYZooms=yCtl.clearAllPaneYZooms,yMnI=yCtl.yMnI,setYMnI=yCtl.setYMnI,yMxI=yCtl.yMxI,setYMxI=yCtl.setYMxI,applyYZ=yCtl.applyYZ,resetYZ=yCtl.resetYZ,syncYInputs=yCtl.syncYInputs,syncYInputsForPane=yCtl.syncYInputsForPane;
-  zoomSetterRef.current=setZoom;
+  var paneMode=paneCtl.paneMode,setPaneMode=paneCtl.setPaneMode,panes=paneCtl.panes,activePaneId=paneCtl.activePaneId,setActivePaneId=paneCtl.setActivePaneId,tracePaneMap=paneCtl.tracePaneMap,assignTraceToPane=paneCtl.assignTraceToPane,clearPane=paneCtl.clearPane,getPaneTracesForId=paneCtl.getPaneTraces,getPaneActiveTraceName=paneCtl.getPaneActiveTraceName,setPaneActiveTrace=paneCtl.setPaneActiveTrace;
+  var xCtl=useXControls(activePaneId,panes),zoomAll=xCtl.zoomAll,setZoomAll=xCtl.setZoomAll,zoom=xCtl.zoom,setZoom=xCtl.setZoom,getPaneZoom=xCtl.getPaneZoom,clearAllXZooms=xCtl.clearAllXZooms;
+  var yCtl=useYControls(activePaneId),yZoom=yCtl.yZoom,setYZoom=yCtl.setYZoom,paneYZooms=yCtl.paneYZooms,yMnI=yCtl.yMnI,setYMnI=yCtl.setYMnI,yMxI=yCtl.yMxI,setYMxI=yCtl.setYMxI,resetYZ=yCtl.resetYZ,syncYInputs=yCtl.syncYInputs,syncYInputsForPane=yCtl.syncYInputsForPane;
+  zoomSetterRef.current=function(next){ if(next===null)clearAllXZooms(); else setZoom(next); };
   ySetterRefs.current.setYZoom=setYZoom;
   ySetterRefs.current.setYMnI=setYMnI;
   ySetterRefs.current.setYMxI=setYMxI;
@@ -2141,6 +2180,44 @@ function App(){
   function getTargetLinePaneIds(){
     return lockLinesAcrossPanes?panes.map(function(pane){return pane.id;}):[activePaneId];
   }
+  useEffect(function(){
+    if(!panes.length)return;
+    var paneIds=panes.map(function(pane){return pane.id;});
+    setRefLines(function(prev){
+      var lines=Array.isArray(prev)?prev:[];
+      var groups={};
+      var changed=false;
+      var maxId=lines.reduce(function(max,line){
+        return line&&typeof line.id==="number"&&line.id>max?line.id:max;
+      },0);
+      lines.forEach(function(line){
+        if(!line||!line.groupId)return;
+        if(!groups[line.groupId])groups[line.groupId]=[];
+        groups[line.groupId].push(line);
+      });
+      var next=lines.slice();
+      Object.keys(groups).forEach(function(groupId){
+        var members=groups[groupId];
+        if(!members||!members.length)return;
+        var exemplar=members[0];
+        paneIds.forEach(function(paneId){
+          var hasPaneMember=members.some(function(line){return line&&line.paneId===paneId;});
+          if(hasPaneMember)return;
+          changed=true;
+          maxId++;
+          next.push({
+            id:maxId,
+            type:exemplar.type,
+            paneId:paneId,
+            groupId:groupId,
+            value:exemplar.value,
+            label:exemplar.label
+          });
+        });
+      });
+      return changed?next:prev;
+    });
+  },[panes,setRefLines]);
   function selectTrace(traceName){
     var tr=getTraceByName(traceName);
     if(!tr)return;
@@ -2192,19 +2269,14 @@ function App(){
     setDragTraceName(null);
   }
   function fitPane(paneId){
-    var next=getPaneAutoYDomain(allTr,tracePaneMap,paneId,vis,zoom);
+    var next=getPaneAutoYDomain(allTr,tracePaneMap,paneId,vis,getPaneZoom(paneId));
     syncYInputsForPane(next||null,paneId);
   }
   function fitAllPanes(){
     panes.forEach(function(pane){
-      var next=getPaneAutoYDomain(allTr,tracePaneMap,pane.id,vis,zoom);
+      var next=getPaneAutoYDomain(allTr,tracePaneMap,pane.id,vis,getPaneZoom(pane.id));
       syncYInputsForPane(next||null,pane.id);
     });
-  }
-  function clearActivePane(){
-    if(panes.length<2)return;
-    resetYZ(activePaneId);
-    clearPane(activePaneId);
   }
   function getTraceMathUnitWarning(aName,bName,op){
     var a=getTraceByName(aName),b=getTraceByName(bName);
@@ -2500,7 +2572,6 @@ function App(){
 
   var normalizedAnalysisOpenState=useMemo(function(){return normalizeAnalysisOpenState(analysisOpenState);},[analysisOpenState]);
   var analysisRegistry=useAnalysisRegistry({analysisOpenState:normalizedAnalysisOpenState,noiseResults:noiseResults,ip3Results:ip3Results});
-  var featureRegistry=useFeatureRegistry({analysisRegistry:analysisRegistry});
   var traceMathUnitWarning=useMemo(function(){
     return getTraceMathUnitWarning(subtractA,subtractB,traceMathOperation);
   },[subtractA,subtractB,traceMathOperation]);
@@ -2522,8 +2593,8 @@ function App(){
   },[showTraceOps,setShowTraceOps,showAnalysisPanel,setShowAnalysisPanel,anyOpenAnalysis,closeAllAnalysisCards,C]);
 
   var noiseMeta=noiseSource?getTraceMeta(noiseSource):m0;
-  var nav=useChartNav({allTr:allTr,xAllTr:allTr,vis:vis,colors:C.tr,syncYInputs:syncYInputs,resetY:resetYZ,chartRef:chartRef,panRef:panRef,suppressClickRef:suppressClickRef,mouseBtnRef:mouseBtnRef,crosshair:crosshair,getActivePaneModel:function(){return activePaneModelRef.current;}});
-  zoom=nav.zoom;setZoom=nav.setZoom;selA=nav.selA;setSelA=nav.setSelA;selB=nav.selB;setSelB=nav.setSelB;hoverX=nav.hoverX;hoverData=nav.hoverData;getMouseBtn=nav.getMouseBtn;getXDomain=nav.getXDomain;getXDomainHz=nav.getXDomainHz;freqFromClientX=nav.freqFromClientX;panXWindow=nav.panXWindow;chartMM=nav.chartMM;chartML=nav.chartML;mDown=nav.mDown;mUp=nav.mUp;onChartContainerMouseDownCapture=nav.onChartContainerMouseDownCapture;onChartContainerMouseUpCapture=nav.onChartContainerMouseUpCapture;
+  var nav=useChartNav({allTr:allTr,xAllTr:allTr,vis:vis,colors:C.tr,zoom:zoom,setZoom:setZoom,syncYInputs:syncYInputs,resetY:resetYZ,chartRef:chartRef,panRef:panRef,suppressClickRef:suppressClickRef,mouseBtnRef:mouseBtnRef,crosshair:crosshair,getActivePaneModel:function(){return activePaneModelRef.current;}});
+  selA=nav.selA;setSelA=nav.setSelA;selB=nav.selB;setSelB=nav.setSelB;hoverX=nav.hoverX;hoverData=nav.hoverData;getMouseBtn=nav.getMouseBtn;getXDomain=nav.getXDomain;getXDomainHz=nav.getXDomainHz;freqFromClientX=nav.freqFromClientX;panXWindow=nav.panXWindow;chartMM=nav.chartMM;chartML=nav.chartML;mDown=nav.mDown;mUp=nav.mUp;onChartContainerMouseDownCapture=nav.onChartContainerMouseDownCapture;onChartContainerMouseUpCapture=nav.onChartContainerMouseUpCapture;
   var rbw=noiseMeta["RBW"]?.value||m0["RBW"]?.value||3000;
   var nextPeakExclusion=useMemo(function(){
     var vals=allTr.filter(function(t){return vis[t.name];}).map(function(t){return fileMap[t.fileId]?.meta?.["RBW"]?.value;}).filter(function(v){return typeof v==="number"&&!isNaN(v)&&v>0;});
@@ -2586,10 +2657,11 @@ function App(){
     var paneModels=useMemo(function(){
       return panes.map(function(pane){
       var traces=getPaneTracesForId(pane.id);
+      var paneZoom=getPaneZoom(pane.id);
       var m=new Map();
       traces.forEach(function(tr){
         if(!vis[tr.name])return;
-        var d=getVisibleTraceData(tr,zoom);
+        var d=getVisibleTraceData(tr,paneZoom);
         d.forEach(function(point){
           if(!m.has(point.freq))m.set(point.freq,{freq:point.freq});
           m.get(point.freq)[tr.name]=point.amp;
@@ -2610,16 +2682,17 @@ function App(){
         pane:pane,
         traces:traces,
         cData:sorted.map(function(row){row.fs=row.freq/div;return row;}),
+        paneZoom:paneZoom,
         fDiv:div,
         fUnit:unit,
         tickDp:tickDp||2,
         axisInfo:axisInfo,
         paneActiveTraceName:paneActiveTraceName,
         paneYZoom:sanitizeYDomain(paneYZooms[pane.id])||null,
-        autoYDomain:getPaneAutoYDomain(allTr,tracePaneMap,pane.id,vis,zoom)
+        autoYDomain:getPaneAutoYDomain(allTr,tracePaneMap,pane.id,vis,paneZoom)
       };
     });
-  },[panes,getPaneTracesForId,vis,zoom,selectedMkrIdx,markers,tracePaneMap,getPaneActiveTraceName,hasData,paneYZooms,allTr]);
+  },[panes,getPaneTracesForId,vis,getPaneZoom,selectedMkrIdx,markers,tracePaneMap,getPaneActiveTraceName,hasData,paneYZooms,allTr]);
     var activePaneModel=useMemo(function(){
       return paneModels.find(function(model){return model.pane.id===activePaneId;})||paneModels[0]||null;
     },[paneModels,activePaneId]);
@@ -2638,6 +2711,22 @@ function App(){
       vis:vis
     });
   },[activePaneId,activePaneModel,selectedTraceName,zoom,vis]);
+  var addPeakTableMarker=useCallback(function(target,row,selectNew){
+    if(!target||!target.trace||!row)return;
+    setSelectedRefLineId(null);
+    markerCtl.addMarker({freq:row.freq,amp:row.amp,trace:target.trace.name,type:"peak",label:"P"+row.rank},selectNew!==false);
+  },[markerCtl,setSelectedRefLineId]);
+  var addAllPeakTableMarkers=useCallback(function(target,rows){
+    if(!target||!target.trace||!Array.isArray(rows)||!rows.length)return;
+    setSelectedRefLineId(null);
+    setMarkers(function(prev){
+      var next=(prev||[]).concat(rows.map(function(row){
+        return {freq:row.freq,amp:row.amp,trace:target.trace.name,type:"peak",label:"P"+row.rank};
+      }));
+      setSelectedMkrIdx(next.length-1);
+      return next;
+    });
+  },[setMarkers,setSelectedMkrIdx,setSelectedRefLineId]);
 
   var stats=useMemo(function(){
     var st={};allTr.forEach(function(tr){
@@ -2694,16 +2783,19 @@ function App(){
     }
     return null;
   }
-  function updateRefLinePosition(id,type,nextValue){
-    if(id==null||typeof nextValue!=="number"||!Number.isFinite(nextValue))return false;
+  function updateRefLinePosition(target,type,nextValue){
+    var targetId=(target&&typeof target==="object")?target.id:target;
+    var targetGroupId=(target&&typeof target==="object"&&target.groupId)?target.groupId:null;
+    if(targetId==null&&!targetGroupId)return false;
+    if(typeof nextValue!=="number"||!Number.isFinite(nextValue))return false;
     setRefLines(function(prev){
-      var sourceLine=(prev||[]).find(function(line){return line&&line.id===id;})||null;
-      var targetGroupId=sourceLine&&sourceLine.groupId?sourceLine.groupId:null;
+      var sourceLine=targetGroupId?null:((prev||[]).find(function(line){return line&&line.id===targetId;})||null);
+      var resolvedGroupId=targetGroupId||(sourceLine&&sourceLine.groupId?sourceLine.groupId:null);
       return prev.map(function(line){
         if(!line)return line;
-        if(targetGroupId){
-          if(line.groupId!==targetGroupId)return line;
-        } else if(line.id!==id){
+        if(resolvedGroupId){
+          if(line.groupId!==resolvedGroupId)return line;
+        } else if(line.id!==targetId){
           return line;
         }
         if(type==="v"){
@@ -2771,10 +2863,10 @@ function App(){
         didDragRefLineRef.current=true;
         if(dragLine.type==="v"){
           var refFreq=getEventFreq(ev);
-          if(isFinite(refFreq))updateRefLinePosition(dragLine.id,"v",refFreq);
+          if(isFinite(refFreq))updateRefLinePosition(dragLine,"v",refFreq);
       } else if(dragLine.type==="h"){
         var yVal=getChartYValueFromEvent(ev);
-        if(isFinite(yVal))updateRefLinePosition(dragLine.id,"h",yVal);
+        if(isFinite(yVal))updateRefLinePosition(dragLine,"h",yVal);
       }
       return;
     }
@@ -2797,7 +2889,7 @@ function App(){
         if(ev&&ev.button===0&&!refMode&&!newMarkerArmed&&selectedRefLineId!==null&&selectedRefLineId!==undefined){
           var selectedLine=refLines.find(function(line){return line&&line.id===selectedRefLineId;})||null;
           if(selectedLine){
-            dragRefLineRef.current={id:selectedLine.id,type:selectedLine.type};
+            dragRefLineRef.current={id:selectedLine.id,type:selectedLine.type,groupId:selectedLine.groupId||null};
           }
         }
         dragSelectedMarkerRef.current=!!(ev&&ev.button===0&&!dragRefLineRef.current&&!refMode&&!newMarkerArmed&&selectedMkrIdx!==null&&selectedMkrIdx!==undefined&&markers[selectedMkrIdx]);
@@ -2886,7 +2978,7 @@ function App(){
       items.push(h("div",{key:"pane-actions",style:{display:"flex",gap:6,marginBottom:8,flexWrap:"wrap"}},
         h("button",{title:"Fit the active pane vertically to the traces currently shown in it.",onClick:function(){fitPane(activePaneId);},style:{padding:"5px 8px",background:"transparent",border:"1px solid var(--border)",color:C.accent,borderRadius:4,cursor:"pointer",fontSize:11}},"Fit Active"),
         h("button",{title:"Fit every pane vertically to the traces visible in that pane.",onClick:fitAllPanes,style:{padding:"5px 8px",background:"transparent",border:"1px solid var(--border)",color:C.accent,borderRadius:4,cursor:"pointer",fontSize:11}},"Fit All"),
-        h("button",{title:"Remove all traces from the active pane and move them back to the remaining layout.",onClick:clearActivePane,disabled:panes.length<2,style:{padding:"5px 8px",background:"transparent",border:"1px solid var(--border)",color:"var(--muted)",borderRadius:4,cursor:panes.length<2?"not-allowed":"pointer",fontSize:11,opacity:panes.length<2?0.55:1}},"Clear Active")
+        h("button",{title:"Remove all traces from the active pane and move them back to the remaining layout.",onClick:function(){if(panes.length<2)return;resetYZ(activePaneId);clearPane(activePaneId);},disabled:panes.length<2,style:{padding:"5px 8px",background:"transparent",border:"1px solid var(--border)",color:"var(--muted)",borderRadius:4,cursor:panes.length<2?"not-allowed":"pointer",fontSize:11,opacity:panes.length<2?0.55:1}},"Clear Active")
       ));
     }
     items.push(h(Sec,{key:"st"},"Traces ("+allTr.length+")"));
@@ -2955,7 +3047,7 @@ function App(){
       },ip3Results:ip3Results,removeIP3:function(id){setIP3Results(function(lst){return lst.filter(function(x){return x.id!==id;});});},setMarkers:setMarkers,stripIP3Markers:stripIP3Markers,selectedMarker:selectedMarker,selectedIndex:selectedMkrIdx,assignSelectedRole:assignSelectedRole,clearSelectedRole:clearSelectedRole,autoPickIP3:autoPickIP3}));
     }
     if(normalizedAnalysisOpenState["peak-spur-table"]){
-      sections.push(h(PeakSpurTableCard,{key:"peak-spur-card",C:C,target:analysisTarget,peakTableLimit:peakTableLimit,setPeakTableLimit:setPeakTableLimit,peakTableMinSpacing:peakTableMinSpacing,setPeakTableMinSpacing:setPeakTableMinSpacing,peakTableMinAmp:peakTableMinAmp,setPeakTableMinAmp:setPeakTableMinAmp}));
+      sections.push(h(PeakSpurTableCard,{key:"peak-spur-card",C:C,target:analysisTarget,peakTableLimit:peakTableLimit,setPeakTableLimit:setPeakTableLimit,peakTableMinSpacing:peakTableMinSpacing,setPeakTableMinSpacing:setPeakTableMinSpacing,peakTableMinAmp:peakTableMinAmp,setPeakTableMinAmp:setPeakTableMinAmp,addPeakMarker:addPeakTableMarker,addAllPeakMarkers:addAllPeakTableMarkers}));
     }
     if(normalizedAnalysisOpenState["marker-delta-table"]){
       sections.push(h(MarkerDeltaTableCard,{key:"marker-delta-card",C:C,target:analysisTarget,markers:markers}));
@@ -3002,9 +3094,6 @@ function App(){
     var paneButtons=panes.map(function(pane,idx){
       return h(Btn,{key:"pac-"+pane.id,active:activePaneId===pane.id,color:C.tr[idx%C.tr.length],title:"Make "+pane.title+" the active pane for marker, search, and line actions.",onClick:function(){setActivePaneId(pane.id);}},pane.title);
     });
-    var moveButtons=panes.map(function(pane,idx){
-      return h(Btn,{key:"pm-"+pane.id,color:C.tr[idx%C.tr.length],title:"Move the currently selected trace into "+pane.title+".",onClick:function(){moveSelectedTraceToPane(pane.id);},disabled:!selectedTraceName||getTracePaneId(tracePaneMap,selectedTraceName)===pane.id},"Move Sel -> P"+(idx+1));
-    });
     var row1=[];
     if(showMarkerTools)row1.push(
       group("Marker",[
@@ -3016,12 +3105,9 @@ function App(){
     );
     if(showPaneTools)row1.push(
       group("Pane",[
-        h(Btn,{key:"p1",active:paneMode===1,color:C.tr[0],title:"Switch back to a single stacked pane view.",onClick:function(){setPaneMode(1);setActivePaneId("pane-1");}},"1 Pane"),
         h(Btn,{key:"padd",color:C.tr[Math.min(panes.length,C.tr.length-1)],title:"Add another stacked pane, up to four panes total.",onClick:function(){setPaneMode(Math.min(4,panes.length+1));},disabled:panes.length>=4},"+ Pane"),
         h(Btn,{key:"prem",color:"#f64",title:"Remove the last pane and move its traces back into the remaining panes.",onClick:function(){if(panes.length>1){setPaneMode(panes.length-1);}},disabled:panes.length<=1},"- Pane"),
         paneButtons,
-        panes.length>1?moveButtons:null,
-        h(Btn,{key:"pfit",color:C.accent,title:"Fit only the active pane vertically to its visible traces.",onClick:function(){fitPane(activePaneId);},disabled:!hasData},"Fit Pane"),
         h(Btn,{key:"pfitall",color:C.accent,title:"Fit every pane vertically to the traces shown in that pane.",onClick:fitAllPanes,disabled:!hasData},"Fit All")
       ],C.tr[1])
     );
@@ -3032,10 +3118,6 @@ function App(){
         h(Btn,{key:"bm",color:C.mn,title:"Find the minimum point on the selected trace or active pane.",onClick:function(){setNewMarkerArmed(false);setRefMode(null);minSrch();}},"Min"),
         h(Btn,{key:"bnm",color:C.mn,title:"Step to the next minimum in the current search direction.",onClick:function(){setNewMarkerArmed(false);setRefMode(null);nxtMin();},disabled:!markers.length&&!allTr.length},"Next Min"),
         h(Btn,{key:"sdir",active:true,color:searchDirection==="right"?"#8b3dbb":"#ff6699",title:"Toggle search direction between increasing and decreasing frequency.",onClick:function(){setSearchDirection(function(prev){return prev==="right"?"left":"right";});}},searchDirection==="right"?"Dir: L -> R":"Dir: L <- R"),
-        h("span",{key:"mtl",style:{fontSize:12,color:"var(--dim)",marginLeft:4},title:"Auto uses the selected marker's trace when one is selected. Otherwise search and placement fall back to the visible trace under the cursor, then other visible traces."},"Search Trace:"),
-        h("select",{key:"mts",value:markerTrace,onChange:function(ev){setMarkerTrace(ev.target.value);},title:"Auto uses the selected marker trace first, then visible traces under the cursor / search set.",
-          style:{maxWidth:180,background:"var(--card)",color:"var(--text)",border:"1px solid var(--border)",borderRadius:4,padding:"3px 6px",fontSize:12}},
-          [h("option",{key:"auto",value:"__auto__"},"Auto")].concat(cTr.map(function(tr){return h("option",{key:tr.name,value:tr.name},tr.dn||tr.name);}))),
         mkrMode==="delta"&&markers.length>0&&!refMode?h("select",{key:"ds",value:dRef??0,onChange:function(ev){setDRef(Number(ev.target.value));},
           style:{background:"var(--card)",color:"var(--text)",border:"1px solid var(--border)",borderRadius:4,padding:"3px 6px",fontSize:12}},
           markers.map(function(_,i){return h("option",{key:i,value:i},"Ref: M"+(i+1));})):null
@@ -3048,8 +3130,9 @@ function App(){
         h(Btn,{key:"lock-lines",active:lockLinesAcrossPanes,color:C.refV,title:lockLinesAcrossPanes?"Create linked lines across all panes.":"Create new lines only in the active pane.",onClick:function(){setLockLinesAcrossPanes(function(prev){return !prev;});}},lockLinesAcrossPanes?"Lock: All Panes":"Lock: Active Pane")
       ],C.refV)
     );
-    row1.push(
+    if(showViewTools)row1.push(
       group("View",[
+        h(Btn,{key:"zall",active:zoomAll,color:C.accent,title:zoomAll?"Keep right-click X zoom and pan shared across all panes.":"Limit right-click X zoom and pan to the active pane only.",onClick:function(){setZoomAll(function(prev){return !prev;});}},"Zoom All"),
         h("div",{key:"xdb",style:{display:"flex",alignItems:"center",gap:6,padding:"5px 8px",border:"1px solid var(--border)",borderRadius:6,minWidth:132,background:"var(--bg)"}} ,
           h("span",{style:{fontSize:11,color:"var(--dim)",fontWeight:700}},"X/div"),
           h("span",{style:{fontSize:12,fontFamily:"monospace",color:"var(--text)"}} ,xDivLabel)),
@@ -3057,7 +3140,7 @@ function App(){
           h("span",{style:{fontSize:11,color:"var(--dim)",fontWeight:700}},"Y/div"),
           h("span",{style:{fontSize:12,fontFamily:"monospace",color:"var(--text)"}} ,yDivLabel)),
         yZoom?h(Btn,{key:"yr",color:"#f64",title:"Reset the active pane vertical zoom back to its automatic fit.",onClick:resetYZ},"Reset Y"):null,
-        h(Btn,{key:"xr",color:"#f64",title:"Reset the shared horizontal zoom for all panes.",onClick:function(){if(zoom)setZoom(null);},disabled:!zoom},"Reset X")
+        h(Btn,{key:"xr",color:"#f64",title:zoomAll?"Reset the shared horizontal zoom for all panes.":"Reset the active pane horizontal zoom only.",onClick:function(){if(zoom)setZoom(null);},disabled:!zoom},"Reset X")
       ],C.accent)
     );
     var status=[];
@@ -3151,11 +3234,11 @@ function App(){
       var uLines=paneRefLines.map(function(rl){
           if(rl.type==="v")return h(ReferenceLine,{key:"rl-"+paneId+"-"+rl.id,x:rl.value/paneFDiv,stroke:C.refV,strokeWidth:selectedRefLineId===rl.id?2.5:1.5,strokeDasharray:"8 4",
             label:{value:rl.label,position:"insideTopRight",fill:C.refV,fontSize:10},ifOverflow:"extendDomain",
-            onMouseDown:isActive?function(ev){if(ev&&ev.stopPropagation)ev.stopPropagation();setSelectedMkrIdx(null);setSelectedRefLineId(rl.id);dragRefLineRef.current={id:rl.id,type:"v"};}:undefined,
+            onMouseDown:isActive?function(ev){if(ev&&ev.stopPropagation)ev.stopPropagation();setSelectedMkrIdx(null);setSelectedRefLineId(rl.id);dragRefLineRef.current={id:rl.id,type:"v",groupId:rl.groupId||null};}:undefined,
             onClick:function(ev){if(ev&&ev.stopPropagation)ev.stopPropagation();setActivePaneId(paneId);setSelectedMkrIdx(null);setSelectedRefLineId(rl.id);}});
           return h(ReferenceLine,{key:"rl-"+paneId+"-"+rl.id,y:rl.value,stroke:C.refH,strokeWidth:selectedRefLineId===rl.id?2.5:1.5,strokeDasharray:"8 4",
             label:{value:rl.label,position:"insideTopRight",fill:C.refH,fontSize:10},ifOverflow:"extendDomain",
-            onMouseDown:isActive?function(ev){if(ev&&ev.stopPropagation)ev.stopPropagation();setSelectedMkrIdx(null);setSelectedRefLineId(rl.id);dragRefLineRef.current={id:rl.id,type:"h"};}:undefined,
+            onMouseDown:isActive?function(ev){if(ev&&ev.stopPropagation)ev.stopPropagation();setSelectedMkrIdx(null);setSelectedRefLineId(rl.id);dragRefLineRef.current={id:rl.id,type:"h",groupId:rl.groupId||null};}:undefined,
             onClick:function(ev){if(ev&&ev.stopPropagation)ev.stopPropagation();setActivePaneId(paneId);setSelectedMkrIdx(null);setSelectedRefLineId(rl.id);}});
       });
       var crossLine=isActive&&hoverX!==null?h(ReferenceLine,{key:"cross-"+paneId,x:hoverX/paneFDiv,stroke:C.cross,strokeWidth:1,strokeDasharray:"2 2"}):null;
@@ -3272,7 +3355,7 @@ function App(){
   }
 
   function renderTopBar(){
-    return h(TopBar,{files:files,removeFile:removeFile,hasData:hasData,C:C,importRef:iRef,showSidebar:showSidebar,setShowSidebar:setShowSidebar,showMarkers:showMarkers,setShowMarkers:setShowMarkers,showMarkerTools:showMarkerTools,setShowMarkerTools:setShowMarkerTools,showPaneTools:showPaneTools,setShowPaneTools:setShowPaneTools,showSearchTools:showSearchTools,setShowSearchTools:setShowSearchTools,showLineTools:showLineTools,setShowLineTools:setShowLineTools,showDots:showDots,setShowDots:setShowDots,showDT:showDT,setShowDT:setShowDT,analysisButtons:analysisButtons,clearAllFiles:clearAllFiles});
+    return h(TopBar,{files:files,removeFile:removeFile,hasData:hasData,C:C,importRef:iRef,showSidebar:showSidebar,setShowSidebar:setShowSidebar,showMarkers:showMarkers,setShowMarkers:setShowMarkers,showMarkerTools:showMarkerTools,setShowMarkerTools:setShowMarkerTools,showPaneTools:showPaneTools,setShowPaneTools:setShowPaneTools,showSearchTools:showSearchTools,setShowSearchTools:setShowSearchTools,showLineTools:showLineTools,setShowLineTools:setShowLineTools,showViewTools:showViewTools,setShowViewTools:setShowViewTools,showDots:showDots,setShowDots:setShowDots,showDT:showDT,setShowDT:setShowDT,analysisButtons:analysisButtons,clearAllFiles:clearAllFiles});
   }
 
   function renderFooter(){

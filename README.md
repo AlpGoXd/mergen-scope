@@ -14,6 +14,7 @@ Mergen Scope is a free, open-source, browser-based viewer for Rohde & Schwarz sp
 - Multi-trace support: load and compare multiple measurements
 - Interactive markers: place markers, search for peaks and minima, track frequency points
 - Trace Ops panel: create derived traces without changing the raw source
+- Multi-pane view: switch between 1 and 4 stacked panes with shared X navigation
 - Offset and Scale: additive or multiplicative amplitude correction as derived traces
 - Smoothing: None, Moving Average, Median Filter, and Savitzky-Golay
 - Trace Math: `A + B`, `A - B`, `A * B`, `A / B` with overlap-only math on A's grid
@@ -21,6 +22,7 @@ Mergen Scope is a free, open-source, browser-based viewer for Rohde & Schwarz sp
 - Trace Math warnings: short unit-aware warning notes for logarithmic and mixed-logarithmic math, with no blocking and no automatic unit conversion
 - Noise PSD panel: visualize noise power spectral density across the spectrum
 - IP3/TOI measurement tool: marker-driven intermodulation point calculation
+- Expanded analysis toolkit: peak/spur table, marker delta table, range statistics, bandwidth helper, threshold crossings, ripple/flatness, occupied bandwidth, and guarded channel power
 - Zoom and pan: navigate large frequency ranges with oscilloscope-style division readout
 - Import/export: save marked measurements and analysis results
 - No installation required: runs in any modern browser
@@ -76,6 +78,30 @@ Trace Math works over the overlapping X range only, uses A's grid, and offers in
 
 Trace Math also shows short warning-only notes when logarithmic units can make the result misleading. That includes same-unit logarithmic math such as `dBm + dBm`, `dB * dB`, and mixed logarithmic-unit math such as `dB * dBm`. These notes do not block the operation and do not change the math.
 
+### Multi-Pane
+
+Use the **Pane** controls to switch between:
+
+- **1 Pane** for the current single-chart workflow
+- up to **4 stacked panes** for shared-X comparison with independent Y scaling
+
+In multi-pane mode you can:
+
+- set the active pane
+- add or remove panes
+- move the selected trace to any pane
+- drag a trace row from the sidebar and drop it onto a pane header or pane body
+- fit the current pane
+- fit all panes
+- clear one pane by moving its traces back to another pane
+
+Current first-release behavior:
+
+- X zoom and pan are shared across panes
+- Y zoom and fit are pane-local
+- marker search follows the active pane and its selected trace
+- reference lines are pane-local by default, with an optional lock mode to place linked lines across all panes
+
 ### Noise PSD
 
 Open the **Noise PSD** panel, set the resolution bandwidth, and the tool computes noise power spectral density from the selected trace.
@@ -83,6 +109,19 @@ Open the **Noise PSD** panel, set the resolution bandwidth, and the tool compute
 ### IP3 / TOI Measurement
 
 Assign marker roles (F1, F2, IM3L, IM3U) using the marker panel, then compute IP3 from the marked points.
+
+### Analysis
+
+Open **Analysis** to access pane-aware numeric tools that act on the selected trace in the active pane over the currently visible range:
+
+- **Peak / Spur Table**
+- **Marker Delta Table**
+- **Range Statistics**
+- **3 dB / 10 dB Bandwidth**
+- **Threshold Crossings**
+- **Ripple / Flatness**
+- **Occupied Bandwidth**
+- **Channel Power** with strict unit gating
 
 ---
 
@@ -109,7 +148,24 @@ Detector;RMS
 
 ## Architecture
 
-Single HTML file. No build step. React 18, React DOM, PropTypes, and Recharts are vendored locally under `vendor/`. There are no CDN calls at runtime. The app runs entirely from files served by GitHub Pages.
+No build step. The app still runs directly in the browser from GitHub Pages using local vendored runtime files under `vendor/`.
+
+The main UI stays in `mergen_scope.html`, and shared helper logic is now starting to move into local helper files under `app-modules/` so the codebase can keep growing without a framework rewrite.
+
+Current helper split:
+
+- `app-modules/trace-helpers.js` for chart/window helpers
+- `app-modules/trace-model.js` for trace identity, units, and axis-label helpers
+- `app-modules/trace-ops-helpers.js` for smoothing, interpolation, and trace-math helpers
+- `app-modules/analysis-helpers.js` for Noise PSD, IP3 math, and saved-result shaping helpers
+- `app-modules/analysis-target-helpers.js` for pane-aware analysis registry, target resolution, and unit gating
+- `app-modules/range-analysis-helpers.js` for range stats, crossings, bandwidth, OBW, and channel-power math
+- `app-modules/file-store-helpers.js` for trace normalization, dedupe, and file-signature helpers
+- `app-modules/parser-helpers.js` for nearest-point lookup and R&S `.dat` parsing helpers
+- `app-modules/marker-helpers.js` for IP3 marker-role helpers and peak/min search math
+- `app-modules/derived-state-helpers.js` for derived-trace dependency cleanup helpers
+- `app-modules/ui-helpers.js` for formatting, theme colors, metric rows, and saved-result item components
+- `app-modules/pane-helpers.js` for pane ownership, per-pane trace filtering, and pane Y-domain helpers
 
 The app now has a practical raw-vs-derived trace model:
 
@@ -122,10 +178,8 @@ The app now has a practical raw-vs-derived trace model:
 
 ## Roadmap
 
-- Phase 2 hardening and cleanup for derived traces
-- Multi-pane layout
 - Synchronized pane cursor
-- OBW / THD analysis functions
+- THD and later analysis functions
 - Chart export (PNG / SVG)
 - Session persistence / workspace JSON
 
@@ -134,7 +188,8 @@ The app now has a practical raw-vs-derived trace model:
 ## Known Limitations
 
 - Only tested with R&S `.dat` exports. Other formats may need parser adjustments
-- Single HTML file architecture is intentional but not modular
+- Multi-pane is currently limited to 1 to 4 stacked panes
+- Channel power is intentionally gated unless the trace unit is explicit spectral power density such as dBm/Hz or dBW/Hz
 - No PWA / offline install support
 - Large trace files (>10k points) may affect chart performance
 
