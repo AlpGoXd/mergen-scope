@@ -4,73 +4,190 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-  <title>Mergen Scope — Free Online Spectrum & Waveform Viewer for R&S .dat Files</title>
-  <meta name="description" content="Mergen Scope — free online viewer for Rohde & Schwarz spectrum analyzer .dat files. Visualize RF spectrum data, waveforms, and spectral plots directly in your browser. No install required.">
-  <meta name="keywords" content="spectrum viewer, spectrum analyzer viewer, dat file viewer, Rohde Schwarz, RF spectrum, waveform viewer, spectra viewer, online spectrum viewer, free spectrum analyzer, signal viewer, R&S dat file, frequency spectrum plot, RF measurement viewer, free online waveform viewer, spectral analysis tool, mergen scope">
-  <meta name="author" content="Alp Gökalp">
-  <meta name="robots" content="index, follow">
+  <title>Mergen Scope - Free Online Spectrum Viewer for R&amp;S .dat Files</title>
+  <meta name="description" content="Mergen Scope is a free browser-based viewer for Rohde &amp; Schwarz .dat exports with markers, trace math, RF analysis tools, and multi-pane comparison. No install required.">
+  <meta name="keywords" content="spectrum viewer, spectrum analyzer viewer, dat file viewer, Rohde Schwarz, RF spectrum, spectra viewer, online spectrum viewer, free spectrum analyzer, signal viewer, R&S dat file, frequency spectrum plot, RF measurement viewer, trace math, RF analysis tool, mergen scope">
+  <meta name="author" content="Alp Gokalp">
+  <meta name="robots" content="noindex, nofollow">
 
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://alpgoxd.github.io/mergen-scope/">
-  <meta property="og:title" content="Mergen Scope — Free Online Spectrum & Waveform Viewer">
-  <meta property="og:description" content="Free browser-based viewer for Rohde & Schwarz spectrum analyzer .dat files. Visualize RF spectra, waveforms, and measurement data online — no install needed.">
+  <meta property="og:title" content="Mergen Scope - Free Online Spectrum Viewer">
+  <meta property="og:description" content="Free browser-based viewer for Rohde &amp; Schwarz .dat exports with markers, trace math, RF analysis tools, and multi-pane comparison.">
   <meta property="og:image" content="https://alpgoxd.github.io/mergen-scope/og-image.png">
 
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="Mergen Scope — Spectrum Analyzer .DAT Viewer">
-  <meta name="twitter:description" content="Open-source .dat file viewer for RF/microwave measurements">
+  <meta name="twitter:title" content="Mergen Scope - Spectrum Analyzer .DAT Viewer">
+  <meta name="twitter:description" content="Open-source .dat viewer with markers, trace math, RF analysis, and multi-pane comparison">
 
   <link rel="canonical" href="https://alpgoxd.github.io/mergen-scope/">
   <link rel="sitemap" href="https://alpgoxd.github.io/mergen-scope/sitemap.xml">
+  <link rel="icon" type="image/svg+xml" href="mergen-scope-icon.svg">
   <meta name="google-site-verification" content="O64Z7BHiqB2rKy5Zhtj1gvyn-18y4eWPYjP9-bYTFmg">
 
   <style>
     :root {
       color-scheme: light dark;
-      --bg:       #ffffff;
-      --surface:  #f6f8fa;
-      --border:   #d1d9e0;
-      --text:     #1f2328;
-      --muted:    #656d76;
-      --accent:   #0969da;
-      --accent2:  #1a7f37;
-      --btn:      #0969da;
-      --btn-h:    #0550ae;
+      --mx: 0;
+      --my: 0;
+      --bg: #ffffff;
+      --surface: #f6f8fa;
+      --border: #d1d9e0;
+      --text: #1f2328;
+      --muted: #656d76;
+      --accent: #0969da;
+      --accent2: #1a7f37;
+      --btn: #0969da;
+      --btn-h: #0550ae;
     }
     @media (prefers-color-scheme: dark) {
       :root {
-        --bg:       #0d1117;
-        --surface:  #161b22;
-        --border:   #30363d;
-        --text:     #e6edf3;
-        --muted:    #8b949e;
-        --accent:   #58a6ff;
-        --accent2:  #3fb950;
-        --btn:      #238636;
-        --btn-h:    #2ea043;
+        --bg: #0d1117;
+        --surface: #161b22;
+        --border: #30363d;
+        --text: #e6edf3;
+        --muted: #8b949e;
+        --accent: #58a6ff;
+        --accent2: #3fb950;
+        --btn: #238636;
+        --btn-h: #2ea043;
       }
     }
 
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
+    html, body {
+      min-height: 100%;
+    }
+
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      background: var(--bg);
+      position: relative;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background:
+        radial-gradient(circle at top left, color-mix(in srgb, var(--accent) 10%, transparent), transparent 28%),
+        radial-gradient(circle at top right, color-mix(in srgb, var(--accent2) 12%, transparent), transparent 24%),
+        linear-gradient(180deg, color-mix(in srgb, var(--bg) 8%, transparent), var(--bg));
       color: var(--text);
       line-height: 1.6;
+      overflow-x: hidden;
+    }
+    .page-bg {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      overflow: hidden;
+    }
+    .page-bg svg {
+      width: 100%;
+      height: 100%;
+      display: block;
+      opacity: 0.9;
+    }
+    .bg-parallax-1,
+    .bg-parallax-2,
+    .bg-parallax-3 {
+      transform-box: fill-box;
+      transform-origin: center;
+      will-change: transform;
+    }
+    .bg-parallax-1 {
+      transform: translate(calc(var(--mx) * 10px), calc(var(--my) * 10px));
+    }
+    .bg-parallax-2 {
+      transform: translate(calc(var(--mx) * -14px), calc(var(--my) * 12px));
+    }
+    .bg-parallax-3 {
+      transform: translate(calc(var(--mx) * 18px), calc(var(--my) * -16px));
+    }
+    .bg-grid-line {
+      stroke: color-mix(in srgb, var(--border) 55%, transparent);
+      stroke-width: 1;
+      stroke-dasharray: 2 10;
+      opacity: 0.35;
+    }
+    .bg-wave-1,
+    .bg-wave-2,
+    .bg-wave-3,
+    .bg-wave-4,
+    .bg-wave-5 {
+      fill: none;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      stroke-width: 2.4;
+    }
+    .bg-wave-1 { stroke: color-mix(in srgb, var(--accent) 72%, white); opacity: 0.82; }
+    .bg-wave-2 { stroke: color-mix(in srgb, #ff7a59 72%, white); opacity: 0.78; }
+    .bg-wave-3 { stroke: color-mix(in srgb, var(--accent2) 72%, white); opacity: 0.72; }
+    .bg-wave-4 { stroke: color-mix(in srgb, #9b6dff 70%, white); opacity: 0.66; }
+    .bg-wave-5 { stroke: color-mix(in srgb, #00a6a6 68%, white); opacity: 0.58; }
+    .bg-wave-slow {
+      animation: driftSlow 18s ease-in-out infinite alternate;
+    }
+    .bg-wave-mid {
+      animation: driftMid 14s ease-in-out infinite alternate;
+    }
+    .bg-wave-fast {
+      animation: driftFast 11s ease-in-out infinite alternate;
+    }
+    @keyframes driftSlow {
+      from { transform: translate3d(-10px, 6px, 0) scale(1.01); }
+      to { transform: translate3d(14px, -8px, 0) scale(1.04); }
+    }
+    @keyframes driftMid {
+      from { transform: translate3d(8px, -10px, 0) scale(1.02); }
+      to { transform: translate3d(-14px, 10px, 0) scale(1.05); }
+    }
+    @keyframes driftFast {
+      from { transform: translate3d(-16px, 10px, 0) scale(1.01); }
+      to { transform: translate3d(18px, -12px, 0) scale(1.06); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .bg-wave-slow,
+      .bg-wave-mid,
+      .bg-wave-fast {
+        animation: none;
+      }
+      .bg-parallax-1,
+      .bg-parallax-2,
+      .bg-parallax-3 {
+        transform: none;
+      }
     }
 
     .page {
-      max-width: 860px;
-      margin: 0 auto;
+      position: relative;
+      z-index: 1;
+      max-width: 1120px;
+      margin: 2rem auto;
       padding: 4rem 2rem 3rem;
+      border: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
+      border-radius: 30px;
+      background-color: color-mix(in srgb, var(--bg) 22%, transparent);
+      background-image: linear-gradient(180deg, color-mix(in srgb, var(--surface) 14%, transparent), color-mix(in srgb, var(--bg) 30%, transparent));
+      box-shadow:
+        0 28px 80px color-mix(in srgb, var(--text) 10%, transparent),
+        inset 0 1px 0 color-mix(in srgb, #ffffff 18%, transparent);
+      backdrop-filter: blur(14px) saturate(1.06);
     }
-
-    /* ── Hero ── */
+    /* Hero */
     .hero {
-      border-bottom: 1px solid var(--border);
-      padding-bottom: 2.5rem;
+      padding: 1.25rem 0;
       margin-bottom: 2.5rem;
+    }
+    .hero-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 1rem;
+      align-items: center;
+    }
+    .hero-copy {
+      position: relative;
+      z-index: 1;
+      padding: 1.25rem 1.5rem;
+      max-width: 760px;
+      margin: 0 auto;
+      text-align: center;
     }
     .hero-label {
       font-size: 0.8rem;
@@ -79,6 +196,23 @@
       text-transform: uppercase;
       color: var(--muted);
       margin-bottom: 0.75rem;
+    }
+    .hero-brand {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 1rem;
+    }
+    .hero-brand-mark {
+      width: 56px;
+      height: 56px;
+      border-radius: 16px;
+      border: 1px solid color-mix(in srgb, var(--border) 76%, transparent);
+      background: color-mix(in srgb, var(--bg) 26%, transparent);
+      box-shadow: 0 14px 34px color-mix(in srgb, var(--text) 10%, transparent);
+      backdrop-filter: blur(12px);
+      display: block;
+      padding: 10px;
     }
     .hero h1 {
       font-size: 3rem;
@@ -91,14 +225,31 @@
     .hero p {
       font-size: 1.15rem;
       color: var(--muted);
-      max-width: 580px;
-      margin-bottom: 1.75rem;
+      max-width: 620px;
+      margin: 0 auto 1.75rem;
     }
     .hero-actions {
       display: flex;
       align-items: center;
+      justify-content: center;
       gap: 1rem;
       flex-wrap: wrap;
+    }
+    .hero-badges {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 0.5rem;
+      margin: 1.25rem 0 1.5rem;
+    }
+    .hero-badge {
+      border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+      background: color-mix(in srgb, var(--surface) 88%, transparent);
+      color: var(--text);
+      padding: 0.35rem 0.7rem;
+      border-radius: 999px;
+      font-size: 0.8rem;
+      font-weight: 600;
     }
     .btn-primary {
       display: inline-block;
@@ -120,8 +271,7 @@
       font-weight: 500;
     }
     .btn-secondary:hover { text-decoration: underline; }
-
-    /* ── Section ── */
+    /* Section */
     section { margin-bottom: 2.5rem; }
     section h2 {
       font-size: 0.75rem;
@@ -132,18 +282,19 @@
       margin-bottom: 1rem;
     }
 
-    /* ── Feature grid ── */
+    /* Feature grid */
     .features {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: repeat(3, 1fr);
       gap: 1px;
       background: var(--border);
       border: 1px solid var(--border);
-      border-radius: 8px;
+      border-radius: 18px;
       overflow: hidden;
+      box-shadow: 0 12px 32px color-mix(in srgb, var(--text) 5%, transparent);
     }
     .feature {
-      background: var(--bg);
+      background: color-mix(in srgb, var(--bg) 92%, var(--surface));
       padding: 1.25rem 1.5rem;
     }
     .feature-name {
@@ -158,11 +309,12 @@
       line-height: 1.5;
     }
 
-    /* ── Formats table ── */
+    /* Formats table */
     .formats {
       border: 1px solid var(--border);
-      border-radius: 8px;
+      border-radius: 18px;
       overflow: hidden;
+      box-shadow: 0 12px 32px color-mix(in srgb, var(--text) 5%, transparent);
     }
     .format-row {
       display: grid;
@@ -184,7 +336,7 @@
     .format-name { color: var(--text); font-family: monospace; }
     .format-note { color: var(--muted); }
 
-    /* ── Stack ── */
+    /* Stack */
     .stack {
       display: flex;
       flex-wrap: wrap;
@@ -199,7 +351,7 @@
       color: var(--text);
     }
 
-    /* ── Footer ── */
+    /* Footer */
     footer {
       border-top: 1px solid var(--border);
       padding-top: 1.75rem;
@@ -220,18 +372,76 @@
       .features { grid-template-columns: 1fr; }
       footer { flex-direction: column; align-items: flex-start; }
     }
+    @media (max-width: 920px) {
+      .page {
+        margin: 1rem;
+        padding: 2.5rem 1rem 2rem;
+        border-radius: 22px;
+      }
+      .hero-brand-mark {
+        width: 48px;
+        height: 48px;
+        border-radius: 14px;
+        padding: 8px;
+      }
+      .hero-copy {
+        padding: 1rem;
+      }
+      .features {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
   </style>
 </head>
 <body>
+  <div class="page-bg" aria-hidden="true">
+    <svg viewBox="0 0 1600 1100" preserveAspectRatio="xMidYMid slice" role="presentation">
+      <g transform="rotate(-12 800 550)">
+        <g class="bg-parallax-1" opacity="0.9">
+          <line class="bg-grid-line" x1="0" y1="180" x2="1600" y2="180"></line>
+          <line class="bg-grid-line" x1="0" y1="360" x2="1600" y2="360"></line>
+          <line class="bg-grid-line" x1="0" y1="540" x2="1600" y2="540"></line>
+          <line class="bg-grid-line" x1="0" y1="720" x2="1600" y2="720"></line>
+          <line class="bg-grid-line" x1="0" y1="900" x2="1600" y2="900"></line>
+          <line class="bg-grid-line" x1="180" y1="0" x2="180" y2="1100"></line>
+          <line class="bg-grid-line" x1="480" y1="0" x2="480" y2="1100"></line>
+          <line class="bg-grid-line" x1="780" y1="0" x2="780" y2="1100"></line>
+          <line class="bg-grid-line" x1="1080" y1="0" x2="1080" y2="1100"></line>
+          <line class="bg-grid-line" x1="1380" y1="0" x2="1380" y2="1100"></line>
+        </g>
+        <g class="bg-parallax-2">
+          <path class="bg-wave-5 bg-wave-slow" d="M-120,820 C-20,760 70,760 150,820 C240,888 320,888 400,820 C486,752 564,752 648,820 C730,888 812,888 892,820 C976,750 1060,750 1144,820 C1228,888 1312,888 1396,820 C1478,754 1560,754 1720,820"></path>
+          <path class="bg-wave-4 bg-wave-mid" d="M-120,690 C-36,614 52,614 138,690 C224,764 308,764 394,690 C478,616 562,616 646,690 C730,764 812,764 896,690 C982,614 1068,614 1154,690 C1240,766 1328,766 1414,690 C1498,616 1582,616 1720,690"></path>
+        </g>
+        <g class="bg-parallax-3">
+          <path class="bg-wave-3 bg-wave-fast" d="M-120,560 C-40,456 42,456 124,560 C204,664 286,664 368,560 C448,454 530,454 612,560 C692,666 776,666 858,560 C938,454 1020,454 1102,560 C1182,666 1266,666 1348,560 C1430,456 1514,456 1720,560"></path>
+          <path class="bg-wave-2 bg-wave-mid" d="M-120,430 C-32,294 54,294 140,430 C224,564 308,564 392,430 C474,292 558,292 642,430 C726,566 812,566 896,430 C980,294 1066,294 1152,430 C1236,566 1322,566 1408,430 C1492,294 1578,294 1720,430"></path>
+          <path class="bg-wave-1 bg-wave-slow" d="M-120,320 C-26,136 62,136 150,320 C234,500 320,500 404,320 C488,138 576,138 664,320 C750,502 838,502 924,320 C1010,138 1098,138 1186,320 C1270,500 1358,500 1442,320 C1526,138 1616,138 1720,320"></path>
+        </g>
+      </g>
+    </svg>
+  </div>
   <div class="page">
-
     <div class="hero">
-      <p class="hero-label">Open Source / Browser-Based</p>
-      <h1>Mergen Scope — Free Online Spectrum & Waveform Viewer</h1>
-      <p>A free, no-install viewer for spectrum analyzer measurement files. Load .dat exports directly in your browser — no software license required.</p>
-      <div class="hero-actions">
-        <a href="mergen_scope.html" class="btn-primary">Open Viewer</a>
-        <a href="https://github.com/alpgoxd/mergen-scope" class="btn-secondary">View on GitHub</a>
+      <div class="hero-grid">
+        <div class="hero-copy">
+          <p class="hero-label">Open Source / Browser-Based</p>
+          <div class="hero-brand" aria-hidden="true">
+            <img class="hero-brand-mark" src="mergen-scope-icon.svg" alt="">
+          </div>
+          <h1>Mergen Scope - Free Online Spectrum Viewer</h1>
+          <p>A free, no-install viewer for Rohde &amp; Schwarz .dat exports with markers, trace math, RF analysis, and multi-pane comparison directly in the browser.</p>
+          <div class="hero-badges">
+            <span class="hero-badge">Markers</span>
+            <span class="hero-badge">Trace Ops</span>
+            <span class="hero-badge">Multi-pane</span>
+            <span class="hero-badge">RF Analysis</span>
+          </div>
+          <div class="hero-actions">
+            <a href="mergen_scope.html" class="btn-primary">Open Viewer</a>
+            <a href="https://github.com/alpgoxd/mergen-scope" class="btn-secondary">View on GitHub</a>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -247,20 +457,20 @@
           <div class="feature-desc">Place markers, search for peaks and minima, create delta markers between points.</div>
         </div>
         <div class="feature">
-          <div class="feature-name">Noise PSD</div>
-          <div class="feature-desc">Compute noise power spectral density from any loaded trace.</div>
+          <div class="feature-name">Trace Ops</div>
+          <div class="feature-desc">Create derived traces with offset, scale, smoothing, and A/B trace math.</div>
         </div>
         <div class="feature">
-          <div class="feature-name">IP3 / TOI</div>
-          <div class="feature-desc">Marker-driven third-order intercept calculation for two-tone measurements.</div>
+          <div class="feature-name">Multi-pane</div>
+          <div class="feature-desc">Compare traces in stacked panes with shared X navigation and independent Y scaling.</div>
         </div>
         <div class="feature">
-          <div class="feature-name">Zoom and pan</div>
-          <div class="feature-desc">X and Y zoom, pan, and oscilloscope-style division readout.</div>
+          <div class="feature-name">RF Analysis</div>
+          <div class="feature-desc">Run Noise PSD, IP3, peak tables, range statistics, threshold crossings, and bandwidth helpers.</div>
         </div>
         <div class="feature">
-          <div class="feature-name">No dependencies</div>
-          <div class="feature-desc">All libraries vendored locally. Works offline, no CDN calls at runtime.</div>
+          <div class="feature-name">No Online Dependencies</div>
+          <div class="feature-desc">All libraries are vendored locally. Works with direct file-open and GitHub Pages, with no CDN runtime calls.</div>
         </div>
       </div>
     </section>
@@ -274,7 +484,7 @@
         </div>
         <div class="format-row">
           <span class="format-name">R&amp;S .dat</span>
-          <span class="format-note">Rohde &amp; Schwarz ZNB series — tested, primary target</span>
+          <span class="format-note">Rohde &amp; Schwarz spectrum analyzer exports, tested primary target</span>
         </div>
         <div class="format-row">
           <span class="format-name">Amplitude-only .dat</span>
@@ -282,7 +492,7 @@
         </div>
         <div class="format-row">
           <span class="format-name">Other formats</span>
-          <span class="format-note">Goal is to support any waveform file in the future — contributions welcome</span>
+          <span class="format-note">Not implemented yet. Broader format support, including Touchstone, is planned for later phases.</span>
         </div>
       </div>
     </section>
@@ -291,27 +501,29 @@
       <h2>Technology</h2>
       <div class="stack">
         <span class="tag">Vanilla JavaScript (ES6+)</span>
-        <span class="tag">React 18 — vendored</span>
-        <span class="tag">Recharts — vendored</span>
+        <span class="tag">React 18, vendored</span>
+        <span class="tag">Recharts, vendored</span>
+        <span class="tag">Local helper modules</span>
         <span class="tag">GitHub Pages</span>
         <span class="tag">GPL-3.0</span>
       </div>
     </section>
 
-    <section>
-      <h2>Why I Built This</h2>
-      <p style="font-size:0.975rem; color:var(--muted); line-height:1.75; max-width:640px;">
-        I'm an EE engineer. Like most of us, I don't have time to go deep into React or the rest of the web stack —
-        that's not what I do. But when I went looking for something simple to visualize spectrum analyzer exports and
-        other waveform files in the browser, I couldn't find anything that fit. So I vibecoded this into existence.<br><br>
-        Right now it's only been tested with Rohde &amp; Schwarz <code style="font-size:0.9em; background:var(--surface); border:1px solid var(--border); border-radius:3px; padding:0.1em 0.4em;">.dat</code> files,
-        but the goal is to eventually open any type of waveform or instrument export file, online, with no software to install.
-        Feel free to open issues, suggest changes, and help make this tool better and as dependency-free as possible.
-      </p>
-    </section>
+<section>
+  <h2>Why I Built This</h2>
+  <p style="font-size:0.975rem; color:var(--muted); line-height:1.75; max-width:640px;">
+    I'm an electrical engineer, not a web developer. I wanted a simple way to inspect spectrum analyzer exports
+    and other waveform files directly in the browser, but I couldn't find a tool that was lightweight, practical,
+    and easy to use. So I built this.<br><br>
+    At the moment, it has only been tested with Rohde &amp; Schwarz FSVA3044
+    <code style="font-size:0.9em; background:var(--surface); border:1px solid var(--border); border-radius:3px; padding:0.1em 0.4em;">.dat</code> files,
+    but the goal is to support more instrument export formats over time, with no installation required.
+    If you find bugs, have suggestions, or want to contribute, feel free to open an issue.
+  </p>
+</section>
 
     <footer>
-      <span>Built by <a href="https://github.com/alpgoxd">Alp Gökalp</a></span>
+      <span>Built by <a href="https://github.com/alpgoxd">Alp Gokalp</a></span>
       <span>
         <a href="https://github.com/alpgoxd/mergen-scope">GitHub</a>
         &nbsp;&middot;&nbsp;
@@ -322,5 +534,46 @@
     </footer>
 
   </div>
+  <script>
+    (function () {
+      if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+      var root = document.documentElement;
+      var targetX = 0;
+      var targetY = 0;
+      var currentX = 0;
+      var currentY = 0;
+      var rafId = null;
+
+      function tick() {
+        currentX += (targetX - currentX) * 0.08;
+        currentY += (targetY - currentY) * 0.08;
+        root.style.setProperty("--mx", currentX.toFixed(4));
+        root.style.setProperty("--my", currentY.toFixed(4));
+        if (Math.abs(targetX - currentX) > 0.001 || Math.abs(targetY - currentY) > 0.001) {
+          rafId = requestAnimationFrame(tick);
+        } else {
+          rafId = null;
+        }
+      }
+
+      function queueTick() {
+        if (!rafId) rafId = requestAnimationFrame(tick);
+      }
+
+      window.addEventListener("pointermove", function (event) {
+        var x = (event.clientX / Math.max(window.innerWidth, 1)) * 2 - 1;
+        var y = (event.clientY / Math.max(window.innerHeight, 1)) * 2 - 1;
+        targetX = x;
+        targetY = y;
+        queueTick();
+      });
+
+      window.addEventListener("pointerleave", function () {
+        targetX = 0;
+        targetY = 0;
+        queueTick();
+      });
+    })();
+  </script>
 </body>
 </html>

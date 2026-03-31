@@ -7,6 +7,8 @@ Mergen Scope is a free, open-source, browser-based viewer for Rohde & Schwarz sp
 
 [**Open the viewer**](https://alpgoxd.github.io/mergen-scope/)
 
+![Mergen Scope preview](mergen-scope-preview.png)
+
 ---
 
 ## Features

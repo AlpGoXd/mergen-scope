@@ -31,7 +31,7 @@ jobs:
       - name: Prepare site files
         run: |
           mkdir -p _site
-          cp index.html mergen_scope.html og-image.png robots.txt sitemap.xml _site/
+          cp index.html mergen_scope.html og-image.png mergen-scope-icon.svg robots.txt sitemap.xml _site/
           cp -r vendor _site/
           cp -r app-modules _site/
 
@@ -42,6 +42,7 @@ jobs:
           test -f _site/app-modules/ui-helpers.js
           test -f _site/app-modules/trace-model.js
           test -f _site/app-modules/trace-helpers.js
+          test -f _site/mergen-scope-icon.svg
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
