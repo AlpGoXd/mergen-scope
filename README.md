@@ -5,7 +5,7 @@
 
 Browser-based viewer for RF spectrum analyzer .dat files — markers, Noise PSD, and IP3 built in.
 
-[**Open the viewer**](https://alpgoxd.github.io/mergen-scope/mergen_scope.html)
+[**Open the viewer**](https://alpgoxd.github.io/mergen-scope/)
 
 ---
 
