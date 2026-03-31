@@ -33,6 +33,15 @@ jobs:
           mkdir -p _site
           cp index.html mergen_scope.html og-image.png robots.txt sitemap.xml _site/
           cp -r vendor _site/
+          cp -r app-modules _site/
+
+      - name: Validate runtime files
+        run: |
+          test -f _site/mergen_scope.html
+          test -f _site/vendor/react/react.production.min.js
+          test -f _site/app-modules/ui-helpers.js
+          test -f _site/app-modules/trace-model.js
+          test -f _site/app-modules/trace-helpers.js
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
