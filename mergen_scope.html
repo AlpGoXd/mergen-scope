@@ -167,6 +167,7 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',-apple-system,Bl
 <script src="./app-modules/derived-state-helpers.js"></script>
 <script src="./app-modules/ui-helpers.js"></script>
 <script src="./app-modules/pane-helpers.js"></script>
+<script src="./app-modules/demo-workspaces.js"></script>
 <script type="module">
 var React=window.React;
 var createRoot=window.ReactDOM.createRoot;
@@ -181,6 +182,7 @@ var MH=window.MarkerHelpers||{};
 var DSH=window.DerivedStateHelpers||{};
 var UH=window.UIHelpers||{};
 var PAH=window.PaneHelpers||{};
+var DW=window.DemoWorkspaces||{};
 var resetTraceIdCounter=TM.resetTraceIdCounter;
 var makeTraceId=TM.makeTraceId;
 var makeTrace=TM.makeTrace;
@@ -304,6 +306,65 @@ var CHART_PLOT_LEFT=CHART_MARGIN_LEFT+CHART_Y_AXIS_WIDTH;
 
 /* ═══ PARSER ═══ */
 var _fid=0;
+
+function getDemoWorkspacePresetById(id){
+  var presets=DW.presets||{};
+  return id&&presets[id]?presets[id]:null;
+}
+
+function getDemoLaunchPresetId(){
+  try{
+    var params=new URLSearchParams(window.location.search||"");
+    return params.get("demo")||null;
+  }catch(e){
+    return null;
+  }
+}
+
+function clearDemoLaunchQueryParam(){
+  try{
+    if(!window.history||!window.history.replaceState||!window.location)return false;
+    var url=new URL(window.location.href);
+    if(!url.searchParams.has("demo"))return false;
+    url.searchParams.delete("demo");
+    var search=url.search?url.search:"";
+    var next=url.pathname+search+(url.hash||"");
+    window.history.replaceState(null,"",next||window.location.pathname||"");
+    return true;
+  }catch(e){
+    return false;
+  }
+}
+
+function buildBundledDemoFiles(preset){
+  if(!preset||!Array.isArray(preset.fileOrder)||!preset.fileOrder.length)return [];
+  var files=(DW&&DW.files)||{};
+  var built=[];
+  preset.fileOrder.forEach(function(key){
+    var entry=files[key];
+    if(!entry||!entry.text)return;
+    var sourceFileName=entry.sourceFileName||entry.fileName||(key+".DAT");
+    var parsed=parseRSDat(entry.text,sourceFileName);
+    if(!parsed||!parsed.traces||!parsed.traces.length)return;
+    var fileId=++_fid;
+    var displayFileName=entry.fileName||sourceFileName;
+    parsed.traces.forEach(function(tr){
+      tr.fileId=fileId;
+      tr.fileName=displayFileName;
+      tr.file=displayFileName;
+      if(entry.traceLabel)tr.dn=entry.traceLabel;
+    });
+    built.push({
+      key:key,
+      id:fileId,
+      fileName:displayFileName,
+      sourcePath:entry.sourcePath||null,
+      meta:parsed.meta||{},
+      traces:parsed.traces
+    });
+  });
+  return built;
+}
 
 /* ═══ NOISE PSD ═══ */
 
@@ -522,16 +583,26 @@ function useYControls(activePaneId){
   var _yz=useState({}),paneYZooms=_yz[0],setPaneYZooms=_yz[1];
   var _yMn=useState(""),yMnI=_yMn[0],setYMnI=_yMn[1];
   var _yMx=useState(""),yMxI=_yMx[0],setYMxI=_yMx[1];
+  var paneYZoomsRef=useRef({});
+  var suppressInputCommitRef=useRef(false);
   var paneId=activePaneId||"pane-1";
   var yZoom=paneYZooms[paneId]||null;
+  useEffect(function(){
+    paneYZoomsRef.current=paneYZooms||{};
+  },[paneYZooms]);
   var setYZoom=useCallback(function(next,forPaneId){
     var target=forPaneId||activePaneId||"pane-1";
     setPaneYZooms(function(prev){
       var nextMap=Object.assign({},prev||{});
       if(!next)delete nextMap[target];
       else nextMap[target]=next;
+      paneYZoomsRef.current=nextMap;
       return nextMap;
     });
+  },[activePaneId]);
+  var getPaneYZoom=useCallback(function(forPaneId){
+    var target=forPaneId||activePaneId||"pane-1";
+    return sanitizeYDomain((paneYZoomsRef.current||{})[target])||null;
   },[activePaneId]);
   var applyYZ=useCallback(function(){
     var mn=parseFloat(yMnI),mx=parseFloat(yMxI);
@@ -539,6 +610,10 @@ function useYControls(activePaneId){
     if(next)setYZoom(next);
   },[yMnI,yMxI,setYZoom]);
   useEffect(function(){
+    if(suppressInputCommitRef.current){
+      suppressInputCommitRef.current=false;
+      return;
+    }
     var mn=parseFloat(yMnI),mx=parseFloat(yMxI);
     if(!isNaN(mn)&&!isNaN(mx)&&mn<mx){
       var next=sanitizeYDomain({min:mn,max:mx});
@@ -552,6 +627,7 @@ function useYControls(activePaneId){
   var syncYInputs=useCallback(function(next){
     if(!next||!isFinite(next.min)||!isFinite(next.max))return;
     setYZoom(next);
+    suppressInputCommitRef.current=true;
     setYMnI(next.min.toFixed(3));
     setYMxI(next.max.toFixed(3));
   },[setYZoom]);
@@ -559,31 +635,41 @@ function useYControls(activePaneId){
     if(!next||!isFinite(next.min)||!isFinite(next.max))return;
     setYZoom(next,forPaneId);
     if(!forPaneId||forPaneId===paneId){
+      suppressInputCommitRef.current=true;
       setYMnI(next.min.toFixed(3));
       setYMxI(next.max.toFixed(3));
     }
   },[setYZoom,paneId]);
   var clearAllPaneYZooms=useCallback(function(){
+    paneYZoomsRef.current={};
     setPaneYZooms({});
     setYMnI("");
     setYMxI("");
   },[]);
   useEffect(function(){
     if(yZoom&&isFinite(yZoom.min)&&isFinite(yZoom.max)){
+      suppressInputCommitRef.current=true;
       setYMnI(yZoom.min.toFixed(3));
       setYMxI(yZoom.max.toFixed(3));
     } else {
+      suppressInputCommitRef.current=true;
       setYMnI("");
       setYMxI("");
     }
   },[paneId,yZoom]);
   useEffect(function(){
     var next=yZoom;
-    if(!next||!isFinite(next.min)||!isFinite(next.max)){setYMnI("");setYMxI("");return;}
+    if(!next||!isFinite(next.min)||!isFinite(next.max)){
+      suppressInputCommitRef.current=true;
+      setYMnI("");
+      setYMxI("");
+      return;
+    }
+    suppressInputCommitRef.current=true;
     setYMnI(next.min.toFixed(3));
     setYMxI(next.max.toFixed(3));
   },[paneId,yZoom]);
-  return {yZoom:yZoom,setYZoom:setYZoom,paneYZooms:paneYZooms,setPaneYZooms:setPaneYZooms,clearAllPaneYZooms:clearAllPaneYZooms,yMnI:yMnI,setYMnI:setYMnI,yMxI:yMxI,setYMxI:setYMxI,applyYZ:applyYZ,resetYZ:resetYZ,syncYInputs:syncYInputs,syncYInputsForPane:syncYInputsForPane};
+  return {yZoom:yZoom,setYZoom:setYZoom,getPaneYZoom:getPaneYZoom,paneYZooms:paneYZooms,setPaneYZooms:setPaneYZooms,clearAllPaneYZooms:clearAllPaneYZooms,yMnI:yMnI,setYMnI:setYMnI,yMxI:yMxI,setYMxI:setYMxI,applyYZ:applyYZ,resetYZ:resetYZ,syncYInputs:syncYInputs,syncYInputsForPane:syncYInputsForPane};
 }
 
 function useXControls(activePaneId, panes){
@@ -778,6 +864,9 @@ function useChartNav(dep){
   var getActivePaneModel=useCallback(function(){
     return dep.getActivePaneModel?dep.getActivePaneModel():null;
   },[dep.getActivePaneModel]);
+  var getActivePaneYZoom=useCallback(function(){
+    return dep.getActivePaneYZoom?dep.getActivePaneYZoom():null;
+  },[dep.getActivePaneYZoom]);
   var getActivePaneTraces=useCallback(function(){
     var model=getActivePaneModel();
     return model&&Array.isArray(model.traces)?model.traces:[];
@@ -967,8 +1056,7 @@ function useChartNav(dep){
       if(yPx<plotTop||yPx>plotBottom)return;
       var autoRange=getSafeYRangeFromData(getActivePaneTraces(),dep.vis,zoom);
       if(!autoRange)return;
-      var activePaneModel=getActivePaneModel();
-      var base=sanitizeYDomain(activePaneModel&&activePaneModel.paneYZoom)||autoRange;
+      var base=getActivePaneYZoom()||autoRange;
       if(!base)return;
       ev.preventDefault();
       if(ev.shiftKey){
@@ -989,7 +1077,7 @@ function useChartNav(dep){
     };
     el.addEventListener("wheel",handler,{passive:false});
     return function(){el.removeEventListener("wheel",handler);};
-  },[dep.chartRef,getActivePaneModel,getActivePaneTraces,dep.vis,dep.syncYInputs,zoom]);
+  },[dep.chartRef,getActivePaneTraces,getActivePaneYZoom,dep.vis,dep.syncYInputs,zoom]);
 
   var onChartContainerMouseDownCapture=useCallback(function(ev){
     dep.mouseBtnRef.current=ev.button;
@@ -1000,8 +1088,7 @@ function useChartNav(dep){
       if(f==null)return;
       var paneFDiv=getActivePaneFDiv();
       if(zoom){
-        var activePaneModel=getActivePaneModel();
-        var freezeY=sanitizeYDomain(activePaneModel&&activePaneModel.paneYZoom)||getSafeYRangeFromData(getActivePaneTraces(),dep.vis,zoom);
+        var freezeY=getActivePaneYZoom()||getSafeYRangeFromData(getActivePaneTraces(),dep.vis,zoom);
         if(freezeY)dep.syncYInputs(freezeY);
         dep.panRef.current={mode:"x-pan",startFreq:f,startLabel:f/paneFDiv,startClientX:ev.clientX,startZoom:zoom,didMove:false,lockY:freezeY||null,fDiv:paneFDiv};
         }else{
@@ -1009,7 +1096,7 @@ function useChartNav(dep){
           dep.panRef.current={mode:"x-zoom",startFreq:f,startLabel:f/paneFDiv,currentLabel:f/paneFDiv,startClientX:ev.clientX,didMove:false,fDiv:paneFDiv};
         }
       }
-  },[dep.mouseBtnRef,dep.panRef,freqFromClientX,zoom,getActivePaneFDiv,getActivePaneModel,getActivePaneTraces,dep.vis,dep.syncYInputs,dep.resetY]);
+  },[dep.mouseBtnRef,dep.panRef,freqFromClientX,zoom,getActivePaneFDiv,getActivePaneYZoom,getActivePaneTraces,dep.vis,dep.syncYInputs,dep.resetY]);
 
   var onChartContainerMouseUpCapture=useCallback(function(){dep.mouseBtnRef.current=0;},[dep.mouseBtnRef]);
 
@@ -1120,6 +1207,12 @@ function useAnalysisRegistry(dep){
     },[refLines,selectedRefLineId]);
     var rc=useRef(0);
     var gc=useRef(0);
+    useEffect(function(){
+      var maxId=(refLines||[]).reduce(function(max,line){
+        return line&&typeof line.id==="number"&&line.id>max?line.id:max;
+      },0);
+      if(maxId>rc.current)rc.current=maxId;
+    },[refLines]);
     var addVLine=useCallback(function(freq,paneIds,selectedPaneId){
     if(!isFinite(freq))return;
     var targets=(Array.isArray(paneIds)&&paneIds.length?paneIds:[null]).filter(Boolean);
@@ -2115,6 +2208,7 @@ function App(){
   var fRef=useRef(null),iRef=useRef(null),chartRef=useRef(null);
   var crosshair=useSharedCursor();
   var activePaneModelRef=useRef(null);
+  var demoBootRef=useRef(false);
     var panRef=useRef(null),suppressClickRef=useRef(false),mouseBtnRef=useRef(0);
     var dragSelectedMarkerRef=useRef(false);
     var dragRefLineRef=useRef(null);
@@ -2160,9 +2254,9 @@ function App(){
   var allTr=useMemo(function(){return rawTr.concat(derivedTraces);},[rawTr,derivedTraces]);
   var traceOptions=useMemo(function(){return allTr.filter(function(tr){return tr&&getTraceData(tr).length;});},[allTr]);
   var paneCtl=usePaneLayout(allTr);
-  var paneMode=paneCtl.paneMode,setPaneMode=paneCtl.setPaneMode,panes=paneCtl.panes,activePaneId=paneCtl.activePaneId,setActivePaneId=paneCtl.setActivePaneId,tracePaneMap=paneCtl.tracePaneMap,assignTraceToPane=paneCtl.assignTraceToPane,clearPane=paneCtl.clearPane,getPaneTracesForId=paneCtl.getPaneTraces,getPaneActiveTraceName=paneCtl.getPaneActiveTraceName,setPaneActiveTrace=paneCtl.setPaneActiveTrace;
+  var paneMode=paneCtl.paneMode,setPaneMode=paneCtl.setPaneMode,panes=paneCtl.panes,activePaneId=paneCtl.activePaneId,setActivePaneId=paneCtl.setActivePaneId,tracePaneMap=paneCtl.tracePaneMap,setTracePaneMap=paneCtl.setTracePaneMap,assignTraceToPane=paneCtl.assignTraceToPane,clearPane=paneCtl.clearPane,getPaneTracesForId=paneCtl.getPaneTraces,getPaneActiveTraceName=paneCtl.getPaneActiveTraceName,setPaneActiveTrace=paneCtl.setPaneActiveTrace;
   var xCtl=useXControls(activePaneId,panes),zoomAll=xCtl.zoomAll,setZoomAll=xCtl.setZoomAll,zoom=xCtl.zoom,setZoom=xCtl.setZoom,getPaneZoom=xCtl.getPaneZoom,clearAllXZooms=xCtl.clearAllXZooms;
-  var yCtl=useYControls(activePaneId),yZoom=yCtl.yZoom,setYZoom=yCtl.setYZoom,paneYZooms=yCtl.paneYZooms,yMnI=yCtl.yMnI,setYMnI=yCtl.setYMnI,yMxI=yCtl.yMxI,setYMxI=yCtl.setYMxI,resetYZ=yCtl.resetYZ,syncYInputs=yCtl.syncYInputs,syncYInputsForPane=yCtl.syncYInputsForPane;
+  var yCtl=useYControls(activePaneId),yZoom=yCtl.yZoom,setYZoom=yCtl.setYZoom,getPaneYZoom=yCtl.getPaneYZoom,paneYZooms=yCtl.paneYZooms,clearAllPaneYZooms=yCtl.clearAllPaneYZooms,yMnI=yCtl.yMnI,setYMnI=yCtl.setYMnI,yMxI=yCtl.yMxI,setYMxI=yCtl.setYMxI,resetYZ=yCtl.resetYZ,syncYInputs=yCtl.syncYInputs,syncYInputsForPane=yCtl.syncYInputsForPane;
   zoomSetterRef.current=function(next){ if(next===null)clearAllXZooms(); else setZoom(next); };
   ySetterRefs.current.setYZoom=setYZoom;
   ySetterRefs.current.setYMnI=setYMnI;
@@ -2177,6 +2271,17 @@ function App(){
   function getTraceMeta(name){
     var f=getTraceFile(name);
     return f?f.meta:{};
+  }
+  function buildDemoNoiseResult(trace,fileMeta,filter){
+    if(!trace||!trace.data||!trace.data.length)return null;
+    var rawRbw=fileMeta&&fileMeta["RBW"]&&fileMeta["RBW"].value!=null?Number(fileMeta["RBW"].value):3000;
+    var rbwValue=isFinite(rawRbw)&&rawRbw>0?rawRbw:3000;
+    var psd=noisePSD(trace.data,rbwValue,filter||"gaussian");
+    if(!psd.length)return null;
+    var peak=psd.reduce(function(a,b){return a.amp>b.amp?a:b;});
+    var min=psd.reduce(function(a,b){return a.amp<b.amp?a:b;});
+    var avg=psd.reduce(function(sum,item){return sum+item.amp;},0)/psd.length;
+    return makeSavedNoiseResult({src:trace,rbw:rbwValue,data:psd,peak:peak,min:min,avg:avg},filter||"gaussian",trace);
   }
   function getPaneVisibleTraces(paneId){
     return getPaneTracesForId(paneId).filter(function(tr){return !!vis[tr.name];});
@@ -2393,6 +2498,122 @@ function App(){
     clearAllPaneYZooms();
     baseClearAllFiles();
   }
+  function restoreDemoWorkspace(preset){
+    if(!preset)return false;
+    clearAllFiles();
+    var demoFiles=buildBundledDemoFiles(preset);
+    if(!demoFiles.length)return false;
+    var demoStateFiles=demoFiles.map(function(file){
+      return {id:file.id,fileName:file.fileName,meta:file.meta,traces:file.traces};
+    });
+    var traceByKey={};
+    var traceByName={};
+    var visibleMap={};
+    demoFiles.forEach(function(file){
+      var trace=(file.traces&&file.traces[0])||null;
+      if(trace)traceByKey[file.key]=trace;
+      (file.traces||[]).forEach(function(tr){
+        traceByName[tr.name]=tr;
+        visibleMap[tr.name]=true;
+      });
+    });
+    var selectedTrace=traceByKey[preset.selectedTraceKey]||demoFiles[0]?.traces?.[0]||null;
+    var noiseTrace=traceByKey[preset.noiseSourceKey]||selectedTrace||null;
+    var markerList=(preset.markers||[]).map(function(item){
+      var trace=traceByKey[item.traceKey];
+      if(!trace)return null;
+      var point=nearestPoint(trace,item.freq,null,null);
+      if(!point)return null;
+      return {
+        freq:point.freq,
+        amp:point.amp,
+        trace:trace.name,
+        type:item.type||"peak",
+        label:item.label||null
+      };
+    }).filter(Boolean);
+    var ip3Points=getIP3PointsFromMarkers(markerList);
+    var ip3Result=calcIP3FromPoints(ip3Points);
+    var savedNoiseResults=(preset.savedNoise||[]).map(function(item){
+      var trace=traceByKey[item.traceKey];
+      if(!trace)return null;
+      var file=demoFiles.find(function(entry){return entry.key===item.traceKey;})||null;
+      return buildDemoNoiseResult(trace,file?file.meta:null,item.filter||"gaussian");
+    }).filter(Boolean);
+    var savedIP3Results=(preset.savedIP3||[]).map(function(item){
+      var trace=traceByKey[item.traceKey]||selectedTrace;
+      if(!trace||!ip3Result)return null;
+      return makeSavedIP3Result(ip3Result,ip3Points,item&&item.gain!=null?item.gain:null,{
+        traceLabel:getTraceLabel(trace),
+        sourceTraceId:getTraceId(trace),
+        sourceTraceName:trace.name,
+        roles:buildIP3RoleRefs(ip3Points,function(name){return traceByName[name]||null;})
+      });
+    }).filter(Boolean);
+    var restoredRefLines=(preset.refLines||[]).map(function(line,idx){
+      return {
+        id:idx+1,
+        type:line.type,
+        paneId:line.paneId||null,
+        groupId:null,
+        value:line.value,
+        label:line.label||(line.type==="h"?(line.value.toFixed(2)+" dBm"):fmtF(line.value,true))
+      };
+    });
+    clearAllXZooms();
+    clearAllPaneYZooms();
+    setFiles(demoStateFiles);
+    setVis(visibleMap);
+    setError(null);
+    setDerivedTraces([]);
+    setShowSidebar(preset.showSidebar!==false);
+    setShowMeta(!!preset.showMeta);
+    setShowMarkers(preset.showMarkers!==false);
+    setShowMarkerTools(preset.showMarkerTools!==false);
+    setShowPaneTools(preset.showPaneTools!==false);
+    setShowSearchTools(preset.showSearchTools!==false);
+    setShowLineTools(!!preset.showLineTools);
+    setShowViewTools(preset.showViewTools!==false);
+    setShowDots(false);
+    setShowDT(false);
+    setLockLinesAcrossPanes(false);
+    setNewMarkerArmed(false);
+    setMarkerTrace(traceByKey[preset.markerTraceKey]?traceByKey[preset.markerTraceKey].name:(selectedTrace?selectedTrace.name:"__auto__"));
+    setMarkers(markerList);
+    setSelectedMkrIdx(markerList.length?0:null);
+    setDRef(null);
+    setRefMode(null);
+    setRefLines(restoredRefLines);
+    setSelectedRefLineId(null);
+    setNoiseFilter((preset.savedNoise&&preset.savedNoise[0]&&preset.savedNoise[0].filter)||"gaussian");
+    setNoiseSource(noiseTrace?noiseTrace.name:null);
+    setNoiseResults(savedNoiseResults);
+    setIP3Pts(ip3Points);
+    setIP3Res(ip3Result);
+    setIP3Gain("");
+    setIP3Results(savedIP3Results);
+    setShowTraceOps(false);
+    setTraceOpsOpenSections({offset:false,scale:false,smoothing:false,subtract:false});
+    setShowAnalysisPanel(!!preset.showAnalysisPanel);
+    setAnalysisOpenStateRaw(function(){return normalizeAnalysisOpenState(preset.analysisOpenState||{});});
+    setPaneMode(clampPaneCount(preset.paneMode||1));
+    setActivePaneId(preset.activePaneId||"pane-1");
+    setTracePaneMap(function(){
+      var next={};
+      Object.keys(preset.traceAssignments||{}).forEach(function(key){
+        var trace=traceByKey[key];
+        if(trace)next[trace.name]=preset.traceAssignments[key]||"pane-1";
+      });
+      return next;
+    });
+    Object.keys(preset.paneActiveTraceKeys||{}).forEach(function(paneId){
+      var trace=traceByKey[preset.paneActiveTraceKeys[paneId]];
+      setPaneActiveTrace(paneId,trace?trace.name:null);
+    });
+    setSelectedTraceName(selectedTrace?selectedTrace.name:null);
+    setDtTrace(selectedTrace?selectedTrace.name:null);
+    return true;
+  }
   function createOffsetDerivedTrace(){
     var src=getTraceByName(offsetSource)||traceOptions[0]||null;
     var offsetDb=parseFloat(offsetValue);
@@ -2569,6 +2790,20 @@ function App(){
     if(first)setNoiseSource(first.name);
   },[noiseSource,allTr,setNoiseSource]);
   useEffect(function(){
+    if(demoBootRef.current)return;
+    var demoId=getDemoLaunchPresetId();
+    if(!demoId)return;
+    demoBootRef.current=true;
+    var preset=getDemoWorkspacePresetById(demoId);
+    if(!preset){
+      setError("Unknown demo preset: "+demoId);
+      clearDemoLaunchQueryParam();
+      return;
+    }
+    if(restoreDemoWorkspace(preset))clearDemoLaunchQueryParam();
+    else setError("Unable to load demo preset.");
+  },[]);
+  useEffect(function(){
     if(selectedRefLineId===null||selectedRefLineId===undefined)return;
     var selectedLine=refLines.find(function(line){return line&&line.id===selectedRefLineId;})||null;
     if(selectedLine&&selectedLine.paneId&&selectedLine.paneId!==activePaneId)setSelectedRefLineId(null);
@@ -2597,7 +2832,7 @@ function App(){
   },[showTraceOps,setShowTraceOps,showAnalysisPanel,setShowAnalysisPanel,anyOpenAnalysis,closeAllAnalysisCards,C]);
 
   var noiseMeta=noiseSource?getTraceMeta(noiseSource):m0;
-  var nav=useChartNav({allTr:allTr,xAllTr:allTr,vis:vis,colors:C.tr,zoom:zoom,setZoom:setZoom,syncYInputs:syncYInputs,resetY:resetYZ,chartRef:chartRef,panRef:panRef,suppressClickRef:suppressClickRef,mouseBtnRef:mouseBtnRef,crosshair:crosshair,getActivePaneModel:function(){return activePaneModelRef.current;}});
+  var nav=useChartNav({allTr:allTr,xAllTr:allTr,vis:vis,colors:C.tr,zoom:zoom,setZoom:setZoom,syncYInputs:syncYInputs,resetY:resetYZ,chartRef:chartRef,panRef:panRef,suppressClickRef:suppressClickRef,mouseBtnRef:mouseBtnRef,crosshair:crosshair,getActivePaneModel:function(){return activePaneModelRef.current;},getActivePaneYZoom:function(){return getPaneYZoom(activePaneId);}});
   selA=nav.selA;setSelA=nav.setSelA;selB=nav.selB;setSelB=nav.setSelB;hoverX=nav.hoverX;hoverData=nav.hoverData;getMouseBtn=nav.getMouseBtn;getXDomain=nav.getXDomain;getXDomainHz=nav.getXDomainHz;freqFromClientX=nav.freqFromClientX;panXWindow=nav.panXWindow;chartMM=nav.chartMM;chartML=nav.chartML;mDown=nav.mDown;mUp=nav.mUp;onChartContainerMouseDownCapture=nav.onChartContainerMouseDownCapture;onChartContainerMouseUpCapture=nav.onChartContainerMouseUpCapture;
   var rbw=noiseMeta["RBW"]?.value||m0["RBW"]?.value||3000;
   var nextPeakExclusion=useMemo(function(){

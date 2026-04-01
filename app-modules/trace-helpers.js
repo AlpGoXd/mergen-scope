@@ -144,14 +144,37 @@
   }
 
   function makeYTicksFromDomain(domain){
-    return makeNiceTicks(domain,9);
+    if(!domain||!isFinite(domain.min)||!isFinite(domain.max)||domain.max<=domain.min)return undefined;
+    var ticks=makeNiceTicks(domain,9);
+    var span=domain.max-domain.min;
+    var eps=Math.max(Math.abs(span)*1e-9,1e-9);
+    if(!ticks||!ticks.length){
+      return [Number(domain.min.toFixed(6)),Number(domain.max.toFixed(6))];
+    }
+    var clipped=[];
+    ticks.forEach(function(tick){
+      if(!isFinite(tick))return;
+      if(tick<domain.min-eps||tick>domain.max+eps)return;
+      var clamped=Math.max(domain.min,Math.min(domain.max,tick));
+      var rounded=Number(clamped.toFixed(6));
+      if(!clipped.length||Math.abs(clipped[clipped.length-1]-rounded)>eps)clipped.push(rounded);
+    });
+    if(clipped.length<2){
+      return [Number(domain.min.toFixed(6)),Number(domain.max.toFixed(6))];
+    }
+    return clipped;
   }
 
   function getPrimaryTickStep(ticks, fallbackSpan){
     if(ticks&&ticks.length>1){
+      var steps=[];
       for(var i=1;i<ticks.length;i++){
         var step=Math.abs(ticks[i]-ticks[i-1]);
-        if(isFinite(step)&&step>0)return step;
+        if(isFinite(step)&&step>0)steps.push(step);
+      }
+      if(steps.length){
+        steps.sort(function(a,b){return a-b;});
+        return steps[Math.floor(steps.length/2)];
       }
     }
     if(isFinite(fallbackSpan)&&fallbackSpan>0)return fallbackSpan/8;

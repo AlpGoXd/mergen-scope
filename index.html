@@ -42,6 +42,8 @@
       --accent2: #1a7f37;
       --btn: #0969da;
       --btn-h: #0550ae;
+      --github-mark: #24292f;
+      --github-surface: rgba(36, 41, 47, 0.08);
     }
     @media (prefers-color-scheme: dark) {
       :root {
@@ -54,6 +56,8 @@
         --accent2: #3fb950;
         --btn: #238636;
         --btn-h: #2ea043;
+        --github-mark: #f0f6fc;
+        --github-surface: rgba(240, 246, 252, 0.08);
       }
     }
 
@@ -211,11 +215,17 @@
       height: 56px;
       border-radius: 16px;
       border: 1px solid color-mix(in srgb, var(--border) 76%, transparent);
-      background: color-mix(in srgb, var(--bg) 26%, transparent);
+      background: var(--github-surface);
       box-shadow: 0 14px 34px color-mix(in srgb, var(--text) 10%, transparent);
       backdrop-filter: blur(12px);
+      display: grid;
+      place-items: center;
+      color: var(--github-mark);
+    }
+    .hero-brand-svg {
+      width: 34px;
+      height: 34px;
       display: block;
-      padding: 10px;
     }
     .hero h1 {
       font-size: 3rem;
@@ -237,13 +247,25 @@
       justify-content: center;
       gap: 1rem;
       flex-wrap: wrap;
+      margin-bottom: 1.15rem;
+    }
+    .hero-actions-bottom {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.9rem;
+      flex-wrap: wrap;
+      margin-top: 0.15rem;
+    }
+    .hero-status {
+      display: none;
     }
     .hero-badges {
       display: flex;
       flex-wrap: wrap;
       justify-content: center;
       gap: 0.5rem;
-      margin: 1.25rem 0 1.5rem;
+      margin: 1.15rem 0 1.4rem;
     }
     .hero-badge {
       border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
@@ -255,25 +277,87 @@
       font-weight: 600;
     }
     .btn-primary {
-      display: inline-block;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
       background: var(--btn);
       color: #fff;
-      padding: 0.65rem 1.5rem;
-      border-radius: 6px;
+      min-width: 220px;
+      padding: 0.95rem 2rem;
+      border-radius: 999px;
+      text-decoration: none;
+      font-weight: 700;
+      font-size: 1.05rem;
+      letter-spacing: 0.01em;
+      transition: background 0.15s, transform 0.15s, box-shadow 0.15s;
+      box-shadow: 0 14px 30px color-mix(in srgb, var(--btn) 26%, transparent);
+    }
+    .btn-primary:hover {
+      background: var(--btn-h);
+      transform: translateY(-1px);
+    }
+    .btn-demo {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--accent2);
+      color: #fff;
+      padding: 0.7rem 1.35rem;
+      border-radius: 999px;
       text-decoration: none;
       font-weight: 600;
       font-size: 0.95rem;
-      transition: background 0.15s;
+      transition: filter 0.15s, transform 0.15s;
     }
-    .btn-primary:hover { background: var(--btn-h); }
+    .btn-demo:hover {
+      filter: brightness(0.95);
+      transform: translateY(-1px);
+    }
     .btn-secondary {
-      display: inline-block;
-      color: var(--accent);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.55rem;
+      flex-wrap: wrap;
+      color: var(--github-mark);
+      background: color-mix(in srgb, var(--bg) 68%, transparent);
+      border: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
+      padding: 0.7rem 1.35rem;
+      border-radius: 999px;
       text-decoration: none;
       font-size: 0.95rem;
-      font-weight: 500;
+      font-weight: 600;
+      transition: border-color 0.15s, transform 0.15s, background 0.15s;
     }
-    .btn-secondary:hover { text-decoration: underline; }
+    .btn-secondary:hover {
+      background: color-mix(in srgb, var(--surface) 90%, transparent);
+      border-color: color-mix(in srgb, var(--github-mark) 28%, var(--border));
+      transform: translateY(-1px);
+    }
+    .btn-icon {
+      width: 1rem;
+      height: 1rem;
+      display: block;
+      flex: 0 0 auto;
+    }
+    .btn-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding-left: 0.2rem;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+    .btn-status-dot {
+      width: 0.52rem;
+      height: 0.52rem;
+      border-radius: 999px;
+      background: #1a7f37;
+      box-shadow: 0 0 0 4px color-mix(in srgb, #1a7f37 18%, transparent);
+      flex: 0 0 auto;
+    }
     /* Section */
     section { margin-bottom: 2.5rem; }
     section h2 {
@@ -385,7 +469,10 @@
         width: 48px;
         height: 48px;
         border-radius: 14px;
-        padding: 8px;
+      }
+      .hero-brand-svg {
+        width: 28px;
+        height: 28px;
       }
       .hero-copy {
         padding: 1rem;
@@ -430,19 +517,36 @@
         <div class="hero-copy">
           <p class="hero-label">Open Source / Browser-Based</p>
           <div class="hero-brand" aria-hidden="true">
-            <img class="hero-brand-mark" src="mergen-scope-icon.svg" alt="">
+            <div class="hero-brand-mark">
+              <svg class="hero-brand-svg" viewBox="0 0 24 24" fill="none" role="presentation" aria-hidden="true">
+                <rect x="2" y="4" width="20" height="16" rx="2" stroke="currentColor" stroke-width="1.5"></rect>
+                <polyline points="4,16 7,10 10,14 13,8 16,12 19,6 22,11" fill="none" stroke="currentColor" stroke-width="1.5"></polyline>
+              </svg>
+            </div>
           </div>
           <h1>Mergen Scope - Free Online Spectrum Viewer</h1>
           <p>A free, no-install viewer for Rohde &amp; Schwarz .dat exports with markers, trace math, RF analysis, and multi-pane comparison directly in the browser.</p>
+          <div class="hero-actions">
+            <a href="mergen_scope.html" class="btn-primary">Open Viewer</a>
+          </div>
+          <div class="hero-actions-bottom">
+            <a href="mergen_scope.html?demo=default" class="btn-demo">Load Demo</a>
+            <a href="https://github.com/alpgoxd/mergen-scope" class="btn-secondary">
+              <svg class="btn-icon" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" role="presentation">
+                <path d="M8 0C3.58 0 0 3.58 0 8a8 8 0 0 0 5.47 7.59c.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.5-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.5 7.5 0 0 1 4 0c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.19 0 .21.15.46.55.38A8 8 0 0 0 16 8c0-4.42-3.58-8-8-8Z"></path>
+              </svg>
+              <span>Open on GitHub</span>
+              <span class="btn-status" aria-label="Deployment status: live">
+                <span class="btn-status-dot" aria-hidden="true"></span>
+                <span>Live</span>
+              </span>
+            </a>
+          </div>
           <div class="hero-badges">
             <span class="hero-badge">Markers</span>
             <span class="hero-badge">Trace Ops</span>
             <span class="hero-badge">Multi-pane</span>
             <span class="hero-badge">RF Analysis</span>
-          </div>
-          <div class="hero-actions">
-            <a href="mergen_scope.html" class="btn-primary">Open Viewer</a>
-            <a href="https://github.com/alpgoxd/mergen-scope" class="btn-secondary">View on GitHub</a>
           </div>
         </div>
       </div>
