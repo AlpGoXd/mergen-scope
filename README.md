@@ -171,25 +171,22 @@ Detector;RMS
 
 No build step. The app still runs directly in the browser from GitHub Pages using local vendored runtime files under `vendor/`.
 
-The main UI stays in `mergen_scope.html`, and shared helper logic is now starting to move into local helper files under `app-modules/` so the codebase can keep growing without a framework rewrite.
+`mergen_scope.html` is now a thin loader/bootstrap file. It mainly defines the document shell, loads the vendored browser runtime plus local `app-modules/*.js` files in order, and mounts `window.AppController.AppRoot` directly.
 
-`mergen_scope.html` is still the main runtime entrypoint and orchestration file. It intentionally still owns the more fragile interactive paths:
+The app runtime is split across browser-global modules under `app-modules/`:
 
-- React app state
-- top toolbar and sidebar wiring
-- chart rendering
-- marker placement and dragging
-- reference line placement and dragging
-- pane activation and chart interaction handoff
-- app-level import/reset flows
+- `app-modules/app-hooks.js` for extracted React hooks plus helper wiring used by the controller
+- `app-modules/app-shell-components.js` for shell UI pieces such as buttons, trace rows, marker/ref-line cards, top bar, and footer components
+- `app-modules/app-analysis-components.js` for the analysis card/component stack used by the right-side analysis panel
+- `app-modules/app-chart-components.js` for the empty-chart state and chart workspace rendering components
+- `app-modules/app-controller.js` for app orchestration, derived view-model composition, and the browser-mounted `AppRoot`
 
-The helper split is meant to keep pure logic out of that file without forcing a risky rewrite. The current rule is:
+The split keeps the no-build architecture intact while moving the high-churn app code out of the HTML entrypoint. The current rules are:
 
 - keep direct file-open support
 - keep GitHub Pages compatibility
 - keep local plain scripts attached to `window`
-- move pure/model/helper-heavy blocks first
-- avoid aggressively splitting the chart interaction core until interfaces are clearer
+- keep the browser-global module boundary stable
 
 Current helper split:
 
@@ -207,6 +204,11 @@ Current helper split:
 - `app-modules/pane-helpers.js` for pane ownership, per-pane trace filtering, and pane Y-domain helpers
 - `app-modules/workspace-helpers.js` for workspace snapshot normalization, demo preset restoration, and session import/export payload helpers
 - `app-modules/export-helpers.js` for chart export rendering and trace/data export package helpers
+- `app-modules/app-hooks.js` for extracted React hook blocks plus helper wiring previously living in `mergen_scope.html`
+- `app-modules/app-shell-components.js` for shell UI pieces such as buttons, trace rows, marker/ref-line cards, top bar, and footer components
+- `app-modules/app-analysis-components.js` for the analysis card/component stack used by the right-side analysis panel
+- `app-modules/app-chart-components.js` for the empty-chart state and chart workspace rendering components
+- `app-modules/app-controller.js` for app orchestration, root composition, and the browser-mounted `AppRoot`
 
 The app now has a practical raw-vs-derived trace model:
 
