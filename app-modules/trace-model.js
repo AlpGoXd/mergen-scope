@@ -10,6 +10,19 @@
     return "trace-"+_tid;
   }
 
+  function syncTraceIdCounter(traces){
+    var maxId=0;
+    (traces||[]).forEach(function(trace){
+      var id=trace&&trace.id?String(trace.id):"";
+      var match=id.match(/^trace-(\d+)$/);
+      if(match){
+        var value=Number(match[1]);
+        if(isFinite(value)&&value>maxId)maxId=value;
+      }
+    });
+    if(maxId>_tid)_tid=maxId;
+  }
+
   function makeTrace(prefix,fileName,traceLabel,fileCounter){
     var id=makeTraceId();
     return {
@@ -151,6 +164,7 @@
   global.TraceModel={
     resetTraceIdCounter:resetTraceIdCounter,
     makeTraceId:makeTraceId,
+    syncTraceIdCounter:syncTraceIdCounter,
     makeTrace:makeTrace,
     isRawTrace:isRawTrace,
     isDerivedTrace:isDerivedTrace,

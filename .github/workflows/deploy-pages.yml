@@ -43,6 +43,8 @@ jobs:
           test -f _site/app-modules/ui-helpers.js
           test -f _site/app-modules/trace-model.js
           test -f _site/app-modules/trace-helpers.js
+          test -f _site/app-modules/workspace-helpers.js
+          test -f _site/app-modules/export-helpers.js
           test -f _site/mergen-scope-icon.svg
           test -f _site/mergen-scope-icon.png
           test -f _site/mergen-scope-preview.png

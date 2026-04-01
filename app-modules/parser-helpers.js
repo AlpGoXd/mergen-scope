@@ -10,6 +10,11 @@
     _fc=0;
   }
 
+  function syncParserFileCounter(files){
+    var nextCount=Array.isArray(files)?files.length:0;
+    if(nextCount>_fc)_fc=nextCount;
+  }
+
   function nearestPoint(tr,freq,left,right){
     if(!tr||!tr.data||!tr.data.length||!isFinite(freq))return null;
     var data=tr.data;
@@ -114,6 +119,7 @@
 
   global.ParserHelpers={
     resetParserFileCounter:resetParserFileCounter,
+    syncParserFileCounter:syncParserFileCounter,
     nearestPoint:nearestPoint,
     parseRSDat:parseRSDat
   };

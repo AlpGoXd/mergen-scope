@@ -31,6 +31,9 @@ Mergen Scope is a free, open-source, browser-based viewer for Rohde & Schwarz sp
 - Expanded analysis toolkit: peak/spur table, marker delta table, range statistics, bandwidth helper, threshold crossings, ripple/flatness, occupied bandwidth, and guarded channel power
 - Zoom and pan: navigate large frequency ranges with oscilloscope-style division readout
 - Saved results: keep Noise PSD and IP3 results inside the current workspace
+- Workspace import/export: save and reopen complete sessions as portable JSON
+- Data export: download raw traces, derived traces, current Noise PSD analysis trace, and saved analysis results as JSON
+- Chart export: capture the current chart view as PNG or SVG
 - No installation required: runs in any modern browser
 - No CDN dependencies: all libraries are vendored locally and work offline
 
@@ -66,6 +69,18 @@ Push to `main`. GitHub Actions deploys automatically via `.github/workflows/depl
 ### Loading a File
 
 Click **Load File** and select a `.dat` export from your spectrum analyzer. Use **Append** to add more traces.
+
+### Workspace Sessions
+
+Use **Save Workspace** to export the current session as JSON, including imported files, derived traces, pane layout, zoom state, markers, reference lines, and saved analysis results.
+
+Use **Open Workspace** to restore a previously exported session in one step.
+
+### Data and Chart Export
+
+Use **Export Data** to download the current traces as JSON, including raw traces, derived traces, the current Noise PSD analysis trace when available, and saved Noise/IP3 results.
+
+Use **PNG** or **SVG** to export the current chart view as an image.
 
 ### Markers and Peak Search
 
@@ -190,6 +205,8 @@ Current helper split:
 - `app-modules/derived-state-helpers.js` for derived-trace dependency cleanup helpers
 - `app-modules/ui-helpers.js` for formatting, theme colors, metric rows, and saved-result item components
 - `app-modules/pane-helpers.js` for pane ownership, per-pane trace filtering, and pane Y-domain helpers
+- `app-modules/workspace-helpers.js` for workspace snapshot normalization, demo preset restoration, and session import/export payload helpers
+- `app-modules/export-helpers.js` for chart export rendering and trace/data export package helpers
 
 The app now has a practical raw-vs-derived trace model:
 
@@ -230,8 +247,8 @@ Roadmap in order:
 2. Expanded analysis toolkit
    Status: completed
 3. Export and session portability
-   Status: next priority
-   Planned scope: chart export, trace/data export, saved analysis export, and workspace/session JSON export/import
+   Status: completed
+   Implemented: workspace/session JSON export and import, trace/data export, saved analysis export, and chart PNG/SVG export
 4. Touchstone import support
 5. Touchstone measurement tools
 6. Performance and scaling pass
@@ -248,7 +265,6 @@ Not planned right now:
 
 - Only tested with R&S `.dat` exports. Other formats may need parser adjustments
 - Multi-pane is currently limited to 1 to 4 stacked panes
-- Export/session portability is the next planned phase and is not fully implemented yet
 - Touchstone support is intentionally deferred to a later format-expansion phase
 - Oscilloscope waveform support is intentionally deferred to a later format-expansion phase
 - Pane synchronization does not use a permanent shared cursor line

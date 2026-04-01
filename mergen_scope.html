@@ -146,6 +146,8 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',-apple-system,Bl
 .crosshair-readout .cr-row{display:flex;justify-content:space-between;gap:12px;padding:1px 0;}
 .crosshair-readout .cr-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px;}
 .clr-btn:hover{color:#f55!important;border-color:#f55!important;}
+.io-glow{transition:box-shadow .16s ease,border-color .16s ease,transform .16s ease,color .16s ease,background-color .16s ease;}
+.io-glow:hover{box-shadow:0 0 0 1px rgba(82,168,255,0.22),0 0 16px rgba(82,168,255,0.18);border-color:#52a8ff!important;color:#d7ebff!important;transform:translateY(-1px);}
 </style>
 </head>
 <body>
@@ -168,6 +170,8 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',-apple-system,Bl
 <script src="./app-modules/ui-helpers.js"></script>
 <script src="./app-modules/pane-helpers.js"></script>
 <script src="./app-modules/demo-workspaces.js"></script>
+<script src="./app-modules/workspace-helpers.js"></script>
+<script src="./app-modules/export-helpers.js"></script>
 <script type="module">
 var React=window.React;
 var createRoot=window.ReactDOM.createRoot;
@@ -183,8 +187,11 @@ var DSH=window.DerivedStateHelpers||{};
 var UH=window.UIHelpers||{};
 var PAH=window.PaneHelpers||{};
 var DW=window.DemoWorkspaces||{};
+var WH=window.WorkspaceHelpers||{};
+var EH=window.ExportHelpers||{};
 var resetTraceIdCounter=TM.resetTraceIdCounter;
 var makeTraceId=TM.makeTraceId;
+var syncTraceIdCounter=TM.syncTraceIdCounter;
 var makeTrace=TM.makeTrace;
 var isRawTrace=TM.isRawTrace;
 var isDerivedTrace=TM.isDerivedTrace;
@@ -265,6 +272,7 @@ var dedupeFiles=FSH.dedupeFiles;
 var mergeFileLists=FSH.mergeFileLists;
 var normalizeTraceData=FSH.normalizeTraceData;
 var resetParserFileCounter=PH.resetParserFileCounter;
+var syncParserFileCounter=PH.syncParserFileCounter;
 var nearestPoint=PH.nearestPoint;
 var parseRSDat=PH.parseRSDat;
 var IP3_ROLE_KEYS=MH.IP3_ROLE_KEYS;
@@ -294,6 +302,19 @@ var normalizePaneActiveTraceMap=PAH.normalizePaneActiveTraceMap;
 var clearPaneAssignments=PAH.clearPaneAssignments;
 var getAlternatePaneId=PAH.getAlternatePaneId;
 var getPaneAutoYDomain=PAH.getPaneAutoYDomain;
+var buildWorkspaceSnapshot=WH.buildWorkspaceSnapshot;
+var buildWorkspaceExportPackage=WH.buildWorkspaceExportPackage;
+var normalizeWorkspaceSnapshot=WH.normalizeWorkspaceSnapshot;
+var restoreWorkspaceSnapshot=WH.restoreWorkspaceSnapshot;
+var extractWorkspaceSnapshotFromPackage=WH.extractWorkspaceSnapshotFromPackage;
+var buildWorkspaceSnapshotFromDemoPreset=WH.buildWorkspaceSnapshotFromDemoPreset;
+var buildTraceExportPackage=EH.buildTraceExportPackage;
+var buildTimestampedDownloadName=EH.buildTimestampedDownloadName;
+var downloadBlobFile=EH.downloadBlobFile;
+var downloadJsonFile=EH.downloadJsonFile;
+var exportElementAsSvgFile=EH.exportElementAsSvgFile;
+var exportElementAsPngFile=EH.exportElementAsPngFile;
+var exportSvgMarkupAsPngFile=EH.exportSvgMarkupAsPngFile;
 
 var h=React.createElement;
 var useState=React.useState,useCallback=React.useCallback,useRef=React.useRef,
@@ -729,7 +750,7 @@ function useXControls(activePaneId, panes){
     }
     setZoomAllRaw(target);
   },[zoomAll,paneXZooms,activePaneId,sharedZoom,panes]);
-  return {zoomAll:zoomAll,setZoomAll:setZoomAll,zoom:zoom,setZoom:setZoom,paneXZooms:paneXZooms,getPaneZoom:getPaneZoom,clearAllXZooms:clearAllXZooms};
+  return {zoomAll:zoomAll,setZoomAll:setZoomAll,setZoomAllRaw:setZoomAllRaw,zoom:zoom,setZoom:setZoom,sharedZoom:sharedZoom,setSharedZoom:setSharedZoom,paneXZooms:paneXZooms,setPaneXZooms:setPaneXZooms,getPaneZoom:getPaneZoom,clearAllXZooms:clearAllXZooms};
 }
 
 function useFileStore(dep){
@@ -1185,7 +1206,7 @@ function usePaneLayout(allTr){
       return next;
     });
   },[]);
-  return {paneMode:paneCount,setPaneMode:setPaneMode,panes:panes,activePaneId:activePaneId,setActivePaneId:setActivePaneId,tracePaneMap:tracePaneMap,setTracePaneMap:setTracePaneMap,assignTraceToPane:assignTraceToPane,clearPane:clearPane,getPaneTraces:getPaneTracesForId,getPaneActiveTraceName:getPaneActiveTraceName,setPaneActiveTrace:setPaneActiveTrace};
+  return {paneMode:paneCount,setPaneMode:setPaneMode,panes:panes,activePaneId:activePaneId,setActivePaneId:setActivePaneId,tracePaneMap:tracePaneMap,setTracePaneMap:setTracePaneMap,paneActiveTraceMap:paneActiveTraceMap,setPaneActiveTraceMap:setPaneActiveTraceMap,assignTraceToPane:assignTraceToPane,clearPane:clearPane,getPaneTraces:getPaneTracesForId,getPaneActiveTraceName:getPaneActiveTraceName,setPaneActiveTrace:setPaneActiveTrace};
 }
 
 function useAnalysisRegistry(dep){
@@ -1647,6 +1668,9 @@ function SidebarPane(props){ return props.render(); }
 function AnalysisPane(props){
   return h("div",{style:{width:280,background:"var(--card)",borderLeft:"1px solid var(--border)",padding:12,overflowY:"auto",flexShrink:0}},props.children);
 }
+function RightPanelStack(props){
+  return h("div",{style:{width:320,background:"var(--card)",borderLeft:"1px solid var(--border)",padding:12,overflowY:"auto",flexShrink:0,display:"flex",flexDirection:"column",gap:10}},props.children);
+}
 function ChartPane(props){ return props.render(); }
 function DataTablePane(props){ return props.render(); }
 
@@ -2102,7 +2126,7 @@ function TopBar(props){
   });
   var btns=[];
   if(props.hasData){
-    btns.push(h(Btn,{key:"imp",color:props.C.tr[2],title:"Import one or more local trace files into the workspace.",onClick:function(){props.importRef.current?.click();}},"+ Import"));
+    btns.push(h(Btn,{key:"io-panel",className:"io-glow",active:props.showImportExportPanel,soft:true,color:props.C.accent,title:"Open or close the import/export panel on the right side.",onClick:props.toggleImportExportPanel},"Import / Export"));
     btns.push(dotSep("sep-imp"));
     btns.push(h(Btn,{key:"panel",active:props.showSidebar,soft:true,color:props.C.tr[0],title:"Show or hide the left sidebar with traces, markers, metadata, and lines.",onClick:function(){props.setShowSidebar(function(p){return!p;});}},"Panel"));
     btns.push(h(Btn,{key:"marker-tools",active:props.showMarkerTools,soft:true,color:props.C.tr[3],title:"Show or hide marker controls in the graph toolbar.",onClick:function(){props.setShowMarkerTools(function(p){return!p;});}},"Marker"));
@@ -2121,6 +2145,8 @@ function TopBar(props){
     }
     btns.push(dotSep("sep-clear"));
     btns.push(h("button",{key:"clr",className:"clr-btn",title:"Remove all imported files, traces, markers, and analysis results from the current workspace.",onClick:function(){if(window.confirm("Clear all files and traces?"))props.clearAllFiles();},style:{background:"transparent",border:"1px solid var(--border)",color:"var(--muted)",borderRadius:6,padding:"5px 10px",cursor:"pointer",fontSize:12,fontWeight:400,whiteSpace:"nowrap",lineHeight:"1.4"}},"Clear All"));
+  } else {
+    btns.push(h(Btn,{key:"open-empty-io",className:"io-glow",color:props.C.accent,title:"Open the import/export panel on the right side.",onClick:props.toggleImportExportPanel},"Import / Export"));
   }
   return h("div",{style:{background:"var(--card)",borderBottom:"1px solid var(--border)",padding:"8px 16px",display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",flexShrink:0}},
     h("svg",{width:22,height:22,viewBox:"0 0 24 24",fill:"none"},
@@ -2130,6 +2156,19 @@ function TopBar(props){
     props.files.length>0?h("div",{style:{display:"flex",gap:4,flexWrap:"wrap",alignItems:"center"}},tags):null,
     h("div",{style:{flex:1}}),
     btns.length?h("div",{style:{display:"flex",gap:5,flexWrap:"wrap"}},btns):null);
+}
+
+function TopBarCompact(props){
+  var summary=props.hasData?(props.files.length+" file"+(props.files.length===1?"":"s")+" · "+props.traceCount+" trace"+(props.traceCount===1?"":"s")):"Browser-based RF and signal viewer";
+  return h("div",{style:{background:"var(--card)",borderBottom:"1px solid var(--border)",padding:"8px 16px",display:"flex",alignItems:"center",gap:12,flexShrink:0}},
+    h("svg",{width:22,height:22,viewBox:"0 0 24 24",fill:"none"},
+      h("rect",{x:2,y:4,width:20,height:16,rx:2,stroke:"var(--accent)",strokeWidth:1.5}),
+      h("polyline",{points:"4,16 7,10 10,14 13,8 16,12 19,6 22,11",fill:"none",stroke:"var(--trace1)",strokeWidth:1.5})),
+    h("div",{style:{display:"flex",flexDirection:"column",gap:2,minWidth:0}},
+      h("span",{style:{fontWeight:700,fontSize:14}},"Mergen Scope"),
+      h("span",{style:{fontSize:11,color:"var(--muted)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},summary)),
+    h("div",{style:{flex:1}}),
+    h(Btn,{active:props.showSidebar,soft:true,color:props.C.tr[0],title:"Show or hide the left sidebar with import, export, and tool controls.",onClick:function(){props.setShowSidebar(function(p){return!p;});}},props.showSidebar?"Hide Left Panel":"Show Left Panel"));
 }
 
 function FooterHintItem(props){
@@ -2167,6 +2206,8 @@ function App(){
   var _sto=useState(false),showTraceOps=_sto[0],setShowTraceOps=_sto[1];
   var _toos=useState({offset:false,scale:false,smoothing:false,subtract:false}),traceOpsOpenSections=_toos[0],setTraceOpsOpenSections=_toos[1];
   var _sap=useState(false),showAnalysisPanel=_sap[0],setShowAnalysisPanel=_sap[1];
+  var _sie=useState(false),showImportExportPanel=_sie[0],setShowImportExportPanel=_sie[1];
+  var _rpo=useState(["analysis","data"]),rightPanelOrder=_rpo[0],setRightPanelOrder=_rpo[1];
   var _aos=useState(getDefaultAnalysisOpenState?getDefaultAnalysisOpenState():{}),analysisOpenState=_aos[0],setAnalysisOpenStateRaw=_aos[1];
   var _smt=useState(true),showMarkerTools=_smt[0],setShowMarkerTools=_smt[1];
   var _spt=useState(true),showPaneTools=_spt[0],setShowPaneTools=_spt[1];
@@ -2205,7 +2246,7 @@ function App(){
   var ip3Ctl=useIP3(),ip3Pts=ip3Ctl.ip3Pts,setIP3Pts=ip3Ctl.setIP3Pts,ip3Res=ip3Ctl.ip3Res,setIP3Res=ip3Ctl.setIP3Res,ip3Gain=ip3Ctl.ip3Gain,setIP3Gain=ip3Ctl.setIP3Gain,ip3Results=ip3Ctl.ip3Results,setIP3Results=ip3Ctl.setIP3Results,saveIP3=ip3Ctl.saveIP3;
   var noiseCtl=useNoisePSD(),noiseFilter=noiseCtl.noiseFilter,setNoiseFilter=noiseCtl.setNoiseFilter,noiseSource=noiseCtl.noiseSource,setNoiseSource=noiseCtl.setNoiseSource,noiseResults=noiseCtl.noiseResults,setNoiseResults=noiseCtl.setNoiseResults,addSavedNoise=noiseCtl.addSavedNoise;
   var interactionCtl=useInteractionMode({mkrMode:mkrMode,setMkrMode:setMkrMode,refMode:refMode,setRefMode:setRefMode,markers:markers,dRef:dRef,setDRef:setDRef});
-  var fRef=useRef(null),iRef=useRef(null),chartRef=useRef(null);
+  var fRef=useRef(null),iRef=useRef(null),wRef=useRef(null),chartRef=useRef(null),chartExportRef=useRef(null);
   var crosshair=useSharedCursor();
   var activePaneModelRef=useRef(null);
   var demoBootRef=useRef(false);
@@ -2216,6 +2257,19 @@ function App(){
     var zoomSetterRef=useRef(null);
   var ySetterRefs=useRef({setYZoom:null,setYMnI:null,setYMxI:null});
   var pendingPaneImportRef=useRef(null);
+  var prevRightPanelVisibilityRef=useRef({importExport:false,analysis:false,data:false});
+  var promoteRightPanelSection=useCallback(function(id){
+    if(!id)return;
+    setRightPanelOrder(function(prev){
+      var base=Array.isArray(prev)?prev.slice():["analysis","data"];
+      var next=base.filter(function(item){return item!==id&&item!=="import-export";});
+      next.unshift(id);
+      ["analysis","data"].forEach(function(item){
+        if(next.indexOf(item)===-1)next.push(item);
+      });
+      return next;
+    });
+  },[]);
   var toggleAnalysisOpen=useCallback(function(id,nextValue){
     setAnalysisOpenStateRaw(function(prev){return setAnalysisOpenState(prev,id,nextValue);});
   },[]);
@@ -2254,13 +2308,59 @@ function App(){
   var allTr=useMemo(function(){return rawTr.concat(derivedTraces);},[rawTr,derivedTraces]);
   var traceOptions=useMemo(function(){return allTr.filter(function(tr){return tr&&getTraceData(tr).length;});},[allTr]);
   var paneCtl=usePaneLayout(allTr);
-  var paneMode=paneCtl.paneMode,setPaneMode=paneCtl.setPaneMode,panes=paneCtl.panes,activePaneId=paneCtl.activePaneId,setActivePaneId=paneCtl.setActivePaneId,tracePaneMap=paneCtl.tracePaneMap,setTracePaneMap=paneCtl.setTracePaneMap,assignTraceToPane=paneCtl.assignTraceToPane,clearPane=paneCtl.clearPane,getPaneTracesForId=paneCtl.getPaneTraces,getPaneActiveTraceName=paneCtl.getPaneActiveTraceName,setPaneActiveTrace=paneCtl.setPaneActiveTrace;
-  var xCtl=useXControls(activePaneId,panes),zoomAll=xCtl.zoomAll,setZoomAll=xCtl.setZoomAll,zoom=xCtl.zoom,setZoom=xCtl.setZoom,getPaneZoom=xCtl.getPaneZoom,clearAllXZooms=xCtl.clearAllXZooms;
-  var yCtl=useYControls(activePaneId),yZoom=yCtl.yZoom,setYZoom=yCtl.setYZoom,getPaneYZoom=yCtl.getPaneYZoom,paneYZooms=yCtl.paneYZooms,clearAllPaneYZooms=yCtl.clearAllPaneYZooms,yMnI=yCtl.yMnI,setYMnI=yCtl.setYMnI,yMxI=yCtl.yMxI,setYMxI=yCtl.setYMxI,resetYZ=yCtl.resetYZ,syncYInputs=yCtl.syncYInputs,syncYInputsForPane=yCtl.syncYInputsForPane;
+  var paneMode=paneCtl.paneMode,setPaneMode=paneCtl.setPaneMode,panes=paneCtl.panes,activePaneId=paneCtl.activePaneId,setActivePaneId=paneCtl.setActivePaneId,tracePaneMap=paneCtl.tracePaneMap,setTracePaneMap=paneCtl.setTracePaneMap,paneActiveTraceMap=paneCtl.paneActiveTraceMap,setPaneActiveTraceMap=paneCtl.setPaneActiveTraceMap,assignTraceToPane=paneCtl.assignTraceToPane,clearPane=paneCtl.clearPane,getPaneTracesForId=paneCtl.getPaneTraces,getPaneActiveTraceName=paneCtl.getPaneActiveTraceName,setPaneActiveTrace=paneCtl.setPaneActiveTrace;
+  var xCtl=useXControls(activePaneId,panes),zoomAll=xCtl.zoomAll,setZoomAll=xCtl.setZoomAll,setZoomAllRaw=xCtl.setZoomAllRaw,zoom=xCtl.zoom,setZoom=xCtl.setZoom,sharedZoom=xCtl.sharedZoom,setSharedZoom=xCtl.setSharedZoom,paneXZooms=xCtl.paneXZooms,setPaneXZooms=xCtl.setPaneXZooms,getPaneZoom=xCtl.getPaneZoom,clearAllXZooms=xCtl.clearAllXZooms;
+  var yCtl=useYControls(activePaneId),yZoom=yCtl.yZoom,setYZoom=yCtl.setYZoom,getPaneYZoom=yCtl.getPaneYZoom,paneYZooms=yCtl.paneYZooms,setPaneYZooms=yCtl.setPaneYZooms,clearAllPaneYZooms=yCtl.clearAllPaneYZooms,yMnI=yCtl.yMnI,setYMnI=yCtl.setYMnI,yMxI=yCtl.yMxI,setYMxI=yCtl.setYMxI,resetYZ=yCtl.resetYZ,syncYInputs=yCtl.syncYInputs,syncYInputsForPane=yCtl.syncYInputsForPane;
   zoomSetterRef.current=function(next){ if(next===null)clearAllXZooms(); else setZoom(next); };
   ySetterRefs.current.setYZoom=setYZoom;
   ySetterRefs.current.setYMnI=setYMnI;
   ySetterRefs.current.setYMxI=setYMxI;
+  var buildCurrentWorkspaceSnapshot=useCallback(function(){
+    return buildWorkspaceSnapshot({
+      files:files,
+      derivedTraces:derivedTraces,
+      vis:vis,
+      paneMode:paneMode,
+      activePaneId:activePaneId,
+      traceAssignments:tracePaneMap,
+      paneActiveTraceMap:paneActiveTraceMap,
+      xZoomState:{zoomAll:zoomAll,sharedZoom:sharedZoom,paneXZooms:paneXZooms},
+      yZoomState:{paneYZooms:paneYZooms},
+      markers:markers,
+      refLines:refLines,
+      savedNoise:noiseResults,
+      savedIP3:ip3Results,
+      selectedTraceName:selectedTraceName,
+      ui:{
+        showSidebar:showSidebar,
+        showMeta:showMeta,
+        showMarkers:showMarkers,
+        showMarkerTools:showMarkerTools,
+        showPaneTools:showPaneTools,
+        showSearchTools:showSearchTools,
+        showLineTools:showLineTools,
+        showViewTools:showViewTools,
+        showDots:showDots,
+        showDT:showDT,
+        lockLinesAcrossPanes:lockLinesAcrossPanes,
+        searchDirection:searchDirection,
+        newMarkerArmed:newMarkerArmed,
+        markerTrace:markerTrace,
+        selectedMkrIdx:selectedMkrIdx,
+        dRef:dRef,
+        refMode:refMode,
+        selectedRefLineId:selectedRefLineId,
+        showTraceOps:showTraceOps,
+        traceOpsOpenSections:traceOpsOpenSections,
+        showAnalysisPanel:showAnalysisPanel,
+        noiseFilter:noiseFilter,
+        noiseSource:noiseSource,
+        ip3Gain:ip3Gain,
+        dtTrace:dtTrace
+      },
+      analysisOpenState:analysisOpenState
+    });
+  },[files,derivedTraces,vis,paneMode,activePaneId,tracePaneMap,paneActiveTraceMap,zoomAll,sharedZoom,paneXZooms,paneYZooms,markers,refLines,noiseResults,ip3Results,selectedTraceName,showSidebar,showMeta,showMarkers,showMarkerTools,showPaneTools,showSearchTools,showLineTools,showViewTools,showDots,showDT,lockLinesAcrossPanes,searchDirection,newMarkerArmed,markerTrace,selectedMkrIdx,dRef,refMode,selectedRefLineId,showTraceOps,traceOpsOpenSections,showAnalysisPanel,noiseFilter,noiseSource,ip3Gain,dtTrace,analysisOpenState]);
 
   function getTraceByName(name){return allTr.find(function(t){return t.name===name;})||null;}
   function getTraceById(id){return allTr.find(function(t){return getTraceId(t)===id;})||null;}
@@ -2282,6 +2382,22 @@ function App(){
     var min=psd.reduce(function(a,b){return a.amp<b.amp?a:b;});
     var avg=psd.reduce(function(sum,item){return sum+item.amp;},0)/psd.length;
     return makeSavedNoiseResult({src:trace,rbw:rbwValue,data:psd,peak:peak,min:min,avg:avg},filter||"gaussian",trace);
+  }
+  function syncTraceCountersFromSnapshot(snapshot){
+    var normalized=normalizeWorkspaceSnapshot(snapshot);
+    var traces=(normalized.files||[]).flatMap(function(file){return file.traces||[];}).concat(normalized.derivedTraces||[]);
+    syncTraceIdCounter(traces);
+  }
+  function syncParserCounterFromSnapshot(snapshot){
+    var normalized=normalizeWorkspaceSnapshot(snapshot);
+    syncParserFileCounter(normalized.files||[]);
+  }
+  function syncFileIdCounterFromSnapshot(snapshot){
+    var normalized=normalizeWorkspaceSnapshot(snapshot);
+    var maxId=(normalized.files||[]).reduce(function(max,file){
+      return file&&isFinite(file.id)&&Number(file.id)>max?Number(file.id):max;
+    },0);
+    if(maxId>_fid)_fid=maxId;
   }
   function getPaneVisibleTraces(paneId){
     return getPaneTracesForId(paneId).filter(function(tr){return !!vis[tr.name];});
@@ -2463,16 +2579,18 @@ function App(){
     if(tr&&isDerivedTrace(tr))removeDerivedTrace(traceName);
     else removeRawTrace(traceName);
   }
-  function clearAllFiles(){
+  var clearWorkspaceToBaseline=useCallback(function(){
+    baseClearAllFiles();
     setDerivedTraces([]);
     setPaneMode(1);
     setActivePaneId("pane-1");
-    paneCtl.setTracePaneMap({});
+    setTracePaneMap({});
+    setPaneActiveTraceMap({"pane-1":null});
     setSelectedTraceName(null);
     setDragTraceName(null);
     pendingPaneImportRef.current=null;
     if(pendingPaneImportTimerRef.current){clearTimeout(pendingPaneImportTimerRef.current);pendingPaneImportTimerRef.current=null;}
-    paneCtl.setPaneActiveTrace("pane-1",null);
+    setPaneActiveTrace("pane-1",null);
     setOffsetSource("");
     setOffsetValue("0");
     setScaleSource("");
@@ -2493,16 +2611,97 @@ function App(){
     setThresholdManual("");
     setObwPercent("99");
     setAnalysisOpenStateRaw(function(prev){return clearAllAnalysisOpenState(prev);});
+    setShowSidebar(true);
+    setShowMeta(true);
+    setShowMarkers(true);
+    setShowMarkerTools(true);
+    setShowPaneTools(true);
+    setShowSearchTools(true);
+    setShowLineTools(false);
+    setShowViewTools(true);
+    setShowDots(false);
+    setLockLinesAcrossPanes(false);
+    setSearchDirection("right");
+    setNewMarkerArmed(false);
+    setMkrMode("normal");
+    setMarkerTrace("__auto__");
+    setSelectedMkrIdx(null);
+    setSelectedRefLineId(null);
     setShowTraceOps(false);
+    setTraceOpsOpenSections({offset:false,scale:false,smoothing:false,subtract:false});
     setShowAnalysisPanel(false);
+    setNoiseFilter("gaussian");
+    setNoiseSource(null);
+    setIP3Gain("");
+    clearAllXZooms();
     clearAllPaneYZooms();
-    baseClearAllFiles();
+  },[baseClearAllFiles,setPaneMode,setActivePaneId,setTracePaneMap,setPaneActiveTraceMap,setSelectedTraceName,setDragTraceName,setPaneActiveTrace,setOffsetSource,setOffsetValue,setScaleSource,setScaleValue,setSmoothSource,setSmoothMethod,setSmoothWindow,setSmoothPolyOrder,setSubtractA,setSubtractB,setTraceMathOperation,setSubtractInterpolation,setTraceOpsError,setPeakTableLimit,setPeakTableMinSpacing,setPeakTableMinAmp,setBandwidthDrop,setThresholdManual,setObwPercent,setAnalysisOpenStateRaw,setShowSidebar,setShowMeta,setShowMarkers,setShowMarkerTools,setShowPaneTools,setShowSearchTools,setShowLineTools,setShowViewTools,setShowDots,setLockLinesAcrossPanes,setSearchDirection,setNewMarkerArmed,setMkrMode,setMarkerTrace,setSelectedMkrIdx,setSelectedRefLineId,setShowTraceOps,setTraceOpsOpenSections,setShowAnalysisPanel,setNoiseFilter,setNoiseSource,setIP3Gain,clearAllXZooms,clearAllPaneYZooms]);
+  function clearAllFiles(){
+    clearWorkspaceToBaseline();
+  }
+  function restoreSnapshot(snapshot){
+    return restoreWorkspaceSnapshot(snapshot,{
+      setError:setError,
+      setFiles:setFiles,
+      setVis:setVis,
+      setDerivedTraces:setDerivedTraces,
+      setPaneMode:setPaneMode,
+      setActivePaneId:setActivePaneId,
+      setTracePaneMap:setTracePaneMap,
+      setPaneActiveTrace:setPaneActiveTrace,
+      setPaneActiveTraceMap:setPaneActiveTraceMap,
+      setZoomAllRaw:setZoomAllRaw,
+      setSharedZoom:setSharedZoom,
+      setPaneXZooms:setPaneXZooms,
+      setPaneYZooms:setPaneYZooms,
+      setYMnI:setYMnI,
+      setYMxI:setYMxI,
+      setShowSidebar:setShowSidebar,
+      setShowMeta:setShowMeta,
+      setShowMarkers:setShowMarkers,
+      setShowMarkerTools:setShowMarkerTools,
+      setShowPaneTools:setShowPaneTools,
+      setShowSearchTools:setShowSearchTools,
+      setShowLineTools:setShowLineTools,
+      setShowViewTools:setShowViewTools,
+      setShowDots:setShowDots,
+      setShowDT:setShowDT,
+      setLockLinesAcrossPanes:setLockLinesAcrossPanes,
+      setSearchDirection:setSearchDirection,
+      setNewMarkerArmed:setNewMarkerArmed,
+      setMarkerTrace:setMarkerTrace,
+      setSelectedTraceName:setSelectedTraceName,
+      setDtTrace:setDtTrace,
+      setDragTraceName:setDragTraceName,
+      setMarkers:setMarkers,
+      setSelectedMkrIdx:setSelectedMkrIdx,
+      setDRef:setDRef,
+      setRefMode:setRefMode,
+      setRefLines:setRefLines,
+      setSelectedRefLineId:setSelectedRefLineId,
+      setNoiseFilter:setNoiseFilter,
+      setNoiseSource:setNoiseSource,
+      setNoiseResults:setNoiseResults,
+      resetIP3:ip3Ctl.resetIP3,
+      setIP3Pts:setIP3Pts,
+      setIP3Res:setIP3Res,
+      syncIP3FromMarkers:ip3Ctl.syncFromMarkers,
+      setIP3Gain:setIP3Gain,
+      setIP3Results:setIP3Results,
+      setShowTraceOps:setShowTraceOps,
+      setTraceOpsOpenSections:setTraceOpsOpenSections,
+      setShowAnalysisPanel:setShowAnalysisPanel,
+      setAnalysisOpenStateRaw:setAnalysisOpenStateRaw,
+      syncTraceIdCounter:syncTraceCountersFromSnapshot,
+      syncParserFileCounter:syncParserCounterFromSnapshot,
+      syncFileIdCounter:syncFileIdCounterFromSnapshot
+    });
   }
   function restoreDemoWorkspace(preset){
     if(!preset)return false;
-    clearAllFiles();
     var demoFiles=buildBundledDemoFiles(preset);
     if(!demoFiles.length)return false;
+    clearWorkspaceToBaseline();
     var demoStateFiles=demoFiles.map(function(file){
       return {id:file.id,fileName:file.fileName,meta:file.meta,traces:file.traces};
     });
@@ -2613,6 +2812,229 @@ function App(){
     setSelectedTraceName(selectedTrace?selectedTrace.name:null);
     setDtTrace(selectedTrace?selectedTrace.name:null);
     return true;
+  }
+  function makeWorkspaceExportFileName(){
+    var now=new Date();
+    function pad(value){
+      return String(value).padStart(2,"0");
+    }
+    return "mergen-scope-workspace-"+now.getFullYear()+pad(now.getMonth()+1)+pad(now.getDate())+"-"+pad(now.getHours())+pad(now.getMinutes())+pad(now.getSeconds())+".json";
+  }
+  function exportWorkspace(){
+    try{
+      var payload=buildWorkspaceExportPackage(buildCurrentWorkspaceSnapshot());
+      var text=JSON.stringify(payload,null,2);
+      var blob=new Blob([text],{type:"application/json"});
+      var urlApi=window.URL||window.webkitURL;
+      if(!urlApi||!urlApi.createObjectURL)throw new Error("This browser does not support file downloads.");
+      var url=urlApi.createObjectURL(blob);
+      var link=document.createElement("a");
+      link.href=url;
+      link.download=makeWorkspaceExportFileName();
+      link.style.display="none";
+      document.body.appendChild(link);
+      link.click();
+      setTimeout(function(){
+        if(link.parentNode)link.parentNode.removeChild(link);
+        urlApi.revokeObjectURL(url);
+      },0);
+      setError(null);
+    }catch(err){
+      setError("Unable to export workspace: "+(err&&err.message?err.message:"Unknown error."));
+    }
+  }
+  function exportTraceData(){
+    try{
+      var payload=buildTraceExportPackage({
+        allTr:allTr,
+        vis:vis,
+        panes:panes,
+        activePaneId:activePaneId,
+        selectedTraceName:selectedTraceName,
+        tracePaneMap:tracePaneMap,
+        markers:markers,
+        referenceLines:refLines,
+        noiseSource:noiseSource,
+        noiseFilter:noiseFilter,
+        npsdStats:npsdStats,
+        savedNoiseResults:noiseResults,
+        savedIP3Results:ip3Results
+      });
+      downloadJsonFile(buildTimestampedDownloadName("mergen-scope-data-export","json"),payload);
+      setError(null);
+    }catch(err){
+      setError("Unable to export trace data: "+(err&&err.message?err.message:"Unknown error."));
+    }
+  }
+  function exportChartSvg(){
+    try{
+      var exportAsset=buildChartVectorExport({kind:"svg"});
+      downloadBlobFile(new Blob([exportAsset.markup],{type:"image/svg+xml;charset=utf-8"}),buildTimestampedDownloadName("mergen-scope-chart","svg"));
+      setError(null);
+    }catch(err){
+      setError("Unable to export chart SVG: "+(err&&err.message?err.message:"Unknown error."));
+    }
+  }
+  function exportChartPng(){
+    try{
+      var exportAsset=buildChartVectorExport({kind:"png"});
+      exportSvgMarkupAsPngFile(exportAsset.markup,exportAsset.width,exportAsset.height,buildTimestampedDownloadName("mergen-scope-chart","png"),{scale:3,backgroundColor:exportAsset.backgroundColor}).then(function(){
+        setError(null);
+      }).catch(function(err){
+        setError("Unable to export chart PNG: "+(err&&err.message?err.message:"Unknown error."));
+      });
+    }catch(err){
+      setError("Unable to prepare chart PNG export: "+(err&&err.message?err.message:"Unknown error."));
+    }
+  }
+  function escapeExportText(value){
+    return String(value==null?"":value)
+      .replace(/&/g,"&amp;")
+      .replace(/</g,"&lt;")
+      .replace(/>/g,"&gt;")
+      .replace(/"/g,"&quot;")
+      .replace(/'/g,"&apos;");
+  }
+  function getExportThemeColors(){
+    var rootStyles=window.getComputedStyle?window.getComputedStyle(document.documentElement):null;
+    var bodyStyles=window.getComputedStyle?window.getComputedStyle(document.body):null;
+    function cssVar(name,fallback){
+      var value=rootStyles?String(rootStyles.getPropertyValue(name)||"").trim():"";
+      return value||fallback;
+    }
+    return {
+      backgroundColor:(bodyStyles&&bodyStyles.backgroundColor)||cssVar("--bg","#ffffff"),
+      cardColor:cssVar("--card","#ffffff"),
+      textColor:cssVar("--text","#111111"),
+      mutedColor:cssVar("--muted","#666666"),
+      borderColor:cssVar("--border","#d0d7de")
+    };
+  }
+  function appendSvgRows(parts,x,y,width,rows,colors){
+    rows.forEach(function(row,index){
+      var rowY=y+20+(index*18);
+      parts.push('<text x="'+(x+12)+'" y="'+rowY+'" font-size="12" fill="'+escapeExportText(colors.mutedColor)+'">'+escapeExportText(row.label)+'</text>');
+      parts.push('<text x="'+(x+width-12)+'" y="'+rowY+'" font-size="12" font-family="monospace" text-anchor="end" fill="'+escapeExportText(row.color||colors.textColor)+'">'+escapeExportText(row.value)+'</text>');
+    });
+  }
+  function appendSvgCard(parts,x,y,width,title,titleColor,rows,colors){
+    var cardHeight=40+(rows.length*18)+10;
+    parts.push('<g transform="translate('+x+' '+y+')">');
+    parts.push('<rect x="0" y="0" width="'+width+'" height="'+cardHeight+'" rx="10" fill="'+escapeExportText(colors.cardColor)+'" stroke="'+escapeExportText(colors.borderColor)+'"/>');
+    parts.push('<text x="12" y="22" font-size="12" font-weight="700" fill="'+escapeExportText(titleColor||colors.textColor)+'">'+escapeExportText(title)+'</text>');
+    appendSvgRows(parts,0,14,width,rows,colors);
+    parts.push("</g>");
+    return cardHeight;
+  }
+  function getExportTraceSourceRows(){
+    var traces=(allTr||[]).filter(function(tr){return tr&&tr.name&&vis[tr.name];});
+    if(!traces.length)traces=(allTr||[]).filter(function(tr){return tr&&tr.name;});
+    return traces.map(function(tr){
+      var file=getTraceFile(tr.name);
+      return {
+        label:getTraceLabel(tr)||tr.name,
+        value:file&&file.fileName?file.fileName:(isDerivedTrace(tr)?"Derived trace":"Unknown file"),
+        color:traceColorMap[tr.name]||C.text
+      };
+    });
+  }
+  function buildChartVectorExport(options){
+    options=options||{};
+    if(!chartExportRef.current)throw new Error("The chart is not ready to export yet.");
+    var serializer=new XMLSerializer();
+    var paneGap=12;
+    var padding=options.kind==="png"?16:0;
+    var colors=getExportThemeColors();
+    var paneSvgs=Array.from(chartExportRef.current.querySelectorAll("svg.recharts-surface")).map(function(node){
+      var rect=node.getBoundingClientRect();
+      return {node:node,width:Math.max(1,Math.round(rect.width)),height:Math.max(1,Math.round(rect.height))};
+    }).filter(function(item){return item.width>1&&item.height>1;});
+    if(!paneSvgs.length)throw new Error("No chart SVG surfaces are available to export.");
+    var graphWidth=paneSvgs.reduce(function(max,item){return Math.max(max,item.width);},0);
+    var graphHeight=paneSvgs.reduce(function(sum,item,idx){return sum+item.height+(idx<paneSvgs.length-1?paneGap:0);},0);
+    var width=graphWidth+(padding*2);
+    var traceSourceRows=getExportTraceSourceRows();
+    var parts=['<?xml version="1.0" encoding="UTF-8"?>','<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="'+width+'" height="__HEIGHT__" viewBox="0 0 '+width+' __HEIGHT__">','<rect x="0" y="0" width="'+width+'" height="__HEIGHT__" fill="'+escapeExportText(colors.backgroundColor)+'"/>','<style>text{font-family:Inter,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;} .mono{font-family:Consolas,Menlo,Monaco,monospace;}</style>'];
+    var currentY=padding;
+    paneSvgs.forEach(function(item,idx){
+      var clone=item.node.cloneNode(true);
+      clone.setAttribute("xmlns","http://www.w3.org/2000/svg");
+      clone.setAttribute("xmlns:xlink","http://www.w3.org/1999/xlink");
+      clone.setAttribute("width",item.width);
+      clone.setAttribute("height",item.height);
+      clone.setAttribute("x",padding);
+      clone.setAttribute("y",currentY);
+      parts.push(serializer.serializeToString(clone));
+      currentY+=item.height+(idx<paneSvgs.length-1?paneGap:0);
+    });
+    var cardY=currentY+16;
+    var cardWidth=width-(padding*2);
+    if(traceSourceRows.length){
+      cardY+=appendSvgCard(parts,padding,cardY,cardWidth,"Trace Sources",C.accent,traceSourceRows,colors)+10;
+    }
+    if(options.kind==="png"){
+      markers.forEach(function(marker,index){
+        var traceLabel=(getTraceByName(marker.trace)&&getTraceLabel(getTraceByName(marker.trace)))||marker.trace||"-";
+        var markerColor=(traceColorMap&&marker.trace&&traceColorMap[marker.trace])||(mcMap[marker.type]||C.accent);
+        var rows=[
+          {label:"Freq",value:fmtF(marker.freq,true)},
+          {label:"Amp",value:marker.amp.toFixed(3)+" "+yU}
+        ];
+        if(marker.type==="delta"&&marker.refIdx!==undefined&&marker.refIdx!==null&&markers[marker.refIdx]){
+          rows.push({label:"dFreq",value:fmtF(marker.freq-markers[marker.refIdx].freq,true)});
+          rows.push({label:"dAmp",value:(marker.amp-markers[marker.refIdx].amp).toFixed(3)+" dB"});
+        }
+        cardY+=appendSvgCard(parts,padding,cardY,cardWidth,(marker.label||("M"+(index+1)))+"  "+traceLabel,markerColor,rows,colors)+10;
+      });
+      noiseResults.forEach(function(result){
+        var values=result.values||{},params=result.parameters||{};
+        cardY+=appendSvgCard(parts,padding,cardY,cardWidth,result.traceLabel||result.sourceTraceName||"-",C.noiseTr,[
+          {label:"Filter",value:params.filterLabel||params.filter||"-"},
+          {label:"Peak",value:(values.peak||0).toFixed(2)+" dBm/Hz"},
+          {label:"Avg",value:(values.avg||0).toFixed(2)+" dBm/Hz"},
+          {label:"Min",value:(values.min||0).toFixed(2)+" dBm/Hz"}
+        ],colors)+10;
+      });
+      ip3Results.forEach(function(result){
+        var values=result.values||{},params=result.parameters||{};
+        var rows=[
+          {label:"OIP3 avg",value:(values.oip3_avg||0).toFixed(2)+" "+yU},
+          {label:"OIP3 low",value:(values.oip3_l||0).toFixed(2)+" "+yU},
+          {label:"OIP3 high",value:(values.oip3_u||0).toFixed(2)+" "+yU}
+        ];
+        if(params.gain!=null)rows.push({label:"IIP3 avg",value:((values.oip3_avg||0)-params.gain).toFixed(2)+" "+yU});
+        cardY+=appendSvgCard(parts,padding,cardY,cardWidth,result.traceLabel||result.sourceTraceName||"-",C.ip3C,rows,colors)+10;
+      });
+    }
+    currentY=cardY;
+    var totalHeight=Math.max(1,currentY+padding);
+    parts.push("</svg>");
+    var markup=parts.join("").replace(/__HEIGHT__/g,String(totalHeight));
+    return {markup:markup,width:width,height:totalHeight,backgroundColor:colors.backgroundColor};
+  }
+  function importWorkspaceFile(file){
+    if(!file)return;
+    var reader=new FileReader();
+    reader.onload=function(ev){
+      try{
+        var rawText=String(ev&&ev.target&&ev.target.result!=null?ev.target.result:"");
+        var payload=JSON.parse(rawText);
+        var snapshot=extractWorkspaceSnapshotFromPackage(payload);
+        clearWorkspaceToBaseline();
+        if(!restoreSnapshot(snapshot))throw new Error("Unable to restore workspace.");
+        setError(null);
+      }catch(err){
+        setError(file.name+": "+(err&&err.message?err.message:"Unable to import workspace."));
+      }
+    };
+    reader.onerror=function(){
+      setError(file.name+": Unable to read workspace file.");
+    };
+    reader.readAsText(file);
+  }
+  function openWorkspace(){
+    if(hasData&&!window.confirm("Replace the current workspace with the selected workspace file?"))return;
+    if(wRef.current)wRef.current.click();
   }
   function createOffsetDerivedTrace(){
     var src=getTraceByName(offsetSource)||traceOptions[0]||null;
@@ -2817,19 +3239,34 @@ function App(){
   var anyOpenAnalysis=useMemo(function(){
     return Object.keys(normalizedAnalysisOpenState).some(function(key){return !!normalizedAnalysisOpenState[key];});
   },[normalizedAnalysisOpenState]);
+  var analysisPanelVisible=showTraceOps||showAnalysisPanel||anyOpenAnalysis;
+  useEffect(function(){
+    var prev=prevRightPanelVisibilityRef.current||{importExport:false,analysis:false,data:false};
+    if(analysisPanelVisible&&!prev.analysis)promoteRightPanelSection("analysis");
+    if(showDT&&!prev.data)promoteRightPanelSection("data");
+    prevRightPanelVisibilityRef.current={
+      importExport:showImportExportPanel,
+      analysis:analysisPanelVisible,
+      data:showDT
+    };
+  },[showImportExportPanel,analysisPanelVisible,showDT,promoteRightPanelSection]);
   var analysisButtons=useMemo(function(){
     return [
-      {id:"trace-ops",title:"Trace Ops",tooltip:"Open derived-trace tools such as offset, scale, smoothing, and trace math.",active:showTraceOps,color:C.tr[4],onClick:function(){setShowTraceOps(function(p){return !p;});}},
+      {id:"trace-ops",title:"Trace Ops",tooltip:"Open derived-trace tools such as offset, scale, smoothing, and trace math.",active:showTraceOps,color:C.tr[4],onClick:function(){
+        promoteRightPanelSection("analysis");
+        setShowTraceOps(function(p){return !p;});
+      }},
       {id:"analysis",title:"Analysis",tooltip:"Open numeric measurement tools such as Noise PSD, IP3, peak tables, bandwidth, crossings, and range statistics.",active:(showAnalysisPanel||anyOpenAnalysis),color:C.tr[5]||C.accent,onClick:function(){
         if(showAnalysisPanel||anyOpenAnalysis){
           setShowAnalysisPanel(false);
           closeAllAnalysisCards();
           return;
         }
+        promoteRightPanelSection("analysis");
         setShowAnalysisPanel(true);
       }}
     ];
-  },[showTraceOps,setShowTraceOps,showAnalysisPanel,setShowAnalysisPanel,anyOpenAnalysis,closeAllAnalysisCards,C]);
+  },[showTraceOps,setShowTraceOps,showAnalysisPanel,setShowAnalysisPanel,anyOpenAnalysis,closeAllAnalysisCards,C,promoteRightPanelSection]);
 
   var noiseMeta=noiseSource?getTraceMeta(noiseSource):m0;
   var nav=useChartNav({allTr:allTr,xAllTr:allTr,vis:vis,colors:C.tr,zoom:zoom,setZoom:setZoom,syncYInputs:syncYInputs,resetY:resetYZ,chartRef:chartRef,panRef:panRef,suppressClickRef:suppressClickRef,mouseBtnRef:mouseBtnRef,crosshair:crosshair,getActivePaneModel:function(){return activePaneModelRef.current;},getActivePaneYZoom:function(){return getPaneYZoom(activePaneId);}});
@@ -2988,8 +3425,10 @@ function App(){
   var ip3Flow=useIP3Workflow({allTr:allTr,zoom:zoom,nextPeakExclusion:nextPeakExclusion,setMarkers:setMarkers,stripIP3Markers:stripIP3Markers});
 
   function getChartYValueFromEvent(ev){
+    if(!ev)return null;
+    if(isFinite(ev.clientY))return getChartYValueFromClientY(ev.clientY);
     var dom=chartDomainRef.current;
-    if(!dom||!isFinite(dom.min)||!isFinite(dom.max)||!ev)return null;
+    if(!dom||!isFinite(dom.min)||!isFinite(dom.max))return null;
     var rect=chartRef.current?chartRef.current.getBoundingClientRect():null;
     var plotTop=CHART_MARGIN_TOP,plotBottom=CHART_MARGIN_BOTTOM;
     var plotH=rect?Math.max(1,rect.height-plotTop-plotBottom):0;
@@ -3004,9 +3443,38 @@ function App(){
     var frac=1-(localY/plotH);
     return dom.min+frac*(dom.max-dom.min);
   }
+  function getChartYValueFromClientY(clientY){
+    var dom=chartDomainRef.current;
+    if(!dom||!isFinite(dom.min)||!isFinite(dom.max)||!isFinite(clientY))return null;
+    var rect=chartRef.current?chartRef.current.getBoundingClientRect():null;
+    if(!rect)return null;
+    var plotH=Math.max(1,rect.height-CHART_MARGIN_TOP-CHART_MARGIN_BOTTOM);
+    if(!(plotH>0))return null;
+    var localY=clientY-rect.top-CHART_MARGIN_TOP;
+    if(localY<0)localY=0;
+    if(localY>plotH)localY=plotH;
+    var frac=1-(localY/plotH);
+    return dom.min+frac*(dom.max-dom.min);
+  }
+  function getChartFreqFromClientX(clientX){
+    if(!isFinite(clientX)||!chartRef.current)return null;
+    var rect=chartRef.current.getBoundingClientRect();
+    var plotW=rect.width-CHART_PLOT_LEFT-CHART_MARGIN_RIGHT;
+    if(!isFinite(plotW)||plotW<=20)return null;
+    var x=clientX-rect.left-CHART_PLOT_LEFT;
+    if(x<0)x=0;
+    if(x>plotW)x=plotW;
+    var domHz=getXDomainHz();
+    if(!domHz||!isFinite(domHz.left)||!isFinite(domHz.right)||domHz.right<=domHz.left)return null;
+    return domHz.left + (x/plotW)*(domHz.right-domHz.left);
+  }
   function getEventFreq(ev){
     if(ev&&ev.activePayload&&ev.activePayload[0]&&ev.activePayload[0].payload&&isFinite(ev.activePayload[0].payload.freq))return ev.activePayload[0].payload.freq;
     if(ev&&isFinite(ev.activeLabel))return ev.activeLabel*fDiv;
+    if(ev&&isFinite(ev.clientX)){
+      var clientFreq=getChartFreqFromClientX(ev.clientX);
+      if(isFinite(clientFreq))return clientFreq;
+    }
     if(ev&&isFinite(ev.chartX)&&chartRef.current){
       var rect=chartRef.current.getBoundingClientRect();
       var plotW=rect.width-CHART_PLOT_LEFT-CHART_MARGIN_RIGHT;
@@ -3141,14 +3609,32 @@ function App(){
       onChartContainerMouseUpCapture(ev);
   };
     useEffect(function(){
+      var onWindowMouseMove=function(ev){
+        var dragLine=dragRefLineRef.current;
+        if(!dragLine)return;
+        didDragRefLineRef.current=true;
+        if(dragLine.type==="v"){
+          var refFreq=getChartFreqFromClientX(ev&&ev.clientX);
+          if(isFinite(refFreq))updateRefLinePosition(dragLine,"v",refFreq);
+          return;
+        }
+        if(dragLine.type==="h"){
+          var yVal=getChartYValueFromClientY(ev&&ev.clientY);
+          if(isFinite(yVal))updateRefLinePosition(dragLine,"h",yVal);
+        }
+      };
       var clearDrag=function(){
         didDragRefLineRef.current=false;
         dragSelectedMarkerRef.current=false;
         dragRefLineRef.current=null;
       };
+    window.addEventListener("mousemove",onWindowMouseMove);
     window.addEventListener("mouseup",clearDrag);
-    return function(){window.removeEventListener("mouseup",clearDrag);};
-  },[]);
+    return function(){
+      window.removeEventListener("mousemove",onWindowMouseMove);
+      window.removeEventListener("mouseup",clearDrag);
+    };
+  },[getXDomainHz]);
 
 
   var mKeys=["Type","Mode","Date","Center Freq","Span","Start","Stop","Ref Level","Rf Att","RBW","VBW","SWT","Preamplifier","Detector","Trace Mode","Sweep Count"];
@@ -3261,8 +3747,235 @@ function App(){
     return h("div",{style:{width:260,background:"var(--card)",borderRight:"1px solid var(--border)",padding:12,overflowY:"auto",flexShrink:0}},items);
   }
 
+  function renderOrganizedSidebar(){
+    function sidebarCard(key,title,color,children,description){
+      var tint=color||"var(--border)";
+      var body=Array.isArray(children)?children.filter(Boolean):[children];
+      if(description)body.unshift(h("div",{key:key+"-desc",style:{fontSize:11,color:"var(--muted)",lineHeight:1.45,marginBottom:8}},description));
+      body.unshift(h("div",{key:key+"-title",style:{fontSize:11,textTransform:"uppercase",color:color||"var(--muted)",letterSpacing:1,fontWeight:700,marginBottom:8}},title));
+      return h("div",{key:key,style:{marginBottom:12,padding:"10px",border:"1px solid "+(color?(tint+"44"):"var(--border)"),borderRadius:10,background:color?(tint+"0f"):"var(--card)"}},body);
+    }
+    function sidebarRow(key,children){
+      var content=Array.isArray(children)?children.filter(Boolean):[children];
+      return h("div",{key:key,style:{display:"flex",gap:6,flexWrap:"wrap",marginBottom:6}},content);
+    }
+    function sidebarPill(key,text,color){
+      return h("span",{key:key,style:{display:"inline-flex",alignItems:"center",padding:"4px 8px",borderRadius:999,border:"1px solid "+(color||"var(--border)"),fontSize:11,fontWeight:600,color:color||"var(--muted)",background:color?(color+"14"):"transparent",lineHeight:1.2}},text);
+    }
+    function fmtDivValue(step,unit){
+      if(!isFinite(step))return "--";
+      var decimals=step>=100?0:step>=10?1:step>=1?2:step>=0.1?3:step>=0.01?4:5;
+      return step.toFixed(decimals)+" "+unit+"/div";
+    }
+
+    var items=[];
+    var sidebarYBase=sanitizeYDomain(yZoom)||getSafeYRangeFromData(allTr,vis,zoom);
+    var sidebarYTicks=sidebarYBase?makeYTicksFromDomain(sidebarYBase):null;
+    var sidebarXTicks=cData.length?makeNiceTicks({min:cData[0].fs,max:cData[cData.length-1].fs},11):null;
+    var xDivLabel=(sidebarXTicks&&sidebarXTicks.length>1)?fmtDivValue(Math.abs(sidebarXTicks[1]-sidebarXTicks[0]),fUnit):"--";
+    var yDivLabel=(sidebarYTicks&&sidebarYTicks.length>1)?fmtDivValue(Math.abs(sidebarYTicks[1]-sidebarYTicks[0]),yU):"--";
+    var paneButtons=panes.map(function(pane,idx){
+      return h(Btn,{key:"side-pane-"+pane.id,active:activePaneId===pane.id,color:C.tr[idx%C.tr.length],title:"Make "+pane.title+" the active pane for marker, search, and line actions.",onClick:function(){setActivePaneId(pane.id);}},pane.title);
+    });
+    var statusPills=[];
+    if(interactionCtl.hint)statusPills.push(sidebarPill("hint",interactionCtl.hint,refMode?(refMode==="h"?C.refH:C.refV):C.md));
+    if(newMarkerArmed)statusPills.push(sidebarPill("armed","Click chart to place a new marker",C.accent));
+    if(selectedMarker)statusPills.push(sidebarPill("selected-marker","Selected marker: "+(selectedMarker.label||("M"+(selectedMkrIdx+1))),C.accent));
+    if(selectedRefLineId!==null&&selectedRefLineId!==undefined){
+      var selectedLine=refLines.find(function(line){return line&&line.id===selectedRefLineId;})||null;
+      if(selectedLine)statusPills.push(sidebarPill("selected-line","Selected line: "+(selectedLine.type==="h"?"H":"V")+"-"+selectedLine.id,selectedLine.type==="h"?C.refH:C.refV));
+    }
+
+    items.push(sidebarCard("workspace","Import / Export",C.accent,[
+      sidebarRow("workspace-load",[
+        h(Btn,{key:"load-files",color:C.tr[2],title:"Import one or more local trace files into the workspace.",onClick:function(){fRef.current?.click();}},"Load Files"),
+        h(Btn,{key:"append-files",soft:true,color:C.tr[2],title:"Append one or more local trace files to the current workspace.",onClick:function(){iRef.current?.click();},disabled:!hasData},"Append Files")
+      ]),
+      sidebarRow("workspace-state",[
+        h(Btn,{key:"open-workspace",soft:true,color:C.accent,title:"Replace the current workspace with a saved workspace JSON file.",onClick:openWorkspace},"Open Workspace"),
+        h(Btn,{key:"save-workspace",soft:true,color:C.tr[4],title:"Save the current workspace state as a portable JSON file.",onClick:exportWorkspace,disabled:!hasData},"Save Workspace")
+      ]),
+      sidebarRow("workspace-export",[
+        h(Btn,{key:"export-json",soft:true,color:C.tr[1],title:"Export raw traces, derived traces, current analysis traces, and saved analysis results as JSON.",onClick:exportTraceData,disabled:!hasData},"JSON Export"),
+        h(Btn,{key:"export-png",soft:true,color:C.tr[5]||C.accent,title:"Export the current chart view as a PNG image.",onClick:exportChartPng,disabled:!hasData},"PNG"),
+        h(Btn,{key:"export-svg",soft:true,color:C.refV,title:"Export the current chart view as an SVG image.",onClick:exportChartSvg,disabled:!hasData},"SVG")
+      ]),
+      sidebarRow("workspace-clear",[
+        h("button",{key:"clear-workspace",className:"clr-btn",title:"Remove all imported files, traces, markers, and analysis results from the current workspace.",onClick:function(){if(hasData&&window.confirm("Clear all files and traces?"))clearAllFiles();},disabled:!hasData,style:{background:"transparent",border:"1px solid var(--border)",color:"var(--muted)",borderRadius:6,padding:"6px 10px",cursor:hasData?"pointer":"not-allowed",fontSize:12,fontWeight:500,whiteSpace:"nowrap",lineHeight:"1.4",opacity:hasData?1:0.45,width:"100%"}},"Clear Workspace")
+      ])
+    ],"Keep file import, workspace sessions, chart export, and analysis export together on the left."));
+
+    items.push(sidebarCard("panels","Panels",C.tr[0],[
+      sidebarRow("panel-toggles-1",[
+        h(Btn,{key:"toggle-markers",active:showMarkers,soft:true,color:C.tr[2],title:"Show or hide the marker list in the left sidebar.",onClick:function(){setShowMarkers(function(p){return!p;});}},"Markers"),
+        h(Btn,{key:"toggle-meta",active:showMeta,soft:true,color:C.tr[0],title:"Show or hide imported file metadata and per-trace summary stats.",onClick:function(){setShowMeta(function(p){return!p;});}},"Metadata"),
+        h(Btn,{key:"toggle-dots",active:showDots,soft:true,color:C.md,title:"Show or hide plotted sample dots on top of the trace lines.",onClick:function(){setShowDots(function(p){return!p;});}},"Dots"),
+        h(Btn,{key:"toggle-data",active:showDT,soft:true,color:C.tr[4],title:"Show or hide the raw data table for the selected trace.",onClick:function(){setShowDT(function(p){return!p;});}},"Data")
+      ]),
+      sidebarRow("panel-toggles-2",[
+        h(Btn,{key:"toggle-marker-tools",active:showMarkerTools,soft:true,color:C.tr[3],title:"Show or hide marker controls.",onClick:function(){setShowMarkerTools(function(p){return!p;});}},"Marker Tools"),
+        h(Btn,{key:"toggle-pane-tools",active:showPaneTools,soft:true,color:C.tr[1],title:"Show or hide pane controls.",onClick:function(){setShowPaneTools(function(p){return!p;});}},"Pane Tools"),
+        h(Btn,{key:"toggle-search-tools",active:showSearchTools,soft:true,color:C.tr[2],title:"Show or hide peak, minimum, and search-direction controls.",onClick:function(){setShowSearchTools(function(p){return!p;});}},"Search Tools"),
+        h(Btn,{key:"toggle-line-tools",active:showLineTools,soft:true,color:C.refV,title:"Show or hide reference line controls.",onClick:function(){setShowLineTools(function(p){return!p;});}},"Line Tools"),
+        h(Btn,{key:"toggle-view-tools",active:showViewTools,soft:true,color:C.accent,title:"Show or hide zoom and division controls.",onClick:function(){setShowViewTools(function(p){return!p;});}},"View Tools")
+      ]),
+      sidebarRow("panel-toggles-3",(analysisButtons||[]).map(function(item){
+        return h(Btn,{key:item.id,active:item.active,soft:true,color:item.color,title:item.tooltip||item.title,onClick:item.onClick},item.title);
+      }))
+    ],"Use the left panel to decide which tool cards and side lists stay visible."));
+
+    if(statusPills.length){
+      items.push(sidebarCard("status","Status",C.accent,[
+        h("div",{key:"status-wrap",style:{display:"flex",gap:6,flexWrap:"wrap"}},statusPills)
+      ]));
+    }
+
+    if(hasData&&showMarkerTools){
+      items.push(sidebarCard("marker-tools","Marker Tools",C.tr[3],[
+        sidebarRow("marker-controls",[
+          h(Btn,{key:"mk-normal",active:mkrMode==="normal"&&!refMode,title:"Place or move a normal marker on the active pane.",onClick:function(){setNewMarkerArmed(false);setMkrMode("normal");setRefMode(null);}},"Normal"),
+          h(Btn,{key:"mk-delta",active:mkrMode==="delta"&&!refMode,color:C.md,title:"Create delta markers referenced to another marker.",onClick:function(){setNewMarkerArmed(false);setMkrMode("delta");setRefMode(null);if(markers.length>0&&dRef===null)setDRef(0);}},"Delta"),
+          h(Btn,{key:"mk-new",active:newMarkerArmed,color:C.accent,title:"Arm one-shot new-marker placement on the next chart click.",onClick:function(){setSelectedRefLineId(null);setRefMode(null);setMkrMode("normal");setNewMarkerArmed(function(prev){return !prev;});}},"New Marker"),
+          h(Btn,{key:"mk-unselect",color:C.accent,title:"Clear the currently selected marker or reference line.",onClick:function(){setNewMarkerArmed(false);setSelectedMkrIdx(null);setSelectedRefLineId(null);},disabled:(selectedMkrIdx===null||selectedMkrIdx===undefined)&&(selectedRefLineId===null||selectedRefLineId===undefined)},"Unselect")
+        ])
+      ]));
+    }
+
+    if(hasData&&showPaneTools){
+      items.push(sidebarCard("pane-tools","Pane Tools",C.tr[1],[
+        sidebarRow("pane-controls",[
+          h(Btn,{key:"pane-add",color:C.tr[Math.min(panes.length,C.tr.length-1)],title:"Add another stacked pane, up to four panes total.",onClick:function(){setPaneMode(Math.min(4,panes.length+1));},disabled:panes.length>=4},"+ Pane"),
+          h(Btn,{key:"pane-remove",color:"#f64",title:"Remove the last pane and move its traces back into the remaining panes.",onClick:function(){if(panes.length>1){setPaneMode(panes.length-1);}},disabled:panes.length<=1},"- Pane"),
+          h(Btn,{key:"pane-fit-all",color:C.accent,title:"Fit every pane vertically to the traces shown in that pane.",onClick:fitAllPanes,disabled:!hasData},"Fit All"),
+          h(Btn,{key:"pane-fit-active",color:C.accent,title:"Fit the active pane vertically to the traces visible in it.",onClick:function(){fitPane(activePaneId);},disabled:!hasData},"Fit Active"),
+          h(Btn,{key:"pane-clear-active",color:"#f64",title:"Remove all traces from the active pane and reset its vertical zoom.",onClick:function(){if(panes.length<2)return;resetYZ(activePaneId);clearPane(activePaneId);},disabled:panes.length<2},"Clear Active")
+        ]),
+        sidebarRow("pane-active-buttons",paneButtons)
+      ]));
+    }
+
+    if(hasData&&showSearchTools){
+      items.push(sidebarCard("search-tools","Search Tools",C.tr[2],[
+        sidebarRow("search-controls",[
+          h(Btn,{key:"search-peak",color:C.mp,title:"Find the strongest peak on the selected trace or active pane.",onClick:function(){setNewMarkerArmed(false);setRefMode(null);peakSrch();}},"Peak"),
+          h(Btn,{key:"search-next-peak",color:C.mp,title:"Step to the next peak in the current search direction.",onClick:function(){setNewMarkerArmed(false);setRefMode(null);nxtPeak();},disabled:!markers.length&&!allTr.length},"Next Peak"),
+          h(Btn,{key:"search-min",color:C.mn,title:"Find the minimum point on the selected trace or active pane.",onClick:function(){setNewMarkerArmed(false);setRefMode(null);minSrch();}},"Min"),
+          h(Btn,{key:"search-next-min",color:C.mn,title:"Step to the next minimum in the current search direction.",onClick:function(){setNewMarkerArmed(false);setRefMode(null);nxtMin();},disabled:!markers.length&&!allTr.length},"Next Min"),
+          h(Btn,{key:"search-direction",active:true,color:searchDirection==="right"?"#8b3dbb":"#ff6699",title:"Toggle search direction between increasing and decreasing frequency.",onClick:function(){setSearchDirection(function(prev){return prev==="right"?"left":"right";});}},searchDirection==="right"?"Dir: L -> R":"Dir: L <- R")
+        ]),
+        mkrMode==="delta"&&markers.length>0&&!refMode?sidebarRow("search-delta-ref",[
+          h("select",{key:"delta-ref",value:dRef??0,onChange:function(ev){setDRef(Number(ev.target.value));},style:{background:"var(--card)",color:"var(--text)",border:"1px solid var(--border)",borderRadius:4,padding:"5px 8px",fontSize:12,width:"100%"}},
+            markers.map(function(_,i){return h("option",{key:i,value:i},"Delta Ref: M"+(i+1));}))
+        ]):null
+      ]));
+    }
+
+    if(hasData&&showLineTools){
+      items.push(sidebarCard("line-tools","Reference Lines",C.refV,[
+        sidebarRow("line-controls",[
+          h(Btn,{key:"line-v",active:refMode==="v",color:C.refV,title:"Place a vertical reference line at a frequency position.",onClick:function(){setNewMarkerArmed(false);setRefMode(refMode==="v"?null:"v");}},"V-Line"),
+          h(Btn,{key:"line-h",active:refMode==="h",color:C.refH,title:"Place a horizontal reference line at an amplitude level.",onClick:function(){setNewMarkerArmed(false);setRefMode(refMode==="h"?null:"h");}},"H-Line"),
+          h(Btn,{key:"line-lock",active:lockLinesAcrossPanes,color:C.refV,title:lockLinesAcrossPanes?"Create linked lines across all panes.":"Create new lines only in the active pane.",onClick:function(){setLockLinesAcrossPanes(function(prev){return !prev;});}},lockLinesAcrossPanes?"Lock: All Panes":"Lock: Active Pane")
+        ])
+      ]));
+    }
+
+    if(hasData&&showViewTools){
+      items.push(sidebarCard("view-tools","View Tools",C.accent,[
+        sidebarRow("view-controls",[
+          h(Btn,{key:"view-zoom-all",active:zoomAll,color:C.accent,title:zoomAll?"Keep right-click X zoom and pan shared across all panes.":"Limit right-click X zoom and pan to the active pane only.",onClick:function(){setZoomAll(function(prev){return !prev;});}},"Zoom All"),
+          yZoom?h(Btn,{key:"view-reset-y",color:"#f64",title:"Reset the active pane vertical zoom back to its automatic fit.",onClick:resetYZ},"Reset Y"):null,
+          h(Btn,{key:"view-reset-x",color:"#f64",title:zoomAll?"Reset the shared horizontal zoom for all panes.":"Reset the active pane horizontal zoom only.",onClick:function(){if(zoom)setZoom(null);},disabled:!zoom},"Reset X")
+        ]),
+        sidebarRow("view-divisions",[
+          h("div",{key:"x-div",style:{display:"flex",alignItems:"center",gap:6,padding:"6px 8px",border:"1px solid var(--border)",borderRadius:6,minWidth:132,background:"var(--bg)",flex:1}},
+            h("span",{style:{fontSize:11,color:"var(--dim)",fontWeight:700}},"X/div"),
+            h("span",{style:{fontSize:12,fontFamily:"monospace",color:"var(--text)",marginLeft:"auto"}},xDivLabel)),
+          h("div",{key:"y-div",style:{display:"flex",alignItems:"center",gap:6,padding:"6px 8px",border:"1px solid var(--border)",borderRadius:6,minWidth:132,background:"var(--bg)",flex:1}},
+            h("span",{style:{fontSize:11,color:"var(--dim)",fontWeight:700}},"Y/div"),
+            h("span",{style:{fontSize:12,fontFamily:"monospace",color:"var(--text)",marginLeft:"auto"}},yDivLabel))
+        ])
+      ]));
+    }
+
+    items.push(h("div",{key:"sf",style:{display:"flex",alignItems:"center",gap:8,marginBottom:8,marginTop:4}},
+      h("div",{style:{fontSize:11,textTransform:"uppercase",color:"var(--muted)",letterSpacing:1}},"Files ("+files.length+")")
+    ));
+    files.forEach(function(f,idx){
+      items.push(h("div",{key:"f-"+f.id,style:{fontSize:12,padding:"2px 0",display:"flex",alignItems:"center",gap:4}},
+        h("span",{style:{flex:1,fontFamily:"monospace",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",color:"var(--text)"}},f.fileName),
+        h("span",{style:{color:"var(--dim)",fontSize:10}},f.traces.length+" tr"),
+        h("button",{title:"Remove this imported file and all of its traces.",onClick:function(){removeFile(f.id);},style:{background:"none",border:"none",color:"#f55",cursor:"pointer",fontSize:13,padding:0,lineHeight:"1"}},"\u00D7")));
+      if(showMeta){
+        items.push(h(Sec,{key:"meta-"+f.id},"Metadata Â· "+f.fileName));
+        mKeys.forEach(function(k){if(f.meta[k]!==undefined)items.push(h(MR,{key:"m-"+f.id+"-"+k,label:k,value:f.meta[k]}));});
+      }
+      if(idx<files.length-1)items.push(h("div",{key:"sep-"+f.id,style:{height:8}}));
+    });
+
+    if(showMeta){
+      items.push(h(Sec,{key:"stmeta"},"Trace Metadata"));
+      Object.entries(stats).forEach(function(e){
+        var name=e[0],st=e[1];
+        var dn=allTr.find(function(t){return t.name===name;});
+        items.push(h(Sec,{key:"ss-"+name},dn?.dn||name));
+        items.push(h(MR,{key:"sn-"+name,label:"Points",value:st.n}));
+        items.push(h(MR,{key:"sp-"+name,label:"Peak",value:st.pk.amp.toFixed(2)+" "+yU}));
+        items.push(h(MR,{key:"spf-"+name,label:"Peak Freq",value:fmtF(st.pk.freq,true)}));
+        items.push(h(MR,{key:"smn-"+name,label:"Min",value:st.mn.amp.toFixed(2)+" "+yU}));
+        items.push(h(MR,{key:"sd-"+name,label:"\u0394",value:st.delta.toFixed(2)+" dB"}));
+      });
+    }
+
+    items.push(h(Sec,{key:"pane-sec"},"Panes"));
+    items.push(h("div",{key:"pane-summary",style:{fontSize:11,color:"var(--muted)",lineHeight:1.4,marginBottom:8}},
+      "Active: "+((panes.find(function(pane){return pane.id===activePaneId;})||{title:"Pane 1"}).title)+(selectedTraceName?(" Â· Selected trace: "+(getTraceLabel(getTraceByName(selectedTraceName))||selectedTraceName)):"")+(dragTraceName?(" Â· Dragging: "+(getTraceLabel(getTraceByName(dragTraceName))||dragTraceName)):"")));
+
+    items.push(h(Sec,{key:"st"},"Traces ("+allTr.length+")"));
+    allTr.forEach(function(tr,i){
+      items.push(h(TraceRow,{key:"tr-"+tr.name,tr:tr,i:i,vis:vis,setVis:setVis,C:C,paneMode:paneMode,tracePaneId:getTracePaneId(tracePaneMap,tr.name),selectedTraceName:selectedTraceName,onSelectTrace:selectTrace,onDragTraceStart:onTraceDragStart,onDragTraceEnd:onTraceDragEnd,onRemove:isDerivedTrace(tr)?function(){removeDerivedTrace(tr.name);}:null}));
+    });
+
+    if(showMarkers&&markers.length){
+      items.push(h(Sec,{key:"sm"},"Markers ("+markers.length+")"));
+      markers.forEach(function(m,i){
+        items.push(h(MarkerItem,{key:"mk-"+i,marker:m,index:i,markers:markers,yU:yU,rmMkr:rmMkr,mcMap:mcMap,C:C,traceColorMap:traceColorMap,setMarkers:setMarkers,allTr:allTr,zoom:zoom,selectedMkrIdx:selectedMkrIdx,onSelect:function(idx){setSelectedRefLineId(null);setSelectedMkrIdx(idx);}}));
+      });
+    }
+
+    var groupedRefLines={};
+    var sidebarRefLines=[];
+    refLines.forEach(function(line){
+      if(!line)return;
+      var key=line.groupId||("line-"+line.id);
+      if(!groupedRefLines[key]){
+        groupedRefLines[key]=line;
+        sidebarRefLines.push(line);
+        return;
+      }
+      if(selectedRefLineId!==null&&selectedRefLineId!==undefined&&line.id===selectedRefLineId){
+        groupedRefLines[key]=line;
+        var idx=sidebarRefLines.findIndex(function(item){return (item.groupId||("line-"+item.id))===key;});
+        if(idx!==-1)sidebarRefLines[idx]=line;
+      }
+    });
+    if(sidebarRefLines.length){
+      items.push(h(Sec,{key:"srl"},"Ref Lines ("+sidebarRefLines.length+")"));
+      sidebarRefLines.forEach(function(rl){
+        items.push(h(RefLineItem,{key:"rl-"+rl.id,refLine:rl,refLines:refLines,allTr:allTr,vis:vis,zoom:zoom,yU:yU,setRefLines:setRefLines,C:C,selectedRefLineId:selectedRefLineId,getTracePaneId:function(traceName){return getTracePaneId(tracePaneMap,traceName);},onSelect:function(id,paneId){setSelectedMkrIdx(null);setSelectedRefLineId(id);if(paneId)setActivePaneId(paneId);}}));
+      });
+      items.push(h("button",{key:"rl-clr",className:"clr-btn",title:"Remove every reference line from every pane.",onClick:function(){setSelectedRefLineId(null);setRefLines([]);},style:{width:"100%",padding:"6px 10px",background:"transparent",border:"1px solid var(--border)",color:"var(--muted)",borderRadius:4,cursor:"pointer",fontSize:12,fontWeight:600,marginTop:4}},"Clear All Lines"));
+    }
+    if(markers.length){
+      items.push(h("div",{key:"mk-bottom-wrap",style:{height:12}}));
+      items.push(h("button",{key:"mk-bottom",className:"clr-btn",title:"Remove every marker from the current workspace.",onClick:clearMarkers,style:{width:"100%",padding:"6px 10px",background:"transparent",border:"1px solid var(--border)",color:"var(--muted)",borderRadius:4,cursor:"pointer",fontSize:12,fontWeight:600,marginTop:4}},"Clear All Markers"));
+    }
+
+    return h("div",{style:{width:320,background:"var(--card)",borderRight:"1px solid var(--border)",padding:12,overflowY:"auto",flexShrink:0}},items);
+  }
+
   function renderAnalysis(){
-    if(!showTraceOps&&!showAnalysisPanel&&!anyOpenAnalysis)return null;
+    if(!analysisPanelVisible)return null;
     var sections=[];
     if(showTraceOps){
       sections.push(h(TraceOpsCard,{key:"trace-ops-card",C:C,openOps:traceOpsOpenSections,setOpenOps:setTraceOpsOpenSections,traceOptions:traceOptions,offsetSource:offsetSource,setOffsetSource:setOffsetSource,offsetValue:offsetValue,setOffsetValue:setOffsetValue,createOffsetDerivedTrace:createOffsetDerivedTrace,scaleSource:scaleSource,setScaleSource:setScaleSource,scaleValue:scaleValue,setScaleValue:setScaleValue,createScaledDerivedTrace:createScaledDerivedTrace,smoothSource:smoothSource,setSmoothSource:setSmoothSource,smoothMethod:smoothMethod,setSmoothMethod:setSmoothMethod,smoothWindow:smoothWindow,setSmoothWindow:setSmoothWindow,smoothPolyOrder:smoothPolyOrder,setSmoothPolyOrder:setSmoothPolyOrder,createSmoothedDerivedTrace:createSmoothedDerivedTrace,subtractA:subtractA,setSubtractA:setSubtractA,subtractB:subtractB,setSubtractB:setSubtractB,traceMathOperation:traceMathOperation,setTraceMathOperation:setTraceMathOperation,subtractInterpolation:subtractInterpolation,setSubtractInterpolation:setSubtractInterpolation,createTraceMathDerivedTrace:createTraceMathDerivedTrace,traceMathUnitWarning:traceMathUnitWarning,traceOpsError:traceOpsError}));
@@ -3309,7 +4022,26 @@ function App(){
     if(normalizedAnalysisOpenState["channel-power"]){
       sections.push(h(ChannelPowerCard,{key:"cp-card",C:C,target:analysisTarget}));
     }
-    return h(AnalysisPane,null,sections);
+    return h("div",{key:"analysis-stack",style:{display:"flex",flexDirection:"column",gap:10}},sections);
+  }
+
+  function renderImportExportPanel(){
+    if(!showImportExportPanel)return null;
+    return h("div",{key:"import-export-stack",style:{display:"flex",flexDirection:"column",gap:8}},
+      h(AnalysisFeatureCard,{key:"import-export-card",first:true,title:"Import / Export",color:C.accent,description:"Import files, round-trip full workspaces, and export chart or analysis bundles from one place."}),
+      h("div",{style:{display:"flex",gap:6,flexWrap:"wrap"}},
+        h(Btn,{color:C.tr[2],title:hasData?"Import one or more local trace files and add them to the current workspace.":"Import one or more local trace files into the workspace.",onClick:function(){(hasData?iRef.current:fRef.current)?.click();}},"Import"),
+        h(Btn,{soft:true,color:C.accent,title:"Replace the current workspace with a saved workspace JSON file.",onClick:openWorkspace},"Open Workspace"),
+        h(Btn,{soft:true,color:C.tr[4],title:"Save the current workspace state as a portable JSON file.",onClick:exportWorkspace,disabled:!hasData},"Save Workspace"),
+        h(Btn,{soft:true,color:C.tr[1],title:"Export raw traces, derived traces, markers, reference lines, current analysis traces, and saved analysis results as JSON.",onClick:exportTraceData,disabled:!hasData},"Export JSON"),
+        h(Btn,{soft:true,color:C.tr[5]||C.accent,title:"Export the current chart view as a higher-resolution PNG image.",onClick:exportChartPng,disabled:!hasData},"PNG"),
+        h(Btn,{soft:true,color:C.refV,title:"Export the current chart view as a pure-graph SVG image.",onClick:exportChartSvg,disabled:!hasData},"SVG")),
+      h("div",{style:{display:"flex",gap:6,flexWrap:"wrap"}},
+        h("button",{className:"clr-btn",title:"Remove all imported files, traces, markers, and analysis results from the current workspace.",onClick:function(){if(hasData&&window.confirm("Clear all files and traces?"))clearAllFiles();},disabled:!hasData,style:{background:"transparent",border:"1px solid var(--border)",color:"var(--muted)",borderRadius:6,padding:"6px 10px",cursor:hasData?"pointer":"not-allowed",fontSize:12,fontWeight:500,whiteSpace:"nowrap",lineHeight:"1.4",opacity:hasData?1:0.45,width:"100%"}},"Clear Workspace")),
+      hasData?h("div",{style:{fontSize:11,color:"var(--muted)",lineHeight:1.5}},
+        "Files: "+files.length+" · Traces: "+allTr.length+" · Active pane: "+((panes.find(function(pane){return pane.id===activePaneId;})||{title:"Pane 1"}).title)
+      ):null
+    );
   }
 
   function renderToolbar(){
@@ -3495,7 +4227,7 @@ function App(){
             var x2=(Math.max(aHz,bHz)-domHz.left)/(domHz.right-domHz.left)*plotW;
             x1=Math.max(0,Math.min(plotW,x1));
             x2=Math.max(0,Math.min(plotW,x2));
-            dragOverlay=h("div",{style:{position:"absolute",left:CHART_PLOT_LEFT+x1,top:CHART_MARGIN_TOP,width:Math.max(1,Math.abs(x2-x1)),height:plotH,pointerEvents:"none",background:"rgba(0,120,212,0.04)",border:"1px solid rgba(0,120,212,0.45)",borderRadius:2,zIndex:9,boxSizing:"border-box"}});
+            dragOverlay=h("div",{className:"chart-drag-overlay",style:{position:"absolute",left:CHART_PLOT_LEFT+x1,top:CHART_MARGIN_TOP,width:Math.max(1,Math.abs(x2-x1)),height:plotH,pointerEvents:"none",background:"rgba(0,120,212,0.04)",border:"1px solid rgba(0,120,212,0.45)",borderRadius:2,zIndex:9,boxSizing:"border-box"}});
           }
         }
       }
@@ -3515,12 +4247,12 @@ function App(){
       var paneTargetUnit=paneTargetTrace?getEffectiveTraceYUnit(paneTargetTrace):"";
       var paneXLabel=(paneAxisInfo&&paneAxisInfo.xLabel)||("Frequency ("+(model.fUnit||"Hz")+")");
       var paneYLabel=(paneAxisInfo&&paneAxisInfo.hasMixedYUnits)?"Amplitude":(paneTargetUnit?getYAxisTextForUnit(paneTargetUnit,paneTargetTrace):((paneAxisInfo&&paneAxisInfo.yLabel)||"Amplitude"));
-      var paneHeader=h("div",{onClick:function(){setActivePaneId(paneId);},style:{display:"flex",flexDirection:"column",gap:6,padding:"6px 10px",borderBottom:"1px solid var(--border)",background:paneDropActive?(C.accent+"18"):(isActive?(C.accent+"10"):"var(--card)"),cursor:"pointer",flexShrink:0}},
+      var paneHeader=h("div",{className:"pane-header",onClick:function(){setActivePaneId(paneId);},style:{display:"flex",flexDirection:"column",gap:6,padding:"6px 10px",borderBottom:"1px solid var(--border)",background:paneDropActive?(C.accent+"18"):(isActive?(C.accent+"10"):"var(--card)"),cursor:"pointer",flexShrink:0}},
         h("div",{style:{display:"flex",alignItems:"center",gap:8}},
           h("span",{style:{fontSize:11,fontWeight:700,color:isActive?C.accent:"var(--muted)",textTransform:"uppercase",letterSpacing:0.5}},model.pane.title),
           h("span",{style:{fontSize:11,color:"var(--muted)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},paneHeaderTrace),
           paneDropActive?h("span",{style:{fontSize:10,color:C.accent,fontWeight:700,border:"1px dashed "+C.accent,borderRadius:999,padding:"2px 6px",lineHeight:1.1}},"Drop Trace Here"):null,
-          h("div",{style:{marginLeft:"auto",display:"flex",gap:6,flexWrap:"wrap"}},
+          h("div",{className:"pane-header-actions",style:{marginLeft:"auto",display:"flex",gap:6,flexWrap:"wrap"}},
           h("button",{title:"Make this pane active for marker, search, and line actions.",onClick:function(ev){ev.stopPropagation();setActivePaneId(paneId);},style:{padding:"4px 8px",background:isActive?(C.accent+"22"):"transparent",border:"1px solid "+(isActive?C.accent:"var(--border)"),color:isActive?C.accent:"var(--muted)",borderRadius:4,cursor:"pointer",fontSize:11}},isActive?"Active":"Set Active"),
           h("button",{title:"Fit this pane vertically to the traces visible in it.",onClick:function(ev){ev.stopPropagation();fitPane(paneId);},style:{padding:"4px 8px",background:"transparent",border:"1px solid var(--border)",color:C.accent,borderRadius:4,cursor:"pointer",fontSize:11}},"Fit Pane"),
           h("button",{title:"Move the currently selected trace into this pane.",onClick:function(ev){ev.stopPropagation();if(selectedTraceName){moveSelectedTraceToPane(paneId);}},disabled:!selectedTraceName||getTracePaneId(tracePaneMap,selectedTraceName)===paneId,style:{padding:"4px 8px",background:"transparent",border:"1px solid var(--border)",color:"var(--muted)",borderRadius:4,cursor:!selectedTraceName?"not-allowed":"pointer",fontSize:11,opacity:(!selectedTraceName||getTracePaneId(tracePaneMap,selectedTraceName)===paneId)?0.55:1}},"Move Selected Here"),
@@ -3554,7 +4286,6 @@ function App(){
                 h(YAxis,{stroke:C.muted,fontSize:12,domain:paneYDomain,ticks:paneYTicks,allowDataOverflow:true,width:CHART_Y_AXIS_WIDTH,tick:renderPaneYAxisTick,tickLine:false,tickMargin:0,
                   tickSize:0,tickFormatter:function(v){return Number(v).toFixed(2);}}),
                 h(Tooltip,{content:function(){return null;}}),
-                (model.traces.filter(function(tr){return vis[tr.name];}).length>1||showNoise)?h(Legend,{wrapperStyle:{fontSize:11}}):null,
                 lines,
                 h(ReferenceLine,{key:"zero-"+paneId,y:0,stroke:"var(--muted)",strokeWidth:1,strokeDasharray:"6 4"}),
                 mLines,uLines,crossLine
@@ -3568,7 +4299,7 @@ function App(){
       );
     }
 
-    return h("div",{style:{flex:1,display:"flex",flexDirection:"column",minHeight:0}},
+    return h("div",{ref:chartExportRef,style:{flex:1,display:"flex",flexDirection:"column",minHeight:0}},
       paneModels.map(function(model){return renderPaneModel(model);}));
   }
 
@@ -3576,15 +4307,15 @@ function App(){
     if(!showDT||!hasData)return null;
     var tr=allTr.find(function(t){return t.name===dtTrace;});
     var data=tr?getVisibleTraceData(tr,zoom):[];
-    return h("div",{style:{width:240,background:"var(--card)",borderLeft:"1px solid var(--border)",display:"flex",flexDirection:"column",flexShrink:0}},
-      h("div",{style:{padding:"8px 10px",borderBottom:"1px solid var(--border)",display:"flex",alignItems:"center",gap:6}},
-        h("span",{style:{fontSize:11,color:"var(--muted)",textTransform:"uppercase",letterSpacing:1}},"Data"),
+    return h(AnalysisFeatureCard,{key:"data-table-card",title:"Data Table",color:C.tr[4],description:"Inspect the currently visible points for a selected trace in the active zoom range."},
+      h("div",{style:{display:"flex",alignItems:"center",gap:6,marginBottom:8}},
+        h("span",{style:{fontSize:11,color:"var(--muted)",textTransform:"uppercase",letterSpacing:0.6}},"Trace"),
         h("select",{value:dtTrace||"",onChange:function(ev){setDtTrace(ev.target.value);},
-          style:{marginLeft:"auto",background:"var(--bg)",color:"var(--text)",border:"1px solid var(--border)",borderRadius:4,fontSize:11,padding:"2px 6px"}},
+          style:{marginLeft:"auto",maxWidth:"100%",background:"var(--bg)",color:"var(--text)",border:"1px solid var(--border)",borderRadius:4,fontSize:11,padding:"3px 6px"}},
           allTr.map(function(t){return h("option",{key:t.name,value:t.name},t.dn||t.name);}))),
-      h("div",{style:{padding:"4px 10px",borderBottom:"1px solid var(--border)",display:"flex",fontSize:11,fontWeight:700,color:"var(--muted)"}},
+      h("div",{style:{padding:"4px 10px",border:"1px solid var(--border)",borderBottom:"none",borderRadius:"6px 6px 0 0",display:"flex",fontSize:11,fontWeight:700,color:"var(--muted)",background:"var(--bg)"}},
         h("span",{style:{flex:1}},"#"),h("span",{style:{flex:3,textAlign:"right"}},"Freq"),h("span",{style:{flex:2,textAlign:"right"}},yU)),
-      h("div",{style:{flex:1,overflowY:"auto"}},
+      h("div",{style:{maxHeight:320,overflowY:"auto",border:"1px solid var(--border)",borderRadius:"0 0 6px 6px",background:"var(--card)"}},
         data.map(function(d,i){
           return h("div",{key:i,style:{display:"flex",padding:"2px 10px",fontSize:11,fontFamily:"monospace",borderBottom:"1px solid var(--bg)",background:i%2===0?"transparent":"var(--da)"}},
             h("span",{style:{flex:1,color:"var(--dim)"}},i+1),
@@ -3594,25 +4325,48 @@ function App(){
   }
 
   function renderTopBar(){
-    return h(TopBar,{files:files,removeFile:removeFile,hasData:hasData,C:C,importRef:iRef,showSidebar:showSidebar,setShowSidebar:setShowSidebar,showMarkers:showMarkers,setShowMarkers:setShowMarkers,showMarkerTools:showMarkerTools,setShowMarkerTools:setShowMarkerTools,showPaneTools:showPaneTools,setShowPaneTools:setShowPaneTools,showSearchTools:showSearchTools,setShowSearchTools:setShowSearchTools,showLineTools:showLineTools,setShowLineTools:setShowLineTools,showViewTools:showViewTools,setShowViewTools:setShowViewTools,showDots:showDots,setShowDots:setShowDots,showDT:showDT,setShowDT:setShowDT,analysisButtons:analysisButtons,clearAllFiles:clearAllFiles});
+    return h(TopBar,{files:files,removeFile:removeFile,hasData:hasData,C:C,importRef:iRef,openWorkspace:openWorkspace,saveWorkspace:exportWorkspace,exportData:exportTraceData,exportChartPng:exportChartPng,exportChartSvg:exportChartSvg,showSidebar:showSidebar,setShowSidebar:setShowSidebar,showMarkers:showMarkers,setShowMarkers:setShowMarkers,showMarkerTools:showMarkerTools,setShowMarkerTools:setShowMarkerTools,showPaneTools:showPaneTools,setShowPaneTools:setShowPaneTools,showSearchTools:showSearchTools,setShowSearchTools:setShowSearchTools,showLineTools:showLineTools,setShowLineTools:setShowLineTools,showViewTools:showViewTools,setShowViewTools:setShowViewTools,showDots:showDots,setShowDots:setShowDots,showDT:showDT,setShowDT:function(next){
+      if(typeof next==="function"){
+        setShowDT(function(prev){
+          var resolved=next(prev);
+          if(!prev&&resolved)promoteRightPanelSection("data");
+          return resolved;
+        });
+        return;
+      }
+      if(next)promoteRightPanelSection("data");
+      setShowDT(next);
+    },analysisButtons:analysisButtons,clearAllFiles:clearAllFiles,showImportExportPanel:showImportExportPanel,toggleImportExportPanel:function(){setShowImportExportPanel(function(prev){return !prev;});}});
   }
 
   function renderFooter(){
     return h(FooterBar,{hasData:hasData,paneCount:panes.length,analysisRegistry:analysisRegistry});
   }
+  function renderRightPanelStack(){
+    var order=[];
+    if(showImportExportPanel)order.push("import-export");
+    rightPanelOrder.forEach(function(id){
+      if(id==="analysis"&&analysisPanelVisible&&order.indexOf(id)===-1)order.push(id);
+      if(id==="data"&&showDT&&hasData&&order.indexOf(id)===-1)order.push(id);
+    });
+    if(!order.length)return null;
+    return h(RightPanelStack,null,order.map(function(id){
+      if(id==="import-export")return renderImportExportPanel();
+      if(id==="analysis")return renderAnalysis();
+      if(id==="data")return renderDT();
+      return null;
+    }).filter(Boolean));
+  }
 
 
   /* ═══ ROOT ═══ */
   var main;
-  var rp=[];
-  if(showTraceOps||showAnalysisPanel||anyOpenAnalysis)rp.push(renderAnalysis());
-  if(showDT)rp.push(h(DataTablePane,{render:renderDT}));
   main=h("div",{style:{flex:1,display:"flex",overflow:"hidden"}},
     showSidebar?h(SidebarPane,{render:renderSidebar}):null,
     h("div",{style:{flex:1,display:"flex",flexDirection:"column",minWidth:0}},
       error?h("div",{style:{background:"var(--err-bg)",border:"1px solid var(--err-bd)",borderRadius:6,padding:"6px 12px",margin:"8px 12px 0",fontSize:13,color:"var(--err-tx)",flexShrink:0}},error):null,
       renderToolbar(),h(ChartPane,{render:renderChart}),renderFooter()),
-    rp);
+    renderRightPanelStack());
 
   return h("div",{style:{background:"var(--bg)",color:"var(--text)",height:"100vh",display:"flex",flexDirection:"column"},
     onDragOver:function(ev){ev.preventDefault();if(isFileDragEvent(ev))setIsDrag(true);},
@@ -3620,6 +4374,7 @@ function App(){
     onDrop:onDrop},
     h("input",{ref:fRef,type:"file",accept:".dat,.csv,.txt",multiple:true,style:{display:"none"},onChange:function(ev){if(ev.target.files.length)loadFiles(ev.target.files,false);ev.target.value="";}}),
     h("input",{ref:iRef,type:"file",accept:".dat,.csv,.txt",multiple:true,style:{display:"none"},onChange:function(ev){if(ev.target.files.length)loadFiles(ev.target.files,true);ev.target.value="";}}),
+    h("input",{ref:wRef,type:"file",accept:".json,application/json",style:{display:"none"},onChange:function(ev){if(ev.target.files.length)importWorkspaceFile(ev.target.files[0]);ev.target.value="";}}),
     hasData&&isDrag?renderOverlay():null,
     renderTopBar(),main);
 }
