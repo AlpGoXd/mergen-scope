@@ -966,11 +966,12 @@ function useChartNav(dep){
       var yPx=ev.clientY-rect.top;
       if(yPx<plotTop||yPx>plotBottom)return;
       var autoRange=getSafeYRangeFromData(getActivePaneTraces(),dep.vis,zoom);
-      if(!autoRange)return;
       var activePaneModel=getActivePaneModel();
-      var base=sanitizeYDomain(activePaneModel&&activePaneModel.paneYZoom)||autoRange;
+      var liveDomain=chartDomainRef.current;
+      var base=sanitizeYDomain(liveDomain)||sanitizeYDomain(activePaneModel&&activePaneModel.paneYZoom)||autoRange;
       if(!base)return;
       ev.preventDefault();
+      ev.stopPropagation();
       if(ev.shiftKey){
         var span=base.max-base.min;
         if(!(isFinite(span)&&span>0))return;
