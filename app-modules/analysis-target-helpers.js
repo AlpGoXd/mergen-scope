@@ -6,17 +6,95 @@
   var getTraceLabel=TM.getTraceLabel||function(tr){return tr?(tr.dn||tr.name||""):"";};
   var normalizeUnitName=TM.normalizeUnitName||function(unit){return String(unit||"").trim().toLowerCase().replace(/\s+/g,"");};
 
+  function normalizeTouchstoneFamily(value){
+    var family=String(value||"S").trim().toUpperCase();
+    if(!family)return "S";
+    if(family==="S"||family==="Y"||family==="Z")return family;
+    return family;
+  }
+
+  function normalizeTouchstoneMetric(value){
+    var metric=String(value||"").trim();
+    return metric||null;
+  }
+
+  function normalizeTouchstoneIndex(value){
+    var n=Number(value);
+    return isFinite(n)&&n>=0?Math.floor(n):null;
+  }
+
+  function normalizeTouchstonePortCount(value){
+    var n=Number(value);
+    return isFinite(n)&&n>0?Math.floor(n):null;
+  }
+
+  function getTraceTouchstoneNetwork(trace){
+    return trace&&trace.touchstoneNetwork&&typeof trace.touchstoneNetwork==="object"?trace.touchstoneNetwork:null;
+  }
+
+  function getTraceNetworkSource(trace){
+    return trace&&trace.networkSource&&typeof trace.networkSource==="object"?trace.networkSource:null;
+  }
+
+  function getTraceTouchstoneContext(trace, opts){
+    opts=opts||{};
+    if(!trace)return null;
+    var file=null;
+    if(typeof opts.getTraceFile==="function"){
+      try{ file=opts.getTraceFile(trace.name||trace.id||null)||null; }catch(_){}
+    }
+    var network=getTraceTouchstoneNetwork(trace)||getTraceTouchstoneNetwork(file);
+    var source=getTraceNetworkSource(trace)||getTraceNetworkSource(file);
+    var isTouchstone=!!(network||source||(file&&file.format==="touchstone")||trace.format==="touchstone");
+    if(!isTouchstone)return null;
+    var family=normalizeTouchstoneFamily(source&&source.family!=null?source.family:trace.touchstoneFamily);
+    var view=String(source&&source.view!=null?source.view:(trace.touchstoneView!=null?trace.touchstoneView:"")).trim()||"dB";
+    var row=normalizeTouchstoneIndex(source&&source.row!=null?source.row:trace.touchstoneRow);
+    var col=normalizeTouchstoneIndex(source&&source.col!=null?source.col:trace.touchstoneCol);
+    var metric=normalizeTouchstoneMetric(source&&source.metric!=null?source.metric:trace.touchstoneMetric);
+    var referenceOhms=source&&source.referenceOhms!=null?source.referenceOhms:(network&&network.referenceOhms!=null?network.referenceOhms:null);
+    var portCount=normalizeTouchstonePortCount(source&&source.portCount!=null?source.portCount:(network&&network.portCount!=null?network.portCount:null));
+    var parameterType=String(source&&source.parameterType!=null?source.parameterType:(network&&network.parameterType!=null?network.parameterType:"S")).trim().toUpperCase()||"S";
+    var fileId=source&&source.parentFileId!=null?source.parentFileId:(trace.fileId!=null?trace.fileId:(file&&file.id!=null?file.id:null));
+    var fileName=source&&source.fileName!=null?source.fileName:(trace.fileName!=null?trace.fileName:(trace.file!=null?trace.file:(file&&file.fileName!=null?file.fileName:null)));
+    var freqUnit=network&&network.freqUnit!=null?network.freqUnit:(source&&source.freqUnit!=null?source.freqUnit:null);
+    var dataFormat=network&&network.dataFormat!=null?network.dataFormat:(source&&source.dataFormat!=null?source.dataFormat:null);
+    var comments=network&&Array.isArray(network.comments)?network.comments.slice():[];
+    var samples=network&&Array.isArray(network.samples)?network.samples:((trace&&Array.isArray(trace.touchstoneSamples))?trace.touchstoneSamples:null);
+    return {
+      isTouchstone:true,
+      fileId:fileId,
+      fileName:fileName,
+      parameterType:parameterType,
+      portCount:portCount,
+      family:family,
+      view:view,
+      row:row,
+      col:col,
+      metric:metric,
+      referenceOhms:referenceOhms,
+      freqUnit:freqUnit||"Hz",
+      dataFormat:dataFormat,
+      comments:comments,
+      samples:samples,
+      network:network,
+      source:source,
+      traceLabel:getTraceLabel(trace)
+    };
+  }
+
   var ANALYSIS_ITEMS=[
-    {id:"noise-psd",title:"Noise PSD",colorVar:"noiseTr",kind:"analysis",group:"measure"},
-    {id:"ip3",title:"IP3 / TOI",colorVar:"ip3C",kind:"analysis",group:"measure"},
-    {id:"peak-spur-table",title:"Peak / Spur Table",colorVar:"tr3",kind:"analysis",group:"measure"},
-    {id:"marker-delta-table",title:"Marker Delta Table",colorVar:"tr4",kind:"analysis",group:"measure"},
-    {id:"range-stats",title:"Range Statistics",colorVar:"tr2",kind:"analysis",group:"measure"},
-    {id:"bandwidth-helper",title:"3 dB / 10 dB BW",colorVar:"tr1",kind:"analysis",group:"measure"},
-    {id:"threshold-crossings",title:"Threshold Crossings",colorVar:"refH",kind:"analysis",group:"measure"},
-    {id:"ripple-flatness",title:"Ripple / Flatness",colorVar:"tr5",kind:"analysis",group:"measure"},
-    {id:"occupied-bandwidth",title:"Occupied Bandwidth",colorVar:"tr0",kind:"analysis",group:"measure"},
-    {id:"channel-power",title:"Channel Power",colorVar:"accent",kind:"analysis",group:"measure"}
+    {id:"noise-psd",title:"Noise PSD",colorVar:"noiseTr",kind:"analysis",group:"measure",scope:"spectrum"},
+    {id:"ip3",title:"IP3 / TOI",colorVar:"ip3C",kind:"analysis",group:"measure",scope:"spectrum"},
+    {id:"peak-spur-table",title:"Peak / Spur Table",colorVar:"tr3",kind:"analysis",group:"measure",scope:"shared"},
+    {id:"marker-delta-table",title:"Marker Delta Table",colorVar:"tr4",kind:"analysis",group:"measure",scope:"shared"},
+    {id:"range-stats",title:"Range Statistics",colorVar:"tr2",kind:"analysis",group:"measure",scope:"shared"},
+    {id:"bandwidth-helper",title:"3 dB / 10 dB BW",colorVar:"tr1",kind:"analysis",group:"measure",scope:"shared"},
+    {id:"threshold-crossings",title:"Threshold Crossings",colorVar:"refH",kind:"analysis",group:"measure",scope:"shared"},
+    {id:"ripple-flatness",title:"Ripple / Flatness",colorVar:"tr5",kind:"analysis",group:"measure",scope:"shared"},
+    {id:"occupied-bandwidth",title:"Occupied Bandwidth",colorVar:"tr0",kind:"analysis",group:"measure",scope:"spectrum"},
+    {id:"channel-power",title:"Channel Power",colorVar:"accent",kind:"analysis",group:"measure",scope:"spectrum"},
+    {id:"touchstone-stability",title:"Touchstone Stability",colorVar:"accent",kind:"analysis",group:"touchstone",scope:"touchstone"}
   ];
 
   function getDefaultAnalysisOpenState(){
@@ -44,15 +122,36 @@
     return next;
   }
 
-  function makeAnalysisRegistry(openState,counts){
+  function getAnalysisScope(item){
+    return item&&item.scope?String(item.scope):"shared";
+  }
+
+  function isTouchstoneTarget(target){
+    return !!(target&&target.touchstone&&target.touchstone.isTouchstone);
+  }
+
+  function isAnalysisItemVisible(item,target){
+    if(!item)return false;
+    var scope=getAnalysisScope(item);
+    if(scope==="touchstone")return isTouchstoneTarget(target);
+    if(scope==="spectrum")return !isTouchstoneTarget(target);
+    return true;
+  }
+
+  function makeAnalysisRegistry(openState,counts,opts){
     var state=normalizeAnalysisOpenState(openState);
     var resultCounts=counts||{};
-    return ANALYSIS_ITEMS.map(function(item){
+    var items=ANALYSIS_ITEMS.slice();
+    if(opts&&Array.isArray(opts.extraItems))items=items.concat(opts.extraItems);
+    var target=opts&&opts.target||null;
+    items=items.filter(function(item){ return isAnalysisItemVisible(item,target); });
+    return items.map(function(item){
       return {
         id:item.id,
         title:item.title,
         kind:item.kind,
         group:item.group,
+        scope:getAnalysisScope(item),
         colorVar:item.colorVar,
         isOpen:!!state[item.id],
         resultCount:resultCounts[item.id]||0
@@ -90,6 +189,10 @@
     return norm==="dbm/hz"||norm==="dbmperhz"||norm==="dbw/hz"||norm==="dbwperhz";
   }
 
+  function isTouchstoneTrace(trace,opts){
+    return !!getTraceTouchstoneContext(trace,opts);
+  }
+
   function resolveAnalysisTarget(opts){
     opts=opts||{};
     var model=opts.activePaneModel||null;
@@ -108,13 +211,14 @@
     var trace=selectedTrace||paneActiveTrace||paneTraces[0]||null;
     var data=trace?getVisibleTraceData(trace,opts.zoom).filter(function(point){
       return point&&isFinite(point.freq)&&isFinite(point.amp);
-    }):[];
+    }):[]; 
     var rangeHz=null;
     if(data.length){
       rangeHz={left:data[0].freq,right:data[data.length-1].freq};
     } else if(opts.zoom&&isFinite(opts.zoom.left)&&isFinite(opts.zoom.right)){
       rangeHz={left:opts.zoom.left,right:opts.zoom.right};
     }
+    var touchstone=trace?getTraceTouchstoneContext(trace,opts):null;
     if(!trace){
       return {
         paneId:paneId,
@@ -125,6 +229,9 @@
         xUnit:(model&&model.fUnit)||"Hz",
         yUnit:"",
         supported:false,
+        touchstone:null,
+        touchstoneSupported:false,
+        touchstoneReason:"No visible trace is available in the active pane.",
         reason:paneTraces.length?"Select a trace in the active pane.":"No visible trace is available in the active pane."
       };
     }
@@ -138,6 +245,9 @@
         xUnit:(model&&model.fUnit)||"Hz",
         yUnit:getEffectiveTraceYUnit(trace),
         supported:false,
+        touchstone:touchstone,
+        touchstoneSupported:!!touchstone,
+        touchstoneReason:touchstone?(touchstone.portCount===2?"":"Touchstone stability in v1 is 2-port only."):"",
         reason:"The selected trace has no visible samples in the current pane range."
       };
     }
@@ -150,6 +260,9 @@
       xUnit:(model&&model.fUnit)||"Hz",
       yUnit:getEffectiveTraceYUnit(trace),
       supported:true,
+      touchstone:touchstone,
+      touchstoneSupported:!!touchstone,
+      touchstoneReason:touchstone?(touchstone.portCount===2?"":"Touchstone stability in v1 is 2-port only."):"",
       reason:""
     };
   }
@@ -172,8 +285,16 @@
     makeAnalysisRegistry:makeAnalysisRegistry,
     getAnalysisItem:getAnalysisItem,
     getAnalysisColor:getAnalysisColor,
+    getAnalysisScope:getAnalysisScope,
+    isAnalysisItemVisible:isAnalysisItemVisible,
     isPowerLikeAbsoluteUnit:isPowerLikeAbsoluteUnit,
     isSpectralPowerDensityUnit:isSpectralPowerDensityUnit,
+    isTouchstoneTrace:isTouchstoneTrace,
+    normalizeTouchstoneFamily:normalizeTouchstoneFamily,
+    normalizeTouchstoneMetric:normalizeTouchstoneMetric,
+    normalizeTouchstoneIndex:normalizeTouchstoneIndex,
+    normalizeTouchstonePortCount:normalizeTouchstonePortCount,
+    getTraceTouchstoneContext:getTraceTouchstoneContext,
     resolveAnalysisTarget:resolveAnalysisTarget,
     resolveSelectedHorizontalLine:resolveSelectedHorizontalLine
   };

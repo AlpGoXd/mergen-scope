@@ -1,5 +1,6 @@
 (function(global){
   var _tid=0;
+  var TSH=global.TouchstoneMathHelpers||{};
 
   function resetTraceIdCounter(){
     _tid=0;
@@ -161,6 +162,49 @@
     };
   }
 
+  function getFileBaseName(fileName){
+    var name=String(fileName||"").replace(/^.*[\\/]/,"");
+    return name.replace(/\.[^.]+$/,"")||name||"";
+  }
+
+  function isTouchstoneTrace(trace){
+    return !!(trace&&trace.networkSource&&trace.networkSource.parentFileId!=null);
+  }
+
+  function getTouchstoneNetworkSource(trace){
+    return trace&&trace.networkSource&&typeof trace.networkSource==="object"?trace.networkSource:null;
+  }
+
+  function getTouchstoneTraceFamily(trace){
+    var src=getTouchstoneNetworkSource(trace);
+    return src&&src.family?String(src.family):"";
+  }
+
+  function getTouchstoneTraceView(trace){
+    var src=getTouchstoneNetworkSource(trace);
+    return src&&src.view?String(src.view):"";
+  }
+
+  function getTouchstoneTraceMetric(trace){
+    var src=getTouchstoneNetworkSource(trace);
+    return src&&src.metric?String(src.metric):"";
+  }
+
+  function makeTouchstoneTraceLabel(fileName,family,row,col,view){
+    var helper=global.TouchstoneMathHelpers&&global.TouchstoneMathHelpers.buildTouchstoneTraceLabel;
+    if(helper){
+      return helper(fileName,family,row,col,view);
+    }
+    var base=getFileBaseName(fileName);
+    var cell=String(family||"").toUpperCase()+(isFinite(row)?String(row):"")+(isFinite(col)?String(col):"");
+    var suffix=String(view||"").trim();
+    return [base,cell,suffix].filter(function(part){return !!String(part).trim();}).join(" ");
+  }
+
+  function makeTouchstoneTraceName(fileName,family,row,col,view){
+    return makeTouchstoneTraceLabel(fileName,family,row,col,view).replace(/\s+/g,"_");
+  }
+
   global.TraceModel={
     resetTraceIdCounter:resetTraceIdCounter,
     makeTraceId:makeTraceId,
@@ -182,6 +226,14 @@
     getTraceYUnit:getTraceYUnit,
     getEffectiveTraceYUnit:getEffectiveTraceYUnit,
     getYAxisTextForUnit:getYAxisTextForUnit,
-    deriveAxisInfo:deriveAxisInfo
+    deriveAxisInfo:deriveAxisInfo,
+    getFileBaseName:getFileBaseName,
+    isTouchstoneTrace:isTouchstoneTrace,
+    getTouchstoneNetworkSource:getTouchstoneNetworkSource,
+    getTouchstoneTraceFamily:getTouchstoneTraceFamily,
+    getTouchstoneTraceView:getTouchstoneTraceView,
+    getTouchstoneTraceMetric:getTouchstoneTraceMetric,
+    makeTouchstoneTraceLabel:makeTouchstoneTraceLabel,
+    makeTouchstoneTraceName:makeTouchstoneTraceName
   };
 })(window);

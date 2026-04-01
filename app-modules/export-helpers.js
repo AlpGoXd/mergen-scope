@@ -16,10 +16,21 @@
     });
   }
 
+  function cloneNetworkSource(networkSource){
+    if(!networkSource||typeof networkSource!=="object")return null;
+    var next={};
+    ["parentFileId","family","view","row","col","metric"].forEach(function(key){
+      if(networkSource[key]!==undefined&&networkSource[key]!==null)next[key]=networkSource[key];
+    });
+    return Object.keys(next).length?next:null;
+  }
+
   function cloneTraceForExport(trace,extra){
     if(!trace)return null;
     extra=extra||{};
-    return {
+    var networkSource=cloneNetworkSource(extra.networkSource||trace.networkSource||null);
+    var metadata=extra.metadata&&typeof extra.metadata==="object"?Object.assign({},extra.metadata):{};
+    var next={
       id:getTraceId(trace),
       name:trace.name||null,
       label:getTraceLabel(trace)||trace.name||trace.id||null,
@@ -34,9 +45,14 @@
       mode:trace.mode||"",
       detector:trace.detector||"",
       units:trace.units&&typeof trace.units==="object"?Object.assign({},trace.units):{x:null,y:null},
-      metadata:extra.metadata&&typeof extra.metadata==="object"?Object.assign({},extra.metadata):{},
+      metadata:metadata,
       data:cloneDataPoints(trace.data)
     };
+    if(networkSource){
+      next.networkSource=networkSource;
+      next.metadata.networkSource=networkSource;
+    }
+    return next;
   }
 
   function cloneResult(result){
@@ -140,7 +156,8 @@
       mode:src.mode||"",
       detector:src.detector||"",
       units:{x:srcUnits.x||"Hz",y:yUnit},
-      data:npsdStats.data
+      data:npsdStats.data,
+      networkSource:src.networkSource||null
     },{
       exportCategory:"analysis-trace",
       sourceTraceName:src.name||null,
@@ -172,7 +189,7 @@
     if(noiseTrace)analysisTraces.push(noiseTrace);
     return {
       format:"mergen-scope-data-export",
-      version:1,
+      version:2,
       exportedAt:options.exportedAt||new Date().toISOString(),
       traceCount:traces.length,
       analysisTraceCount:analysisTraces.length,

@@ -18,6 +18,8 @@
   var fmtF=UH.fmtF||function(v){return String(v);};
   var getTraceLabel=TM.getTraceLabel||function(tr){return tr?(tr.dn||tr.name||""):"";};
   var isDerivedTrace=TM.isDerivedTrace||function(){return false;};
+  var isTouchstoneTrace=TM.isTouchstoneTrace||function(){return false;};
+  var getTouchstoneTraceFamily=TM.getTouchstoneTraceFamily||function(){return "";};
   var nearestPoint=PH.nearestPoint||function(){return null;};
   var findHorizontalCrossings=TH.findHorizontalCrossings||function(){return [];};
   var getVisibleTraceData=TH.getVisibleTraceData||function(tr){return tr&&Array.isArray(tr.data)?tr.data:[];};
@@ -25,6 +27,12 @@
   var getSafeYRangeFromData=TH.getSafeYRangeFromData||function(){return null;};
   var makeYTicksFromDomain=TH.makeYTicksFromDomain||function(){return null;};
   var makeNiceTicks=TH.makeNiceTicks||function(){return null;};
+  var TOUCHSTONE_FAMILIES=["S","Y","Z"];
+  var TOUCHSTONE_FAMILY_VIEWS={
+    S:["dB","Mag","Phase","Real","Imag"],
+    Y:["Mag","Phase","Real","Imag"],
+    Z:["Mag","Phase","Real","Imag"]
+  };
 
   function withAppProps(props){
     return props&&props.app?Object.assign({},props.app,props):props||{};
@@ -78,6 +86,66 @@
     return (global.AppAnalysis&&global.AppAnalysis.AnalysisFeatureCard)||featureCardFallback;
   }
 
+  function isTouchstoneFile(file){
+    if(!file)return false;
+    if(file.format==="touchstone"||file.format==="touchstone-s-parameter"||file.touchstoneNetwork)return true;
+    var name=String((file&&file.fileName)||(file&&file.file)||"").toLowerCase();
+    return /\.s\d+p$/i.test(name);
+  }
+
+  function getTouchstonePortCount(file){
+    var network=file&&file.touchstoneNetwork&&typeof file.touchstoneNetwork==="object"?file.touchstoneNetwork:null;
+    var portCount=Number(network&&network.portCount!=null?network.portCount:null);
+    if(isFinite(portCount)&&portCount>0)return Math.round(portCount);
+    var name=String((file&&file.fileName)||(file&&file.file)||"").toLowerCase();
+    var match=name.match(/\.s(\d+)p$/i);
+    if(match){
+      portCount=Number(match[1]);
+      if(isFinite(portCount)&&portCount>0)return Math.round(portCount);
+    }
+    return 0;
+  }
+
+  function getTouchstoneDefaultView(family){
+    return family==="S"?"dB":"Mag";
+  }
+
+  function getTouchstoneViewsForFamily(family){
+    return TOUCHSTONE_FAMILY_VIEWS[family]||TOUCHSTONE_FAMILY_VIEWS.S;
+  }
+
+  function buildTouchstoneCellKey(row,col){
+    return String(row)+":"+String(col);
+  }
+
+  function buildTouchstoneCellLabel(family,row,col){
+    return String(family||"S")+String(row)+String(col);
+  }
+
+  function formatTouchstoneFamilyBadge(file){
+    var count=getTouchstonePortCount(file);
+    return count?("S"+count+"P"):"Touchstone";
+  }
+
+  function getTouchstoneSummaryRows(file){
+    var network=file&&file.touchstoneNetwork&&typeof file.touchstoneNetwork==="object"?file.touchstoneNetwork:null;
+    if(!network)return [];
+    var rows=[];
+    if(network.version!=null)rows.push({label:"Parsed Version",value:String(network.version)});
+    if(network.parameterType)rows.push({label:"Parameter",value:String(network.parameterType).toUpperCase()});
+    if(network.portCount!=null)rows.push({label:"Ports",value:String(network.portCount)});
+    if(network.dataFormat)rows.push({label:"Format",value:String(network.dataFormat).toUpperCase()});
+    if(network.freqUnit)rows.push({label:"Freq Unit",value:String(network.freqUnit)});
+    if(network.matrixFormat)rows.push({label:"Matrix",value:String(network.matrixFormat).toUpperCase()});
+    if(network.referenceOhms!=null){
+      if(Array.isArray(network.referenceOhms))rows.push({label:"Z0 (normalized)",value:network.referenceOhms.join(", ")+" Ohm"});
+      else rows.push({label:"Z0 (normalized)",value:String(network.referenceOhms)+" Ohm"});
+    }
+    if(Array.isArray(network.comments)&&network.comments.length)rows.push({label:"Comments",value:String(network.comments.length)});
+    if(Array.isArray(network.samples)&&network.samples.length)rows.push({label:"Samples",value:String(network.samples.length)});
+    return rows;
+  }
+
   function SidebarPane(props){
     var p=withAppProps(props);
     if(typeof p.render==="function")return p.render();
@@ -95,6 +163,226 @@
     return p.children||null;
   }
 
+  function TouchstoneMatrixPicker(props){
+    var p=withAppProps(props);
+    var file=p.file||null;
+    var fileId=p.fileId!=null?p.fileId:(file&&file.id!=null?file.id:null);
+    var portCount=p.portCount||getTouchstonePortCount(file);
+    if(!file||!isTouchstoneFile(file)||!portCount)return null;
+
+    var state=((p.touchstoneStateByFileId&&fileId!=null&&p.touchstoneStateByFileId[fileId])||p.touchstoneState||{})||{};
+    var isExpanded=state.isExpanded!==false;
+    var controlledFamily=state.activeFamily||null;
+    var _family=useState(controlledFamily||"S");
+    var draftFamily=_family[0],setDraftFamily=_family[1];
+    var activeFamily=controlledFamily||draftFamily;
+    var controlledViewByFamily=state.activeViewByFamily&&typeof state.activeViewByFamily==="object"?state.activeViewByFamily:null;
+    var _viewByFamily=useState({});
+    var draftViewByFamily=_viewByFamily[0],setDraftViewByFamily=_viewByFamily[1];
+    var viewByFamily=controlledViewByFamily||draftViewByFamily||{};
+    var controlledSelectionByFamily=state.selectedCellsByFamily&&typeof state.selectedCellsByFamily==="object"?state.selectedCellsByFamily:null;
+    var _selectionByFamily=useState({});
+    var draftSelectionByFamily=_selectionByFamily[0],setDraftSelectionByFamily=_selectionByFamily[1];
+    var selectionByFamily=controlledSelectionByFamily||draftSelectionByFamily||{};
+    var activeView=viewByFamily[activeFamily]||getTouchstoneDefaultView(activeFamily);
+    var familyViews=getTouchstoneViewsForFamily(activeFamily);
+    var selectedCount=Object.keys(selectionByFamily).reduce(function(total,family){
+      var cells=selectionByFamily[family]||{};
+      return total+Object.keys(cells).reduce(function(sum,key){
+        var views=Array.isArray(cells[key])?cells[key]:[cells[key]];
+        return sum+views.filter(Boolean).length;
+      },0);
+    },0);
+
+    function syncFamily(nextFamily){
+      setDraftFamily(nextFamily);
+      if(p.onSetActiveFamily)p.onSetActiveFamily(fileId,nextFamily,file);
+    }
+
+    function syncExpanded(nextExpanded){
+      if(p.onSetExpanded)p.onSetExpanded(fileId,nextExpanded,file);
+    }
+
+    function syncView(nextView){
+      setDraftViewByFamily(function(prev){
+        var next=Object.assign({},prev||{});
+        next[activeFamily]=nextView;
+        return next;
+      });
+      if(p.onSetFamilyView)p.onSetFamilyView(fileId,activeFamily,nextView,file);
+    }
+
+    function syncSelection(nextSelections,preset){
+      setDraftSelectionByFamily(nextSelections);
+      if(p.onApplyPreset)p.onApplyPreset(fileId,preset||"custom",{file:file,activeFamily:activeFamily,activeView:activeView,selections:nextSelections});
+    }
+
+    function toggleCell(row,col){
+      var key=buildTouchstoneCellKey(row,col);
+      setDraftSelectionByFamily(function(prev){
+        var next=Object.assign({},prev||{});
+        var family=Object.assign({},next[activeFamily]||{});
+        var views=Array.isArray(family[key])?family[key].slice():(family[key]?[String(family[key])]:[]);
+        var existingIndex=views.indexOf(activeView);
+        if(existingIndex!==-1)views.splice(existingIndex,1);
+        else views.push(activeView);
+        if(views.length)family[key]=views;
+        else delete family[key];
+        next[activeFamily]=family;
+        if(p.onToggleCell)p.onToggleCell(fileId,activeFamily,row,col,activeView,file);
+        return next;
+      });
+    }
+
+    function buildPresetSelections(preset){
+      var next={};
+      var view=activeView||getTouchstoneDefaultView(activeFamily);
+      if(preset==="clear")return next;
+      next[activeFamily]={};
+      if(preset==="all"){
+        for(var r=1;r<=portCount;r++){
+          for(var c=1;c<=portCount;c++){
+            next[activeFamily][buildTouchstoneCellKey(r,c)]=[view];
+          }
+        }
+        return next;
+      }
+      if(preset==="diagonal"){
+        for(var d=1;d<=portCount;d++){
+          next[activeFamily][buildTouchstoneCellKey(d,d)]=[view];
+        }
+        return next;
+      }
+      var defaults=[];
+      if(activeFamily==="S"&&portCount===2){
+        defaults=[{row:1,col:1,view:view},{row:2,col:1,view:view}];
+      } else {
+        for(var i=1;i<=portCount;i++){
+          defaults.push({row:i,col:i,view:view});
+        }
+      }
+      defaults.forEach(function(sel){
+        next[activeFamily][buildTouchstoneCellKey(sel.row,sel.col)]=[sel.view];
+      });
+      return next;
+    }
+
+    function applyPreset(preset){
+      var next=buildPresetSelections(preset);
+      syncSelection(next,preset);
+      if(preset==="clear"&&p.onClearFileViews)p.onClearFileViews(fileId,file);
+    }
+
+    var familyTabs=TOUCHSTONE_FAMILIES.map(function(family){
+      var active=activeFamily===family;
+      return h("button",{
+        key:family,
+        onClick:function(){syncFamily(family);},
+        title:"Switch to "+family+"-parameter selections.",
+        style:{
+          padding:"4px 8px",
+          border:"1px solid "+(active?(p.C&&p.C.accent||"var(--accent)"):"var(--border)"),
+          borderRadius:4,
+          background:active?((p.C&&p.C.accent)||"var(--accent)")+"14":"var(--bg)",
+          color:active?(p.C&&p.C.accent)||"var(--accent)":"var(--muted)",
+          cursor:"pointer",
+          fontSize:11,
+          fontWeight:600
+        }
+      },family);
+    });
+
+    var viewButtons=familyViews.map(function(view){
+      var active=activeView===view;
+      return h("button",{
+        key:view,
+        onClick:function(){syncView(view);},
+        title:"Use "+view+" view for "+activeFamily+"-parameter selections.",
+        style:{
+          padding:"3px 7px",
+          border:"1px solid "+(active?(p.C&&p.C.accent||"var(--accent)"):"var(--border)"),
+          borderRadius:4,
+          background:active?((p.C&&p.C.accent)||"var(--accent)")+"14":"var(--bg)",
+          color:active?(p.C&&p.C.accent)||"var(--accent)":"var(--muted)",
+          cursor:"pointer",
+          fontSize:10,
+          fontWeight:600
+        }
+      },view);
+    });
+
+    var rows=[];
+    rows.push(h("div",{key:"head",style:{display:"grid",gridTemplateColumns:"auto repeat("+portCount+", minmax(24px, 1fr))",gap:4,alignItems:"center",marginBottom:4}},
+      h("span",{style:{fontSize:10,color:"var(--muted)",fontWeight:700,textTransform:"uppercase"}},""),
+      Array.from({length:portCount},function(_,idx){
+        return h("span",{key:"c-"+idx,style:{fontSize:10,color:"var(--muted)",fontWeight:700,textAlign:"center"}},idx+1);
+      })
+    ));
+    for(var r=1;r<=portCount;r++){
+      var cellNodes=[h("span",{key:"r-"+r,style:{fontSize:10,color:"var(--muted)",fontWeight:700,textAlign:"center",paddingTop:3}},r)];
+      for(var c=1;c<=portCount;c++){
+        (function(row,col){
+          var key=buildTouchstoneCellKey(row,col);
+          var cellViews=((selectionByFamily[activeFamily]||{})[key])||[];
+          if(!Array.isArray(cellViews))cellViews=cellViews?[String(cellViews)]:[];
+          var selected=cellViews.indexOf(activeView)!==-1;
+          var label=buildTouchstoneCellLabel(activeFamily,row,col);
+          cellNodes.push(h("button",{
+            key:key,
+            onClick:function(){toggleCell(row,col);},
+            title:(selected?"Selected ":"Select ")+label+" as "+activeView,
+            style:{
+              minHeight:24,
+              padding:"2px 3px",
+              border:"1px solid "+(selected?(p.C&&p.C.accent||"var(--accent)"):"var(--border)"),
+              borderRadius:4,
+              background:selected?((p.C&&p.C.accent)||"var(--accent)")+"18":"var(--bg)",
+              color:selected?(p.C&&p.C.accent)||"var(--accent)":"var(--text)",
+              cursor:"pointer",
+              fontSize:10,
+              lineHeight:1.1,
+              textAlign:"center",
+              whiteSpace:"nowrap"
+            }
+          },h("div",{style:{fontWeight:700}},label),h("div",{style:{fontSize:9,color:selected?(p.C&&p.C.accent)||"var(--accent)":"var(--muted)" }},cellViews.length?cellViews.join(" / "):activeView)));
+        })(r,c);
+      }
+      rows.push(h("div",{key:"row-"+r,style:{display:"grid",gridTemplateColumns:"auto repeat("+portCount+", minmax(24px, 1fr))",gap:4,alignItems:"stretch",marginBottom:4}},cellNodes));
+    }
+
+    return h("div",{style:{margin:"8px 0 10px",padding:"8px",border:"1px solid var(--border)",borderRadius:8,background:"var(--card)"}},
+      h("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginBottom:6,flexWrap:"wrap"}},
+        h("div",{style:{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}},
+          h("span",{style:{fontSize:10,fontWeight:700,letterSpacing:0.6,textTransform:"uppercase",color:"var(--muted)"}},"Touchstone"),
+          h("span",{style:{fontSize:10,fontWeight:700,color:"var(--text)",border:"1px solid var(--border)",borderRadius:999,padding:"1px 6px",lineHeight:1.2}},formatTouchstoneFamilyBadge(file)),
+          h("span",{style:{fontSize:10,color:"var(--muted)"}},"Selected: "+selectedCount)
+        ),
+        h("div",{style:{display:"flex",gap:4,flexWrap:"wrap"}},
+          h("button",{
+            onClick:function(){syncExpanded(!isExpanded);},
+            title:isExpanded?"Hide the Touchstone S/Y/Z selector for this file.":"Show the Touchstone S/Y/Z selector for this file.",
+            style:{padding:"4px 8px",border:"1px solid var(--border)",borderRadius:4,background:"transparent",color:"var(--muted)",cursor:"pointer",fontSize:10}
+          },isExpanded?"Hide":"Show"),
+          isExpanded?h("div",{style:{display:"flex",gap:4,flexWrap:"wrap"}},familyTabs):null
+        )
+      ),
+      !isExpanded?h("div",{style:{fontSize:10,color:"var(--muted)",lineHeight:1.4}},"Touchstone selector hidden for this file. Use Show to reopen it."):null,
+      isExpanded?h("div",null,
+      h("div",{style:{display:"flex",alignItems:"center",gap:6,marginBottom:6,flexWrap:"wrap"}},
+        h("span",{style:{fontSize:10,color:"var(--muted)",fontWeight:700,textTransform:"uppercase"}},"View"),
+        viewButtons
+      ),
+      h("div",{style:{display:"flex",gap:4,flexWrap:"wrap",marginBottom:6}},
+        h("button",{onClick:function(){applyPreset("default");},title:"Apply the default selection for this file and family.",style:{padding:"4px 8px",border:"1px solid var(--border)",borderRadius:4,background:"transparent",color:"var(--muted)",cursor:"pointer",fontSize:10}},"Default"),
+        h("button",{onClick:function(){applyPreset("diagonal");},title:"Select diagonal cells for this family.",style:{padding:"4px 8px",border:"1px solid var(--border)",borderRadius:4,background:"transparent",color:"var(--muted)",cursor:"pointer",fontSize:10}},"Diagonal"),
+        h("button",{onClick:function(){applyPreset("all");},title:"Select every Sij/Yij/Zij cell for this family.",style:{padding:"4px 8px",border:"1px solid var(--border)",borderRadius:4,background:"transparent",color:"var(--muted)",cursor:"pointer",fontSize:10}},"All"),
+        h("button",{onClick:function(){applyPreset("clear");},title:"Clear every matrix selection for this file.",style:{padding:"4px 8px",border:"1px solid var(--border)",borderRadius:4,background:"transparent",color:"#f55",cursor:"pointer",fontSize:10}},"Clear File Views")
+      ),
+      h("div",{style:{overflowX:"auto",paddingRight:2}},rows)
+      ):null
+    );
+  }
+
   function TraceRow(props){
     var p=withAppProps(props);
     var tr=p.tr;
@@ -103,6 +391,9 @@
     var vis=p.vis||{};
     var C=p.C||{};
     var selected=p.selectedTraceName===tr.name;
+    var traceColor=(p.traceColorMap&&p.traceColorMap[tr.name])||((C.tr&&C.tr[i%(C.tr.length||1)])||"var(--text)");
+    var touchstoneFamily=(isTouchstoneTrace(tr)?String(getTouchstoneTraceFamily(tr)||"").toUpperCase():"");
+    var isDerivedVisual=!!(isDerivedTrace(tr)||tr.operationType==="touchstone-stability"||touchstoneFamily==="Y"||touchstoneFamily==="Z");
     var paneBadge=(p.paneMode>1&&p.tracePaneId)?("P"+String(String(p.tracePaneId).split("-")[1]||"1")):null;
     return h("div",{
       draggable:true,
@@ -112,10 +403,10 @@
       style:{display:"flex",alignItems:"center",gap:6,padding:"3px 6px",cursor:"grab",fontSize:12,borderRadius:4,background:selected?"var(--ft)":"transparent",border:selected?"1px solid var(--ftb)":"1px solid transparent"}
     },
       h("span",{draggable:true,title:"Drag trace to a pane",onDragStart:function(ev){if(p.onDragTraceStart)p.onDragTraceStart(tr.name,ev);},onDragEnd:function(){if(p.onDragTraceEnd)p.onDragTraceEnd();},onClick:function(ev){ev.stopPropagation();},style:{color:"var(--dim)",fontSize:12,cursor:"grab",userSelect:"none",padding:"0 2px",lineHeight:1}},"\u22EE"),
-      h("input",{type:"checkbox",checked:!!vis[tr.name],onClick:function(ev){ev.stopPropagation();},onChange:function(){if(p.setVis)p.setVis(function(prev){var next=Object.assign({},prev||{});next[tr.name]=!next[tr.name];return next;});},style:{accentColor:(C.tr&&C.tr[i%(C.tr.length||1)])||"var(--accent)"}}),
-      h("span",{style:{color:(C.tr&&C.tr[i%(C.tr.length||1)])||"var(--text)",fontWeight:600,fontSize:11}},getTraceLabel(tr)||tr.name),
+      h("input",{type:"checkbox",checked:!!vis[tr.name],onClick:function(ev){ev.stopPropagation();},onChange:function(){if(p.setVis)p.setVis(function(prev){var next=Object.assign({},prev||{});next[tr.name]=!next[tr.name];return next;});},style:{accentColor:traceColor||"var(--accent)"}}),
+      h("span",{style:{color:traceColor||"var(--text)",fontWeight:600,fontSize:11}},getTraceLabel(tr)||tr.name),
       paneBadge?h("span",{style:{fontSize:10,color:"var(--dim)",border:"1px solid var(--border)",borderRadius:999,padding:"1px 5px",lineHeight:1.2}},paneBadge):null,
-      isDerivedTrace(tr)?h("span",{style:{fontSize:10,color:C.accent||"var(--accent)",border:"1px solid "+(C.accent||"var(--accent)"),borderRadius:999,padding:"1px 6px",lineHeight:1.2}},"derived"):null,
+      isDerivedVisual?h("span",{style:{fontSize:10,color:traceColor||C.accent||"var(--accent)",border:"1px solid "+(traceColor||C.accent||"var(--accent)"),borderRadius:999,padding:"1px 6px",lineHeight:1.2}},"derived"):null,
       h("span",{style:{marginLeft:"auto"}}),
       p.onRemove?h("button",{onClick:function(ev){ev.preventDefault();ev.stopPropagation();p.onRemove();},title:"Remove trace",style:{background:"none",border:"none",color:"#f55",cursor:"pointer",fontSize:13,padding:0,lineHeight:"1"}},"\u00D7"):null
     );
@@ -411,11 +702,13 @@
     var activePane=(panes.find(function(pane){return pane.id===p.activePaneId;})||{title:"Pane 1"});
     var getTraceByName=p.getTraceByName||function(name){return allTr.find(function(tr){return tr.name===name;})||null;};
     var tracePaneMap=p.tracePaneMap||{};
+    var hasTouchstoneFiles=files.some(function(file){return isTouchstoneFile(file);});
 
     items.push(h("div",{key:"sf",style:{display:"flex",alignItems:"center",gap:8,marginBottom:8,marginTop:0}},
       h("div",{style:{fontSize:11,textTransform:"uppercase",color:"var(--muted)",letterSpacing:1}},"Files ("+files.length+")"),
       h("div",{style:{marginLeft:"auto",display:"flex",alignItems:"center",gap:6}},
         h("button",{title:"Show or hide the marker list in the left sidebar.",onClick:function(){if(p.setShowMarkers)p.setShowMarkers(function(prev){return !prev;});},style:{background:p.showMarkers?(colorWithAlpha(C.tr&&C.tr[2]?C.tr[2]:"var(--accent)",0.14)||"transparent"):"transparent",border:"1px solid "+(p.showMarkers?(C.tr&&C.tr[2]?C.tr[2]:"var(--accent)"):"var(--border)"),padding:"5px 10px",color:p.showMarkers?(C.tr&&C.tr[2]?C.tr[2]:"var(--accent)"):"var(--muted)",fontWeight:500,cursor:"pointer",fontSize:12,whiteSpace:"nowrap",lineHeight:"1.4",borderRadius:6}},"Markers"),
+        hasTouchstoneFiles?h("button",{title:"Show or hide all Touchstone S-parameter controls in the left sidebar.",onClick:function(){if(p.setShowTouchstoneControls)p.setShowTouchstoneControls(function(prev){return !prev;});},style:{background:p.showTouchstoneControls?(colorWithAlpha(C.accent||"var(--accent)",0.14)||"transparent"):"transparent",border:"1px solid "+(p.showTouchstoneControls?(C.accent||"var(--accent)"):"var(--border)"),padding:"5px 10px",color:p.showTouchstoneControls?(C.accent||"var(--accent)"):"var(--muted)",fontWeight:500,cursor:"pointer",fontSize:12,whiteSpace:"nowrap",lineHeight:"1.4",borderRadius:6}},"Sij"):null,
         h("button",{title:"Show or hide imported file metadata and per-trace summary stats.",onClick:function(){if(p.setShowMeta)p.setShowMeta(function(prev){return !prev;});},style:{background:p.showMeta?(colorWithAlpha(C.tr&&C.tr[0]?C.tr[0]:"var(--accent)",0.14)||"transparent"):"transparent",border:"1px solid "+(p.showMeta?(C.tr&&C.tr[0]?C.tr[0]:"var(--accent)"):"var(--border)"),padding:"5px 10px",color:p.showMeta?(C.tr&&C.tr[0]?C.tr[0]:"var(--accent)"):"var(--muted)",fontWeight:500,cursor:"pointer",fontSize:12,whiteSpace:"nowrap",lineHeight:"1.4",borderRadius:6}},"Metadata")
       )
     ));
@@ -423,6 +716,7 @@
     files.forEach(function(f,idx){
       items.push(h("div",{key:"f-"+f.id,style:{fontSize:12,padding:"2px 0",display:"flex",alignItems:"center",gap:4}},
         h("span",{style:{flex:1,fontFamily:"monospace",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",color:"var(--text)"}},f.fileName),
+        isTouchstoneFile(f)?h("span",{style:{fontSize:10,color:p.C&&p.C.accent?p.C.accent:"var(--accent)",border:"1px solid "+(p.C&&p.C.accent?p.C.accent:"var(--accent)"),borderRadius:999,padding:"1px 6px",lineHeight:1.2,whiteSpace:"nowrap"}},formatTouchstoneFamilyBadge(f)):null,
         h("span",{style:{color:"var(--dim)",fontSize:10}},(f.traces||[]).length+" tr"),
         h("button",{title:"Remove this imported file and all of its traces.",onClick:function(){if(p.removeFile)p.removeFile(f.id);},style:{background:"none",border:"none",color:"#f55",cursor:"pointer",fontSize:13,padding:0,lineHeight:"1"}},"\u00D7")
       ));
@@ -431,6 +725,31 @@
         mKeys.forEach(function(k){
           if(f.meta&&f.meta[k]!==undefined)items.push(h(MR,{key:"m-"+f.id+"-"+k,label:k,value:f.meta[k]}));
         });
+        if(isTouchstoneFile(f)){
+          var touchstoneRows=getTouchstoneSummaryRows(f);
+          if(touchstoneRows.length){
+            items.push(h(Sec,{key:"ts-"+f.id},"Touchstone"));
+            touchstoneRows.forEach(function(row){
+              items.push(h(MR,{key:"ts-"+f.id+"-"+row.label,label:row.label,value:row.value}));
+            });
+          }
+        }
+      }
+      if(p.showTouchstoneControls&&isTouchstoneFile(f)){
+        items.push(h(TouchstoneMatrixPicker,{
+          key:"touchstone-picker-"+f.id,
+          file:f,
+          fileId:f.id,
+          C:C,
+          touchstoneStateByFileId:p.touchstoneStateByFileId,
+          touchstoneState:p.touchstoneState,
+          onSetActiveFamily:p.onTouchstoneSetActiveFamily,
+          onSetFamilyView:p.onTouchstoneSetFamilyView,
+          onSetExpanded:p.onTouchstoneSetExpanded,
+          onToggleCell:p.onTouchstoneToggleCell,
+          onApplyPreset:p.onTouchstoneApplyPreset,
+          onClearFileViews:p.onTouchstoneClearFileViews
+        }));
       }
       if(idx<files.length-1)items.push(h("div",{key:"sep-"+f.id,style:{height:8}}));
     });
@@ -467,7 +786,7 @@
 
     items.push(h(Sec,{key:"st"},"Traces ("+allTr.length+")"));
     allTr.forEach(function(tr,i){
-      items.push(h(TraceRow,{key:"tr-"+tr.name,tr:tr,i:i,vis:p.vis,setVis:p.setVis,C:C,paneMode:p.paneMode,tracePaneId:p.getTracePaneId?p.getTracePaneId(tr.name):null,selectedTraceName:p.selectedTraceName,onSelectTrace:p.selectTrace||p.onSelectTrace,onDragTraceStart:p.onTraceDragStart,onDragTraceEnd:p.onTraceDragEnd,onRemove:isDerivedTrace(tr)&&p.removeDerivedTrace?function(){p.removeDerivedTrace(tr.name);}:null}));
+      items.push(h(TraceRow,{key:"tr-"+tr.name,tr:tr,i:i,vis:p.vis,setVis:p.setVis,C:C,traceColorMap:p.traceColorMap,paneMode:p.paneMode,tracePaneId:p.getTracePaneId?p.getTracePaneId(tr.name):null,selectedTraceName:p.selectedTraceName,onSelectTrace:p.selectTrace||p.onSelectTrace,onDragTraceStart:p.onTraceDragStart,onDragTraceEnd:p.onTraceDragEnd,onRemove:p.removeTrace?function(){p.removeTrace(tr.name);}:null}));
     });
 
     if(p.showMarkers&&markers.length){
@@ -545,8 +864,8 @@
 
     var row1=[];
     if(p.showMarkerTools)row1.push(group("Marker",[
-      h(Btn,{key:"bn",active:p.mkrMode==="normal"&&!p.refMode,title:"Place or move a normal marker on the active pane.",onClick:function(){if(p.setNewMarkerArmed)p.setNewMarkerArmed(false);if(p.setMkrMode)p.setMkrMode("normal");if(p.setRefMode)p.setRefMode(null);}},"Normal"),
-      h(Btn,{key:"bd",active:p.mkrMode==="delta"&&!p.refMode,color:C.md,title:"Create delta markers referenced to another marker.",onClick:function(){if(p.setNewMarkerArmed)p.setNewMarkerArmed(false);if(p.setMkrMode)p.setMkrMode("delta");if(p.setRefMode)p.setRefMode(null);if((p.markers||[]).length>0&&p.dRef===null&&p.setDRef)p.setDRef(0);}},"Delta"),
+      h(Btn,{key:"bn",active:p.mkrMode==="normal"&&!p.refMode&&!p.newMarkerArmed,color:C.mn,title:"Place or move a normal marker on the active pane.",onClick:function(){if(p.setNewMarkerArmed)p.setNewMarkerArmed(false);if(p.setSelectedRefLineId)p.setSelectedRefLineId(null);if(p.interactionCtl&&p.interactionCtl.selectNormal)p.interactionCtl.selectNormal();else{if(p.setMkrMode)p.setMkrMode("normal");if(p.setRefMode)p.setRefMode(null);}},style:{background:p.mkrMode==="normal"&&!p.refMode&&!p.newMarkerArmed?(colorWithAlpha(C.mn||"var(--accent)",0.10)||"var(--card)"):"transparent"}},"Normal"),
+      h(Btn,{key:"bd",active:p.mkrMode==="delta"&&!p.refMode,color:C.md,title:"Create delta markers referenced to another marker.",onClick:function(){if(p.setNewMarkerArmed)p.setNewMarkerArmed(false);if(p.interactionCtl&&p.interactionCtl.selectDelta)p.interactionCtl.selectDelta();else{if(p.setMkrMode)p.setMkrMode("delta");if(p.setRefMode)p.setRefMode(null);if((p.markers||[]).length>0&&p.dRef===null&&p.setDRef)p.setDRef(0);}}},"Delta"),
       h(Btn,{key:"bnew",active:p.newMarkerArmed,color:C.accent,title:"Arm one-shot new-marker placement on the next chart click.",onClick:function(){if(p.setSelectedRefLineId)p.setSelectedRefLineId(null);if(p.setRefMode)p.setRefMode(null);if(p.setMkrMode)p.setMkrMode("normal");if(p.setNewMarkerArmed)p.setNewMarkerArmed(function(prev){return !prev;});}},"New Marker"),
       h(Btn,{key:"bun",color:C.accent,title:"Clear the currently selected marker or reference line.",onClick:function(){if(p.setNewMarkerArmed)p.setNewMarkerArmed(false);if(p.setSelectedMkrIdx)p.setSelectedMkrIdx(null);if(p.setSelectedRefLineId)p.setSelectedRefLineId(null);},disabled:(p.selectedMkrIdx===null||p.selectedMkrIdx===undefined)&&(p.selectedRefLineId===null||p.selectedRefLineId===undefined)},"Unselect")
     ],C.tr&&C.tr[3]));
@@ -615,12 +934,12 @@
     var panes=p.panes||[];
     var activePane=(panes.find(function(pane){return pane.id===p.activePaneId;})||{title:"Pane 1"});
     return h("div",{key:"import-export-stack",style:{display:"flex",flexDirection:"column",gap:8}},
-      h(AnalysisFeatureCard,{key:"import-export-card",first:true,title:"Import / Export",color:C.accent,description:"Import files, round-trip full workspaces, and export chart or analysis bundles from one place."}),
+      h(AnalysisFeatureCard,{key:"import-export-card",first:true,title:"Import / Export",color:C.accent,description:"Import files, round-trip full workspaces, and export chart or analysis bundles from one place. Touchstone imports will expose S/Y/Z matrix selections and stability views once wired."}),
       h("div",{style:{display:"flex",gap:6,flexWrap:"wrap"}},
-        h(Btn,{color:C.tr&&C.tr[2],title:hasData?"Import one or more local trace files and add them to the current workspace.":"Import one or more local trace files into the workspace.",onClick:function(){var ref=hasData?p.iRef:p.fRef;ref=ref&&ref.current?ref.current:ref;if(ref&&ref.click)ref.click();}},"Import"),
+        h(Btn,{color:C.tr&&C.tr[2],title:hasData?"Import one or more local trace files, including Touchstone network files, and add them to the current workspace.":"Import one or more local trace files, including Touchstone network files, into the workspace.",onClick:function(){var ref=hasData?p.iRef:p.fRef;ref=ref&&ref.current?ref.current:ref;if(ref&&ref.click)ref.click();}},"Import"),
         h(Btn,{soft:true,color:C.accent,title:"Replace the current workspace with a saved workspace JSON file.",onClick:p.openWorkspace},"Open Workspace"),
         h(Btn,{soft:true,color:C.tr&&C.tr[4],title:"Save the current workspace state as a portable JSON file.",onClick:p.exportWorkspace||p.saveWorkspace,disabled:!hasData},"Save Workspace"),
-        h(Btn,{soft:true,color:C.tr&&C.tr[1],title:"Export raw traces, derived traces, markers, reference lines, current analysis traces, and saved analysis results as JSON.",onClick:p.exportTraceData||p.exportData,disabled:!hasData},"Export JSON"),
+        h(Btn,{soft:true,color:C.tr&&C.tr[1],title:"Export raw traces, derived traces, markers, reference lines, current analysis traces, saved analysis results, and Touchstone-backed derived views as JSON.",onClick:p.exportTraceData||p.exportData,disabled:!hasData},"Export JSON"),
         h(Btn,{soft:true,color:(C.tr&&C.tr[5])||C.accent,title:"Export the current chart view as a higher-resolution PNG image.",onClick:p.exportChartPng,disabled:!hasData},"PNG"),
         h(Btn,{soft:true,color:C.refV,title:"Export the current chart view as a pure-graph SVG image.",onClick:p.exportChartSvg,disabled:!hasData},"SVG")
       ),
@@ -671,6 +990,7 @@
     SidebarPane:SidebarPane,
     RightPanelStack:RightPanelStack,
     ChartPane:ChartPane,
+    TouchstoneMatrixPicker:TouchstoneMatrixPicker,
     TraceRow:TraceRow,
     MarkerItem:MarkerItem,
     RefLineItem:RefLineItem,

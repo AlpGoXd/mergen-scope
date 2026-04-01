@@ -26,11 +26,14 @@
   var IP3_ROLE_KEYS=MH.IP3_ROLE_KEYS||[];
   var IP3_ROLE_LABELS=MH.IP3_ROLE_LABELS||{};
   var isIP3Label=MH.isIP3Label||function(){return false;};
+  var isTouchstoneTrace=ATH.isTouchstoneTrace||function(){return false;};
+  var getTouchstoneContext=ATH.getTraceTouchstoneContext||function(){return null;};
+  var normalizeTouchstoneFamily=ATH.normalizeTouchstoneFamily||function(value){return String(value||"S").trim().toUpperCase()||"S";};
 
 function AnalysisFeatureCard(props){
   var tint=props.color||null;
   var kids=[];
-  kids.push(h(Sec,{key:"t",first:!!props.first},props.title));
+  kids.push(h(Sec,{key:"t",first:true},props.title));
   if(props.description)kids.push(h("div",{key:"d",style:{fontSize:11,color:"var(--muted)",marginBottom:8,lineHeight:1.5}},props.description));
   if(props.children)kids=kids.concat(Array.isArray(props.children)?props.children:[props.children]);
   return h("div",{style:{marginBottom:10,padding:"8px 10px",border:"1px solid "+(tint?(tint+"44"):"var(--border)"),borderRadius:8,background:tint?(tint+"0f"):"var(--card)"}},kids);
@@ -214,6 +217,357 @@ function appendAnalysisUnsupported(items,keyBase,target){
   items.push(h("div",{key:keyBase+"-unsupported",style:{fontSize:11,color:"var(--muted)",lineHeight:1.4}},msg));
   return items;
 }
+
+function isFiniteNumber(value){
+  return typeof value==="number"&&isFinite(value);
+}
+
+function formatScalar(value,digits){
+  if(value===Infinity)return "Inf";
+  if(value===-Infinity)return "-Inf";
+  if(!isFiniteNumber(value))return "--";
+  return Number(value).toFixed(digits==null?3:digits);
+}
+
+function formatComplex(value,digits){
+  if(!value||!isFiniteNumber(value.re)||!isFiniteNumber(value.im))return "--";
+  var places=digits==null?3:digits;
+  var sign=value.im<0?"-":"+";
+  return Number(value.re).toFixed(places)+" "+sign+" j"+Math.abs(Number(value.im)).toFixed(places);
+}
+
+function formatRange(minValue,maxValue,digits){
+  if(!isFiniteNumber(minValue)||!isFiniteNumber(maxValue))return "--";
+  return formatScalar(minValue,digits)+" .. "+formatScalar(maxValue,digits);
+}
+
+function toComplex(value){
+  if(value==null)return null;
+  if(Array.isArray(value)){
+    return {
+      re:Number(value[0])||0,
+      im:Number(value[1])||0
+    };
+  }
+  if(typeof value==="number"){
+    return {re:Number(value)||0,im:0};
+  }
+  if(typeof value==="object"){
+    if(value.re!==undefined||value.im!==undefined){
+      return {
+        re:Number(value.re!=null?value.re:value.real!=null?value.real:value.x!=null?value.x:0)||0,
+        im:Number(value.im!=null?value.im:value.imag!=null?value.imag:value.y!=null?value.y:0)||0
+      };
+    }
+    if(value.real!==undefined||value.imag!==undefined){
+      return {
+        re:Number(value.real)||0,
+        im:Number(value.imag)||0
+      };
+    }
+  }
+  return null;
+}
+
+function complexConj(value){
+  return value?{re:value.re,im:-value.im}:null;
+}
+
+function complexAdd(a,b){
+  if(!a||!b)return null;
+  return {re:a.re+b.re,im:a.im+b.im};
+}
+
+function complexSub(a,b){
+  if(!a||!b)return null;
+  return {re:a.re-b.re,im:a.im-b.im};
+}
+
+function complexMul(a,b){
+  if(!a||!b)return null;
+  return {
+    re:(a.re*b.re)-(a.im*b.im),
+    im:(a.re*b.im)+(a.im*b.re)
+  };
+}
+
+function complexAbs(a){
+  if(!a)return NaN;
+  return Math.sqrt((a.re*a.re)+(a.im*a.im));
+}
+
+function complexDiv(a,b){
+  if(!a||!b)return null;
+  var denom=(b.re*b.re)+(b.im*b.im);
+  if(!denom)return null;
+  return {
+    re:((a.re*b.re)+(a.im*b.im))/denom,
+    im:((a.im*b.re)-(a.re*b.im))/denom
+  };
+}
+
+function safeRatio(numerator,denominator){
+  if(!isFiniteNumber(denominator)||denominator===0){
+    if(numerator>0)return Infinity;
+    if(numerator<0)return -Infinity;
+    return null;
+  }
+  return numerator/denominator;
+}
+
+function getTouchstoneSamples(target){
+  var touchstone=target&&target.touchstone||null;
+  if(!touchstone)return [];
+  if(Array.isArray(touchstone.samples))return touchstone.samples;
+  return [];
+}
+
+function getTouchstoneMatrix(sample){
+  if(!sample||typeof sample!=="object")return null;
+  return sample.sMatrix||sample.matrix||sample.values||sample.s||sample.data||sample.parameters||null;
+}
+
+function inferTouchstonePortCount(touchstone){
+  if(!touchstone||!Array.isArray(touchstone.samples)||!touchstone.samples.length)return null;
+  var sample=touchstone.samples[0];
+  if(computeTouchstoneStabilityPoint(sample))return 2;
+  var matrix=getTouchstoneMatrix(sample);
+  if(Array.isArray(matrix)&&matrix.length)return matrix.length;
+  if(matrix&&typeof matrix==="object"){
+    var keys=Object.keys(matrix);
+    var portKeys=keys.filter(function(key){return /^s\d\d$/i.test(key);});
+    if(portKeys.length){
+      var maxPort=0;
+      portKeys.forEach(function(key){
+        var match=key.toLowerCase().match(/^s(\d)(\d)$/);
+        if(!match)return;
+        var r=Number(match[1]),c=Number(match[2]);
+        if(r>maxPort)maxPort=r;
+        if(c>maxPort)maxPort=c;
+      });
+      return maxPort||null;
+    }
+  }
+  return null;
+}
+
+function getTouchstoneCell(matrix,row,col){
+  if(!matrix&&matrix!==0)return null;
+  var rowIndex=isFiniteNumber(row)?Math.max(0,Math.floor(row)):0;
+  var colIndex=isFiniteNumber(col)?Math.max(0,Math.floor(col)):0;
+  var candidates=[rowIndex,rowIndex+1,rowIndex-1];
+  if(Array.isArray(matrix)){
+    for(var i=0;i<candidates.length;i++){
+      var r=matrix[candidates[i]];
+      if(!r)continue;
+      if(Array.isArray(r)){
+        var rowCols=[colIndex,colIndex+1,colIndex-1];
+        for(var j=0;j<rowCols.length;j++){
+          if(r[rowCols[j]]!==undefined)return r[rowCols[j]];
+        }
+      } else if(typeof r==="object"){
+        var keys=[String(colIndex),String(colIndex+1),String(colIndex-1),"s"+(candidates[i]+1)+(colIndex+1),"S"+(candidates[i]+1)+(colIndex+1),"s"+candidates[i]+String(colIndex+1),"S"+candidates[i]+String(colIndex+1)];
+        for(var k=0;k<keys.length;k++){
+          if(r[keys[k]]!==undefined)return r[keys[k]];
+        }
+      }
+    }
+  }
+  if(typeof matrix==="object"){
+    var directKeys=[
+      "s"+(rowIndex+1)+(colIndex+1),
+      "S"+(rowIndex+1)+(colIndex+1),
+      "s"+rowIndex+String(colIndex+1),
+      "S"+rowIndex+String(colIndex+1),
+      rowIndex+":"+colIndex,
+      rowIndex+","+colIndex
+    ];
+    for(var d=0;d<directKeys.length;d++){
+      if(matrix[directKeys[d]]!==undefined)return matrix[directKeys[d]];
+    }
+    if(matrix[rowIndex]&&typeof matrix[rowIndex]==="object"){
+      var nested=matrix[rowIndex];
+      if(nested[colIndex]!==undefined)return nested[colIndex];
+      if(nested[colIndex+1]!==undefined)return nested[colIndex+1];
+      if(nested[colIndex-1]!==undefined)return nested[colIndex-1];
+    }
+  }
+  return null;
+}
+
+function computeTouchstoneStabilityPoint(sample){
+  if(!sample||!isFiniteNumber(sample.freq))return null;
+  var matrix=getTouchstoneMatrix(sample);
+  var s11=toComplex(getTouchstoneCell(matrix,0,0));
+  var s12=toComplex(getTouchstoneCell(matrix,0,1));
+  var s21=toComplex(getTouchstoneCell(matrix,1,0));
+  var s22=toComplex(getTouchstoneCell(matrix,1,1));
+  if(!s11||!s12||!s21||!s22)return null;
+  var delta=complexSub(complexMul(s11,s22),complexMul(s12,s21));
+  if(!delta)return null;
+  var deltaMag=complexAbs(delta);
+  var s12s21=complexMul(s12,s21);
+  var s11Mag=complexAbs(s11);
+  var s22Mag=complexAbs(s22);
+  var deltaConj=complexConj(delta);
+  var kNum=1-(s11Mag*s11Mag)-(s22Mag*s22Mag)+(deltaMag*deltaMag);
+  var kDen=2*complexAbs(s12s21);
+  var mu1Num=1-(s11Mag*s11Mag);
+  var mu1Den=complexAbs(complexSub(s22,complexMul(deltaConj,s11)))+complexAbs(s12s21);
+  var mu2Num=1-(s22Mag*s22Mag);
+  var mu2Den=complexAbs(complexSub(s11,complexMul(deltaConj,s22)))+complexAbs(s12s21);
+  return {
+    freq:Number(sample.freq),
+    s11:s11,
+    s12:s12,
+    s21:s21,
+    s22:s22,
+    delta:delta,
+    deltaMag:deltaMag,
+    k:safeRatio(kNum,kDen),
+    mu1:safeRatio(mu1Num,mu1Den),
+    mu2:safeRatio(mu2Num,mu2Den)
+  };
+}
+
+function computeTouchstoneStabilitySeries(target){
+  var touchstone=target&&target.touchstone||null;
+  if(!touchstone||!Array.isArray(touchstone.samples))return [];
+  var portCount=touchstone.portCount||touchstone.port_count||null;
+  if(portCount==null)portCount=inferTouchstonePortCount(touchstone);
+  if(portCount!==2&&portCount!=="2")return [];
+  var rangeHz=target&&target.rangeHz||null;
+  return touchstone.samples.map(function(sample){
+    return computeTouchstoneStabilityPoint(sample);
+  }).filter(function(point){
+    if(!point)return false;
+    if(rangeHz&&isFiniteNumber(rangeHz.left)&&isFiniteNumber(rangeHz.right)){
+      return point.freq>=rangeHz.left&&point.freq<=rangeHz.right;
+    }
+    return true;
+  });
+}
+
+function summarizeTouchstoneStability(points){
+  var summary={
+    count:0,
+    minK:Infinity,
+    maxK:-Infinity,
+    minMu1:Infinity,
+    maxMu1:-Infinity,
+    minMu2:Infinity,
+    maxMu2:-Infinity,
+    minDeltaMag:Infinity,
+    maxDeltaMag:-Infinity,
+    center:null,
+    stable:true,
+    allFinite:true
+  };
+  (points||[]).forEach(function(point,idx){
+    if(!point)return;
+    summary.count++;
+    if(isFiniteNumber(point.k)){
+      if(point.k<summary.minK)summary.minK=point.k;
+      if(point.k>summary.maxK)summary.maxK=point.k;
+      if(!(point.k>1))summary.stable=false;
+    } else {
+      summary.allFinite=false;
+      summary.stable=false;
+    }
+    if(isFiniteNumber(point.mu1)){
+      if(point.mu1<summary.minMu1)summary.minMu1=point.mu1;
+      if(point.mu1>summary.maxMu1)summary.maxMu1=point.mu1;
+    } else {
+      summary.allFinite=false;
+      summary.stable=false;
+    }
+    if(isFiniteNumber(point.mu2)){
+      if(point.mu2<summary.minMu2)summary.minMu2=point.mu2;
+      if(point.mu2>summary.maxMu2)summary.maxMu2=point.mu2;
+    } else {
+      summary.allFinite=false;
+      summary.stable=false;
+    }
+    if(isFiniteNumber(point.deltaMag)){
+      if(point.deltaMag<summary.minDeltaMag)summary.minDeltaMag=point.deltaMag;
+      if(point.deltaMag>summary.maxDeltaMag)summary.maxDeltaMag=point.deltaMag;
+      if(!(point.deltaMag<1))summary.stable=false;
+    } else {
+      summary.allFinite=false;
+      summary.stable=false;
+    }
+    if(idx===Math.floor(((points||[]).length||1)/2))summary.center=point;
+  });
+  if(!summary.count)summary.stable=false;
+  if(!summary.allFinite)summary.stable=false;
+  return summary;
+}
+
+function buildTouchstoneTracePayload(metric,points,target,summary){
+  var metricLabels={
+    k:"K",
+    mu1:"mu1",
+    mu2:"mu2",
+    deltaMag:"|delta|"
+  };
+  var label=metricLabels[metric]||metric;
+  var data=(points||[]).map(function(point){
+    var value=metric==="deltaMag"?point.deltaMag:point[metric];
+    return {freq:point.freq,amp:value};
+  }).filter(function(point){
+    return isFiniteNumber(point.freq)&&isFiniteNumber(point.amp);
+  });
+  var touchstone=target&&target.touchstone||null;
+  var source=touchstone&&touchstone.source||null;
+  return {
+    metric:metric,
+    label:label,
+    family:"stability",
+    view:metric,
+    kind:"analysis",
+    operationType:"touchstone-stability",
+    units:{x:(target&&target.xUnit)||"Hz",y:""},
+    metadata:{
+      metric:metric,
+      metricLabel:label,
+      metricUnit:"unitless",
+      touchstoneParameterType:touchstone&&touchstone.parameterType||"S",
+      touchstoneFileName:touchstone&&touchstone.fileName||null,
+      touchstonePortCount:touchstone&&touchstone.portCount||null,
+      touchstoneFamily:touchstone&&touchstone.family||null
+    },
+    networkSource:source?Object.assign({},source,{metric:metric,view:metric}):{
+      parentFileId:touchstone&&touchstone.fileId!=null?touchstone.fileId:null,
+      family:"stability",
+      view:metric,
+      metric:metric
+    },
+    sourceTraceId:target&&target.trace&&target.trace.id||null,
+    sourceTraceName:target&&target.trace&&target.trace.name||null,
+    traceLabel:(target&&target.traceLabel?target.traceLabel:"Touchstone")+" ["+label+"]",
+    data:data,
+    summary:summary,
+    touchstone:touchstone
+  };
+}
+
+function getTouchstoneGenerateTraceCallback(props){
+  return props&&(
+    props.onGenerateTrace||
+    props.generateTrace||
+    props.createTouchstoneTrace||
+    props.onCreateTouchstoneTrace||
+    props.onGenerateTouchstoneTrace
+  )||null;
+}
+
+function emitTouchstoneTrace(props,metric,payload){
+  var fn=getTouchstoneGenerateTraceCallback(props);
+  if(typeof fn!=="function")return false;
+  if(fn.length>=2)fn(metric,payload);
+  else fn(payload);
+  return true;
+}
 function AnalysisMenuCard(props){
   var C=props.C, items=[];
   items.push(h(AnalysisFeatureCard,{key:"head",first:!props.hasTraceOps,color:C.accent,title:"Analysis",description:"Measurement and numeric analysis tools live here. Open one or more functions below."}));
@@ -225,6 +579,12 @@ function AnalysisMenuCard(props){
   ));
   if(!(props.registry||[]).some(function(item){return item.isOpen;}))items.push(h("div",{key:"idle",style:{fontSize:11,color:"var(--muted)",lineHeight:1.4}},"Choose a function to open its controls here. Phase 4 tools act on the selected trace in the active pane over the visible range."));
   return items;
+}
+
+function isVisibleAnalysisCard(props,id){
+  var visibleIds=Array.isArray(props&&props.visibleAnalysisIds)?props.visibleAnalysisIds:null;
+  if(!visibleIds)return true;
+  return visibleIds.indexOf(id)!==-1;
 }
 
 function PeakSpurTableCard(props){
@@ -429,6 +789,114 @@ function ChannelPowerCard(props){
   return items;
 }
 
+function appendTouchstoneTargetRows(items,keyBase,target,color){
+  var touchstone=target&&target.touchstone||null;
+  if(!touchstone){
+    items.push(h("div",{key:keyBase+"-touchstone-missing",style:{fontSize:11,color:"var(--muted)",lineHeight:1.4}},"The selected trace is not Touchstone-backed."));
+    return items;
+  }
+  var portCount=touchstone.portCount!=null?touchstone.portCount:inferTouchstonePortCount(touchstone);
+  items.push(h(MR,{key:keyBase+"-file",label:"File",value:touchstone.fileName||"Touchstone file",vc:color}));
+  items.push(h(MR,{key:keyBase+"-ports",label:"Ports",value:portCount!=null?String(portCount):"--",vc:color}));
+  items.push(h(MR,{key:keyBase+"-param",label:"Parameter",value:String(touchstone.parameterType||"S"),vc:color}));
+  items.push(h(MR,{key:keyBase+"-family",label:"Family",value:normalizeTouchstoneFamily(touchstone.family),vc:color}));
+  items.push(h(MR,{key:keyBase+"-view",label:"View",value:String(touchstone.view||"dB"),vc:color}));
+  items.push(h(MR,{key:keyBase+"-metric",label:"Metric",value:touchstone.metric||"--"}));
+  if(touchstone.referenceOhms!=null)items.push(h(MR,{key:keyBase+"-ref",label:"Z0",value:Array.isArray(touchstone.referenceOhms)?touchstone.referenceOhms.join(", "):String(touchstone.referenceOhms),vc:color}));
+  return items;
+}
+
+function TouchstoneStabilityCard(props){
+  var C=props.C||{},target=props.target||props.touchstoneTarget||props.analysisTarget||null;
+  var items=[];
+  var onGenerateTrace=getTouchstoneGenerateTraceCallback(props);
+  items.push(h(AnalysisFeatureCard,{
+    key:"head",
+    color:C.accent,
+    title:"Touchstone Stability",
+    description:"Compute 2-port stability metrics from the imported complex S-parameter network and generate or refresh one scalar trace per metric."
+  }));
+  if(!target||!target.touchstone||!target.touchstone.isTouchstone){
+    return appendAnalysisUnsupported(items,"ts",{reason:"Select a Touchstone-backed trace to access stability metrics."});
+  }
+  var portCount=target.touchstone.portCount!=null?target.touchstone.portCount:inferTouchstonePortCount(target.touchstone);
+  if(portCount!==2&&portCount!=="2"){
+    return appendAnalysisUnsupported(items,"ts",{reason:"Touchstone stability in v1 is 2-port only."});
+  }
+  var series=computeTouchstoneStabilitySeries(target);
+  if(!series.length){
+    return appendAnalysisUnsupported(items,"ts",{reason:"No visible Touchstone samples were available in the current range."});
+  }
+  var summary=summarizeTouchstoneStability(series);
+  var center=summary.center||series[Math.floor(series.length/2)]||null;
+  var tone=(summary.allFinite&&summary.stable)?(C.accent||"var(--accent)"):"#b8860b";
+  var derivedPalette=C.dr&&C.dr.length?C.dr:[C.accent||"var(--accent)"];
+  var buttons=[
+    {metric:"k",label:"Generate K Trace",color:derivedPalette[0]||C.accent},
+    {metric:"mu1",label:"Generate mu1 Trace",color:derivedPalette[1]||C.accent},
+    {metric:"mu2",label:"Generate mu2 Trace",color:derivedPalette[2]||C.accent},
+    {metric:"deltaMag",label:"Generate |delta| Trace",color:derivedPalette[3]||C.accent}
+  ];
+  items.push(h("div",{key:"summary",style:{marginBottom:8,padding:"8px 10px",border:"1px solid var(--border)",borderRadius:6,background:"var(--bg)"}},
+    h("div",{style:{fontSize:11,fontWeight:700,color:tone,marginBottom:4}},
+      summary.stable&&summary.allFinite?"Unconditionally stable in the visible range":"Stability condition not fully satisfied in the visible range"
+    ),
+    h("div",{style:{fontSize:11,color:"var(--muted)",lineHeight:1.45}},
+      (target.touchstone.fileName||"Touchstone file")+" - "+(target.traceLabel||"--")+" - "+formatHzRange(target&&target.rangeHz)
+    )
+  ));
+  items.push(h("div",{key:"status",style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:8}},
+    h(MR,{key:"count",label:"Visible Samples",value:String(summary.count),vc:C.accent}),
+    h(MR,{key:"ports",label:"Ports / Param",value:String(portCount)+" / "+String(target.touchstone.parameterType||"S"),vc:C.accent})
+  ));
+  items.push(h("div",{key:"metrics",style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:8}},
+    h(MR,{key:"k-range",label:"K range",value:formatRange(summary.minK,summary.maxK,4),vc:C.accent}),
+    h(MR,{key:"mu1-range",label:"mu1 range",value:formatRange(summary.minMu1,summary.maxMu1,4),vc:C.accent}),
+    h(MR,{key:"mu2-range",label:"mu2 range",value:formatRange(summary.minMu2,summary.maxMu2,4),vc:C.accent}),
+    h(MR,{key:"delta-range",label:"|delta| range",value:formatRange(summary.minDeltaMag,summary.maxDeltaMag,4),vc:C.accent})
+  ));
+  items.push(h("div",{key:"center-metrics",style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:8}},
+    h(MR,{key:"delta",label:"Delta @ center",value:center?formatComplex(center.delta):"--",vc:C.accent}),
+    h(MR,{key:"delta-mag",label:"|delta| @ center",value:center?formatScalar(center.deltaMag,4):"--",vc:C.accent})
+  ));
+  items.push(h("div",{key:"actions",style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:8}},
+    buttons.map(function(button){
+      var metric=button.metric;
+      var buttonColor=button.color||C.accent||"var(--accent)";
+      var disabled=!onGenerateTrace;
+      return h("button",{
+        key:metric,
+        title:disabled?"Generate trace callbacks are not wired yet.":"Generate a derived scalar trace for "+button.label.replace("Generate ","").replace(" Trace","")+".",
+        disabled:disabled,
+        onClick:function(){
+          if(!onGenerateTrace)return;
+          var payload=buildTouchstoneTracePayload(metric,series,target,summary);
+          emitTouchstoneTrace(props,metric,payload);
+        },
+        style:{
+          padding:"5px 8px",
+          background:disabled?"transparent":(buttonColor+"12"),
+          border:"1px solid "+buttonColor,
+          color:buttonColor,
+          borderRadius:4,
+          cursor:disabled?"not-allowed":"pointer",
+          fontSize:11,
+          fontWeight:600,
+          opacity:disabled?0.55:1
+        }
+      },button.label);
+    })
+  ));
+  if(!summary.allFinite){
+    items.push(h("div",{key:"warn",style:{fontSize:11,color:"#b8860b",lineHeight:1.4}},"Some visible stability samples could not be evaluated cleanly."));
+  } else if(summary.stable){
+    items.push(h("div",{key:"note",style:{fontSize:11,color:"var(--muted)",lineHeight:1.4}},"All visible points satisfy K > 1 and |delta| < 1."));
+  } else {
+    items.push(h("div",{key:"note",style:{fontSize:11,color:"var(--muted)",lineHeight:1.4}},"At least one visible point does not satisfy K > 1 and |delta| < 1."));
+  }
+  return items;
+}
+
 function IP3Card(props){
   var C=props.C, items=[];
   items.push(h(AnalysisFeatureCard,{key:"head",color:C.ip3C,title:"IP3 / TOI (saved numbers)",description:"Select a visible marker, assign it to F1/F2/IM3L/IM3U, and compute IP3 directly from those marker roles. Auto-pick can fill the remaining points on the same trace from the selected marker."}));
@@ -477,35 +945,38 @@ function AnalysisPanelStack(props){
   if(props.showAnalysisPanel){
     sections.push(h(AnalysisMenuCard,Object.assign({key:"analysis-menu"},props.analysisMenuProps)));
   }
-  if(props.showNoise){
+  if(props.showNoise&&isVisibleAnalysisCard(props,"noise-psd")){
     sections.push(h(NoisePSDCard,Object.assign({key:"noise-psd"},props.noiseCardProps)));
   }
-  if(props.showIP3){
+  if(props.showIP3&&isVisibleAnalysisCard(props,"ip3")){
     sections.push(h(IP3Card,Object.assign({key:"ip3"},props.ip3CardProps)));
   }
-  if(props.normalizedAnalysisOpenState&&props.normalizedAnalysisOpenState["peak-spur-table"]){
+  if(isVisibleAnalysisCard(props,"peak-spur-table")&&props.normalizedAnalysisOpenState&&props.normalizedAnalysisOpenState["peak-spur-table"]){
     sections.push(h(PeakSpurTableCard,Object.assign({key:"peak-spur-table"},props.peakSpurProps)));
   }
-  if(props.normalizedAnalysisOpenState&&props.normalizedAnalysisOpenState["marker-delta-table"]){
+  if(isVisibleAnalysisCard(props,"marker-delta-table")&&props.normalizedAnalysisOpenState&&props.normalizedAnalysisOpenState["marker-delta-table"]){
     sections.push(h(MarkerDeltaTableCard,Object.assign({key:"marker-delta-table"},props.markerDeltaProps)));
   }
-  if(props.normalizedAnalysisOpenState&&props.normalizedAnalysisOpenState["range-stats"]){
+  if(isVisibleAnalysisCard(props,"range-stats")&&props.normalizedAnalysisOpenState&&props.normalizedAnalysisOpenState["range-stats"]){
     sections.push(h(RangeStatsCard,Object.assign({key:"range-stats"},props.rangeStatsProps)));
   }
-  if(props.normalizedAnalysisOpenState&&props.normalizedAnalysisOpenState["bandwidth-helper"]){
+  if(isVisibleAnalysisCard(props,"bandwidth-helper")&&props.normalizedAnalysisOpenState&&props.normalizedAnalysisOpenState["bandwidth-helper"]){
     sections.push(h(BandwidthHelperCard,Object.assign({key:"bandwidth-helper"},props.bandwidthProps)));
   }
-  if(props.normalizedAnalysisOpenState&&props.normalizedAnalysisOpenState["threshold-crossings"]){
+  if(isVisibleAnalysisCard(props,"threshold-crossings")&&props.normalizedAnalysisOpenState&&props.normalizedAnalysisOpenState["threshold-crossings"]){
     sections.push(h(ThresholdCrossingsCard,Object.assign({key:"threshold-crossings"},props.thresholdProps)));
   }
-  if(props.normalizedAnalysisOpenState&&props.normalizedAnalysisOpenState["ripple-flatness"]){
+  if(isVisibleAnalysisCard(props,"ripple-flatness")&&props.normalizedAnalysisOpenState&&props.normalizedAnalysisOpenState["ripple-flatness"]){
     sections.push(h(RippleFlatnessCard,Object.assign({key:"ripple-flatness"},props.rippleProps)));
   }
-  if(props.normalizedAnalysisOpenState&&props.normalizedAnalysisOpenState["occupied-bandwidth"]){
+  if(isVisibleAnalysisCard(props,"occupied-bandwidth")&&props.normalizedAnalysisOpenState&&props.normalizedAnalysisOpenState["occupied-bandwidth"]){
     sections.push(h(OccupiedBandwidthCard,Object.assign({key:"occupied-bandwidth"},props.obwProps)));
   }
-  if(props.normalizedAnalysisOpenState&&props.normalizedAnalysisOpenState["channel-power"]){
+  if(isVisibleAnalysisCard(props,"channel-power")&&props.normalizedAnalysisOpenState&&props.normalizedAnalysisOpenState["channel-power"]){
     sections.push(h(ChannelPowerCard,Object.assign({key:"channel-power"},props.channelPowerProps)));
+  }
+  if(isVisibleAnalysisCard(props,"touchstone-stability")&&props.normalizedAnalysisOpenState&&props.normalizedAnalysisOpenState["touchstone-stability"]){
+    sections.push(h(TouchstoneStabilityCard,Object.assign({key:"touchstone-stability"},props.touchstoneStabilityProps||props.touchstoneAnalysisProps||{})));
   }
   return h("div",{key:"analysis-stack",style:{display:"flex",flexDirection:"column",gap:10}},sections);
 }
@@ -523,6 +994,11 @@ global.AppAnalysis={
   RippleFlatnessCard:RippleFlatnessCard,
   OccupiedBandwidthCard:OccupiedBandwidthCard,
   ChannelPowerCard:ChannelPowerCard,
+  computeTouchstoneStabilityPoint:computeTouchstoneStabilityPoint,
+  computeTouchstoneStabilitySeries:computeTouchstoneStabilitySeries,
+  summarizeTouchstoneStability:summarizeTouchstoneStability,
+  buildTouchstoneTracePayload:buildTouchstoneTracePayload,
+  TouchstoneStabilityCard:TouchstoneStabilityCard,
   IP3Card:IP3Card,
   AnalysisPanelStack:AnalysisPanelStack
 };

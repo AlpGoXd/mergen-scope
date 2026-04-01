@@ -6,7 +6,7 @@ var TM=global.TraceModel||{},TH=global.TraceHelpers||{},TOH=global.TraceOpsHelpe
 var useState=React.useState,useMemo=React.useMemo,useEffect=React.useEffect,useRef=React.useRef,useCallback=React.useCallback,ReactComponent=React.Component;
 var useTheme=UH.useTheme,fmtF=UH.fmtF;
 var LineChart=RC.LineChart,Line=RC.Line,XAxis=RC.XAxis,YAxis=RC.YAxis,CartesianGrid=RC.CartesianGrid,Tooltip=RC.Tooltip,ResponsiveContainer=RC.ResponsiveContainer,ReferenceArea=RC.ReferenceArea,ReferenceLine=RC.ReferenceLine,ReferenceDot=RC.ReferenceDot,Legend=RC.Legend;
-var getTraceId=TM.getTraceId,getTraceLabel=TM.getTraceLabel,getTraceData=TM.getTraceData,isDerivedTrace=TM.isDerivedTrace,createDerivedTrace=TM.createDerivedTrace,setDerivedTraceYUnit=TM.setDerivedTraceYUnit,normalizeUnitName=TM.normalizeUnitName,isDbRatioUnit=TM.isDbRatioUnit,isLogLevelUnit=TM.isLogLevelUnit,isLogUnit=TM.isLogUnit,resolveTraceMathResultUnit=TM.resolveTraceMathResultUnit,getEffectiveTraceYUnit=TM.getEffectiveTraceYUnit,deriveAxisInfo=TM.deriveAxisInfo,resetTraceIdCounter=TM.resetTraceIdCounter,syncTraceIdCounter=TM.syncTraceIdCounter,getYAxisTextForUnit=TM.getYAxisTextForUnit;
+var getTraceId=TM.getTraceId,getTraceLabel=TM.getTraceLabel,getTraceData=TM.getTraceData,isDerivedTrace=TM.isDerivedTrace,isTouchstoneTrace=TM.isTouchstoneTrace,getTouchstoneTraceFamily=TM.getTouchstoneTraceFamily,createDerivedTrace=TM.createDerivedTrace,setDerivedTraceYUnit=TM.setDerivedTraceYUnit,normalizeUnitName=TM.normalizeUnitName,isDbRatioUnit=TM.isDbRatioUnit,isLogLevelUnit=TM.isLogLevelUnit,isLogUnit=TM.isLogUnit,resolveTraceMathResultUnit=TM.resolveTraceMathResultUnit,getEffectiveTraceYUnit=TM.getEffectiveTraceYUnit,deriveAxisInfo=TM.deriveAxisInfo,resetTraceIdCounter=TM.resetTraceIdCounter,syncTraceIdCounter=TM.syncTraceIdCounter,getYAxisTextForUnit=TM.getYAxisTextForUnit;
 var clampYValue=TH.clampYValue,interpolatePointAtX=TH.interpolatePointAtX,getVisibleTraceData=TH.getVisibleTraceData,findHorizontalCrossings=TH.findHorizontalCrossings,getSafeYRangeFromData=TH.getSafeYRangeFromData,sanitizeYDomain=TH.sanitizeYDomain,makeYTicksFromDomain=TH.makeYTicksFromDomain,getPrimaryTickStep=TH.getPrimaryTickStep,makeNiceTicks=TH.makeNiceTicks,computeYWheelZoom=TH.computeYWheelZoom;
 var smoothTraceData=TOH.smoothTraceData,computeBinaryTraceMathData=TOH.computeBinaryTraceMathData;
 var noisePSD=AH.noisePSD,calcIP3FromPoints=AH.calcIP3FromPoints,buildIP3RoleRefs=AH.buildIP3RoleRefs,savedResultReferencesAnyTrace=AH.savedResultReferencesAnyTrace,savedResultHasValidTraceRefs=AH.savedResultHasValidTraceRefs,makeSavedNoiseResult=AH.makeSavedNoiseResult,makeSavedIP3Result=AH.makeSavedIP3Result;
@@ -17,7 +17,7 @@ var clampPaneCount=PAH.clampPaneCount,getTracePaneId=PAH.getTracePaneId,getPaneA
 var buildWorkspaceSnapshot=WH.buildWorkspaceSnapshot,buildWorkspaceExportPackage=WH.buildWorkspaceExportPackage,normalizeWorkspaceSnapshot=WH.normalizeWorkspaceSnapshot,restoreWorkspaceSnapshot=WH.restoreWorkspaceSnapshot,extractWorkspaceSnapshotFromPackage=WH.extractWorkspaceSnapshotFromPackage;
 var buildTraceExportPackage=EH.buildTraceExportPackage,buildTimestampedDownloadName=EH.buildTimestampedDownloadName,downloadJsonFile=EH.downloadJsonFile,exportElementAsSvgFile=EH.exportElementAsSvgFile,exportElementAsPngFile=EH.exportElementAsPngFile;
 var getDefaultAnalysisOpenState=ATH.getDefaultAnalysisOpenState,normalizeAnalysisOpenState=ATH.normalizeAnalysisOpenState,setAnalysisOpenState=ATH.setAnalysisOpenState,clearAllAnalysisOpenState=ATH.clearAllAnalysisOpenState,resolveAnalysisTarget=ATH.resolveAnalysisTarget,resolveSelectedHorizontalLine=ATH.resolveSelectedHorizontalLine;
-var useYControls=Hooks.useYControls,useXControls=Hooks.useXControls,useFileStore=Hooks.useFileStore,useChartNav=Hooks.useChartNav,useSharedCursor=Hooks.useSharedCursor,useNoisePSD=Hooks.useNoisePSD,useIP3=Hooks.useIP3,useMarkers=Hooks.useMarkers,useInteractionMode=Hooks.useInteractionMode,useNoisePSDModel=Hooks.useNoisePSDModel,useMarkerActions=Hooks.useMarkerActions,useIP3Workflow=Hooks.useIP3Workflow,usePaneLayout=Hooks.usePaneLayout,useAnalysisRegistry=Hooks.useAnalysisRegistry,isFileDragEvent=Hooks.isFileDragEvent,getDemoWorkspacePresetById=Hooks.getDemoWorkspacePresetById,getDemoLaunchPresetId=Hooks.getDemoLaunchPresetId,clearDemoLaunchQueryParam=Hooks.clearDemoLaunchQueryParam,buildBundledDemoFiles=Hooks.buildBundledDemoFiles;
+var useYControls=Hooks.useYControls,useXControls=Hooks.useXControls,useFileStore=Hooks.useFileStore,useChartNav=Hooks.useChartNav,useSharedCursor=Hooks.useSharedCursor,useNoisePSD=Hooks.useNoisePSD,useIP3=Hooks.useIP3,useMarkers=Hooks.useMarkers,useInteractionMode=Hooks.useInteractionMode,useNoisePSDModel=Hooks.useNoisePSDModel,useMarkerActions=Hooks.useMarkerActions,useIP3Workflow=Hooks.useIP3Workflow,usePaneLayout=Hooks.usePaneLayout,useAnalysisRegistry=Hooks.useAnalysisRegistry,makeDefaultTouchstoneState=Hooks.makeDefaultTouchstoneState,cloneTouchstoneSelectionState=Hooks.cloneTouchstoneSelectionState,buildTouchstoneSelectionsFromTraces=Hooks.buildTouchstoneSelectionsFromTraces,reconcileTouchstoneFileSelections=Hooks.reconcileTouchstoneFileSelections,buildTouchstoneStabilityTrace=Hooks.buildTouchstoneStabilityTrace,isFileDragEvent=Hooks.isFileDragEvent,getDemoWorkspacePresetById=Hooks.getDemoWorkspacePresetById,getDemoLaunchPresetId=Hooks.getDemoLaunchPresetId,clearDemoLaunchQueryParam=Hooks.clearDemoLaunchQueryParam,buildBundledDemoFiles=Hooks.buildBundledDemoFiles;
 var Shell=global.AppShell||{},Analysis=global.AppAnalysis||{},Chart=global.AppChart||{};
 var SidebarPane=Shell.SidebarPane||function(props){return props&&props.render?props.render():props.children||null;};
 var RightPanelStack=Shell.RightPanelStack||function(props){return h("div",null,props.children);};
@@ -72,6 +72,7 @@ function useAppController(){
   var _dr=useState(false),isDrag=_dr[0],setIsDrag=_dr[1];
   var _do=useState(false),showDots=_do[0],setShowDots=_do[1];
   var _sm=useState(false),showMeta=_sm[0],setShowMeta=_sm[1];
+  var _stc=useState(true),showTouchstoneControls=_stc[0],setShowTouchstoneControls=_stc[1];
   var _ssb=useState(true),showSidebar=_ssb[0],setShowSidebar=_ssb[1];
   var _sto=useState(false),showTraceOps=_sto[0],setShowTraceOps=_sto[1];
   var _toos=useState({offset:false,scale:false,smoothing:false,subtract:false}),traceOpsOpenSections=_toos[0],setTraceOpsOpenSections=_toos[1];
@@ -112,6 +113,7 @@ function useAppController(){
   var _dtT=useState(null),dtTrace=_dtT[0],setDtTrace=_dtT[1];
   var _stn=useState(null),selectedTraceName=_stn[0],setSelectedTraceName=_stn[1];
   var _dtn=useState(null),dragTraceName=_dtn[0],setDragTraceName=_dtn[1];
+  var _tss=useState({}),touchstoneStateByFileId=_tss[0],setTouchstoneStateByFileId=_tss[1];
     var refCtl=useRefLines(),refLines=refCtl.refLines,setRefLines=refCtl.setRefLines,refMode=refCtl.refMode,setRefMode=refCtl.setRefMode,selectedRefLineId=refCtl.selectedRefLineId,setSelectedRefLineId=refCtl.setSelectedRefLineId;
   var ip3Ctl=useIP3(),ip3Pts=ip3Ctl.ip3Pts,setIP3Pts=ip3Ctl.setIP3Pts,ip3Res=ip3Ctl.ip3Res,setIP3Res=ip3Ctl.setIP3Res,ip3Gain=ip3Ctl.ip3Gain,setIP3Gain=ip3Ctl.setIP3Gain,ip3Results=ip3Ctl.ip3Results,setIP3Results=ip3Ctl.setIP3Results,saveIP3=ip3Ctl.saveIP3;
   var noiseCtl=useNoisePSD(),noiseFilter=noiseCtl.noiseFilter,setNoiseFilter=noiseCtl.setNoiseFilter,noiseSource=noiseCtl.noiseSource,setNoiseSource=noiseCtl.setNoiseSource,noiseResults=noiseCtl.noiseResults,setNoiseResults=noiseCtl.setNoiseResults,addSavedNoise=noiseCtl.addSavedNoise;
@@ -178,6 +180,16 @@ function useAppController(){
   var loadFiles=fileCtl.loadFiles,onDrop=fileCtl.onDrop,removeFile=fileCtl.removeFile,removeRawTrace=fileCtl.removeTrace,baseClearAllFiles=fileCtl.clearAllFiles;
   var allTr=useMemo(function(){return rawTr.concat(derivedTraces);},[rawTr,derivedTraces]);
   var traceOptions=useMemo(function(){return allTr.filter(function(tr){return tr&&getTraceData(tr).length;});},[allTr]);
+  useEffect(function(){
+    setTouchstoneStateByFileId(function(prev){
+      var next={};
+      (files||[]).forEach(function(file){
+        if(!file||!(file.format==="touchstone"||file.touchstoneNetwork))return;
+        next[file.id]=cloneTouchstoneSelectionState((prev&&prev[file.id])||file.touchstoneUiState||buildTouchstoneSelectionsFromTraces(file)||makeDefaultTouchstoneState(file));
+      });
+      return next;
+    });
+  },[files]);
   var paneCtl=usePaneLayout(allTr);
   var paneMode=paneCtl.paneMode,setPaneMode=paneCtl.setPaneMode,panes=paneCtl.panes,activePaneId=paneCtl.activePaneId,setActivePaneId=paneCtl.setActivePaneId,tracePaneMap=paneCtl.tracePaneMap,setTracePaneMap=paneCtl.setTracePaneMap,paneActiveTraceMap=paneCtl.paneActiveTraceMap,setPaneActiveTraceMap=paneCtl.setPaneActiveTraceMap,assignTraceToPane=paneCtl.assignTraceToPane,clearPane=paneCtl.clearPane,getPaneTracesForId=paneCtl.getPaneTraces,getPaneActiveTraceName=paneCtl.getPaneActiveTraceName,setPaneActiveTrace=paneCtl.setPaneActiveTrace;
   var xCtl=useXControls(activePaneId,panes),zoomAll=xCtl.zoomAll,setZoomAll=xCtl.setZoomAll,setZoomAllRaw=xCtl.setZoomAllRaw,zoom=xCtl.zoom,setZoom=xCtl.setZoom,sharedZoom=xCtl.sharedZoom,setSharedZoom=xCtl.setSharedZoom,paneXZooms=xCtl.paneXZooms,setPaneXZooms=xCtl.setPaneXZooms,getPaneZoom=xCtl.getPaneZoom,clearAllXZooms=xCtl.clearAllXZooms;
@@ -259,6 +271,78 @@ function useAppController(){
   function getTraceMeta(name){
     var f=getTraceFile(name);
     return f?f.meta:{};
+  }
+  function getFileById(fileId){
+    return (files||[]).find(function(file){return file&&file.id===fileId;})||null;
+  }
+  function cloneTouchstoneStateForFile(fileId){
+    return cloneTouchstoneSelectionState((touchstoneStateByFileId&&touchstoneStateByFileId[fileId])||{});
+  }
+  function updateTouchstoneFileSelections(fileId,nextState,opts){
+    opts=opts||{};
+    var nextSelectedTraceName=opts.nextSelectedTraceName;
+    var nextDtTraceName=opts.nextDtTraceName;
+    setFiles(function(prev){
+      var selectedName=nextSelectedTraceName;
+      var dtName=nextDtTraceName;
+      var nextFiles=(prev||[]).map(function(file){
+        if(!file||file.id!==fileId)return file;
+        var updated=reconcileTouchstoneFileSelections(file,nextState);
+        var visibleNames={};
+        (updated.traces||[]).forEach(function(trace){ if(trace&&trace.name)visibleNames[trace.name]=true; });
+        setVis(function(current){
+          var nextVis=Object.assign({},current||{});
+          Object.keys(nextVis).forEach(function(traceName){
+            var trace=(file.traces||[]).find(function(item){return item&&item.name===traceName;})||null;
+            if(trace&&trace.networkSource&&trace.networkSource.parentFileId===fileId&&!visibleNames[traceName])delete nextVis[traceName];
+          });
+          Object.keys(visibleNames).forEach(function(name){nextVis[name]=true;});
+          return nextVis;
+        });
+        if(!selectedName||!visibleNames[selectedName])selectedName=(updated.traces&&updated.traces[0]&&updated.traces[0].name)||selectedName||null;
+        if(!dtName||!visibleNames[dtName])dtName=(updated.traces&&updated.traces[0]&&updated.traces[0].name)||dtName||null;
+        return updated;
+      });
+      if(selectedName!==undefined&&selectedName!==selectedTraceName)setSelectedTraceName(selectedName||null);
+      if(dtName!==undefined&&dtName!==dtTrace)setDtTrace(dtName||null);
+      return nextFiles;
+    });
+  }
+  function upsertTouchstoneMetricTrace(fileId, metric, payload){
+    if(!payload)return;
+    var nextTraceName=null;
+    setFiles(function(prev){
+      return (prev||[]).map(function(item){
+        if(!item||item.id!==fileId)return item;
+        var existing=(item.traces||[]).find(function(trace){
+          return trace&&trace.networkSource&&trace.networkSource.parentFileId===fileId&&trace.networkSource.metric===metric;
+        })||null;
+        var built=buildTouchstoneStabilityTrace(item,metric,existing);
+        if(!built)return item;
+        var mergedTrace=Object.assign({},built,{
+          dn:payload.traceLabel||built.dn,
+          networkSource:Object.assign({},built.networkSource||{},payload.networkSource||{}),
+          units:payload.units&&typeof payload.units==="object"?Object.assign({},payload.units):built.units,
+          data:Array.isArray(payload.data)&&payload.data.length?payload.data:built.data
+        });
+        nextTraceName=mergedTrace.name;
+        var keep=(item.traces||[]).filter(function(trace){
+          if(!trace)return false;
+          if(trace.name===mergedTrace.name)return false;
+          return !(trace.networkSource&&trace.networkSource.parentFileId===fileId&&trace.networkSource.metric===metric);
+        });
+        keep.push(mergedTrace);
+        return Object.assign({},item,{traces:keep});
+      });
+    });
+    if(!nextTraceName)return;
+    setVis(function(prev){
+      var next=Object.assign({},prev||{});
+      next[nextTraceName]=true;
+      return next;
+    });
+    setSelectedTraceName(nextTraceName);
+    setDtTrace(nextTraceName);
   }
   function buildDemoNoiseResult(trace,fileMeta,filter){
     if(!trace||!trace.data||!trace.data.length)return null;
@@ -352,6 +436,86 @@ function useAppController(){
     setPaneActiveTrace(paneId,traceName);
     setActivePaneId(paneId);
     setSelectedTraceName(traceName);
+  }
+  function onTouchstoneSetActiveFamily(fileId,family){
+    if(fileId==null)return;
+    setTouchstoneStateByFileId(function(prev){
+      var next=Object.assign({},prev||{});
+      next[fileId]=cloneTouchstoneSelectionState(next[fileId]||{});
+      next[fileId].activeFamily=family||"S";
+      return next;
+    });
+  }
+  function onTouchstoneSetFamilyView(fileId,family,view){
+    if(fileId==null||!family)return;
+    setTouchstoneStateByFileId(function(prev){
+      var next=Object.assign({},prev||{});
+      next[fileId]=cloneTouchstoneSelectionState(next[fileId]||{});
+      next[fileId].activeViewByFamily[family]=view;
+      return next;
+    });
+  }
+  function onTouchstoneSetExpanded(fileId,isExpanded){
+    if(fileId==null)return;
+    setTouchstoneStateByFileId(function(prev){
+      var next=Object.assign({},prev||{});
+      next[fileId]=cloneTouchstoneSelectionState(next[fileId]||{});
+      next[fileId].isExpanded=isExpanded!==false;
+      return next;
+    });
+  }
+  function onTouchstoneToggleCell(fileId,family,row,col,view){
+    if(fileId==null||!family||!isFinite(row)||!isFinite(col)||!view)return;
+    var nextState=cloneTouchstoneStateForFile(fileId);
+    var key=row+":"+col;
+    var familySelections=Object.assign({},nextState.selectedCellsByFamily[family]||{});
+    var views=Array.isArray(familySelections[key])?familySelections[key].slice():(familySelections[key]?[String(familySelections[key])]:[]);
+    var existingIndex=views.indexOf(view);
+    if(existingIndex!==-1)views.splice(existingIndex,1);
+    else views.push(view);
+    if(views.length)familySelections[key]=views;
+    else delete familySelections[key];
+    nextState.selectedCellsByFamily[family]=familySelections;
+    nextState.activeFamily=family;
+    nextState.activeViewByFamily[family]=view;
+    setTouchstoneStateByFileId(function(prev){
+      var next=Object.assign({},prev||{});
+      next[fileId]=cloneTouchstoneSelectionState(nextState);
+      return next;
+    });
+    updateTouchstoneFileSelections(fileId,nextState);
+  }
+  function onTouchstoneApplyPreset(fileId,preset,payload){
+    if(fileId==null)return;
+    var nextState=cloneTouchstoneSelectionState((payload&&payload.selections)?{
+      activeFamily:payload.activeFamily||"S",
+      activeViewByFamily:Object.assign({S:"dB",Y:"Mag",Z:"Mag"},(touchstoneStateByFileId&&touchstoneStateByFileId[fileId]&&touchstoneStateByFileId[fileId].activeViewByFamily)||{}),
+      selectedCellsByFamily:payload.selections
+    }:cloneTouchstoneStateForFile(fileId));
+    if(payload&&payload.activeFamily)nextState.activeFamily=payload.activeFamily;
+    setTouchstoneStateByFileId(function(prev){
+      var next=Object.assign({},prev||{});
+      next[fileId]=cloneTouchstoneSelectionState(nextState);
+      return next;
+    });
+    updateTouchstoneFileSelections(fileId,nextState);
+  }
+  function onTouchstoneClearFileViews(fileId){
+    if(fileId==null)return;
+    var nextState=cloneTouchstoneStateForFile(fileId);
+    nextState.selectedCellsByFamily={S:{},Y:{},Z:{}};
+    setTouchstoneStateByFileId(function(prev){
+      var next=Object.assign({},prev||{});
+      next[fileId]=cloneTouchstoneSelectionState(nextState);
+      return next;
+    });
+    updateTouchstoneFileSelections(fileId,nextState,{nextSelectedTraceName:null,nextDtTraceName:null});
+  }
+  function onGenerateTouchstoneTrace(metric,payload){
+    var source=payload&&payload.networkSource||{};
+    var fileId=source.parentFileId;
+    if(fileId==null)return;
+    upsertTouchstoneMetricTrace(fileId,metric||source.metric||payload.metric,payload);
   }
   function onTraceDragStart(traceName,ev){
     setDragTraceName(traceName);
@@ -501,6 +665,7 @@ function useAppController(){
     setAnalysisOpenStateRaw(function(prev){return clearAllAnalysisOpenState(prev);});
     setShowSidebar(true);
     setShowMeta(false);
+    setShowTouchstoneControls(true);
     setShowMarkers(true);
     setShowImportExportPanel(false);
     setRightPanelOrder(["analysis","data"]);
@@ -525,9 +690,10 @@ function useAppController(){
     setNoiseFilter("gaussian");
     setNoiseSource(null);
     setIP3Gain("");
+    setTouchstoneStateByFileId({});
     clearAllXZooms();
     clearAllPaneYZooms();
-  },[baseClearAllFiles,setPaneMode,setActivePaneId,setTracePaneMap,setPaneActiveTraceMap,setSelectedTraceName,setDragTraceName,setPaneActiveTrace,setOffsetSource,setOffsetValue,setScaleSource,setScaleValue,setSmoothSource,setSmoothMethod,setSmoothWindow,setSmoothPolyOrder,setSubtractA,setSubtractB,setTraceMathOperation,setSubtractInterpolation,setTraceOpsError,setPeakTableLimit,setPeakTableMinSpacing,setPeakTableMinAmp,setBandwidthDrop,setThresholdManual,setObwPercent,setAnalysisOpenStateRaw,setShowSidebar,setShowMeta,setShowMarkers,setShowImportExportPanel,setRightPanelOrder,setShowMarkerTools,setShowPaneTools,setShowSearchTools,setShowLineTools,setShowViewTools,setShowDots,setShowDT,setLockLinesAcrossPanes,setSearchDirection,setNewMarkerArmed,setMkrMode,setMarkerTrace,setSelectedMkrIdx,setSelectedRefLineId,setShowTraceOps,setTraceOpsOpenSections,setShowAnalysisPanel,setNoiseFilter,setNoiseSource,setIP3Gain,clearAllXZooms,clearAllPaneYZooms]);
+  },[baseClearAllFiles,setPaneMode,setActivePaneId,setTracePaneMap,setPaneActiveTraceMap,setSelectedTraceName,setDragTraceName,setPaneActiveTrace,setOffsetSource,setOffsetValue,setScaleSource,setScaleValue,setSmoothSource,setSmoothMethod,setSmoothWindow,setSmoothPolyOrder,setSubtractA,setSubtractB,setTraceMathOperation,setSubtractInterpolation,setTraceOpsError,setPeakTableLimit,setPeakTableMinSpacing,setPeakTableMinAmp,setBandwidthDrop,setThresholdManual,setObwPercent,setAnalysisOpenStateRaw,setShowSidebar,setShowMeta,setShowTouchstoneControls,setShowMarkers,setShowImportExportPanel,setRightPanelOrder,setShowMarkerTools,setShowPaneTools,setShowSearchTools,setShowLineTools,setShowViewTools,setShowDots,setShowDT,setLockLinesAcrossPanes,setSearchDirection,setNewMarkerArmed,setMkrMode,setMarkerTrace,setSelectedMkrIdx,setSelectedRefLineId,setShowTraceOps,setTraceOpsOpenSections,setShowAnalysisPanel,setNoiseFilter,setNoiseSource,setIP3Gain,setTouchstoneStateByFileId,clearAllXZooms,clearAllPaneYZooms]);
   function clearAllFiles(){
     clearWorkspaceToBaseline();
   }
@@ -1127,14 +1293,10 @@ function useAppController(){
   },[selectedRefLineId,refLines,activePaneId,setSelectedRefLineId]);
 
   var normalizedAnalysisOpenState=useMemo(function(){return normalizeAnalysisOpenState(analysisOpenState);},[analysisOpenState]);
-  var analysisRegistry=useAnalysisRegistry({analysisOpenState:normalizedAnalysisOpenState,noiseResults:noiseResults,ip3Results:ip3Results});
   var traceMathUnitWarning=useMemo(function(){
     return getTraceMathUnitWarning(subtractA,subtractB,traceMathOperation);
   },[subtractA,subtractB,traceMathOperation]);
-  var anyOpenAnalysis=useMemo(function(){
-    return Object.keys(normalizedAnalysisOpenState).some(function(key){return !!normalizedAnalysisOpenState[key];});
-  },[normalizedAnalysisOpenState]);
-  var analysisPanelVisible=showTraceOps||showAnalysisPanel||anyOpenAnalysis;
+  var analysisPanelVisible=showTraceOps||showAnalysisPanel;
   useEffect(function(){
     var prev=prevRightPanelVisibilityRef.current||{importExport:false,analysis:false,data:false};
     if(analysisPanelVisible&&!prev.analysis)promoteRightPanelSection("analysis");
@@ -1216,8 +1378,30 @@ function useAppController(){
   }
 
   var traceColorMap=useMemo(function(){
-    var map={};
-    allTr.forEach(function(tr,i){ map[tr.name]=C.tr[i%C.tr.length]; });
+    var map={},rawIdx=0,derivedIdx=0;
+    var rawPalette=C.tr&&C.tr.length?C.tr:[C.accent];
+    var derivedPalette=C.dr&&C.dr.length?C.dr:rawPalette;
+    allTr.forEach(function(tr){
+      var palette,isDerivedVisual,touchstoneFamily;
+      if(!tr||!tr.name)return;
+      touchstoneFamily=(getTouchstoneTraceFamily&&isTouchstoneTrace&&isTouchstoneTrace(tr))?String(getTouchstoneTraceFamily(tr)||"").toUpperCase():"";
+      isDerivedVisual=!!(isDerivedTrace(tr)||tr.operationType==="touchstone-stability"||touchstoneFamily==="Y"||touchstoneFamily==="Z");
+      palette=isDerivedVisual?derivedPalette:rawPalette;
+      if(tr.operationType==="touchstone-stability"&&tr.networkSource&&tr.networkSource.metric){
+        var metricOrder={k:0,mu1:1,mu2:2,deltaMag:3};
+        var metricKey=String(tr.networkSource.metric||"");
+        map[tr.name]=palette[metricOrder.hasOwnProperty(metricKey)?metricOrder[metricKey]%palette.length:derivedIdx%palette.length];
+        derivedIdx++;
+        return;
+      }
+      if(isDerivedVisual){
+        map[tr.name]=palette[derivedIdx%palette.length];
+        derivedIdx++;
+        return;
+      }
+      map[tr.name]=palette[rawIdx%palette.length];
+      rawIdx++;
+    });
     return map;
   },[allTr,C]);
 
@@ -1279,9 +1463,18 @@ function useAppController(){
       activePaneModel:activePaneModel,
       selectedTraceName:selectedTraceName,
       zoom:zoom,
-      vis:vis
+      vis:vis,
+      getTraceFile:function(traceName){return getTraceFile(traceName);}
     });
-  },[activePaneId,activePaneModel,selectedTraceName,zoom,vis]);
+  },[activePaneId,activePaneModel,selectedTraceName,zoom,vis,files]);
+  var analysisRegistry=useAnalysisRegistry({analysisOpenState:normalizedAnalysisOpenState,noiseResults:noiseResults,ip3Results:ip3Results,target:analysisTarget});
+  var visibleAnalysisIds=useMemo(function(){
+    return (analysisRegistry||[]).map(function(item){return item.id;});
+  },[analysisRegistry]);
+  var anyOpenAnalysis=useMemo(function(){
+    return (analysisRegistry||[]).some(function(item){return !!item.isOpen;});
+  },[analysisRegistry]);
+  analysisPanelVisible=showTraceOps||showAnalysisPanel||anyOpenAnalysis;
   var addPeakTableMarker=useCallback(function(target,row,selectNew){
     if(!target||!target.trace||!row)return;
     setSelectedRefLineId(null);
@@ -1582,10 +1775,10 @@ function useAppController(){
   }
 
   var topBarProps={files:files,removeFile:removeFile,hasData:hasData,C:C,showSidebar:showSidebar,setShowSidebar:setShowSidebar,showMarkerTools:showMarkerTools,setShowMarkerTools:setShowMarkerTools,showPaneTools:showPaneTools,setShowPaneTools:setShowPaneTools,showSearchTools:showSearchTools,setShowSearchTools:setShowSearchTools,showLineTools:showLineTools,setShowLineTools:setShowLineTools,showViewTools:showViewTools,setShowViewTools:setShowViewTools,showDots:showDots,setShowDots:setShowDots,showDT:showDT,setShowDT:setShowDTFromTopBar,analysisButtons:analysisButtons,clearAllFiles:clearAllFiles,showImportExportPanel:showImportExportPanel,toggleImportExportPanel:toggleImportExportPanel};
-  var sidebarProps={C:C,files:files,mKeys:mKeys,stats:stats,allTr:allTr,panes:panes,markers:markers,refLines:refLines,activePaneId:activePaneId,selectedTraceName:selectedTraceName,dragTraceName:dragTraceName,tracePaneMap:tracePaneMap,vis:vis,setVis:setVis,paneMode:paneMode,getTracePaneId:function(traceName){return getTracePaneId(tracePaneMap,traceName);},getTraceByName:getTraceByName,selectTrace:selectTrace,onTraceDragStart:onTraceDragStart,onTraceDragEnd:onTraceDragEnd,removeDerivedTrace:removeDerivedTrace,showMarkers:showMarkers,setShowMarkers:setShowMarkers,showMeta:showMeta,setShowMeta:setShowMeta,fitPane:fitPane,fitAllPanes:fitAllPanes,resetYZ:resetYZ,clearPane:clearPane,yU:yU,mcMap:mcMap,traceColorMap:traceColorMap,setMarkers:setMarkers,zoom:zoom,selectedMkrIdx:selectedMkrIdx,setSelectedMkrIdx:setSelectedMkrIdx,selectedRefLineId:selectedRefLineId,setSelectedRefLineId:setSelectedRefLineId,setRefLines:setRefLines,setActivePaneId:setActivePaneId,clearMarkers:clearMarkers,rmMkr:rmMkr,removeFile:removeFile};
+  var sidebarProps={C:C,files:files,mKeys:mKeys,stats:stats,allTr:allTr,panes:panes,markers:markers,refLines:refLines,activePaneId:activePaneId,selectedTraceName:selectedTraceName,dragTraceName:dragTraceName,tracePaneMap:tracePaneMap,vis:vis,setVis:setVis,paneMode:paneMode,getTracePaneId:function(traceName){return getTracePaneId(tracePaneMap,traceName);},getTraceByName:getTraceByName,selectTrace:selectTrace,onTraceDragStart:onTraceDragStart,onTraceDragEnd:onTraceDragEnd,removeTrace:removeTrace,showMarkers:showMarkers,setShowMarkers:setShowMarkers,showMeta:showMeta,setShowMeta:setShowMeta,showTouchstoneControls:showTouchstoneControls,setShowTouchstoneControls:setShowTouchstoneControls,fitPane:fitPane,fitAllPanes:fitAllPanes,resetYZ:resetYZ,clearPane:clearPane,yU:yU,mcMap:mcMap,traceColorMap:traceColorMap,setMarkers:setMarkers,zoom:zoom,selectedMkrIdx:selectedMkrIdx,setSelectedMkrIdx:setSelectedMkrIdx,selectedRefLineId:selectedRefLineId,setSelectedRefLineId:setSelectedRefLineId,setRefLines:setRefLines,setActivePaneId:setActivePaneId,clearMarkers:clearMarkers,rmMkr:rmMkr,removeFile:removeFile,touchstoneStateByFileId:touchstoneStateByFileId,onTouchstoneSetActiveFamily:onTouchstoneSetActiveFamily,onTouchstoneSetFamilyView:onTouchstoneSetFamilyView,onTouchstoneSetExpanded:onTouchstoneSetExpanded,onTouchstoneToggleCell:onTouchstoneToggleCell,onTouchstoneApplyPreset:onTouchstoneApplyPreset,onTouchstoneClearFileViews:onTouchstoneClearFileViews};
   var toolbarProps={C:C,allTr:allTr,vis:vis,zoom:zoom,yZoom:yZoom,cData:cData,fUnit:fUnit,yU:yU,showMarkerTools:showMarkerTools,showPaneTools:showPaneTools,showSearchTools:showSearchTools,showLineTools:showLineTools,showViewTools:showViewTools,mkrMode:mkrMode,refMode:refMode,setNewMarkerArmed:setNewMarkerArmed,newMarkerArmed:newMarkerArmed,setMkrMode:setMkrMode,setRefMode:setRefMode,markers:markers,dRef:dRef,setDRef:setDRef,selectedMkrIdx:selectedMkrIdx,setSelectedMkrIdx:setSelectedMkrIdx,selectedRefLineId:selectedRefLineId,setSelectedRefLineId:setSelectedRefLineId,panes:panes,activePaneId:activePaneId,setActivePaneId:setActivePaneId,setPaneMode:setPaneMode,fitAllPanes:fitAllPanes,hasData:hasData,peakSrch:peakSrch,nxtPeak:nxtPeak,minSrch:minSrch,nxtMin:nxtMin,searchDirection:searchDirection,setSearchDirection:setSearchDirection,lockLinesAcrossPanes:lockLinesAcrossPanes,setLockLinesAcrossPanes:setLockLinesAcrossPanes,zoomAll:zoomAll,setZoomAll:setZoomAll,resetYZ:resetYZ,setZoom:setZoom,interactionCtl:interactionCtl,selectedMarker:selectedMarker,refLines:refLines};
   var chartWorkspaceProps={allTr:allTr,paneModels:paneModels,panes:panes,activePaneId:activePaneId,setActivePaneId:setActivePaneId,vis:vis,traceColorMap:traceColorMap,showDots:showDots,markers:markers,selectedMkrIdx:selectedMkrIdx,setSelectedMkrIdx:setSelectedMkrIdx,refLines:refLines,selectedRefLineId:selectedRefLineId,setSelectedRefLineId:setSelectedRefLineId,dragRefLineRef:dragRefLineRef,dragTraceName:dragTraceName,chartDomainRef:chartDomainRef,chartRef:chartRef,chartExportRef:chartExportRef,chartClick:chartClick,chartMMWithDrag:chartMMWithDrag,chartML:chartML,mDown:mDown,mUp:mUp,handleChartMouseDownCapture:handleChartMouseDownCapture,handleChartMouseUpCapture:handleChartMouseUpCapture,hoverData:hoverData,hoverX:hoverX,selA:selA,selB:selB,getXDomainHz:getXDomainHz,mcMap:mcMap,C:C,selectedTraceName:selectedTraceName,moveSelectedTraceToPane:moveSelectedTraceToPane,fitPane:fitPane,clearPane:clearPane,resetYZ:resetYZ,getTraceByName:getTraceByName,getTracePaneId:function(traceName){return getTracePaneId(tracePaneMap,traceName);},tracePaneMap:tracePaneMap,onPaneDrop:onPaneDrop,isDrag:isDrag,setIsDrag:setIsDrag,loadFiles:loadFiles,fileInputRef:fRef};
-  var analysisStackProps={visible:analysisPanelVisible,showTraceOps:showTraceOps,showAnalysisPanel:showAnalysisPanel,showNoise:showNoise,showIP3:showIP3,normalizedAnalysisOpenState:normalizedAnalysisOpenState,traceOpsProps:{C:C,openOps:traceOpsOpenSections,setOpenOps:setTraceOpsOpenSections,traceOptions:traceOptions,offsetSource:offsetSource,setOffsetSource:setOffsetSource,offsetValue:offsetValue,setOffsetValue:setOffsetValue,createOffsetDerivedTrace:createOffsetDerivedTrace,scaleSource:scaleSource,setScaleSource:setScaleSource,scaleValue:scaleValue,setScaleValue:setScaleValue,createScaledDerivedTrace:createScaledDerivedTrace,smoothSource:smoothSource,setSmoothSource:setSmoothSource,smoothMethod:smoothMethod,setSmoothMethod:setSmoothMethod,smoothWindow:smoothWindow,setSmoothWindow:setSmoothWindow,smoothPolyOrder:smoothPolyOrder,setSmoothPolyOrder:setSmoothPolyOrder,createSmoothedDerivedTrace:createSmoothedDerivedTrace,subtractA:subtractA,setSubtractA:setSubtractA,subtractB:subtractB,setSubtractB:setSubtractB,traceMathOperation:traceMathOperation,setTraceMathOperation:setTraceMathOperation,subtractInterpolation:subtractInterpolation,setSubtractInterpolation:setSubtractInterpolation,createTraceMathDerivedTrace:createTraceMathDerivedTrace,traceMathUnitWarning:traceMathUnitWarning,traceOpsError:traceOpsError},analysisMenuProps:{C:C,hasTraceOps:showTraceOps,registry:analysisRegistry,toggleAnalysisOpen:toggleAnalysisOpen},noiseCardProps:{C:C,allTr:allTr,noiseSource:noiseSource,setNoiseSource:setNoiseSource,noiseFilter:noiseFilter,setNoiseFilter:setNoiseFilter,npsdStats:npsdStats,addSavedNoise:addSavedNoise,noiseResults:noiseResults,removeNoise:removeNoiseResult},ip3CardProps:{C:C,ip3Ctl:ip3Ctl,ip3Pts:ip3Pts,ip3Res:ip3Res,yU:yU,ip3Gain:ip3Gain,setIP3Gain:setIP3Gain,saveIP3:saveCurrentIP3,ip3Results:ip3Results,removeIP3:removeIP3Result,setMarkers:setMarkers,selectedMarker:selectedMarker,selectedIndex:selectedMkrIdx,assignSelectedRole:assignSelectedRole,clearSelectedRole:clearSelectedRole,autoPickIP3:autoPickIP3},peakSpurProps:{C:C,target:analysisTarget,peakTableLimit:peakTableLimit,setPeakTableLimit:setPeakTableLimit,peakTableMinSpacing:peakTableMinSpacing,setPeakTableMinSpacing:setPeakTableMinSpacing,peakTableMinAmp:peakTableMinAmp,setPeakTableMinAmp:setPeakTableMinAmp,addPeakMarker:addPeakTableMarker,addAllPeakMarkers:addAllPeakTableMarkers},markerDeltaProps:{C:C,target:analysisTarget,markers:markers},rangeStatsProps:{C:C,target:analysisTarget},bandwidthProps:{C:C,target:analysisTarget,selectedMarker:selectedMarker,bandwidthDrop:bandwidthDrop,setBandwidthDrop:setBandwidthDrop},thresholdProps:{C:C,target:analysisTarget,selectedHLine:selectedHLine,thresholdManual:thresholdManual,setThresholdManual:setThresholdManual},rippleProps:{C:C,target:analysisTarget},obwProps:{C:C,target:analysisTarget,obwPercent:obwPercent,setObwPercent:setObwPercent},channelPowerProps:{C:C,target:analysisTarget}};
+  var analysisStackProps={visible:analysisPanelVisible,showTraceOps:showTraceOps,showAnalysisPanel:showAnalysisPanel,showNoise:showNoise,showIP3:showIP3,visibleAnalysisIds:visibleAnalysisIds,normalizedAnalysisOpenState:normalizedAnalysisOpenState,traceOpsProps:{C:C,openOps:traceOpsOpenSections,setOpenOps:setTraceOpsOpenSections,traceOptions:traceOptions,offsetSource:offsetSource,setOffsetSource:setOffsetSource,offsetValue:offsetValue,setOffsetValue:setOffsetValue,createOffsetDerivedTrace:createOffsetDerivedTrace,scaleSource:scaleSource,setScaleSource:setScaleSource,scaleValue:scaleValue,setScaleValue:setScaleValue,createScaledDerivedTrace:createScaledDerivedTrace,smoothSource:smoothSource,setSmoothSource:setSmoothSource,smoothMethod:smoothMethod,setSmoothMethod:setSmoothMethod,smoothWindow:smoothWindow,setSmoothWindow:setSmoothWindow,smoothPolyOrder:smoothPolyOrder,setSmoothPolyOrder:setSmoothPolyOrder,createSmoothedDerivedTrace:createSmoothedDerivedTrace,subtractA:subtractA,setSubtractA:setSubtractA,subtractB:subtractB,setSubtractB:setSubtractB,traceMathOperation:traceMathOperation,setTraceMathOperation:setTraceMathOperation,subtractInterpolation:subtractInterpolation,setSubtractInterpolation:setSubtractInterpolation,createTraceMathDerivedTrace:createTraceMathDerivedTrace,traceMathUnitWarning:traceMathUnitWarning,traceOpsError:traceOpsError},analysisMenuProps:{C:C,hasTraceOps:showTraceOps,registry:analysisRegistry,toggleAnalysisOpen:toggleAnalysisOpen},noiseCardProps:{C:C,allTr:allTr,noiseSource:noiseSource,setNoiseSource:setNoiseSource,noiseFilter:noiseFilter,setNoiseFilter:setNoiseFilter,npsdStats:npsdStats,addSavedNoise:addSavedNoise,noiseResults:noiseResults,removeNoise:removeNoiseResult},ip3CardProps:{C:C,ip3Ctl:ip3Ctl,ip3Pts:ip3Pts,ip3Res:ip3Res,yU:yU,ip3Gain:ip3Gain,setIP3Gain:setIP3Gain,saveIP3:saveCurrentIP3,ip3Results:ip3Results,removeIP3:removeIP3Result,setMarkers:setMarkers,selectedMarker:selectedMarker,selectedIndex:selectedMkrIdx,assignSelectedRole:assignSelectedRole,clearSelectedRole:clearSelectedRole,autoPickIP3:autoPickIP3},peakSpurProps:{C:C,target:analysisTarget,peakTableLimit:peakTableLimit,setPeakTableLimit:setPeakTableLimit,peakTableMinSpacing:peakTableMinSpacing,setPeakTableMinSpacing:setPeakTableMinSpacing,peakTableMinAmp:peakTableMinAmp,setPeakTableMinAmp:setPeakTableMinAmp,addPeakMarker:addPeakTableMarker,addAllPeakMarkers:addAllPeakTableMarkers},markerDeltaProps:{C:C,target:analysisTarget,markers:markers},rangeStatsProps:{C:C,target:analysisTarget},bandwidthProps:{C:C,target:analysisTarget,selectedMarker:selectedMarker,bandwidthDrop:bandwidthDrop,setBandwidthDrop:setBandwidthDrop},thresholdProps:{C:C,target:analysisTarget,selectedHLine:selectedHLine,thresholdManual:thresholdManual,setThresholdManual:setThresholdManual},rippleProps:{C:C,target:analysisTarget},obwProps:{C:C,target:analysisTarget,obwPercent:obwPercent,setObwPercent:setObwPercent},channelPowerProps:{C:C,target:analysisTarget},touchstoneStabilityProps:{C:C,target:analysisTarget,onGenerateTrace:onGenerateTouchstoneTrace}};
   var importExportPanelProps={visible:showImportExportPanel,C:C,hasData:hasData,files:files,allTr:allTr,panes:panes,activePaneId:activePaneId,fRef:fRef,iRef:iRef,openWorkspace:openWorkspace,exportWorkspace:exportWorkspace,exportTraceData:exportTraceData,exportChartPng:exportChartPng,exportChartSvg:exportChartSvg,clearAllFiles:clearAllFiles};
   var dataTableProps={visible:showDT,hasData:hasData,C:C,allTr:allTr,dtTrace:dtTrace,setDtTrace:setDtTrace,zoom:zoom,yU:yU};
   var footerProps={hasData:hasData};
@@ -1609,8 +1802,8 @@ function AppRoot(){
   var chartHandlers=app.chartHandlers;
   var view=app.view;
   return h("div",{style:{background:"var(--bg)",color:"var(--text)",height:"100vh",display:"flex",flexDirection:"column"},onDragOver:function(ev){ev.preventDefault();if(isFileDragEvent(ev))state.setIsDrag(true);},onDragLeave:function(ev){if(!ev.currentTarget.contains(ev.relatedTarget))state.setIsDrag(false);},onDrop:chartHandlers.onDrop},
-    h("input",{ref:refs.fRef,type:"file",accept:".dat,.csv,.txt",multiple:true,style:{display:"none"},onChange:function(ev){if(ev.target.files.length)chartHandlers.loadFiles(ev.target.files,false);ev.target.value="";}}),
-    h("input",{ref:refs.iRef,type:"file",accept:".dat,.csv,.txt",multiple:true,style:{display:"none"},onChange:function(ev){if(ev.target.files.length)chartHandlers.loadFiles(ev.target.files,true);ev.target.value="";}}),
+    h("input",{ref:refs.fRef,type:"file",accept:".dat,.csv,.txt,.s1p,.s2p,.s3p,.s4p,.s5p,.s6p,.s7p,.s8p,.s9p",multiple:true,style:{display:"none"},onChange:function(ev){if(ev.target.files.length)chartHandlers.loadFiles(ev.target.files,false);ev.target.value="";}}),
+    h("input",{ref:refs.iRef,type:"file",accept:".dat,.csv,.txt,.s1p,.s2p,.s3p,.s4p,.s5p,.s6p,.s7p,.s8p,.s9p",multiple:true,style:{display:"none"},onChange:function(ev){if(ev.target.files.length)chartHandlers.loadFiles(ev.target.files,true);ev.target.value="";}}),
     h("input",{ref:refs.wRef,type:"file",accept:".json,application/json",style:{display:"none"},onChange:function(ev){if(ev.target.files.length)actions.importWorkspaceFile(ev.target.files[0]);ev.target.value="";}}),
     derived.hasData&&state.isDrag?renderOverlay(chartHandlers.onDrop):null,
     h(TopBar,view.topBarProps),

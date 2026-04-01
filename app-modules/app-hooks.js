@@ -14,6 +14,7 @@
   var DW=global.DemoWorkspaces||{};
   var WH=global.WorkspaceHelpers||{};
   var EH=global.ExportHelpers||{};
+  var TSH=global.TouchstoneMathHelpers||{};
   var resetTraceIdCounter=TM.resetTraceIdCounter;
   var makeTraceId=TM.makeTraceId;
   var syncTraceIdCounter=TM.syncTraceIdCounter;
@@ -35,6 +36,8 @@
   var getEffectiveTraceYUnit=TM.getEffectiveTraceYUnit;
   var getYAxisTextForUnit=TM.getYAxisTextForUnit;
   var deriveAxisInfo=TM.deriveAxisInfo;
+  var makeTouchstoneTraceLabel=TM.makeTouchstoneTraceLabel||function(fileName,family,row,col,view){return [fileName,family,row,col,view].join(" ");};
+  var makeTouchstoneTraceName=TM.makeTouchstoneTraceName||function(fileName,family,row,col,view){return makeTouchstoneTraceLabel(fileName,family,row,col,view).replace(/\s+/g,"_");};
   var clampYValue=TH.clampYValue;
   var interpolatePointAtX=TH.interpolatePointAtX;
   var getVisibleTraceData=TH.getVisibleTraceData;
@@ -90,6 +93,7 @@
   var syncParserFileCounter=PH.syncParserFileCounter;
   var nearestPoint=PH.nearestPoint;
   var parseRSDat=PH.parseRSDat;
+  var parseMeasurementFile=PH.parseMeasurementFile||PH.parseImportedFile||PH.parseRSDat;
   var IP3_ROLE_KEYS=MH.IP3_ROLE_KEYS;
   var IP3_ROLE_LABELS=MH.IP3_ROLE_LABELS;
   var isIP3Label=MH.isIP3Label;
@@ -112,6 +116,9 @@
   var clearPaneAssignments=PAH.clearPaneAssignments;
   var getAlternatePaneId=PAH.getAlternatePaneId;
   var getPaneAutoYDomain=PAH.getPaneAutoYDomain;
+  var convertSMatrixToYMatrix=TSH.convertSMatrixToYMatrix||function(){return null;};
+  var convertSMatrixToZMatrix=TSH.convertSMatrixToZMatrix||function(){return null;};
+  var computeTwoPortStability=TSH.computeTwoPortStability||function(){return null;};
   var h=React.createElement;
   var useState=React.useState,useCallback=React.useCallback,useRef=React.useRef,
       useMemo=React.useMemo,useEffect=React.useEffect;
@@ -146,6 +153,241 @@ function clearDemoLaunchQueryParam(){
   }
 }
 
+function makeDefaultTouchstoneState(file){
+  var portCount=Number(file&&file.touchstoneNetwork&&file.touchstoneNetwork.portCount)||0;
+  var selectedCellsByFamily={S:{},Y:{},Z:{}};
+  if(portCount===1){
+    selectedCellsByFamily.S["1:1"]=["dB"];
+  } else if(portCount===2){
+    selectedCellsByFamily.S["1:1"]=["dB"];
+    selectedCellsByFamily.S["2:1"]=["dB"];
+  } else if(portCount>2){
+    for(var i=1;i<=portCount;i++)selectedCellsByFamily.S[i+":"+i]=["dB"];
+  }
+  return {
+    activeFamily:"S",
+    isExpanded:true,
+    activeViewByFamily:{S:"dB",Y:"Mag",Z:"Mag"},
+    selectedCellsByFamily:selectedCellsByFamily
+  };
+}
+
+function cloneTouchstoneSelectionState(state){
+  var next=state&&typeof state==="object"?Object.assign({},state):{};
+  function cloneFamilySelections(source){
+    var result={};
+    Object.keys(source||{}).forEach(function(key){
+      var value=source[key];
+      if(Array.isArray(value))result[key]=value.slice();
+      else if(value!=null&&value!=="")result[key]=[String(value)];
+    });
+    return result;
+  }
+  next.activeFamily=next.activeFamily||"S";
+  if(next.isExpanded==null)next.isExpanded=true;
+  next.activeViewByFamily=Object.assign({S:"dB",Y:"Mag",Z:"Mag"},state&&state.activeViewByFamily||{});
+  next.selectedCellsByFamily={
+    S:cloneFamilySelections(state&&state.selectedCellsByFamily&&state.selectedCellsByFamily.S||{}),
+    Y:cloneFamilySelections(state&&state.selectedCellsByFamily&&state.selectedCellsByFamily.Y||{}),
+    Z:cloneFamilySelections(state&&state.selectedCellsByFamily&&state.selectedCellsByFamily.Z||{})
+  };
+  return next;
+}
+
+function getTouchstoneScalarUnit(family,view){
+  var fam=String(family||"S").toUpperCase();
+  var mode=String(view||"dB");
+  if(mode==="Phase")return "deg";
+  if(fam==="S")return mode==="dB"?"dB":"";
+  if(fam==="Y")return "S";
+  if(fam==="Z")return "Ohm";
+  return "";
+}
+
+function getTouchstoneCellValue(matrix,rowIndex,colIndex){
+  if(!Array.isArray(matrix)||!Array.isArray(matrix[rowIndex]))return null;
+  var cell=matrix[rowIndex][colIndex];
+  if(!cell||typeof cell!=="object")return null;
+  return {
+    re:Number(cell.re)||0,
+    im:Number(cell.im)||0
+  };
+}
+
+function complexMagnitude(value){
+  if(!value)return NaN;
+  return Math.hypot(Number(value.re)||0,Number(value.im)||0);
+}
+
+function complexPhaseDeg(value){
+  if(!value)return NaN;
+  return Math.atan2(Number(value.im)||0,Number(value.re)||0)*180/Math.PI;
+}
+
+function scalarFromComplex(value,view){
+  if(!value)return NaN;
+  var mode=String(view||"dB");
+  if(mode==="Real")return Number(value.re)||0;
+  if(mode==="Imag")return Number(value.im)||0;
+  if(mode==="Phase")return complexPhaseDeg(value);
+  var magnitude=complexMagnitude(value);
+  if(mode==="Mag")return magnitude;
+  if(mode==="dB"){
+    if(!(magnitude>0))return -Infinity;
+    return 20*Math.log10(magnitude);
+  }
+  return magnitude;
+}
+
+function buildTouchstoneFamilyMatrix(sample,family,referenceOhms){
+  var matrix=sample&&sample.sMatrix;
+  var fam=String(family||"S").toUpperCase();
+  if(!Array.isArray(matrix))return null;
+  if(fam==="S")return matrix;
+  if(fam==="Y")return convertSMatrixToYMatrix(matrix,referenceOhms);
+  if(fam==="Z")return convertSMatrixToZMatrix(matrix,referenceOhms);
+  return null;
+}
+
+function buildTouchstoneTraceNetworkSource(file, family, row, col, view, metric){
+  var network=file&&file.touchstoneNetwork||{};
+  var source={
+    parentFileId:file&&file.id!=null?file.id:null,
+    family:String(family||"S").toUpperCase(),
+    view:String(view||"dB"),
+    row:Number(row),
+    col:Number(col)
+  };
+  if(metric)source.metric=String(metric);
+  if(file&&file.fileName)source.fileName=file.fileName;
+  if(network&&network.portCount!=null)source.portCount=network.portCount;
+  if(network&&network.parameterType!=null)source.parameterType=network.parameterType;
+  if(network&&network.referenceOhms!=null)source.referenceOhms=Array.isArray(network.referenceOhms)?network.referenceOhms.slice():network.referenceOhms;
+  if(network&&network.freqUnit!=null)source.freqUnit=network.freqUnit;
+  if(network&&network.dataFormat!=null)source.dataFormat=network.dataFormat;
+  return source;
+}
+
+function materializeTouchstoneTrace(file, family, row, col, view, existingTrace){
+  if(!file||!file.touchstoneNetwork||!Array.isArray(file.touchstoneNetwork.samples))return null;
+  var rowIndex=Math.max(0,Number(row)-1);
+  var colIndex=Math.max(0,Number(col)-1);
+  var fam=String(family||"S").toUpperCase();
+  var mode=String(view||"dB");
+  var data=file.touchstoneNetwork.samples.map(function(sample){
+    var matrix=buildTouchstoneFamilyMatrix(sample,fam,file.touchstoneNetwork.referenceOhms);
+    var value=getTouchstoneCellValue(matrix,rowIndex,colIndex);
+    return {freq:Number(sample.freq),amp:scalarFromComplex(value,mode)};
+  }).filter(function(point){
+    return isFinite(point.freq)&&isFinite(point.amp);
+  });
+  if(!data.length)return null;
+  var next=existingTrace?Object.assign({},existingTrace):{
+    id:makeTraceId(),
+    kind:"raw",
+    sourceTraceIds:[],
+    operationType:null,
+    parameters:null,
+    paneId:null,
+    mode:"",
+    detector:"",
+    file:file.fileName,
+    fileName:file.fileName,
+    fileId:file.id
+  };
+  next.units={x:file.touchstoneNetwork.freqUnit||"Hz",y:getTouchstoneScalarUnit(fam,mode)};
+  next.name=makeTouchstoneTraceName(file.fileName,fam,row,col,mode);
+  next.dn=makeTouchstoneTraceLabel(file.fileName,fam,row,col,mode);
+  next.data=normalizeTraceData(data);
+  next.networkSource=buildTouchstoneTraceNetworkSource(file,fam,row,col,mode,null);
+  next.touchstoneFamily=fam;
+  next.touchstoneView=mode;
+  next.touchstoneRow=Number(row);
+  next.touchstoneCol=Number(col);
+  return next.data.length?next:null;
+}
+
+function buildTouchstoneSelectionsFromTraces(file){
+  var state=makeDefaultTouchstoneState(file);
+  state.selectedCellsByFamily={S:{},Y:{},Z:{}};
+  (file&&file.traces||[]).forEach(function(trace){
+    var source=trace&&trace.networkSource;
+    if(!source||source.parentFileId!==file.id||source.metric)return;
+    var family=String(source.family||"S").toUpperCase();
+    if(!state.selectedCellsByFamily[family])state.selectedCellsByFamily[family]={};
+    if(source.row!=null&&source.col!=null){
+      var key=source.row+":"+source.col;
+      var views=state.selectedCellsByFamily[family][key];
+      if(!Array.isArray(views))views=[];
+      var viewName=String(source.view||"dB");
+      if(views.indexOf(viewName)===-1)views.push(viewName);
+      state.selectedCellsByFamily[family][key]=views;
+    }
+    if(source.view)state.activeViewByFamily[family]=String(source.view);
+  });
+  return state;
+}
+
+function reconcileTouchstoneFileSelections(file, selectionState){
+  if(!file||!file.touchstoneNetwork)return file;
+  var nextState=cloneTouchstoneSelectionState(selectionState||makeDefaultTouchstoneState(file));
+  var existingByKey={};
+  var traces=(file.traces||[]).filter(function(trace){
+    var source=trace&&trace.networkSource;
+    if(!source||source.parentFileId!==file.id||source.metric)return true;
+    existingByKey[(source.family||"S")+"|"+source.row+"|"+source.col+"|"+(source.view||"dB")]=trace;
+    return false;
+  });
+  ["S","Y","Z"].forEach(function(family){
+    var cells=nextState.selectedCellsByFamily[family]||{};
+    Object.keys(cells).forEach(function(key){
+      var parts=key.split(":");
+      var row=Number(parts[0]),col=Number(parts[1]);
+      var views=Array.isArray(cells[key])?cells[key]:[cells[key]];
+      if(!isFinite(row)||!isFinite(col))return;
+      views.forEach(function(view){
+        view=String(view||"");
+        if(!view)return;
+        var trace=materializeTouchstoneTrace(file,family,row,col,view,existingByKey[family+"|"+row+"|"+col+"|"+view]||null);
+        if(trace)traces.push(trace);
+      });
+    });
+  });
+  return Object.assign({},file,{traces:traces,touchstoneUiState:nextState});
+}
+
+function buildTouchstoneStabilityTrace(file, metric, existingTrace){
+  if(!file||!file.touchstoneNetwork||Number(file.touchstoneNetwork.portCount)!==2||!Array.isArray(file.touchstoneNetwork.samples))return null;
+  var data=file.touchstoneNetwork.samples.map(function(sample){
+    var result=computeTwoPortStability(sample&&sample.sMatrix);
+    if(!result)return null;
+    var value=metric==="deltaMag"?result.deltaAbs:metric==="k"?result.kFactor:result[metric];
+    if(!isFinite(value))return null;
+    return {freq:Number(sample.freq),amp:Number(value)};
+  }).filter(Boolean);
+  if(!data.length)return null;
+  var labels={k:"K",mu1:"mu1",mu2:"mu2",deltaMag:"|delta|"};
+  var next=existingTrace?Object.assign({},existingTrace):{
+    id:makeTraceId(),
+    kind:"raw",
+    sourceTraceIds:[],
+    operationType:"touchstone-stability",
+    parameters:null,
+    paneId:null,
+    mode:"",
+    detector:"",
+    file:file.fileName,
+    fileName:file.fileName,
+    fileId:file.id
+  };
+  next.units={x:file.touchstoneNetwork.freqUnit||"Hz",y:""};
+  next.name=makeTouchstoneTraceName(file.fileName,"STAB",0,0,metric);
+  next.dn=((TM.getFileBaseName&&TM.getFileBaseName(file.fileName))||file.fileName||"touchstone")+" "+(labels[metric]||metric);
+  next.data=normalizeTraceData(data);
+  next.networkSource=buildTouchstoneTraceNetworkSource(file,"stability",0,0,metric,metric);
+  return next.data.length?next:null;
+}
+
 function buildBundledDemoFiles(preset){
   var filesByKey=DW.files||{};
   var order=preset&&Array.isArray(preset.fileOrder)?preset.fileOrder:[];
@@ -153,7 +395,12 @@ function buildBundledDemoFiles(preset){
     var def=filesByKey[key];
     if(!def||!def.text)return null;
     var sourceFileName=def.sourceFileName||def.fileName||("demo-"+(idx+1)+".DAT");
-    var parsed=parseRSDat(def.text,sourceFileName);
+    var parsed=parseMeasurementFile(def.text,sourceFileName);
+    if(parsed&&parsed.format==="touchstone"){
+      var demoBase={id:"demo-file-"+(idx+1),fileName:def.fileName||sourceFileName,meta:parsed.meta||{},traces:[],format:"touchstone",touchstoneNetwork:parsed.touchstoneNetwork};
+      demoBase=reconcileTouchstoneFileSelections(demoBase,makeDefaultTouchstoneState(demoBase));
+      parsed=Object.assign({},parsed,{traces:demoBase.traces,touchstoneUiState:demoBase.touchstoneUiState});
+    }
     var traces=(parsed.traces||[]).map(function(trace,traceIdx){
       var next=Object.assign({},trace);
       next.file=def.fileName||sourceFileName;
@@ -337,19 +584,29 @@ function useFileStore(dep){
   var m0=files.length>0?files[0].meta:{};
 
   var loadFiles=useCallback(function(fl,append){
-    var arr=Array.from(fl).filter(function(f){return/\.(dat|csv|txt)$/i.test(f.name);});
+    var arr=Array.from(fl).filter(function(f){return/\.(dat|csv|txt|s\d+p)$/i.test(f.name);});
     if(!arr.length)return;
     var pending=arr.length,results=[];
     arr.forEach(function(file){
       var reader=new FileReader();
       reader.onload=function(ev){
         try{
-          var parsed=parseRSDat(ev.target.result,file.name);
+          var parsed=parseMeasurementFile(ev.target.result,file.name);
+          if(parsed.format==="touchstone"){
+            var touchstoneFile={id:++_fid,fileName:file.name,meta:parsed.meta||{},traces:[],format:"touchstone",touchstoneNetwork:parsed.touchstoneNetwork||null};
+            var defaultTouchstoneState=makeDefaultTouchstoneState(touchstoneFile);
+            touchstoneFile=reconcileTouchstoneFileSelections(touchstoneFile,defaultTouchstoneState);
+            parsed=Object.assign({},parsed,{
+              traces:touchstoneFile.traces,
+              touchstoneUiState:touchstoneFile.touchstoneUiState,
+              _fileId:touchstoneFile.id
+            });
+          }
           if(parsed.traces.length===0)setError(function(p){return(p?p+" | ":"")+file.name+": no data";});
           else{
-            var fileId=++_fid;
+            var fileId=parsed._fileId||(++_fid);
             parsed.traces.forEach(function(tr){tr.fileId=fileId;tr.fileName=file.name;});
-            results.push({id:fileId,fileName:file.name,meta:parsed.meta,traces:parsed.traces});
+            results.push({id:fileId,fileName:file.name,meta:parsed.meta,traces:parsed.traces,format:parsed.format||"rs-dat",touchstoneNetwork:parsed.touchstoneNetwork||null,touchstoneUiState:parsed.touchstoneUiState||null});
           }
         }catch(e){setError(function(p){return(p?p+" | ":"")+file.name+": "+e.message;});}
         pending--;
@@ -801,8 +1058,8 @@ function useAnalysisRegistry(dep){
     return makeAnalysisRegistry(dep.analysisOpenState,{
       "noise-psd":(dep.noiseResults||[]).length,
       "ip3":(dep.ip3Results||[]).length
-    });
-  },[dep.analysisOpenState,dep.noiseResults,dep.ip3Results]);
+    },{target:dep.target||null});
+  },[dep.analysisOpenState,dep.noiseResults,dep.ip3Results,dep.target]);
 }
 
   function useRefLines(){
@@ -1244,6 +1501,11 @@ function useIP3Workflow(dep){
     isFileDragEvent:isFileDragEvent,
     usePaneLayout:usePaneLayout,
     useAnalysisRegistry:useAnalysisRegistry,
+    makeDefaultTouchstoneState:makeDefaultTouchstoneState,
+    cloneTouchstoneSelectionState:cloneTouchstoneSelectionState,
+    buildTouchstoneSelectionsFromTraces:buildTouchstoneSelectionsFromTraces,
+    reconcileTouchstoneFileSelections:reconcileTouchstoneFileSelections,
+    buildTouchstoneStabilityTrace:buildTouchstoneStabilityTrace,
     useNoisePSD:useNoisePSD,
     useIP3:useIP3,
     useMarkers:useMarkers,

@@ -21,6 +21,7 @@
     function read(){
       return {
         tr:[cssv("--trace1"),cssv("--trace2"),cssv("--trace3"),cssv("--trace4"),cssv("--trace5"),cssv("--trace6")],
+        dr:[cssv("--derived1"),cssv("--derived2"),cssv("--derived3"),cssv("--derived4"),cssv("--derived5"),cssv("--derived6")],
         mn:cssv("--mkr-n"),md:cssv("--mkr-d"),mp:cssv("--mkr-p"),
         accent:cssv("--accent"),muted:cssv("--muted"),dim:cssv("--dim"),text:cssv("--text"),
         bg:cssv("--bg"),card:cssv("--card"),border:cssv("--border"),

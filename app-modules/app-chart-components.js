@@ -88,8 +88,8 @@
           textAlign:"center",
           background:props.isDrag?"var(--drop-h)":"var(--card)"
         }},
-          h("div",{style:{fontSize:16,fontWeight:700,marginBottom:6}},"Drop .dat files here"),
-          h("div",{style:{fontSize:12,color:"var(--muted)"}},"or click the graph to import R&S spectrum analyzer exports")
+          h("div",{style:{fontSize:16,fontWeight:700,marginBottom:6}},"Drop .dat, .csv, or Touchstone .s1p/.s2p/.sNp files here"),
+          h("div",{style:{fontSize:12,color:"var(--muted)",lineHeight:1.45}},"Click the graph to import local files. Touchstone imports will unlock S/Y/Z matrix views and stability analysis once they are loaded.")
         )
       )
     );
@@ -301,7 +301,7 @@
       var isFirst=idx===0;
       var isLast=idx===paneYTickCount-1;
       return h("text",{
-        x:CHART_PLOT_LEFT-4,
+        x:(tickProps.x!=null?tickProps.x:CHART_PLOT_LEFT)-4,
         y:tickProps.y+(isFirst?1:(isLast?-4:0)),
         fill:props.C.muted,
         fontSize:12,
@@ -503,7 +503,14 @@
               onMouseLeave:isActive?props.chartML:undefined,
               margin:{top:CHART_MARGIN_TOP,right:CHART_MARGIN_RIGHT,bottom:CHART_MARGIN_BOTTOM,left:CHART_MARGIN_LEFT}
             },
-              h(CartesianGrid,{strokeDasharray:"2 2",stroke:props.C.grid}),
+              h(CartesianGrid,{
+                strokeDasharray:"4 4",
+                stroke:(props.C&&props.C.grid)||"rgba(127,127,127,0.18)",
+                strokeWidth:1,
+                strokeOpacity:1,
+                horizontal:true,
+                vertical:true
+              }),
               h(XAxis,{
                 dataKey:"fs",
                 type:"number",

@@ -18,7 +18,7 @@
   var noisePSD=AH.noisePSD||function(data){return data||[];};
   var normalizeAnalysisOpenState=ATH.normalizeAnalysisOpenState||function(state){return Object.assign({},state||{});};
   var getDefaultAnalysisOpenState=ATH.getDefaultAnalysisOpenState||function(){return {};};
-  var WORKSPACE_FILE_VERSION=1;
+  var WORKSPACE_FILE_VERSION=2;
   var nearestPoint=PH.nearestPoint||function(){return null;};
   var getIP3PointsFromMarkers=MH.getIP3PointsFromMarkers||function(){return {f1:null,f2:null,im3l:null,im3u:null};};
   var clampPaneCount=PAH.clampPaneCount||function(count){
@@ -45,6 +45,38 @@
     });
   }
 
+  function cloneTouchstoneNetwork(network){
+    if(!network||typeof network!=="object")return null;
+    var next=Object.assign({},network);
+    if(Array.isArray(network.comments))next.comments=network.comments.slice();
+    if(Array.isArray(network.samples)){
+      next.samples=network.samples.map(function(sample){
+        if(!sample||typeof sample!=="object")return null;
+        var nextSample=Object.assign({},sample);
+        if(Array.isArray(sample.sMatrix)){
+          nextSample.sMatrix=sample.sMatrix.map(function(row){
+            if(!Array.isArray(row))return [];
+            return row.map(function(cell){
+              return cell&&typeof cell==="object"?Object.assign({},cell):cell;
+            });
+          });
+        }
+        return nextSample;
+      }).filter(Boolean);
+    }
+    if(Array.isArray(network.referenceOhms))next.referenceOhms=network.referenceOhms.slice();
+    return next;
+  }
+
+  function cloneNetworkSource(networkSource){
+    if(!networkSource||typeof networkSource!=="object")return null;
+    var next={};
+    ["parentFileId","family","view","row","col","metric"].forEach(function(key){
+      if(networkSource[key]!==undefined&&networkSource[key]!==null)next[key]=networkSource[key];
+    });
+    return Object.keys(next).length?next:null;
+  }
+
   function cloneTrace(trace, fallbackFileId, fallbackFileName){
     if(!trace||!Array.isArray(trace.data))return null;
     var next=Object.assign({},trace);
@@ -52,6 +84,8 @@
     if(!next.data.length)return null;
     next.units=trace&&trace.units?Object.assign({},trace.units):{x:null,y:null};
     next.sourceTraceIds=Array.isArray(trace&&trace.sourceTraceIds)?trace.sourceTraceIds.slice().filter(Boolean):[];
+    var networkSource=cloneNetworkSource(trace&&trace.networkSource);
+    if(networkSource)next.networkSource=networkSource;
     if(fallbackFileId!==undefined)next.fileId=fallbackFileId;
     if(fallbackFileName!==undefined){
       next.fileName=fallbackFileName;
@@ -69,10 +103,16 @@
       meta:nextMeta,
       traces:[]
     };
+    if(file.format!==undefined&&file.format!==null)next.format=file.format;
+    var touchstoneNetwork=cloneTouchstoneNetwork(file.touchstoneNetwork);
+    if(touchstoneNetwork){
+      next.touchstoneNetwork=touchstoneNetwork;
+      if(next.format===undefined)next.format="touchstone";
+    }
     next.traces=(file.traces||[]).map(function(trace){
       return cloneTrace(trace,next.id,next.fileName);
     }).filter(Boolean);
-    return next.traces.length?next:null;
+    return next.traces.length||next.touchstoneNetwork?next:null;
   }
 
   function cloneResult(result){
@@ -274,7 +314,7 @@
     var validNames={};
     var markerState;
     var refState;
-    next.version=1;
+    next.version=WORKSPACE_FILE_VERSION;
     next.files=(snapshot.files||[]).map(cloneFile).filter(Boolean);
     next.derivedTraces=(snapshot.derivedTraces||[]).map(function(trace){
       return cloneTrace(trace);
@@ -333,7 +373,7 @@
   function buildWorkspaceSnapshot(stateDeps){
     stateDeps=stateDeps&&typeof stateDeps==="object"?stateDeps:{};
     return normalizeWorkspaceSnapshot({
-      version:1,
+      version:WORKSPACE_FILE_VERSION,
       files:(stateDeps.files||[]).map(cloneFile).filter(Boolean),
       derivedTraces:(stateDeps.derivedTraces||[]).map(function(trace){return cloneTrace(trace);}).filter(Boolean),
       vis:Object.assign({},stateDeps.vis||{}),
