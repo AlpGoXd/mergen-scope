@@ -168,7 +168,7 @@
   }
 
   function isTouchstoneTrace(trace){
-    return !!(trace&&trace.networkSource&&trace.networkSource.parentFileId!=null);
+    return !!(trace&&((trace.networkSource&&trace.networkSource.parentFileId!=null)||(trace.touchstoneNetwork&&typeof trace.touchstoneNetwork==="object")));
   }
 
   function getTouchstoneNetworkSource(trace){

@@ -25,6 +25,26 @@
     return Object.keys(next).length?next:null;
   }
 
+  function cloneTouchstoneNetwork(network){
+    if(!network||typeof network!=="object")return null;
+    var next=Object.assign({},network);
+    if(Array.isArray(network.comments))next.comments=network.comments.slice();
+    if(Array.isArray(network.referenceOhms))next.referenceOhms=network.referenceOhms.slice();
+    if(Array.isArray(network.samples)){
+      next.samples=network.samples.map(function(sample){
+        if(!sample||typeof sample!=="object")return null;
+        var nextSample=Object.assign({},sample);
+        if(Array.isArray(sample.sMatrix)){
+          nextSample.sMatrix=sample.sMatrix.map(function(row){
+            return Array.isArray(row)?row.map(function(cell){ return cell&&typeof cell==="object"?Object.assign({},cell):cell; }):[];
+          });
+        }
+        return nextSample;
+      }).filter(Boolean);
+    }
+    return next;
+  }
+
   function cloneTraceForExport(trace,extra){
     if(!trace)return null;
     extra=extra||{};
@@ -51,6 +71,10 @@
     if(networkSource){
       next.networkSource=networkSource;
       next.metadata.networkSource=networkSource;
+    }
+    var touchstoneNetwork=cloneTouchstoneNetwork(trace.touchstoneNetwork||extra.touchstoneNetwork||null);
+    if(touchstoneNetwork){
+      next.touchstoneNetwork=touchstoneNetwork;
     }
     return next;
   }

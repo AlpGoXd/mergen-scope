@@ -208,9 +208,12 @@ function getTouchstoneCellValue(matrix,rowIndex,colIndex){
   if(!Array.isArray(matrix)||!Array.isArray(matrix[rowIndex]))return null;
   var cell=matrix[rowIndex][colIndex];
   if(!cell||typeof cell!=="object")return null;
+  var re=cell.re!=null?Number(cell.re):(cell.real!=null?Number(cell.real):NaN);
+  var im=cell.im!=null?Number(cell.im):(cell.imag!=null?Number(cell.imag):NaN);
+  if(!isFinite(re)&&!isFinite(im))return null;
   return {
-    re:Number(cell.re)||0,
-    im:Number(cell.im)||0
+    re:isFinite(re)?re:0,
+    im:isFinite(im)?im:0
   };
 }
 
@@ -255,8 +258,8 @@ function buildTouchstoneTraceNetworkSource(file, family, row, col, view, metric)
     parentFileId:file&&file.id!=null?file.id:null,
     family:String(family||"S").toUpperCase(),
     view:String(view||"dB"),
-    row:Number(row),
-    col:Number(col)
+    row:row==null?null:Number(row),
+    col:col==null?null:Number(col)
   };
   if(metric)source.metric=String(metric);
   if(file&&file.fileName)source.fileName=file.fileName;
@@ -384,7 +387,16 @@ function buildTouchstoneStabilityTrace(file, metric, existingTrace){
   next.name=makeTouchstoneTraceName(file.fileName,"STAB",0,0,metric);
   next.dn=((TM.getFileBaseName&&TM.getFileBaseName(file.fileName))||file.fileName||"touchstone")+" "+(labels[metric]||metric);
   next.data=normalizeTraceData(data);
-  next.networkSource=buildTouchstoneTraceNetworkSource(file,"stability",0,0,metric,metric);
+  next.isComplex=false;
+  next.supportsPhase=false;
+  next.supportsSmith=false;
+  next.traceDomain="scalar";
+  next.traceClassification="scalar-real";
+  next.networkSource=buildTouchstoneTraceNetworkSource(file,"stability",null,null,metric,metric);
+  next.touchstoneFamily="stability";
+  next.touchstoneView="dB";
+  next.touchstoneRow=null;
+  next.touchstoneCol=null;
   return next.data.length?next:null;
 }
 
@@ -459,8 +471,9 @@ function useYControls(activePaneId){
     }
   },[yMnI,yMxI]);
   var resetYZ=useCallback(function(forPaneId){
-    setYZoom(null,forPaneId);
-    if(!forPaneId||forPaneId===paneId){setYMnI("");setYMxI("");}
+    var target = typeof forPaneId === "string" ? forPaneId : paneId;
+    setYZoom(null,target);
+    if(target===paneId){setYMnI("");setYMxI("");}
   },[setYZoom,paneId]);
   var syncYInputs=useCallback(function(next){
     if(!next||!isFinite(next.min)||!isFinite(next.max))return;
@@ -678,7 +691,8 @@ function useFileStore(dep){
       var next=[];
       prev.forEach(function(f){
         var kept=f.traces.filter(function(t){return t.name!==traceName;});
-        if(kept.length)next.push(Object.assign({},f,{traces:kept}));
+        var isTouchstoneFile=!!(f&&(f.format==="touchstone"||f.touchstoneNetwork));
+        if(kept.length||isTouchstoneFile)next.push(Object.assign({},f,{traces:kept}));
       });
       return next;
     });
@@ -815,7 +829,8 @@ function useChartNav(dep){
     getActivePaneTraces().forEach(function(tr,i){
       if(!dep.vis[tr.name])return;
       var np=nearestPoint(tr,f,zoom?zoom.left:null,zoom?zoom.right:null);
-      if(np&&isFinite(np.amp))vals.push({name:tr.dn||tr.name,value:np.amp,color:dep.colors[i%dep.colors.length],freq:np.freq});
+      var tColor=(dep.traceColorMap&&dep.traceColorMap[tr.name])||(dep.colors?dep.colors[i%dep.colors.length]:"#fff");
+      if(np&&isFinite(np.amp))vals.push({name:tr.dn||tr.name,value:np.amp,color:tColor,freq:np.freq});
     });
     vals.sort(function(a,b){return a.name.localeCompare(b.name);});
     setHoverData(vals);

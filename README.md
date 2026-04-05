@@ -7,7 +7,7 @@
 [![Live Demo](https://img.shields.io/badge/demo-live-brightgreen)](https://alpgoxd.github.io/mergen-scope/)
 [![License: GPL-3.0-only](https://img.shields.io/badge/License-GPL--3.0--only-blue.svg)](LICENSE)
 
-Mergen Scope is a free, open-source, browser-based viewer for Rohde & Schwarz spectrum analyzer `.dat` files. Visualize RF spectrum data, waveforms, and spectral measurements online with no installation required.
+Mergen Scope is a free, open-source, browser-based viewer for Rohde & Schwarz spectrum analyzer `.dat` files and Touchstone `.sNp` files. Visualize RF spectrum data, network measurements, and spectral analysis online with no installation required.
 
 [**Open the viewer**](https://alpgoxd.github.io/mergen-scope/)
 
@@ -29,6 +29,9 @@ Mergen Scope is a free, open-source, browser-based viewer for Rohde & Schwarz sp
 - Noise PSD panel: visualize noise power spectral density across the spectrum
 - IP3/TOI measurement tool: marker-driven intermodulation point calculation
 - Expanded analysis toolkit: peak/spur table, marker delta table, range statistics, bandwidth helper, threshold crossings, ripple/flatness, occupied bandwidth, and guarded channel power
+- Touchstone matrix picker: S/Y/Z family selection with per-cell trace generation
+- Touchstone analysis toolkit: VSWR, Return Loss, Group Delay, Reciprocity/Isolation, and 2-port stability metrics
+- Touchstone stability trace generation: create derived scalar traces for `K`, `mu1`, `mu2`, and `|delta|`
 - Zoom and pan: navigate large frequency ranges with oscilloscope-style division readout
 - Saved results: keep Noise PSD and IP3 results inside the current workspace
 - Workspace import/export: save and reopen complete sessions as portable JSON
@@ -45,6 +48,13 @@ Mergen Scope is a free, open-source, browser-based viewer for Rohde & Schwarz sp
 |--------|-------------|-------|
 | R&S semicolon-delimited `.dat` | Rohde & Schwarz instruments | Tested |
 | Amplitude-only `.dat` | R&S instruments | Frequency reconstructed from metadata |
+| Touchstone `.s1p` to `.sNp` | RF network measurements | Supported for S/Y/Z trace workflows and Smith view |
+
+---
+
+## Known Issues
+
+- Smith charts are currently a bit buggy in some workflows. They are complex to implement correctly, and improvements are planned for future updates.
 
 ---
 
@@ -68,7 +78,7 @@ Push to `main`. GitHub Actions deploys automatically via `.github/workflows/depl
 
 ### Loading a File
 
-Click **Load File** and select a `.dat` export from your spectrum analyzer. Use **Append** to add more traces.
+Click **Load File** and select a `.dat` or `.sNp` export. Use **Append** to add more traces.
 
 ### Workspace Sessions
 
@@ -143,6 +153,24 @@ Open **Analysis** to access pane-aware numeric tools that act on the selected tr
 - **Ripple / Flatness**
 - **Occupied Bandwidth**
 - **Channel Power** with strict unit gating
+- **VSWR** (Touchstone reflection traces)
+- **Return Loss** (Touchstone reflection traces)
+- **Group Delay** (Touchstone traces)
+- **Reciprocity / Isolation** (Touchstone transmission traces)
+- **Touchstone Stability** (2-port, K / mu1 / mu2 / |delta|)
+
+Group Delay is computed from complex S-parameter data as $\tau_g(f)=-(1/(2\pi))\,d\phi/df$ using unwrapped phase from `atan2(im,re)`, frequency in Hz, central-difference derivatives for interior points, and forward/backward differences at the edges. Very low-magnitude regions are masked to avoid unstable phase-derivative spikes.
+
+### Touchstone Stability Analysis
+
+For 2-port Touchstone traces, the **Touchstone Stability** card computes stability metrics over the visible range and can generate scalar traces for:
+
+- `K`
+- `mu1`
+- `mu2`
+- `|delta|`
+
+The card summarizes min/max ranges, center-point values, and whether visible points satisfy unconditional stability checks (`K > 1` and `|delta| < 1`).
 
 ---
 
@@ -240,7 +268,8 @@ Current status:
 
 - Phase 3 is complete
 - Phase 4 is complete
-- next work should focus on the remaining phases in order, starting with Phase 5
+- Touchstone import support is complete
+- Touchstone measurement tools are in active expansion
 
 Roadmap in order:
 
@@ -252,7 +281,10 @@ Roadmap in order:
    Status: completed
    Implemented: workspace/session JSON export and import, trace/data export, saved analysis export, and chart PNG/SVG export
 4. Touchstone import support
+   Status: completed
 5. Touchstone measurement tools
+   Status: in progress
+   Implemented: Touchstone stability (K, mu1, mu2, |delta|) plus VSWR, Return Loss, Group Delay, and Reciprocity/Isolation cards
 6. Performance and scaling pass
 7. Oscilloscope waveform support
 
@@ -267,7 +299,7 @@ Not planned right now:
 
 - Only tested with R&S `.dat` exports. Other formats may need parser adjustments
 - Multi-pane is currently limited to 1 to 4 stacked panes
-- Touchstone support is intentionally deferred to a later format-expansion phase
+- Touchstone stability in v1 is 2-port only
 - Oscilloscope waveform support is intentionally deferred to a later format-expansion phase
 - Pane synchronization does not use a permanent shared cursor line
 - Channel power is intentionally gated unless the trace unit is explicit spectral power density such as dBm/Hz or dBW/Hz

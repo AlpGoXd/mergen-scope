@@ -83,17 +83,48 @@
     };
   }
 
+  function getTouchstoneTraceKind(target){
+    var touchstone=target&&target.touchstone||null;
+    if(!touchstone||!touchstone.isTouchstone)return null;
+    if(touchstone.metric!=null)return "scalar-metric";
+    var family=normalizeTouchstoneFamily(touchstone.family);
+    var row=normalizeTouchstoneIndex(touchstone.row);
+    var col=normalizeTouchstoneIndex(touchstone.col);
+    if(family!=="S")return "touchstone";
+    if(row!=null&&col!=null&&row===col)return "reflection";
+    if(row!=null&&col!=null&&row!==col)return "transmission";
+    return "touchstone";
+  }
+
+  function isTouchstoneReflectionTarget(target){
+    return getTouchstoneTraceKind(target)==="reflection";
+  }
+
+  function isTouchstoneTransmissionTarget(target){
+    return getTouchstoneTraceKind(target)==="transmission";
+  }
+
+  function getAnalysisDisplayTitle(item,target){
+    if(!item)return "";
+    if(item.id==="peak-spur-table"&&isTouchstoneTarget(target))return "Peak Table";
+    if(item.id==="bandwidth-helper"&&isTouchstoneTarget(target))return "Passband Metrics";
+    return item.title;
+  }
+
   var ANALYSIS_ITEMS=[
     {id:"noise-psd",title:"Noise PSD",colorVar:"noiseTr",kind:"analysis",group:"measure",scope:"spectrum"},
     {id:"ip3",title:"IP3 / TOI",colorVar:"ip3C",kind:"analysis",group:"measure",scope:"spectrum"},
-    {id:"peak-spur-table",title:"Peak / Spur Table",colorVar:"tr3",kind:"analysis",group:"measure",scope:"shared"},
-    {id:"marker-delta-table",title:"Marker Delta Table",colorVar:"tr4",kind:"analysis",group:"measure",scope:"shared"},
+    {id:"peak-spur-table",title:"Peak Table",colorVar:"tr3",kind:"analysis",group:"measure",scope:"shared"},
     {id:"range-stats",title:"Range Statistics",colorVar:"tr2",kind:"analysis",group:"measure",scope:"shared"},
     {id:"bandwidth-helper",title:"3 dB / 10 dB BW",colorVar:"tr1",kind:"analysis",group:"measure",scope:"shared"},
     {id:"threshold-crossings",title:"Threshold Crossings",colorVar:"refH",kind:"analysis",group:"measure",scope:"shared"},
     {id:"ripple-flatness",title:"Ripple / Flatness",colorVar:"tr5",kind:"analysis",group:"measure",scope:"shared"},
     {id:"occupied-bandwidth",title:"Occupied Bandwidth",colorVar:"tr0",kind:"analysis",group:"measure",scope:"spectrum"},
     {id:"channel-power",title:"Channel Power",colorVar:"accent",kind:"analysis",group:"measure",scope:"spectrum"},
+    {id:"vswr",title:"VSWR",colorVar:"tr6",kind:"analysis",group:"touchstone",scope:"touchstone"},
+    {id:"return-loss",title:"Return Loss",colorVar:"tr7",kind:"analysis",group:"touchstone",scope:"touchstone"},
+    {id:"group-delay",title:"Group Delay",colorVar:"tr8",kind:"analysis",group:"touchstone",scope:"touchstone"},
+    {id:"reciprocity-isolation",title:"Reciprocity / Isolation",colorVar:"tr9",kind:"analysis",group:"touchstone",scope:"touchstone"},
     {id:"touchstone-stability",title:"Touchstone Stability",colorVar:"accent",kind:"analysis",group:"touchstone",scope:"touchstone"}
   ];
 
@@ -133,7 +164,19 @@
   function isAnalysisItemVisible(item,target){
     if(!item)return false;
     var scope=getAnalysisScope(item);
-    if(scope==="touchstone")return isTouchstoneTarget(target);
+    if(scope==="touchstone"){
+      if(!isTouchstoneTarget(target))return false;
+      if(item.id==="bandwidth-helper"){
+        return isTouchstoneTransmissionTarget(target);
+      }
+      if(item.id==="vswr"||item.id==="return-loss"){
+        return isTouchstoneReflectionTarget(target);
+      }
+      if(item.id==="reciprocity-isolation"){
+        return isTouchstoneTransmissionTarget(target);
+      }
+      return true;
+    }
     if(scope==="spectrum")return !isTouchstoneTarget(target);
     return true;
   }
@@ -148,7 +191,7 @@
     return items.map(function(item){
       return {
         id:item.id,
-        title:item.title,
+        title:getAnalysisDisplayTitle(item,target),
         kind:item.kind,
         group:item.group,
         scope:getAnalysisScope(item),
@@ -290,6 +333,10 @@
     isPowerLikeAbsoluteUnit:isPowerLikeAbsoluteUnit,
     isSpectralPowerDensityUnit:isSpectralPowerDensityUnit,
     isTouchstoneTrace:isTouchstoneTrace,
+    getTouchstoneTraceKind:getTouchstoneTraceKind,
+    isTouchstoneReflectionTarget:isTouchstoneReflectionTarget,
+    isTouchstoneTransmissionTarget:isTouchstoneTransmissionTarget,
+    getAnalysisDisplayTitle:getAnalysisDisplayTitle,
     normalizeTouchstoneFamily:normalizeTouchstoneFamily,
     normalizeTouchstoneMetric:normalizeTouchstoneMetric,
     normalizeTouchstoneIndex:normalizeTouchstoneIndex,

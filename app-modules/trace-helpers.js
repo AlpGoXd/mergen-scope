@@ -1,4 +1,12 @@
 (function(global){
+  function precisionFromStep(step,maxDigits){
+    var s=Math.abs(Number(step));
+    var digits=maxDigits!=null?Math.max(0,Math.floor(maxDigits)):12;
+    if(!isFinite(s)||s<=0)return 6;
+    if(s>=1)return 6;
+    return Math.min(digits,Math.max(0,Math.ceil(-Math.log10(s))+2));
+  }
+
   function clampYValue(v){
     if(!isFinite(v))return null;
     return Math.max(-300,Math.min(300,v));
@@ -98,12 +106,17 @@
       });
     });
     if(!found||!isFinite(mn)||!isFinite(mx))return null;
-    if(mx-mn<0.1){
+    var span=mx-mn;
+    if(!isFinite(span)||span<=0){
       var center=(mn+mx)/2;
-      mn=center-2.5;
-      mx=center+2.5;
+      var centerMag=Math.max(Math.abs(center),1e-12);
+      var minHalfSpan=Math.max(centerMag*0.02,1e-12);
+      mn=center-minHalfSpan;
+      mx=center+minHalfSpan;
+      span=mx-mn;
     }
-    var pad=Math.max((mx-mn)*0.08,0.5);
+    var mag=Math.max(Math.abs(mn),Math.abs(mx),1e-12);
+    var pad=Math.max(span*0.08,mag*0.01,1e-12);
     mn=clampYValue(mn-pad);
     mx=clampYValue(mx+pad);
     if(mn===null||mx===null||!isFinite(mn)||!isFinite(mx)||mx<=mn)return null;
@@ -115,7 +128,7 @@
     var mn=clampYValue(z.min),mx=clampYValue(z.max);
     if(mn===null||mx===null||!isFinite(mn)||!isFinite(mx)||mx<=mn)return null;
     var span=mx-mn;
-    if(span<0.001||span>2000)return null;
+    if(span<1e-15||span>2000)return null;
     return {min:mn,max:mx};
   }
 
@@ -133,13 +146,16 @@
     var start=Math.floor(domain.min/step)*step;
     var end=Math.ceil(domain.max/step)*step;
     var ticks=[];
-    var decimals=Math.max(0,Math.ceil(-Math.log10(step))+1);
+    var decimals=precisionFromStep(step,12);
     for(var v=start; v<=end+step*0.5; v+=step){
-      var rounded=Number(v.toFixed(Math.min(6,decimals)));
+      var rounded=Number(v.toFixed(decimals));
       if(rounded>=domain.min-step*0.25&&rounded<=domain.max+step*0.25)ticks.push(rounded);
       if(ticks.length>count+4)break;
     }
-    if(ticks.length<2)ticks=[Number(domain.min.toFixed(3)),Number(domain.max.toFixed(3))];
+    if(ticks.length<2){
+      var fbDigits=precisionFromStep(span/(count-1),12);
+      ticks=[Number(domain.min.toFixed(fbDigits)),Number(domain.max.toFixed(fbDigits))];
+    }
     return ticks;
   }
 
@@ -149,18 +165,21 @@
     var span=domain.max-domain.min;
     var eps=Math.max(Math.abs(span)*1e-9,1e-9);
     if(!ticks||!ticks.length){
-      return [Number(domain.min.toFixed(6)),Number(domain.max.toFixed(6))];
+      var fallbackDigits=precisionFromStep((domain.max-domain.min)/8,12);
+      return [Number(domain.min.toFixed(fallbackDigits)),Number(domain.max.toFixed(fallbackDigits))];
     }
     var clipped=[];
+    var span=domain.max-domain.min;
+    var roundedDigits=precisionFromStep(span/8,12);
     ticks.forEach(function(tick){
       if(!isFinite(tick))return;
       if(tick<domain.min-eps||tick>domain.max+eps)return;
       var clamped=Math.max(domain.min,Math.min(domain.max,tick));
-      var rounded=Number(clamped.toFixed(6));
+      var rounded=Number(clamped.toFixed(roundedDigits));
       if(!clipped.length||Math.abs(clipped[clipped.length-1]-rounded)>eps)clipped.push(rounded);
     });
     if(clipped.length<2){
-      return [Number(domain.min.toFixed(6)),Number(domain.max.toFixed(6))];
+      return [Number(domain.min.toFixed(roundedDigits)),Number(domain.max.toFixed(roundedDigits))];
     }
     return clipped;
   }
@@ -186,7 +205,8 @@
     var span=base.max-base.min;
     if(!isFinite(span)||span<=0)return autoRange||null;
     var factor=deltaY<0?0.85:(1/0.85);
-    var nextSpan=Math.max(0.001,Math.min(2000,span*factor));
+    var minSpan=Math.max(Math.abs(span)*1e-9,1e-15);
+    var nextSpan=Math.max(minSpan,Math.min(2000,span*factor));
     if(!isFinite(frac))frac=0.5;
     frac=Math.max(0,Math.min(1,frac));
     var center=base.min+(span*frac);

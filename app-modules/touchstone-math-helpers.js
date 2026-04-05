@@ -71,19 +71,19 @@
     var order=[];
     var row,col;
     if(fmt==="lower"){
-      for(row=0;row<n;row++){
-        for(col=0;col<=row;col++)order.push({row:row,col:col});
+      for(col=0;col<n;col++){
+        for(row=col;row<n;row++)order.push({row:row,col:col});
       }
       return order;
     }
     if(fmt==="upper"){
-      for(row=0;row<n;row++){
-        for(col=row;col<n;col++)order.push({row:row,col:col});
+      for(col=0;col<n;col++){
+        for(row=0;row<=col;row++)order.push({row:row,col:col});
       }
       return order;
     }
-    for(row=0;row<n;row++){
-      for(col=0;col<n;col++)order.push({row:row,col:col});
+    for(col=0;col<n;col++){
+      for(row=0;row<n;row++)order.push({row:row,col:col});
     }
     return order;
   }

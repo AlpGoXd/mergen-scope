@@ -4,9 +4,16 @@ var h=React.createElement;
 var RC=global.Recharts||{};
 var TM=global.TraceModel||{},TH=global.TraceHelpers||{},TOH=global.TraceOpsHelpers||{},AH=global.AnalysisHelpers||{},PH=global.ParserHelpers||{},MH=global.MarkerHelpers||{},DSH=global.DerivedStateHelpers||{},UH=global.UIHelpers||{},PAH=global.PaneHelpers||{},WH=global.WorkspaceHelpers||{},EH=global.ExportHelpers||{},ATH=global.AnalysisTargetHelpers||{},Hooks=global.AppHooks||{};
 var useState=React.useState,useMemo=React.useMemo,useEffect=React.useEffect,useRef=React.useRef,useCallback=React.useCallback,ReactComponent=React.Component;
-var useTheme=UH.useTheme,fmtF=UH.fmtF;
+var useTheme=UH.useTheme,fmtF=UH.fmtF,formatScalarWithUnit=UH.formatScalarWithUnit||function(value,unit,opts){
+  opts=opts||{};
+  var digits=isFinite(Number(opts.digits))?Math.max(0,Math.floor(Number(opts.digits))):3;
+  var n=Number(value);
+  if(!isFinite(n))return "--";
+  var out=n.toFixed(digits);
+  return unit?(out+" "+unit):out;
+};
 var LineChart=RC.LineChart,Line=RC.Line,XAxis=RC.XAxis,YAxis=RC.YAxis,CartesianGrid=RC.CartesianGrid,Tooltip=RC.Tooltip,ResponsiveContainer=RC.ResponsiveContainer,ReferenceArea=RC.ReferenceArea,ReferenceLine=RC.ReferenceLine,ReferenceDot=RC.ReferenceDot,Legend=RC.Legend;
-var getTraceId=TM.getTraceId,getTraceLabel=TM.getTraceLabel,getTraceData=TM.getTraceData,isDerivedTrace=TM.isDerivedTrace,isTouchstoneTrace=TM.isTouchstoneTrace,getTouchstoneTraceFamily=TM.getTouchstoneTraceFamily,createDerivedTrace=TM.createDerivedTrace,setDerivedTraceYUnit=TM.setDerivedTraceYUnit,normalizeUnitName=TM.normalizeUnitName,isDbRatioUnit=TM.isDbRatioUnit,isLogLevelUnit=TM.isLogLevelUnit,isLogUnit=TM.isLogUnit,resolveTraceMathResultUnit=TM.resolveTraceMathResultUnit,getEffectiveTraceYUnit=TM.getEffectiveTraceYUnit,deriveAxisInfo=TM.deriveAxisInfo,resetTraceIdCounter=TM.resetTraceIdCounter,syncTraceIdCounter=TM.syncTraceIdCounter,getYAxisTextForUnit=TM.getYAxisTextForUnit;
+var getTraceId=TM.getTraceId,getTraceLabel=TM.getTraceLabel,getTraceData=TM.getTraceData,isDerivedTrace=TM.isDerivedTrace,isTouchstoneTrace=TM.isTouchstoneTrace,getTouchstoneTraceFamily=TM.getTouchstoneTraceFamily,createDerivedTrace=TM.createDerivedTrace,setDerivedTraceYUnit=TM.setDerivedTraceYUnit,normalizeUnitName=TM.normalizeUnitName,isDbRatioUnit=TM.isDbRatioUnit,isLogLevelUnit=TM.isLogLevelUnit,isLogUnit=TM.isLogUnit,resolveTraceMathResultUnit=TM.resolveTraceMathResultUnit,getEffectiveTraceYUnit=TM.getEffectiveTraceYUnit,deriveAxisInfo=TM.deriveAxisInfo,resetTraceIdCounter=TM.resetTraceIdCounter,syncTraceIdCounter=TM.syncTraceIdCounter,getYAxisTextForUnit=TM.getYAxisTextForUnit,makeTraceId=TM.makeTraceId;
 var clampYValue=TH.clampYValue,interpolatePointAtX=TH.interpolatePointAtX,getVisibleTraceData=TH.getVisibleTraceData,findHorizontalCrossings=TH.findHorizontalCrossings,getSafeYRangeFromData=TH.getSafeYRangeFromData,sanitizeYDomain=TH.sanitizeYDomain,makeYTicksFromDomain=TH.makeYTicksFromDomain,getPrimaryTickStep=TH.getPrimaryTickStep,makeNiceTicks=TH.makeNiceTicks,computeYWheelZoom=TH.computeYWheelZoom;
 var smoothTraceData=TOH.smoothTraceData,computeBinaryTraceMathData=TOH.computeBinaryTraceMathData;
 var noisePSD=AH.noisePSD,calcIP3FromPoints=AH.calcIP3FromPoints,buildIP3RoleRefs=AH.buildIP3RoleRefs,savedResultReferencesAnyTrace=AH.savedResultReferencesAnyTrace,savedResultHasValidTraceRefs=AH.savedResultHasValidTraceRefs,makeSavedNoiseResult=AH.makeSavedNoiseResult,makeSavedIP3Result=AH.makeSavedIP3Result;
@@ -15,8 +22,8 @@ var IP3_ROLE_LABELS=MH.IP3_ROLE_LABELS,cloneMarkerWithoutIP3Label=MH.cloneMarker
 var reconcileDerivedTraceGraph=DSH.reconcileDerivedTraceGraph;
 var clampPaneCount=PAH.clampPaneCount,getTracePaneId=PAH.getTracePaneId,getPaneAutoYDomain=PAH.getPaneAutoYDomain;
 var buildWorkspaceSnapshot=WH.buildWorkspaceSnapshot,buildWorkspaceExportPackage=WH.buildWorkspaceExportPackage,normalizeWorkspaceSnapshot=WH.normalizeWorkspaceSnapshot,restoreWorkspaceSnapshot=WH.restoreWorkspaceSnapshot,extractWorkspaceSnapshotFromPackage=WH.extractWorkspaceSnapshotFromPackage;
-var buildTraceExportPackage=EH.buildTraceExportPackage,buildTimestampedDownloadName=EH.buildTimestampedDownloadName,downloadJsonFile=EH.downloadJsonFile,exportElementAsSvgFile=EH.exportElementAsSvgFile,exportElementAsPngFile=EH.exportElementAsPngFile;
-var getDefaultAnalysisOpenState=ATH.getDefaultAnalysisOpenState,normalizeAnalysisOpenState=ATH.normalizeAnalysisOpenState,setAnalysisOpenState=ATH.setAnalysisOpenState,clearAllAnalysisOpenState=ATH.clearAllAnalysisOpenState,resolveAnalysisTarget=ATH.resolveAnalysisTarget,resolveSelectedHorizontalLine=ATH.resolveSelectedHorizontalLine;
+var buildTraceExportPackage=EH.buildTraceExportPackage,buildTimestampedDownloadName=EH.buildTimestampedDownloadName,downloadBlobFile=EH.downloadBlobFile,downloadJsonFile=EH.downloadJsonFile,exportElementAsSvgFile=EH.exportElementAsSvgFile,exportElementAsPngFile=EH.exportElementAsPngFile,exportSvgMarkupAsPngFile=EH.exportSvgMarkupAsPngFile;
+var getDefaultAnalysisOpenState=ATH.getDefaultAnalysisOpenState,normalizeAnalysisOpenState=ATH.normalizeAnalysisOpenState,setAnalysisOpenState=ATH.setAnalysisOpenState,clearAllAnalysisOpenState=ATH.clearAllAnalysisOpenState,resolveAnalysisTarget=ATH.resolveAnalysisTarget,resolveSelectedHorizontalLine=ATH.resolveSelectedHorizontalLine,getTraceTouchstoneContext=ATH.getTraceTouchstoneContext,isTouchstoneReflectionTarget=ATH.isTouchstoneReflectionTarget;
 var useYControls=Hooks.useYControls,useXControls=Hooks.useXControls,useFileStore=Hooks.useFileStore,useChartNav=Hooks.useChartNav,useSharedCursor=Hooks.useSharedCursor,useNoisePSD=Hooks.useNoisePSD,useIP3=Hooks.useIP3,useMarkers=Hooks.useMarkers,useInteractionMode=Hooks.useInteractionMode,useNoisePSDModel=Hooks.useNoisePSDModel,useMarkerActions=Hooks.useMarkerActions,useIP3Workflow=Hooks.useIP3Workflow,usePaneLayout=Hooks.usePaneLayout,useAnalysisRegistry=Hooks.useAnalysisRegistry,makeDefaultTouchstoneState=Hooks.makeDefaultTouchstoneState,cloneTouchstoneSelectionState=Hooks.cloneTouchstoneSelectionState,buildTouchstoneSelectionsFromTraces=Hooks.buildTouchstoneSelectionsFromTraces,reconcileTouchstoneFileSelections=Hooks.reconcileTouchstoneFileSelections,buildTouchstoneStabilityTrace=Hooks.buildTouchstoneStabilityTrace,isFileDragEvent=Hooks.isFileDragEvent,getDemoWorkspacePresetById=Hooks.getDemoWorkspacePresetById,getDemoLaunchPresetId=Hooks.getDemoLaunchPresetId,clearDemoLaunchQueryParam=Hooks.clearDemoLaunchQueryParam,buildBundledDemoFiles=Hooks.buildBundledDemoFiles;
 var Shell=global.AppShell||{},Analysis=global.AppAnalysis||{},Chart=global.AppChart||{};
 var SidebarPane=Shell.SidebarPane||function(props){return props&&props.render?props.render():props.children||null;};
@@ -114,6 +121,8 @@ function useAppController(){
   var _stn=useState(null),selectedTraceName=_stn[0],setSelectedTraceName=_stn[1];
   var _dtn=useState(null),dragTraceName=_dtn[0],setDragTraceName=_dtn[1];
   var _tss=useState({}),touchstoneStateByFileId=_tss[0],setTouchstoneStateByFileId=_tss[1];
+  var _mtp=useState({}),markerTraceByPane=_mtp[0],setMarkerTraceByPane=_mtp[1];
+  var _prm=useState({}),paneRenderModes=_prm[0],setPaneRenderModes=_prm[1];
     var refCtl=useRefLines(),refLines=refCtl.refLines,setRefLines=refCtl.setRefLines,refMode=refCtl.refMode,setRefMode=refCtl.setRefMode,selectedRefLineId=refCtl.selectedRefLineId,setSelectedRefLineId=refCtl.setSelectedRefLineId;
   var ip3Ctl=useIP3(),ip3Pts=ip3Ctl.ip3Pts,setIP3Pts=ip3Ctl.setIP3Pts,ip3Res=ip3Ctl.ip3Res,setIP3Res=ip3Ctl.setIP3Res,ip3Gain=ip3Ctl.ip3Gain,setIP3Gain=ip3Ctl.setIP3Gain,ip3Results=ip3Ctl.ip3Results,setIP3Results=ip3Ctl.setIP3Results,saveIP3=ip3Ctl.saveIP3;
   var noiseCtl=useNoisePSD(),noiseFilter=noiseCtl.noiseFilter,setNoiseFilter=noiseCtl.setNoiseFilter,noiseSource=noiseCtl.noiseSource,setNoiseSource=noiseCtl.setNoiseSource,noiseResults=noiseCtl.noiseResults,setNoiseResults=noiseCtl.setNoiseResults,addSavedNoise=noiseCtl.addSavedNoise;
@@ -121,6 +130,8 @@ function useAppController(){
   var fRef=useRef(null),iRef=useRef(null),wRef=useRef(null),chartRef=useRef(null),chartExportRef=useRef(null);
   var crosshair=useSharedCursor();
   var activePaneModelRef=useRef(null);
+  var paneTickModelRef=useRef(null);
+  var smithZoomHistoryRef=useRef({});
   var demoBootRef=useRef(false);
     var panRef=useRef(null),suppressClickRef=useRef(false),mouseBtnRef=useRef(0);
     var dragSelectedMarkerRef=useRef(false);
@@ -180,6 +191,9 @@ function useAppController(){
   var loadFiles=fileCtl.loadFiles,onDrop=fileCtl.onDrop,removeFile=fileCtl.removeFile,removeRawTrace=fileCtl.removeTrace,baseClearAllFiles=fileCtl.clearAllFiles;
   var allTr=useMemo(function(){return rawTr.concat(derivedTraces);},[rawTr,derivedTraces]);
   var traceOptions=useMemo(function(){return allTr.filter(function(tr){return tr&&getTraceData(tr).length;});},[allTr]);
+  var hasTouchstoneFiles=useMemo(function(){
+    return (files||[]).some(function(file){return file&&(file.format==="touchstone"||file.touchstoneNetwork);});
+  },[files]);
   useEffect(function(){
     setTouchstoneStateByFileId(function(prev){
       var next={};
@@ -192,8 +206,57 @@ function useAppController(){
   },[files]);
   var paneCtl=usePaneLayout(allTr);
   var paneMode=paneCtl.paneMode,setPaneMode=paneCtl.setPaneMode,panes=paneCtl.panes,activePaneId=paneCtl.activePaneId,setActivePaneId=paneCtl.setActivePaneId,tracePaneMap=paneCtl.tracePaneMap,setTracePaneMap=paneCtl.setTracePaneMap,paneActiveTraceMap=paneCtl.paneActiveTraceMap,setPaneActiveTraceMap=paneCtl.setPaneActiveTraceMap,assignTraceToPane=paneCtl.assignTraceToPane,clearPane=paneCtl.clearPane,getPaneTracesForId=paneCtl.getPaneTraces,getPaneActiveTraceName=paneCtl.getPaneActiveTraceName,setPaneActiveTrace=paneCtl.setPaneActiveTrace;
+  var setMarkerTraceForActivePane=useCallback(function(nextTrace){
+    var paneId=activePaneId||"pane-1";
+    var value=nextTrace&&nextTrace!=="__auto__"?String(nextTrace):"__auto__";
+    if(value!=="__auto__"){
+      var exists=(getPaneTracesForId(paneId)||[]).some(function(tr){
+        return tr&&tr.name===value&&vis[tr.name]&&Array.isArray(tr.data)&&tr.data.length;
+      });
+      if(!exists)value="__auto__";
+    }
+    setMarkerTrace(value);
+    setMarkerTraceByPane(function(prev){
+      var next=Object.assign({},prev||{});
+      if(next[paneId]===value)return prev||{};
+      next[paneId]=value;
+      return next;
+    });
+  },[activePaneId,getPaneTracesForId,vis,setMarkerTrace]);
+  useEffect(function(){
+    var paneId=activePaneId||"pane-1";
+    var saved=(markerTraceByPane&&markerTraceByPane[paneId])||"__auto__";
+    if(saved!=="__auto__"){
+      var exists=(getPaneTracesForId(paneId)||[]).some(function(tr){
+        return tr&&tr.name===saved&&vis[tr.name]&&Array.isArray(tr.data)&&tr.data.length;
+      });
+      if(!exists)saved="__auto__";
+    }
+    if(saved!==markerTrace)setMarkerTrace(saved);
+  },[activePaneId,markerTraceByPane,getPaneTracesForId,vis,markerTrace,setMarkerTrace]);
   var xCtl=useXControls(activePaneId,panes),zoomAll=xCtl.zoomAll,setZoomAll=xCtl.setZoomAll,setZoomAllRaw=xCtl.setZoomAllRaw,zoom=xCtl.zoom,setZoom=xCtl.setZoom,sharedZoom=xCtl.sharedZoom,setSharedZoom=xCtl.setSharedZoom,paneXZooms=xCtl.paneXZooms,setPaneXZooms=xCtl.setPaneXZooms,getPaneZoom=xCtl.getPaneZoom,clearAllXZooms=xCtl.clearAllXZooms;
   var yCtl=useYControls(activePaneId),yZoom=yCtl.yZoom,setYZoom=yCtl.setYZoom,getPaneYZoom=yCtl.getPaneYZoom,paneYZooms=yCtl.paneYZooms,setPaneYZooms=yCtl.setPaneYZooms,clearAllPaneYZooms=yCtl.clearAllPaneYZooms,yMnI=yCtl.yMnI,setYMnI=yCtl.setYMnI,yMxI=yCtl.yMxI,setYMxI=yCtl.setYMxI,resetYZ=yCtl.resetYZ,syncYInputs=yCtl.syncYInputs,syncYInputsForPane=yCtl.syncYInputsForPane;
+  function normalizePaneRenderMode(mode){
+    mode=String(mode||"cartesian").trim().toLowerCase().replace(/\s+/g,"-").replace(/_/g,"-");
+    if(mode==="smithinverted")mode="smith-inverted";
+    if(mode!=="smith"&&mode!=="smith-inverted"&&mode!=="cartesian")mode="cartesian";
+    return mode;
+  }
+  useEffect(function(){
+    setPaneRenderModes(function(prev){
+      var next={};
+      var changed=false;
+      (panes||[]).forEach(function(pane){
+        var mode=normalizePaneRenderMode(prev&&prev[pane.id]);
+        next[pane.id]=mode;
+        if(!prev||prev[pane.id]!==mode)changed=true;
+      });
+      Object.keys(prev||{}).forEach(function(paneId){
+        if(next[paneId]===undefined)changed=true;
+      });
+      return changed?next:(prev||next);
+    });
+  },[panes]);
   zoomSetterRef.current=function(next){ if(next===null)clearAllXZooms(); else setZoom(next); };
   ySetterRefs.current.setYZoom=setYZoom;
   ySetterRefs.current.setYMnI=setYMnI;
@@ -221,6 +284,7 @@ function useAppController(){
       derivedTraces:derivedTraces,
       vis:vis,
       paneMode:paneMode,
+      paneRenderModes:paneRenderModes,
       activePaneId:activePaneId,
       traceAssignments:tracePaneMap,
       paneActiveTraceMap:paneActiveTraceMap,
@@ -260,13 +324,24 @@ function useAppController(){
       },
       analysisOpenState:analysisOpenState
     });
-  },[files,derivedTraces,vis,paneMode,activePaneId,tracePaneMap,paneActiveTraceMap,zoomAll,sharedZoom,paneXZooms,paneYZooms,markers,refLines,noiseResults,ip3Results,selectedTraceName,showSidebar,showMeta,showMarkers,showMarkerTools,showPaneTools,showSearchTools,showLineTools,showViewTools,showDots,showDT,lockLinesAcrossPanes,searchDirection,newMarkerArmed,markerTrace,selectedMkrIdx,dRef,refMode,selectedRefLineId,showTraceOps,traceOpsOpenSections,showAnalysisPanel,noiseFilter,noiseSource,ip3Gain,dtTrace,analysisOpenState]);
+  },[files,derivedTraces,vis,paneMode,paneRenderModes,activePaneId,tracePaneMap,paneActiveTraceMap,zoomAll,sharedZoom,paneXZooms,paneYZooms,markers,refLines,noiseResults,ip3Results,selectedTraceName,showSidebar,showMeta,showMarkers,showMarkerTools,showPaneTools,showSearchTools,showLineTools,showViewTools,showDots,showDT,lockLinesAcrossPanes,searchDirection,newMarkerArmed,markerTrace,selectedMkrIdx,dRef,refMode,selectedRefLineId,showTraceOps,traceOpsOpenSections,showAnalysisPanel,noiseFilter,noiseSource,ip3Gain,dtTrace,analysisOpenState]);
 
   function getTraceByName(name){return allTr.find(function(t){return t.name===name;})||null;}
   function getTraceById(id){return allTr.find(function(t){return getTraceId(t)===id;})||null;}
   function getTraceFile(name){
     var tr=getTraceByName(name);
     return tr&&tr.fileId!=null?fileMap[tr.fileId]||null:null;
+  }
+  function getPaneRenderMode(paneId){
+    return normalizePaneRenderMode(paneRenderModes&&paneRenderModes[paneId]);
+  }
+  function setPaneRenderMode(paneId,renderMode){
+    if(!paneId)return;
+    setPaneRenderModes(function(prev){
+      var next=Object.assign({},prev||{});
+      next[paneId]=normalizePaneRenderMode(renderMode);
+      return next;
+    });
   }
   function getTraceMeta(name){
     var f=getTraceFile(name);
@@ -282,6 +357,8 @@ function useAppController(){
     opts=opts||{};
     var nextSelectedTraceName=opts.nextSelectedTraceName;
     var nextDtTraceName=opts.nextDtTraceName;
+    var keepSelectedTraceName=!!opts.keepSelectedTraceName;
+    var keepDtTraceName=!!opts.keepDtTraceName;
     setFiles(function(prev){
       var selectedName=nextSelectedTraceName;
       var dtName=nextDtTraceName;
@@ -299,12 +376,12 @@ function useAppController(){
           Object.keys(visibleNames).forEach(function(name){nextVis[name]=true;});
           return nextVis;
         });
-        if(!selectedName||!visibleNames[selectedName])selectedName=(updated.traces&&updated.traces[0]&&updated.traces[0].name)||selectedName||null;
-        if(!dtName||!visibleNames[dtName])dtName=(updated.traces&&updated.traces[0]&&updated.traces[0].name)||dtName||null;
+        if(!keepSelectedTraceName&&(!selectedName||!visibleNames[selectedName]))selectedName=(updated.traces&&updated.traces[0]&&updated.traces[0].name)||selectedName||null;
+        if(!keepDtTraceName&&(!dtName||!visibleNames[dtName]))dtName=(updated.traces&&updated.traces[0]&&updated.traces[0].name)||dtName||null;
         return updated;
       });
-      if(selectedName!==undefined&&selectedName!==selectedTraceName)setSelectedTraceName(selectedName||null);
-      if(dtName!==undefined&&dtName!==dtTrace)setDtTrace(dtName||null);
+      if(!keepSelectedTraceName&&selectedName!==undefined&&selectedName!==selectedTraceName)setSelectedTraceName(selectedName||null);
+      if(!keepDtTraceName&&dtName!==undefined&&dtName!==dtTrace)setDtTrace(dtName||null);
       return nextFiles;
     });
   }
@@ -341,6 +418,115 @@ function useAppController(){
       next[nextTraceName]=true;
       return next;
     });
+    setSelectedTraceName(nextTraceName);
+    setDtTrace(nextTraceName);
+  }
+  function upsertTouchstoneAnalysisTrace(fileId, metric, payload){
+    if(!payload)return;
+    var nextTraceName=null;
+    var nextYDomain=null;
+    setFiles(function(prev){
+      return (prev||[]).map(function(item){
+        if(!item||item.id!==fileId)return item;
+        var traces=Array.isArray(item.traces)?item.traces:[];
+        var operationType=String(payload&&payload.operationType||"");
+        var appendByClick=operationType==="touchstone-group-delay"||operationType==="touchstone-vswr"||operationType==="touchstone-return-loss";
+        var existing=appendByClick?null:traces.find(function(trace){
+          return trace&&trace.networkSource&&trace.networkSource.parentFileId===fileId&&trace.networkSource.metric===metric;
+        })||null;
+        var points=(Array.isArray(payload.data)?payload.data:[]).map(function(point){
+          return {
+            freq:Number(point&&point.freq),
+            amp:Number(point&&point.amp)
+          };
+        }).filter(function(point){
+          return isFinite(point.freq)&&isFinite(point.amp);
+        });
+        if(!points.length)return item;
+        var minAmp=Infinity;
+        var maxAmp=-Infinity;
+        points.forEach(function(point){
+          if(!isFinite(point.amp))return;
+          if(point.amp<minAmp)minAmp=point.amp;
+          if(point.amp>maxAmp)maxAmp=point.amp;
+        });
+        if(isFinite(minAmp)&&isFinite(maxAmp)){
+          var span=Math.abs(maxAmp-minAmp);
+          var pad=span>0?(span*0.12):Math.max(Math.abs(maxAmp),1e-12)*0.18;
+          nextYDomain={min:minAmp-pad,max:maxAmp+pad};
+        }
+        var baseTraceName="touchstone_"+String(fileId)+"_"+String(metric||"analysis").replace(/[^a-z0-9_\-]+/gi,"_");
+        var traceName=(existing&&existing.name)||baseTraceName;
+        if(appendByClick){
+          var suffix=2;
+          while(traces.some(function(trace){return trace&&trace.name===traceName;})){
+            traceName=baseTraceName+"__"+suffix;
+            suffix++;
+          }
+        }
+        var baseDisplayName=payload.traceLabel||String(metric||"Touchstone Analysis");
+        var displayName=(existing&&existing.dn)||baseDisplayName;
+        if(appendByClick){
+          displayName=baseDisplayName;
+          var displaySuffix=2;
+          while(traces.some(function(trace){return trace&&trace.dn===displayName;})){
+            displayName=baseDisplayName+" ("+displaySuffix+")";
+            displaySuffix++;
+          }
+        }
+        var nextTrace=existing?Object.assign({},existing):{
+          id:makeTraceId?makeTraceId():traceName,
+          kind:"derived",
+          sourceTraceIds:[],
+          operationType:payload.operationType||"touchstone-analysis",
+          parameters:null,
+          paneId:null,
+          mode:"",
+          detector:"",
+          file:item.fileName,
+          fileName:item.fileName,
+          fileId:item.id,
+          name:traceName,
+          dn:displayName
+        };
+        nextTrace.name=traceName;
+        nextTrace.dn=displayName||nextTrace.dn||traceName;
+        nextTrace.kind="derived";
+        nextTrace.sourceTraceIds=payload&&payload.sourceTraceId?[payload.sourceTraceId]:(nextTrace.sourceTraceIds||[]);
+        nextTrace.operationType=payload.operationType||nextTrace.operationType||"touchstone-analysis";
+        nextTrace.units=payload.units&&typeof payload.units==="object"?Object.assign({},payload.units):{x:"Hz",y:""};
+        nextTrace.data=points;
+        nextTrace.networkSource=Object.assign({},existing&&existing.networkSource||{},payload.networkSource||{}, {parentFileId:fileId,metric:metric});
+        nextTrace.file=item.fileName;
+        nextTrace.fileName=item.fileName;
+        nextTrace.fileId=item.id;
+        if(nextTrace.networkSource&&nextTrace.networkSource.family)nextTrace.touchstoneFamily=String(nextTrace.networkSource.family).toUpperCase();
+        if(nextTrace.networkSource&&nextTrace.networkSource.view!=null)nextTrace.touchstoneView=String(nextTrace.networkSource.view);
+        if(nextTrace.networkSource&&nextTrace.networkSource.row!=null)nextTrace.touchstoneRow=Number(nextTrace.networkSource.row);
+        if(nextTrace.networkSource&&nextTrace.networkSource.col!=null)nextTrace.touchstoneCol=Number(nextTrace.networkSource.col);
+        nextTraceName=nextTrace.name;
+        var keep=traces.filter(function(trace){
+          if(!trace)return false;
+          if(trace.name===nextTrace.name)return false;
+          if(appendByClick)return true;
+          return !(trace.networkSource&&trace.networkSource.parentFileId===fileId&&trace.networkSource.metric===metric);
+        });
+        keep.push(nextTrace);
+        return Object.assign({},item,{traces:keep});
+      });
+    });
+    if(!nextTraceName)return;
+    var sourcePaneId=(payload&&payload.sourceTraceName)?getTracePaneId(tracePaneMap,payload.sourceTraceName):null;
+    var targetPaneId=sourcePaneId||activePaneId||"pane-1";
+    assignTraceToPane(nextTraceName,targetPaneId);
+    setVis(function(prev){
+      var next=Object.assign({},prev||{});
+      next[nextTraceName]=true;
+      return next;
+    });
+    setPaneActiveTrace(targetPaneId,nextTraceName);
+    setActivePaneId(targetPaneId);
+    if(nextYDomain&&isFinite(nextYDomain.min)&&isFinite(nextYDomain.max))setYZoom(nextYDomain,targetPaneId);
     setSelectedTraceName(nextTraceName);
     setDtTrace(nextTraceName);
   }
@@ -464,17 +650,71 @@ function useAppController(){
       return next;
     });
   }
+  function duplicateTouchstoneCellTrace(fileId,family,row,col,view){
+    if(fileId==null||!family||!isFinite(row)||!isFinite(col)||!view)return;
+    var targetPaneId=activePaneId||"pane-1";
+    setFiles(function(prev){
+      var createdName=null;
+      var nextFiles=(prev||[]).map(function(file){
+        if(!file||file.id!==fileId)return file;
+        var traces=Array.isArray(file.traces)?file.traces.slice():[];
+        var sourceTrace=traces.find(function(trace){
+          var source=trace&&trace.networkSource&&typeof trace.networkSource==="object"?trace.networkSource:null;
+          if(!source||source.parentFileId!==fileId||source.metric)return false;
+          return String(source.family||"S").toUpperCase()===String(family||"S").toUpperCase()&&Number(source.row)===Number(row)&&Number(source.col)===Number(col)&&String(source.view||"dB")===String(view);
+        })||null;
+        if(!sourceTrace){
+          var transientState=cloneTouchstoneSelectionState(file.touchstoneUiState||makeDefaultTouchstoneState(file));
+          var key=row+":"+col;
+          transientState.selectedCellsByFamily[family]={};
+          transientState.selectedCellsByFamily[family][key]=[view];
+          transientState.activeFamily=family;
+          transientState.activeViewByFamily[family]=view;
+          var rebuiltFile=reconcileTouchstoneFileSelections(file,transientState);
+          sourceTrace=(rebuiltFile&&Array.isArray(rebuiltFile.traces)?rebuiltFile.traces:[]).find(function(trace){
+            var source=trace&&trace.networkSource&&typeof trace.networkSource==="object"?trace.networkSource:null;
+            if(!source||source.parentFileId!==fileId||source.metric)return false;
+            return String(source.family||"S").toUpperCase()===String(family||"S").toUpperCase()&&Number(source.row)===Number(row)&&Number(source.col)===Number(col)&&String(source.view||"dB")===String(view);
+          })||null;
+        }
+        if(!sourceTrace)return file;
+        var usedNames={};
+        traces.forEach(function(trace){ if(trace&&trace.name)usedNames[trace.name]=true; });
+        var baseName=String(sourceTrace.name||("touchstone_"+String(family||"S").toUpperCase()+String(row)+String(col)+"_"+String(view||"dB"))).replace(/\s+/g,"_");
+        var baseLabel=String(sourceTrace.dn||baseName);
+        var suffix=2;
+        var nextName=baseName+"__"+suffix;
+        while(usedNames[nextName]){
+          suffix++;
+          nextName=baseName+"__"+suffix;
+        }
+        var dup=Object.assign({},sourceTrace);
+        dup.name=nextName;
+        dup.dn=baseLabel+" ("+suffix+")";
+        dup.id=nextName;
+        dup.networkSource=Object.assign({},sourceTrace.networkSource||{}, {metric:"manual-duplicate"});
+        traces.push(dup);
+        createdName=dup.name;
+        return Object.assign({},file,{traces:traces});
+      });
+      if(createdName){
+        assignTraceToPane(createdName,targetPaneId);
+        setPaneActiveTrace(targetPaneId,createdName);
+        setVis(function(current){
+          var next=Object.assign({},current||{});
+          next[createdName]=true;
+          return next;
+        });
+      }
+      return nextFiles;
+    });
+  }
   function onTouchstoneToggleCell(fileId,family,row,col,view){
     if(fileId==null||!family||!isFinite(row)||!isFinite(col)||!view)return;
     var nextState=cloneTouchstoneStateForFile(fileId);
     var key=row+":"+col;
-    var familySelections=Object.assign({},nextState.selectedCellsByFamily[family]||{});
-    var views=Array.isArray(familySelections[key])?familySelections[key].slice():(familySelections[key]?[String(familySelections[key])]:[]);
-    var existingIndex=views.indexOf(view);
-    if(existingIndex!==-1)views.splice(existingIndex,1);
-    else views.push(view);
-    if(views.length)familySelections[key]=views;
-    else delete familySelections[key];
+    var familySelections={};
+    familySelections[key]=[view];
     nextState.selectedCellsByFamily[family]=familySelections;
     nextState.activeFamily=family;
     nextState.activeViewByFamily[family]=view;
@@ -483,7 +723,7 @@ function useAppController(){
       next[fileId]=cloneTouchstoneSelectionState(nextState);
       return next;
     });
-    updateTouchstoneFileSelections(fileId,nextState);
+    duplicateTouchstoneCellTrace(fileId,family,row,col,view);
   }
   function onTouchstoneApplyPreset(fileId,preset,payload){
     if(fileId==null)return;
@@ -515,6 +755,11 @@ function useAppController(){
     var source=payload&&payload.networkSource||{};
     var fileId=source.parentFileId;
     if(fileId==null)return;
+    var opType=payload&&payload.operationType?String(payload.operationType):"";
+    if(opType==="touchstone-group-delay"||opType==="touchstone-vswr"||opType==="touchstone-return-loss"){
+      upsertTouchstoneAnalysisTrace(fileId,metric||source.metric||payload.metric,payload);
+      return;
+    }
     upsertTouchstoneMetricTrace(fileId,metric||source.metric||payload.metric,payload);
   }
   function onTraceDragStart(traceName,ev){
@@ -554,6 +799,144 @@ function useAppController(){
       var next=getPaneAutoYDomain(allTr,tracePaneMap,pane.id,vis,getPaneZoom(pane.id));
       syncYInputsForPane(next||null,pane.id);
     });
+  }
+  function setPaneSmithRange(paneId,left,right,opts){
+    opts=opts||{};
+    if(!paneId||!isFinite(left)||!isFinite(right)||right<=left)return;
+    if(opts.record!==false){
+      var previous=getPaneZoom(paneId);
+      var history=smithZoomHistoryRef.current||{};
+      var stack=Array.isArray(history[paneId])?history[paneId].slice():[];
+      stack.push(previous&&isFinite(previous.left)&&isFinite(previous.right)&&previous.right>previous.left?{left:previous.left,right:previous.right}:null);
+      history[paneId]=stack;
+      smithZoomHistoryRef.current=history;
+    }
+    setZoom({left:left,right:right},paneId);
+    setActivePaneId(paneId);
+  }
+  function clearPaneSmithRange(paneId){
+    if(!paneId)return;
+    setZoom(null,paneId);
+  }
+  function undoPaneSmithRangeZoom(paneId){
+    if(!paneId)return;
+    var history=smithZoomHistoryRef.current||{};
+    var stack=Array.isArray(history[paneId])?history[paneId]:null;
+    if(!stack||!stack.length){
+      setZoom(null,paneId);
+      return;
+    }
+    var previous=stack.pop();
+    history[paneId]=stack;
+    smithZoomHistoryRef.current=history;
+    if(previous&&isFinite(previous.left)&&isFinite(previous.right)&&previous.right>previous.left)setZoom({left:previous.left,right:previous.right},paneId);
+    else setZoom(null,paneId);
+  }
+  function buildSmithTargetForTrace(paneId,trace,paneZoom){
+    var target;
+    var touchstone;
+    if(!trace)return null;
+    if(trace.operationType==="touchstone-stability")return null;
+    touchstone=getTraceTouchstoneContext(trace,{getTraceFile:getTraceFile});
+    if(!touchstone||!touchstone.isTouchstone)return null;
+    if(touchstone.metric!=null)return null;
+    if(String(touchstone.family||"S").toUpperCase()!=="S")return null;
+    if(!Array.isArray(touchstone.samples)||!touchstone.samples.length)return null;
+    if(!isFinite(Number(touchstone.row))||!isFinite(Number(touchstone.col)))return null;
+    target={
+      paneId:paneId,
+      trace:trace,
+      traceLabel:getTraceLabel(trace),
+      data:getVisibleTraceData(trace,paneZoom).filter(function(point){return point&&isFinite(point.freq)&&isFinite(point.amp);}),
+      touchstone:touchstone
+    };
+    return isTouchstoneReflectionTarget(target)?target:null;
+  }
+  function resolvePaneSmithTargets(paneId,traces,paneActiveTraceName,paneZoom){
+    var visibleTraces=(traces||[]).filter(function(tr){return tr&&vis[tr.name];});
+    var selectedTrace=selectedTraceName?visibleTraces.find(function(tr){return tr.name===selectedTraceName;})||null:null;
+    var activeTrace=paneActiveTraceName?visibleTraces.find(function(tr){return tr.name===paneActiveTraceName;})||null:null;
+    var preferredTraceName=selectedTrace&&selectedTrace.name||(activeTrace&&activeTrace.name)||null;
+    var indexedTargets=visibleTraces.map(function(trace,idx){
+      return {idx:idx,target:buildSmithTargetForTrace(paneId,trace,paneZoom)};
+    }).filter(function(entry){return !!entry.target;});
+    if(!indexedTargets.length)return [];
+    if(preferredTraceName){
+      indexedTargets.sort(function(a,b){
+        var aPref=a.target&&a.target.trace&&a.target.trace.name===preferredTraceName?0:1;
+        var bPref=b.target&&b.target.trace&&b.target.trace.name===preferredTraceName?0:1;
+        if(aPref!==bPref)return aPref-bPref;
+        return a.idx-b.idx;
+      });
+    }
+    return indexedTargets.map(function(entry){return entry.target;});
+  }
+  function cloneTouchstoneComplexCell(cell,scale){
+    if(!cell||typeof cell!=="object")return cell;
+    var next=Array.isArray(cell)?cell.slice():Object.assign({},cell);
+    var factor=isFinite(scale)?Number(scale):1;
+    var re=isFinite(next.re)?Number(next.re):(isFinite(next.real)?Number(next.real):null);
+    var im=isFinite(next.im)?Number(next.im):(isFinite(next.imag)?Number(next.imag):null);
+    if(re!=null||im!=null){
+      if(re==null)re=0;
+      if(im==null)im=0;
+      next.re=re*factor;
+      next.im=im*factor;
+      next.real=next.re;
+      next.imag=next.im;
+    }
+    return next;
+  }
+  function cloneTouchstoneNetworkScaled(network,scale){
+    if(!network||typeof network!=="object")return null;
+    var next=Object.assign({},network);
+    if(Array.isArray(network.comments))next.comments=network.comments.slice();
+    if(Array.isArray(network.referenceOhms))next.referenceOhms=network.referenceOhms.slice();
+    if(Array.isArray(network.samples)){
+      next.samples=network.samples.map(function(sample){
+        if(!sample||typeof sample!=="object")return null;
+        var nextSample=Object.assign({},sample);
+        if(Array.isArray(sample.sMatrix)){
+          nextSample.sMatrix=sample.sMatrix.map(function(row){
+            return Array.isArray(row)?row.map(function(cell){ return cloneTouchstoneComplexCell(cell,scale); }):[];
+          });
+        }
+        return nextSample;
+      }).filter(Boolean);
+    }
+    return next;
+  }
+  function attachTouchstoneDerivedNetwork(trace,sourceTrace,scale){
+    var touchstone=getTraceTouchstoneContext(sourceTrace,{getTraceFile:getTraceFile});
+    var network=touchstone&&touchstone.network?touchstone.network:null;
+    if(!network)return trace;
+    var next=Object.assign({},trace);
+    var source=touchstone&&touchstone.source&&typeof touchstone.source==="object"?Object.assign({},touchstone.source):{};
+    if(source.parentFileId==null&&sourceTrace&&sourceTrace.fileId!=null)source.parentFileId=sourceTrace.fileId;
+    if(source.fileName==null&&touchstone&&touchstone.fileName)source.fileName=touchstone.fileName;
+    if(source.family==null&&touchstone&&touchstone.family)source.family=touchstone.family;
+    if(source.view==null&&touchstone&&touchstone.view)source.view=touchstone.view;
+    if(source.row==null&&touchstone&&touchstone.row!=null)source.row=touchstone.row;
+    if(source.col==null&&touchstone&&touchstone.col!=null)source.col=touchstone.col;
+    if(source.metric==null&&touchstone&&touchstone.metric!=null)source.metric=touchstone.metric;
+    if(source.portCount==null&&touchstone&&touchstone.portCount!=null)source.portCount=touchstone.portCount;
+    if(source.parameterType==null&&touchstone&&touchstone.parameterType!=null)source.parameterType=touchstone.parameterType;
+    if(source.referenceOhms==null&&touchstone&&touchstone.referenceOhms!=null){
+      source.referenceOhms=Array.isArray(touchstone.referenceOhms)?touchstone.referenceOhms.slice():touchstone.referenceOhms;
+    }
+    if(source.freqUnit==null&&touchstone&&touchstone.freqUnit!=null)source.freqUnit=touchstone.freqUnit;
+    if(source.dataFormat==null&&touchstone&&touchstone.dataFormat!=null)source.dataFormat=touchstone.dataFormat;
+    next.touchstoneNetwork=cloneTouchstoneNetworkScaled(network,scale);
+    next.networkSource=source;
+    next.fileId=source.parentFileId!=null?source.parentFileId:next.fileId;
+    next.fileName=source.fileName!=null?source.fileName:next.fileName;
+    next.file=source.fileName!=null?source.fileName:next.file;
+    next.format="touchstone";
+    next.touchstoneFamily=source.family||next.touchstoneFamily||"S";
+    next.touchstoneView=source.view||next.touchstoneView||"dB";
+    next.touchstoneRow=source.row!=null?source.row:next.touchstoneRow;
+    next.touchstoneCol=source.col!=null?source.col:next.touchstoneCol;
+    return next;
   }
   function getTraceMathUnitWarning(aName,bName,op){
     var a=getTraceByName(aName),b=getTraceByName(bName);
@@ -628,13 +1011,23 @@ function useAppController(){
   }
   function removeTrace(traceName){
     var tr=getTraceByName(traceName);
-    if(tr&&isDerivedTrace(tr))removeDerivedTrace(traceName);
+    if(!tr){
+      removeRawTrace(traceName);
+      return;
+    }
+    // Touchstone analysis traces are stored inside file-backed traces; remove them via file store path.
+    if(tr&&tr.fileId!=null){
+      removeRawTrace(traceName);
+      return;
+    }
+    if(isDerivedTrace(tr))removeDerivedTrace(traceName);
     else removeRawTrace(traceName);
   }
   var clearWorkspaceToBaseline=useCallback(function(){
     baseClearAllFiles();
     setDerivedTraces([]);
     setPaneMode(1);
+    setPaneRenderModes({"pane-1":"cartesian"});
     setActivePaneId("pane-1");
     setTracePaneMap({});
     setPaneActiveTraceMap({"pane-1":null});
@@ -682,6 +1075,7 @@ function useAppController(){
     setNewMarkerArmed(false);
     setMkrMode("normal");
     setMarkerTrace("__auto__");
+    setMarkerTraceByPane({});
     setSelectedMkrIdx(null);
     setSelectedRefLineId(null);
     setShowTraceOps(false);
@@ -693,7 +1087,7 @@ function useAppController(){
     setTouchstoneStateByFileId({});
     clearAllXZooms();
     clearAllPaneYZooms();
-  },[baseClearAllFiles,setPaneMode,setActivePaneId,setTracePaneMap,setPaneActiveTraceMap,setSelectedTraceName,setDragTraceName,setPaneActiveTrace,setOffsetSource,setOffsetValue,setScaleSource,setScaleValue,setSmoothSource,setSmoothMethod,setSmoothWindow,setSmoothPolyOrder,setSubtractA,setSubtractB,setTraceMathOperation,setSubtractInterpolation,setTraceOpsError,setPeakTableLimit,setPeakTableMinSpacing,setPeakTableMinAmp,setBandwidthDrop,setThresholdManual,setObwPercent,setAnalysisOpenStateRaw,setShowSidebar,setShowMeta,setShowTouchstoneControls,setShowMarkers,setShowImportExportPanel,setRightPanelOrder,setShowMarkerTools,setShowPaneTools,setShowSearchTools,setShowLineTools,setShowViewTools,setShowDots,setShowDT,setLockLinesAcrossPanes,setSearchDirection,setNewMarkerArmed,setMkrMode,setMarkerTrace,setSelectedMkrIdx,setSelectedRefLineId,setShowTraceOps,setTraceOpsOpenSections,setShowAnalysisPanel,setNoiseFilter,setNoiseSource,setIP3Gain,setTouchstoneStateByFileId,clearAllXZooms,clearAllPaneYZooms]);
+  },[baseClearAllFiles,setPaneMode,setPaneRenderModes,setActivePaneId,setTracePaneMap,setPaneActiveTraceMap,setSelectedTraceName,setDragTraceName,setPaneActiveTrace,setOffsetSource,setOffsetValue,setScaleSource,setScaleValue,setSmoothSource,setSmoothMethod,setSmoothWindow,setSmoothPolyOrder,setSubtractA,setSubtractB,setTraceMathOperation,setSubtractInterpolation,setTraceOpsError,setPeakTableLimit,setPeakTableMinSpacing,setPeakTableMinAmp,setBandwidthDrop,setThresholdManual,setObwPercent,setAnalysisOpenStateRaw,setShowSidebar,setShowMeta,setShowTouchstoneControls,setShowMarkers,setShowImportExportPanel,setRightPanelOrder,setShowMarkerTools,setShowPaneTools,setShowSearchTools,setShowLineTools,setShowViewTools,setShowDots,setShowDT,setLockLinesAcrossPanes,setSearchDirection,setNewMarkerArmed,setMkrMode,setMarkerTrace,setMarkerTraceByPane,setSelectedMkrIdx,setSelectedRefLineId,setShowTraceOps,setTraceOpsOpenSections,setShowAnalysisPanel,setNoiseFilter,setNoiseSource,setIP3Gain,setTouchstoneStateByFileId,clearAllXZooms,clearAllPaneYZooms]);
   function clearAllFiles(){
     clearWorkspaceToBaseline();
   }
@@ -715,6 +1109,7 @@ function useAppController(){
       setSharedZoom:setSharedZoom,
       setPaneXZooms:setPaneXZooms,
       setPaneYZooms:setPaneYZooms,
+      setPaneRenderModes:setPaneRenderModes,
       setYMnI:setYMnI,
       setYMxI:setYMxI,
       setShowSidebar:setShowSidebar,
@@ -838,7 +1233,9 @@ function useAppController(){
     setShowDT(false);
     setLockLinesAcrossPanes(false);
     setNewMarkerArmed(false);
-    setMarkerTrace(traceByKey[preset.markerTraceKey]?traceByKey[preset.markerTraceKey].name:(selectedTrace?selectedTrace.name:"__auto__"));
+    var demoMarkerTrace=traceByKey[preset.markerTraceKey]?traceByKey[preset.markerTraceKey].name:(selectedTrace?selectedTrace.name:"__auto__");
+    setMarkerTrace(demoMarkerTrace);
+    setMarkerTraceByPane({"pane-1":demoMarkerTrace||"__auto__"});
     setMarkers(markerList);
     setSelectedMkrIdx(markerList.length?0:null);
     setDRef(null);
@@ -857,6 +1254,12 @@ function useAppController(){
     setShowAnalysisPanel(!!preset.showAnalysisPanel);
     setAnalysisOpenStateRaw(function(){return normalizeAnalysisOpenState(preset.analysisOpenState||{});});
     setPaneMode(clampPaneCount(preset.paneMode||1));
+    setPaneRenderModes(function(){
+      var next={};
+      var count=clampPaneCount(preset.paneMode||1);
+      for(var i=1;i<=count;i++)next["pane-"+i]="cartesian";
+      return next;
+    });
     setActivePaneId(preset.activePaneId||"pane-1");
     setTracePaneMap(function(){
       var next={};
@@ -999,6 +1402,88 @@ function useAppController(){
       };
     });
   }
+  function getTouchstoneMarkerExportRows(marker,trace,renderMode){
+    if(!marker||!trace)return [];
+    var mode=String(renderMode||"cartesian").toLowerCase();
+    if(trace.operationType==="touchstone-stability"||trace.networkSource&&trace.networkSource.metric)return [];
+    var ctx=getTraceTouchstoneContext?getTraceTouchstoneContext(trace,{getTraceFile:getTraceFile}):null;
+    if(!ctx||!Array.isArray(ctx.samples)||!ctx.samples.length)return [];
+    var rowRaw=ctx.row, colRaw=ctx.col;
+    if(!(isFinite(Number(rowRaw))&&isFinite(Number(colRaw))))return [];
+    var row=Number(rowRaw)>=1?Number(rowRaw)-1:Number(rowRaw);
+    var col=Number(colRaw)>=1?Number(colRaw)-1:Number(colRaw);
+    if(!(row>=0&&col>=0))return [];
+    var z0=50;
+    if(Array.isArray(ctx.referenceOhms)&&ctx.referenceOhms.length&&isFinite(Number(ctx.referenceOhms[0])))z0=Number(ctx.referenceOhms[0]);
+    else if(isFinite(Number(ctx.referenceOhms)))z0=Number(ctx.referenceOhms);
+    function readCell(sample){
+      var cell=sample&&sample.sMatrix&&sample.sMatrix[row]&&sample.sMatrix[row][col];
+      var freq=Number(sample&&sample.freq);
+      if(!cell||!isFinite(freq))return null;
+      var re=cell.re!=null?Number(cell.re):(cell.real!=null?Number(cell.real):NaN);
+      var im=cell.im!=null?Number(cell.im):(cell.imag!=null?Number(cell.imag):NaN);
+      if(!isFinite(re)&&!isFinite(im))return null;
+      return {freq:freq,re:isFinite(re)?re:0,im:isFinite(im)?im:0};
+    }
+    var points=ctx.samples.map(readCell).filter(Boolean).sort(function(a,b){return a.freq-b.freq;});
+    if(!points.length)return [];
+    var targetFreq=Number(marker.freq);
+    if(!isFinite(targetFreq))targetFreq=points[0].freq;
+    var sample=points[0];
+    if(points.length>1&&targetFreq>points[0].freq){
+      for(var i=0;i<points.length-1;i++){
+        var a=points[i],b=points[i+1];
+        if(targetFreq<a.freq||targetFreq>b.freq)continue;
+        var span=b.freq-a.freq;
+        var t=span!==0?(targetFreq-a.freq)/span:0;
+        if(t<0)t=0;
+        if(t>1)t=1;
+        sample={freq:a.freq+((b.freq-a.freq)*t),re:a.re+((b.re-a.re)*t),im:a.im+((b.im-a.im)*t)};
+        break;
+      }
+      if(targetFreq>=points[points.length-1].freq)sample=points[points.length-1];
+    }
+    var mag=Math.hypot(sample.re,sample.im);
+    var phase=Math.atan2(sample.im,sample.re)*180/Math.PI;
+    var den=(1-sample.re)*(1-sample.re)+(sample.im*sample.im);
+    var z=den>0?{re:z0*(((1-sample.re)*(1+sample.re))+(sample.im*sample.im))/den,im:z0*(2*sample.im)/den}:null;
+    var y=null;
+    if(z&&isFinite(z.re)&&isFinite(z.im)){
+      var yDen=(z.re*z.re)+(z.im*z.im);
+      if(yDen>0)y={re:z.re/yDen,im:-z.im/yDen};
+    }
+    var traceView=String((trace.networkSource&&trace.networkSource.view!=null?trace.networkSource.view:(trace.touchstoneView!=null?trace.touchstoneView:"dB"))).trim().toLowerCase();
+    var rows=[];
+    if(mode==="smith"){
+      if(z){
+        rows.push({label:"Z real",value:formatScalarWithUnit(z.re,"Ohm",{digits:3})});
+        rows.push({label:"Z imag",value:formatScalarWithUnit(z.im,"Ohm",{digits:3})});
+      }
+      return rows;
+    }
+    if(mode==="smith-inverted"){
+      if(y){
+        rows.push({label:"Y real",value:formatScalarWithUnit(y.re,"S",{digits:3})});
+        rows.push({label:"Y imag",value:formatScalarWithUnit(y.im,"S",{digits:3})});
+      }
+      return rows;
+    }
+    if(traceView==="db"){
+      rows.push({label:"Phase",value:phase.toFixed(2)+" deg"});
+    }else if(traceView==="phase"){
+      rows.push({label:"S dB",value:(20*Math.log10(Math.max(mag,1e-12))).toFixed(2)+" dB"});
+    }else if(traceView==="real"){
+      rows.push({label:"Imag",value:sample.im.toFixed(6)});
+    }else if(traceView==="imag"){
+      rows.push({label:"Real",value:sample.re.toFixed(6)});
+    }else if(traceView==="mag"){
+      rows.push({label:"Phase",value:phase.toFixed(2)+" deg"});
+    }else{
+      rows.push({label:"S dB",value:(20*Math.log10(Math.max(mag,1e-12))).toFixed(2)+" dB"});
+      rows.push({label:"Phase",value:phase.toFixed(2)+" deg"});
+    }
+    return rows;
+  }
   function buildChartVectorExport(options){
     options=options||{};
     if(!chartExportRef.current)throw new Error("The chart is not ready to export yet.");
@@ -1006,7 +1491,7 @@ function useAppController(){
     var paneGap=12;
     var padding=options.kind==="png"?16:0;
     var colors=getExportThemeColors();
-    var paneSvgs=Array.from(chartExportRef.current.querySelectorAll("svg.recharts-surface")).map(function(node){
+    var paneSvgs=Array.from(chartExportRef.current.querySelectorAll("svg.recharts-surface, svg[data-chart-type='smith']")).map(function(node){
       var rect=node.getBoundingClientRect();
       return {node:node,width:Math.max(1,Math.round(rect.width)),height:Math.max(1,Math.round(rect.height))};
     }).filter(function(item){return item.width>1&&item.height>1;});
@@ -1035,7 +1520,10 @@ function useAppController(){
     }
     if(options.kind==="png"){
       markers.forEach(function(marker,index){
-        var traceLabel=(getTraceByName(marker.trace)&&getTraceLabel(getTraceByName(marker.trace)))||marker.trace||"-";
+        var markerTrace=getTraceByName(marker.trace);
+        var markerPaneId=marker&&marker.trace?getTracePaneId(tracePaneMap,marker.trace):activePaneId;
+        var markerPaneRenderMode=getPaneRenderMode(markerPaneId);
+        var traceLabel=(markerTrace&&getTraceLabel(markerTrace))||marker.trace||"-";
         var markerColor=(traceColorMap&&marker.trace&&traceColorMap[marker.trace])||(mcMap[marker.type]||C.accent);
         var rows=[
           {label:"Freq",value:fmtF(marker.freq,true)},
@@ -1045,6 +1533,7 @@ function useAppController(){
           rows.push({label:"dFreq",value:fmtF(marker.freq-markers[marker.refIdx].freq,true)});
           rows.push({label:"dAmp",value:(marker.amp-markers[marker.refIdx].amp).toFixed(3)+" dB"});
         }
+        rows=rows.concat(getTouchstoneMarkerExportRows(marker,markerTrace,markerPaneRenderMode));
         cardY+=appendSvgCard(parts,padding,cardY,cardWidth,(marker.label||("M"+(index+1)))+"  "+traceLabel,markerColor,rows,colors)+10;
       });
       noiseResults.forEach(function(result){
@@ -1107,6 +1596,9 @@ function useAppController(){
     var label=buildDerivedLabel((getTraceLabel(src)||src.name)+" ["+sign+offsetDb.toFixed(2)+" dB]");
     var data=srcData.map(function(p){return {freq:p.freq,amp:p.amp+offsetDb};});
     var drv=createDerivedTrace(src,"offset",{offsetDb:offsetDb},data,label);
+    if(getTraceTouchstoneContext(src,{getTraceFile:getTraceFile})){
+      drv=attachTouchstoneDerivedNetwork(drv,src,Math.pow(10,offsetDb/20));
+    }
     addDerivedTrace(drv);
     setTraceOpsError("");
   }
@@ -1119,6 +1611,9 @@ function useAppController(){
     var label=buildDerivedLabel((getTraceLabel(src)||src.name)+" [x"+factor.toFixed(3)+"]");
     var data=srcData.map(function(p){return {freq:p.freq,amp:p.amp*factor};});
     var drv=createDerivedTrace(src,"scale",{factor:factor},data,label);
+    if(getTraceTouchstoneContext(src,{getTraceFile:getTraceFile})){
+      drv=attachTouchstoneDerivedNetwork(drv,src,factor);
+    }
     addDerivedTrace(drv);
     setTraceOpsError("");
   }
@@ -1326,7 +1821,7 @@ function useAppController(){
   },[showTraceOps,setShowTraceOps,showAnalysisPanel,setShowAnalysisPanel,anyOpenAnalysis,closeAllAnalysisCards,C,promoteRightPanelSection]);
 
   var noiseMeta=noiseSource?getTraceMeta(noiseSource):m0;
-  var nav=useChartNav({allTr:allTr,xAllTr:allTr,vis:vis,colors:C.tr,zoom:zoom,setZoom:setZoom,syncYInputs:syncYInputs,resetY:resetYZ,chartRef:chartRef,panRef:panRef,suppressClickRef:suppressClickRef,mouseBtnRef:mouseBtnRef,crosshair:crosshair,getActivePaneModel:function(){return activePaneModelRef.current;},getActivePaneYZoom:function(){return getPaneYZoom(activePaneId);}});
+  var nav=useChartNav({allTr:allTr,xAllTr:allTr,vis:vis,colors:C.tr,traceColorMap:traceColorMap,zoom:zoom,setZoom:setZoom,syncYInputs:syncYInputs,resetY:resetYZ,chartRef:chartRef,panRef:panRef,suppressClickRef:suppressClickRef,mouseBtnRef:mouseBtnRef,crosshair:crosshair,getActivePaneModel:function(){return activePaneModelRef.current;},getActivePaneYZoom:function(){return getPaneYZoom(activePaneId);}});
   selA=nav.selA;setSelA=nav.setSelA;selB=nav.selB;setSelB=nav.setSelB;hoverX=nav.hoverX;hoverData=nav.hoverData;getMouseBtn=nav.getMouseBtn;getXDomain=nav.getXDomain;getXDomainHz=nav.getXDomainHz;freqFromClientX=nav.freqFromClientX;panXWindow=nav.panXWindow;chartMM=nav.chartMM;chartML=nav.chartML;mDown=nav.mDown;mUp=nav.mUp;onChartContainerMouseDownCapture=nav.onChartContainerMouseDownCapture;onChartContainerMouseUpCapture=nav.onChartContainerMouseUpCapture;
   var rbw=noiseMeta["RBW"]?.value||m0["RBW"]?.value||3000;
   var nextPeakExclusion=useMemo(function(){
@@ -1385,7 +1880,7 @@ function useAppController(){
       var palette,isDerivedVisual,touchstoneFamily;
       if(!tr||!tr.name)return;
       touchstoneFamily=(getTouchstoneTraceFamily&&isTouchstoneTrace&&isTouchstoneTrace(tr))?String(getTouchstoneTraceFamily(tr)||"").toUpperCase():"";
-      isDerivedVisual=!!(isDerivedTrace(tr)||tr.operationType==="touchstone-stability"||touchstoneFamily==="Y"||touchstoneFamily==="Z");
+      isDerivedVisual=!!(isDerivedTrace(tr)||tr.operationType==="touchstone-stability"||tr.operationType==="touchstone-group-delay"||touchstoneFamily==="Y"||touchstoneFamily==="Z");
       palette=isDerivedVisual?derivedPalette:rawPalette;
       if(tr.operationType==="touchstone-stability"&&tr.networkSource&&tr.networkSource.metric){
         var metricOrder={k:0,mu1:1,mu2:2,deltaMag:3};
@@ -1423,8 +1918,8 @@ function useAppController(){
         });
       });
       var sorted=Array.from(m.values()).sort(function(a,b){return a.freq-b.freq;});
-      var sf=sorted.length?Math.abs(sorted[0].freq):0;
-      var div=sf>=1e9?1e9:sf>=1e6?1e6:sf>=1e3?1e3:1;
+      var maxAbsFreq=sorted.length?Math.max(Math.abs(sorted[0].freq),Math.abs(sorted[sorted.length-1].freq)):0;
+      var div=maxAbsFreq>=1e9?1e9:maxAbsFreq>=1e6?1e6:maxAbsFreq>=1e3?1e3:1;
       var unit=div===1e9?"GHz":div===1e6?"MHz":div===1e3?"kHz":"Hz";
       var minF=sorted.length?sorted[0].freq/div:0;
       var maxF=sorted.length?sorted[sorted.length-1].freq/div:0;
@@ -1433,6 +1928,8 @@ function useAppController(){
       var selectedTraceInPane=(selectedMkrIdx!==null&&selectedMkrIdx!==undefined&&markers[selectedMkrIdx]&&getTracePaneId(tracePaneMap,markers[selectedMkrIdx].trace)===pane.id)?markers[selectedMkrIdx].trace:null;
       var paneActiveTraceName=selectedTraceInPane||(getPaneActiveTraceName(pane.id)||null);
       var axisInfo=deriveAxisInfo(traces,vis,paneActiveTraceName,unit,hasData);
+      var smithTargets=resolvePaneSmithTargets(pane.id,traces,paneActiveTraceName,paneZoom);
+      var smithTarget=smithTargets[0]||null;
       return {
         pane:pane,
         traces:traces,
@@ -1443,11 +1940,29 @@ function useAppController(){
         tickDp:tickDp||2,
         axisInfo:axisInfo,
         paneActiveTraceName:paneActiveTraceName,
+        renderMode:getPaneRenderMode(pane.id),
+        smithTargets:smithTargets,
+        smithTarget:smithTarget,
         paneYZoom:sanitizeYDomain(paneYZooms[pane.id])||null,
         autoYDomain:getPaneAutoYDomain(allTr,tracePaneMap,pane.id,vis,paneZoom)
       };
     });
-  },[panes,getPaneTracesForId,vis,getPaneZoom,selectedMkrIdx,markers,tracePaneMap,getPaneActiveTraceName,hasData,paneYZooms,allTr]);
+  },[panes,getPaneTracesForId,vis,getPaneZoom,selectedMkrIdx,markers,tracePaneMap,getPaneActiveTraceName,hasData,paneYZooms,allTr,paneRenderModes,selectedTraceName,files]);
+  useEffect(function(){
+    setPaneRenderModes(function(prev){
+      var next=Object.assign({},prev||{});
+      var changed=false;
+      (paneModels||[]).forEach(function(model){
+        var mode=normalizePaneRenderMode(next[model.pane.id]);
+        var hasSmithTargets=Array.isArray(model.smithTargets)?model.smithTargets.length>0:!!model.smithTarget;
+        if(mode!=="cartesian"&&!hasSmithTargets){
+          next[model.pane.id]="cartesian";
+          changed=true;
+        }
+      });
+      return changed?next:prev;
+    });
+  },[paneModels]);
     var activePaneModel=useMemo(function(){
       return paneModels.find(function(model){return model.pane.id===activePaneId;})||paneModels[0]||null;
     },[paneModels,activePaneId]);
@@ -1457,6 +1972,42 @@ function useAppController(){
   var fDiv=activePaneModel?activePaneModel.fDiv:1;
   var fUnit=activePaneModel?activePaneModel.fUnit:"Hz";
   var tickDp=activePaneModel?activePaneModel.tickDp:2;
+    function computePaneTickModel(model){
+      if(!model||!Array.isArray(model.cData)||!model.cData.length)return null;
+      var first=model.cData[0],last=model.cData[model.cData.length-1];
+      if(!first||!last||!isFinite(first.fs)||!isFinite(last.fs)||last.fs<first.fs)return null;
+      var xDomain={min:first.fs,max:last.fs};
+      var xTicks=makeNiceTicks(xDomain,11);
+      var xSpan=Math.abs(xDomain.max-xDomain.min);
+      var xDiv=getPrimaryTickStep(xTicks,isFinite(xSpan)?(xSpan/10):null);
+      var yBase=model.paneYZoom||model.autoYDomain;
+      var yDiv=null;
+      if(yBase&&isFinite(yBase.min)&&isFinite(yBase.max)&&yBase.max>yBase.min){
+        var yTicks=makeYTicksFromDomain(yBase);
+        var ySpan=Math.abs(yBase.max-yBase.min);
+        yDiv=getPrimaryTickStep(yTicks,isFinite(ySpan)?(ySpan/8):null);
+      }
+      if(!isFinite(xDiv)&&!isFinite(yDiv))return null;
+      return {
+        xDiv:isFinite(xDiv)?xDiv:null,
+        yDiv:isFinite(yDiv)?yDiv:null
+      };
+    }
+    var activePaneTickModel=computePaneTickModel(activePaneModel)||(paneTickModelRef.current||null);
+    paneTickModelRef.current=activePaneTickModel;
+  var activePaneRenderMode=activePaneModel?normalizePaneRenderMode(activePaneModel.renderMode):"cartesian";
+  var activePaneSmithTarget=activePaneModel&&activePaneModel.smithTarget?activePaneModel.smithTarget:null;
+  var availablePaneRenderModes=hasTouchstoneFiles?["cartesian","smith","smith-inverted"]:["cartesian"];
+  function formatDivLabel(step,unit){
+    var decimals;
+    if(!isFinite(step))return "--";
+      if(String(unit||"").trim().toLowerCase()==="s"){
+        return formatScalarWithUnit(step,unit,{digits:3})+"/div";
+      }
+    decimals=step>=100?0:step>=10?1:step>=1?2:step>=0.1?3:step>=0.01?4:5;
+    return step.toFixed(decimals)+" "+(unit||"")+"/div";
+  }
+  var toolbarXDivLabel=(activePaneTickModel&&isFinite(activePaneTickModel.xDiv))?formatDivLabel(Math.abs(activePaneTickModel.xDiv),fUnit||"Hz"):"--";
   var analysisTarget=useMemo(function(){
     return resolveAnalysisTarget({
       activePaneId:activePaneId,
@@ -1487,6 +2038,47 @@ function useAppController(){
       var next=(prev||[]).concat(rows.map(function(row){
         return {freq:row.freq,amp:row.amp,trace:target.trace.name,type:"peak",label:"P"+row.rank};
       }));
+      setSelectedMkrIdx(next.length-1);
+      return next;
+    });
+  },[setMarkers,setSelectedMkrIdx,setSelectedRefLineId]);
+  var addAnalysisMarker=useCallback(function(target,point,opts){
+    if(!target||!target.trace||!point)return;
+    var freq=Number(point.freq);
+    var amp=Number(point.amp);
+    if(!isFinite(freq)||!isFinite(amp))return;
+    opts=opts||{};
+    setSelectedRefLineId(null);
+    markerCtl.addMarker({
+      freq:freq,
+      amp:amp,
+      trace:target.trace.name,
+      type:opts.type||"normal",
+      label:opts.label||undefined
+    },opts.selectNew!==false);
+  },[markerCtl,setSelectedRefLineId]);
+  var addAnalysisMarkers=useCallback(function(target,points,opts){
+    if(!target||!target.trace||!Array.isArray(points)||!points.length)return;
+    opts=opts||{};
+    var labelPrefix=opts.labelPrefix||"A";
+    var markerType=opts.type||"normal";
+    var created=[];
+    points.forEach(function(point,idx){
+      var freq=Number(point&&point.freq);
+      var amp=Number(point&&point.amp);
+      if(!isFinite(freq)||!isFinite(amp))return;
+      created.push({
+        freq:freq,
+        amp:amp,
+        trace:target.trace.name,
+        type:markerType,
+        label:labelPrefix+(idx+1)
+      });
+    });
+    if(!created.length)return;
+    setSelectedRefLineId(null);
+    setMarkers(function(prev){
+      var next=(prev||[]).concat(created);
       setSelectedMkrIdx(next.length-1);
       return next;
     });
@@ -1608,10 +2200,37 @@ function useAppController(){
       var next=prev.slice();
       var current=next[selectedMkrIdx]||{};
       next[selectedMkrIdx]=Object.assign({},current,mk,current.label?{label:current.label}:{});
+      if(!("smithPhase" in mk)&&!("smithZReal" in mk)&&!("smithZImag" in mk)&&!("smithMag" in mk)){
+        delete next[selectedMkrIdx].smithPhase;
+        delete next[selectedMkrIdx].smithZReal;
+        delete next[selectedMkrIdx].smithZImag;
+        delete next[selectedMkrIdx].smithMag;
+      }
       if(next[selectedMkrIdx].type!=="delta")delete next[selectedMkrIdx].refIdx;
       return next;
     });
     return true;
+  }
+  function moveSelectedMarkerToSmithPoint(traceName,freq){
+    var trace,point;
+    if(selectedMkrIdx===null||selectedMkrIdx===undefined||!markers[selectedMkrIdx])return false;
+    if(!traceName||!isFinite(freq))return false;
+    trace=getTraceByName(traceName);
+    if(!trace)return false;
+    point=nearestPoint(trace,freq,null,null);
+    if(!point||!isFinite(point.freq))return false;
+    return updateSelectedMarkerPosition({freq:point.freq,amp:isFinite(point.amp)?point.amp:markers[selectedMkrIdx].amp,trace:traceName});
+  }
+  function moveSelectedMarkerToSmithPointData(traceName,point){
+    if(selectedMkrIdx===null||selectedMkrIdx===undefined||!markers[selectedMkrIdx])return false;
+    if(!traceName||!point||!isFinite(point.freq))return false;
+    var mk={freq:point.freq,trace:traceName};
+    mk.amp=isFinite(point.magnitude)?(20*Math.log10(Math.max(point.magnitude,1e-12))):isFinite(point.amp)?point.amp:markers[selectedMkrIdx].amp;
+    if(isFinite(point.phase))mk.smithPhase=point.phase;
+    if(point.impedance&&isFinite(point.impedance.re))mk.smithZReal=point.impedance.re;
+    if(point.impedance&&isFinite(point.impedance.im))mk.smithZImag=point.impedance.im;
+    if(isFinite(point.magnitude))mk.smithMag=point.magnitude;
+    return updateSelectedMarkerPosition(mk);
   }
   function placeMarkerFromEvent(ev,forceAdd){
     if(suppressClickRef.current){suppressClickRef.current=false;return;}
@@ -1728,6 +2347,7 @@ function useAppController(){
   var mKeys=["Type","Mode","Date","Center Freq","Span","Start","Stop","Ref Level","Rf Att","RBW","VBW","SWT","Preamplifier","Detector","Trace Mode","Sweep Count"];
   var hasData=files.length>0;
   var yU=activePaneModel&&activePaneModel.axisInfo?activePaneModel.axisInfo.yUnit:"dBm";
+  var toolbarYDivLabel=(activePaneTickModel&&isFinite(activePaneTickModel.yDiv))?formatDivLabel(Math.abs(activePaneTickModel.yDiv),yU||""):"--";
   var rightPanelSections=useMemo(function(){
     var order=[];
     if(showImportExportPanel)order.push("import-export");
@@ -1775,10 +2395,10 @@ function useAppController(){
   }
 
   var topBarProps={files:files,removeFile:removeFile,hasData:hasData,C:C,showSidebar:showSidebar,setShowSidebar:setShowSidebar,showMarkerTools:showMarkerTools,setShowMarkerTools:setShowMarkerTools,showPaneTools:showPaneTools,setShowPaneTools:setShowPaneTools,showSearchTools:showSearchTools,setShowSearchTools:setShowSearchTools,showLineTools:showLineTools,setShowLineTools:setShowLineTools,showViewTools:showViewTools,setShowViewTools:setShowViewTools,showDots:showDots,setShowDots:setShowDots,showDT:showDT,setShowDT:setShowDTFromTopBar,analysisButtons:analysisButtons,clearAllFiles:clearAllFiles,showImportExportPanel:showImportExportPanel,toggleImportExportPanel:toggleImportExportPanel};
-  var sidebarProps={C:C,files:files,mKeys:mKeys,stats:stats,allTr:allTr,panes:panes,markers:markers,refLines:refLines,activePaneId:activePaneId,selectedTraceName:selectedTraceName,dragTraceName:dragTraceName,tracePaneMap:tracePaneMap,vis:vis,setVis:setVis,paneMode:paneMode,getTracePaneId:function(traceName){return getTracePaneId(tracePaneMap,traceName);},getTraceByName:getTraceByName,selectTrace:selectTrace,onTraceDragStart:onTraceDragStart,onTraceDragEnd:onTraceDragEnd,removeTrace:removeTrace,showMarkers:showMarkers,setShowMarkers:setShowMarkers,showMeta:showMeta,setShowMeta:setShowMeta,showTouchstoneControls:showTouchstoneControls,setShowTouchstoneControls:setShowTouchstoneControls,fitPane:fitPane,fitAllPanes:fitAllPanes,resetYZ:resetYZ,clearPane:clearPane,yU:yU,mcMap:mcMap,traceColorMap:traceColorMap,setMarkers:setMarkers,zoom:zoom,selectedMkrIdx:selectedMkrIdx,setSelectedMkrIdx:setSelectedMkrIdx,selectedRefLineId:selectedRefLineId,setSelectedRefLineId:setSelectedRefLineId,setRefLines:setRefLines,setActivePaneId:setActivePaneId,clearMarkers:clearMarkers,rmMkr:rmMkr,removeFile:removeFile,touchstoneStateByFileId:touchstoneStateByFileId,onTouchstoneSetActiveFamily:onTouchstoneSetActiveFamily,onTouchstoneSetFamilyView:onTouchstoneSetFamilyView,onTouchstoneSetExpanded:onTouchstoneSetExpanded,onTouchstoneToggleCell:onTouchstoneToggleCell,onTouchstoneApplyPreset:onTouchstoneApplyPreset,onTouchstoneClearFileViews:onTouchstoneClearFileViews};
-  var toolbarProps={C:C,allTr:allTr,vis:vis,zoom:zoom,yZoom:yZoom,cData:cData,fUnit:fUnit,yU:yU,showMarkerTools:showMarkerTools,showPaneTools:showPaneTools,showSearchTools:showSearchTools,showLineTools:showLineTools,showViewTools:showViewTools,mkrMode:mkrMode,refMode:refMode,setNewMarkerArmed:setNewMarkerArmed,newMarkerArmed:newMarkerArmed,setMkrMode:setMkrMode,setRefMode:setRefMode,markers:markers,dRef:dRef,setDRef:setDRef,selectedMkrIdx:selectedMkrIdx,setSelectedMkrIdx:setSelectedMkrIdx,selectedRefLineId:selectedRefLineId,setSelectedRefLineId:setSelectedRefLineId,panes:panes,activePaneId:activePaneId,setActivePaneId:setActivePaneId,setPaneMode:setPaneMode,fitAllPanes:fitAllPanes,hasData:hasData,peakSrch:peakSrch,nxtPeak:nxtPeak,minSrch:minSrch,nxtMin:nxtMin,searchDirection:searchDirection,setSearchDirection:setSearchDirection,lockLinesAcrossPanes:lockLinesAcrossPanes,setLockLinesAcrossPanes:setLockLinesAcrossPanes,zoomAll:zoomAll,setZoomAll:setZoomAll,resetYZ:resetYZ,setZoom:setZoom,interactionCtl:interactionCtl,selectedMarker:selectedMarker,refLines:refLines};
-  var chartWorkspaceProps={allTr:allTr,paneModels:paneModels,panes:panes,activePaneId:activePaneId,setActivePaneId:setActivePaneId,vis:vis,traceColorMap:traceColorMap,showDots:showDots,markers:markers,selectedMkrIdx:selectedMkrIdx,setSelectedMkrIdx:setSelectedMkrIdx,refLines:refLines,selectedRefLineId:selectedRefLineId,setSelectedRefLineId:setSelectedRefLineId,dragRefLineRef:dragRefLineRef,dragTraceName:dragTraceName,chartDomainRef:chartDomainRef,chartRef:chartRef,chartExportRef:chartExportRef,chartClick:chartClick,chartMMWithDrag:chartMMWithDrag,chartML:chartML,mDown:mDown,mUp:mUp,handleChartMouseDownCapture:handleChartMouseDownCapture,handleChartMouseUpCapture:handleChartMouseUpCapture,hoverData:hoverData,hoverX:hoverX,selA:selA,selB:selB,getXDomainHz:getXDomainHz,mcMap:mcMap,C:C,selectedTraceName:selectedTraceName,moveSelectedTraceToPane:moveSelectedTraceToPane,fitPane:fitPane,clearPane:clearPane,resetYZ:resetYZ,getTraceByName:getTraceByName,getTracePaneId:function(traceName){return getTracePaneId(tracePaneMap,traceName);},tracePaneMap:tracePaneMap,onPaneDrop:onPaneDrop,isDrag:isDrag,setIsDrag:setIsDrag,loadFiles:loadFiles,fileInputRef:fRef};
-  var analysisStackProps={visible:analysisPanelVisible,showTraceOps:showTraceOps,showAnalysisPanel:showAnalysisPanel,showNoise:showNoise,showIP3:showIP3,visibleAnalysisIds:visibleAnalysisIds,normalizedAnalysisOpenState:normalizedAnalysisOpenState,traceOpsProps:{C:C,openOps:traceOpsOpenSections,setOpenOps:setTraceOpsOpenSections,traceOptions:traceOptions,offsetSource:offsetSource,setOffsetSource:setOffsetSource,offsetValue:offsetValue,setOffsetValue:setOffsetValue,createOffsetDerivedTrace:createOffsetDerivedTrace,scaleSource:scaleSource,setScaleSource:setScaleSource,scaleValue:scaleValue,setScaleValue:setScaleValue,createScaledDerivedTrace:createScaledDerivedTrace,smoothSource:smoothSource,setSmoothSource:setSmoothSource,smoothMethod:smoothMethod,setSmoothMethod:setSmoothMethod,smoothWindow:smoothWindow,setSmoothWindow:setSmoothWindow,smoothPolyOrder:smoothPolyOrder,setSmoothPolyOrder:setSmoothPolyOrder,createSmoothedDerivedTrace:createSmoothedDerivedTrace,subtractA:subtractA,setSubtractA:setSubtractA,subtractB:subtractB,setSubtractB:setSubtractB,traceMathOperation:traceMathOperation,setTraceMathOperation:setTraceMathOperation,subtractInterpolation:subtractInterpolation,setSubtractInterpolation:setSubtractInterpolation,createTraceMathDerivedTrace:createTraceMathDerivedTrace,traceMathUnitWarning:traceMathUnitWarning,traceOpsError:traceOpsError},analysisMenuProps:{C:C,hasTraceOps:showTraceOps,registry:analysisRegistry,toggleAnalysisOpen:toggleAnalysisOpen},noiseCardProps:{C:C,allTr:allTr,noiseSource:noiseSource,setNoiseSource:setNoiseSource,noiseFilter:noiseFilter,setNoiseFilter:setNoiseFilter,npsdStats:npsdStats,addSavedNoise:addSavedNoise,noiseResults:noiseResults,removeNoise:removeNoiseResult},ip3CardProps:{C:C,ip3Ctl:ip3Ctl,ip3Pts:ip3Pts,ip3Res:ip3Res,yU:yU,ip3Gain:ip3Gain,setIP3Gain:setIP3Gain,saveIP3:saveCurrentIP3,ip3Results:ip3Results,removeIP3:removeIP3Result,setMarkers:setMarkers,selectedMarker:selectedMarker,selectedIndex:selectedMkrIdx,assignSelectedRole:assignSelectedRole,clearSelectedRole:clearSelectedRole,autoPickIP3:autoPickIP3},peakSpurProps:{C:C,target:analysisTarget,peakTableLimit:peakTableLimit,setPeakTableLimit:setPeakTableLimit,peakTableMinSpacing:peakTableMinSpacing,setPeakTableMinSpacing:setPeakTableMinSpacing,peakTableMinAmp:peakTableMinAmp,setPeakTableMinAmp:setPeakTableMinAmp,addPeakMarker:addPeakTableMarker,addAllPeakMarkers:addAllPeakTableMarkers},markerDeltaProps:{C:C,target:analysisTarget,markers:markers},rangeStatsProps:{C:C,target:analysisTarget},bandwidthProps:{C:C,target:analysisTarget,selectedMarker:selectedMarker,bandwidthDrop:bandwidthDrop,setBandwidthDrop:setBandwidthDrop},thresholdProps:{C:C,target:analysisTarget,selectedHLine:selectedHLine,thresholdManual:thresholdManual,setThresholdManual:setThresholdManual},rippleProps:{C:C,target:analysisTarget},obwProps:{C:C,target:analysisTarget,obwPercent:obwPercent,setObwPercent:setObwPercent},channelPowerProps:{C:C,target:analysisTarget},touchstoneStabilityProps:{C:C,target:analysisTarget,onGenerateTrace:onGenerateTouchstoneTrace}};
+  var sidebarProps={C:C,files:files,mKeys:mKeys,stats:stats,allTr:allTr,panes:panes,markers:markers,refLines:refLines,activePaneId:activePaneId,selectedTraceName:selectedTraceName,dragTraceName:dragTraceName,tracePaneMap:tracePaneMap,vis:vis,setVis:setVis,paneMode:paneMode,getTracePaneId:function(traceName){return getTracePaneId(tracePaneMap,traceName);},getPaneRenderMode:getPaneRenderMode,getTraceByName:getTraceByName,getTraceFile:getTraceFile,selectTrace:selectTrace,onTraceDragStart:onTraceDragStart,onTraceDragEnd:onTraceDragEnd,removeTrace:removeTrace,showMarkers:showMarkers,setShowMarkers:setShowMarkers,showMeta:showMeta,setShowMeta:setShowMeta,showTouchstoneControls:showTouchstoneControls,setShowTouchstoneControls:setShowTouchstoneControls,fitPane:fitPane,fitAllPanes:fitAllPanes,resetYZ:resetYZ,clearPane:clearPane,yU:yU,mcMap:mcMap,traceColorMap:traceColorMap,setMarkers:setMarkers,zoom:zoom,selectedMkrIdx:selectedMkrIdx,setSelectedMkrIdx:setSelectedMkrIdx,selectedRefLineId:selectedRefLineId,setSelectedRefLineId:setSelectedRefLineId,setRefLines:setRefLines,setActivePaneId:setActivePaneId,clearMarkers:clearMarkers,rmMkr:rmMkr,removeFile:removeFile,touchstoneStateByFileId:touchstoneStateByFileId,onTouchstoneSetActiveFamily:onTouchstoneSetActiveFamily,onTouchstoneSetFamilyView:onTouchstoneSetFamilyView,onTouchstoneSetExpanded:onTouchstoneSetExpanded,onTouchstoneToggleCell:onTouchstoneToggleCell,onTouchstoneApplyPreset:onTouchstoneApplyPreset,onTouchstoneClearFileViews:onTouchstoneClearFileViews};
+  var toolbarProps={C:C,allTr:allTr,paneTraces:cTr,vis:vis,zoom:zoom,yZoom:yZoom,cData:cData,fUnit:fUnit,yU:yU,showMarkerTools:showMarkerTools,showPaneTools:showPaneTools,showSearchTools:showSearchTools,showLineTools:showLineTools,showViewTools:showViewTools,mkrMode:mkrMode,refMode:refMode,setNewMarkerArmed:setNewMarkerArmed,newMarkerArmed:newMarkerArmed,setMkrMode:setMkrMode,setRefMode:setRefMode,markerTrace:markerTrace,setMarkerTrace:setMarkerTraceForActivePane,markers:markers,dRef:dRef,setDRef:setDRef,selectedMkrIdx:selectedMkrIdx,setSelectedMkrIdx:setSelectedMkrIdx,selectedRefLineId:selectedRefLineId,setSelectedRefLineId:setSelectedRefLineId,panes:panes,activePaneId:activePaneId,setActivePaneId:setActivePaneId,setPaneMode:setPaneMode,fitAllPanes:fitAllPanes,hasData:hasData,peakSrch:peakSrch,nxtPeak:nxtPeak,minSrch:minSrch,nxtMin:nxtMin,searchDirection:searchDirection,setSearchDirection:setSearchDirection,lockLinesAcrossPanes:lockLinesAcrossPanes,setLockLinesAcrossPanes:setLockLinesAcrossPanes,zoomAll:zoomAll,setZoomAll:setZoomAll,resetYZ:resetYZ,setZoom:setZoom,interactionCtl:interactionCtl,selectedMarker:selectedMarker,refLines:refLines,activePaneRenderMode:activePaneRenderMode,availablePaneRenderModes:availablePaneRenderModes,setActivePaneRenderMode:function(mode){setPaneRenderMode(activePaneId,mode);},toolbarXDivLabel:toolbarXDivLabel,toolbarYDivLabel:toolbarYDivLabel,hasTouchstoneFiles:hasTouchstoneFiles};
+  var chartWorkspaceProps={allTr:allTr,paneModels:paneModels,panes:panes,activePaneId:activePaneId,setActivePaneId:setActivePaneId,vis:vis,traceColorMap:traceColorMap,showDots:showDots,markers:markers,selectedMkrIdx:selectedMkrIdx,setSelectedMkrIdx:setSelectedMkrIdx,refLines:refLines,selectedRefLineId:selectedRefLineId,setSelectedRefLineId:setSelectedRefLineId,dragRefLineRef:dragRefLineRef,dragTraceName:dragTraceName,chartDomainRef:chartDomainRef,chartRef:chartRef,chartExportRef:chartExportRef,paneTickModelRef:paneTickModelRef,chartClick:chartClick,chartMMWithDrag:chartMMWithDrag,chartML:chartML,mDown:mDown,mUp:mUp,handleChartMouseDownCapture:handleChartMouseDownCapture,handleChartMouseUpCapture:handleChartMouseUpCapture,hoverData:hoverData,hoverX:hoverX,selA:selA,selB:selB,getXDomainHz:getXDomainHz,mcMap:mcMap,C:C,selectedTraceName:selectedTraceName,selectTrace:selectTrace,moveSelectedTraceToPane:moveSelectedTraceToPane,fitPane:fitPane,clearPane:clearPane,resetYZ:resetYZ,setPaneSmithRange:setPaneSmithRange,clearPaneSmithRange:clearPaneSmithRange,undoPaneSmithRangeZoom:undoPaneSmithRangeZoom,getTraceByName:getTraceByName,getTraceFile:getTraceFile,onSmithMoveSelectedMarker:moveSelectedMarkerToSmithPointData,getTracePaneId:function(traceName){return getTracePaneId(tracePaneMap,traceName);},tracePaneMap:tracePaneMap,onPaneDrop:onPaneDrop,isDrag:isDrag,setIsDrag:setIsDrag,loadFiles:loadFiles,fileInputRef:fRef};
+  var analysisStackProps={visible:analysisPanelVisible,showTraceOps:showTraceOps,showAnalysisPanel:showAnalysisPanel,showNoise:showNoise,showIP3:showIP3,visibleAnalysisIds:visibleAnalysisIds,normalizedAnalysisOpenState:normalizedAnalysisOpenState,traceOpsProps:{C:C,openOps:traceOpsOpenSections,setOpenOps:setTraceOpsOpenSections,traceOptions:traceOptions,offsetSource:offsetSource,setOffsetSource:setOffsetSource,offsetValue:offsetValue,setOffsetValue:setOffsetValue,createOffsetDerivedTrace:createOffsetDerivedTrace,scaleSource:scaleSource,setScaleSource:setScaleSource,scaleValue:scaleValue,setScaleValue:setScaleValue,createScaledDerivedTrace:createScaledDerivedTrace,smoothSource:smoothSource,setSmoothSource:setSmoothSource,smoothMethod:smoothMethod,setSmoothMethod:setSmoothMethod,smoothWindow:smoothWindow,setSmoothWindow:setSmoothWindow,smoothPolyOrder:smoothPolyOrder,setSmoothPolyOrder:setSmoothPolyOrder,createSmoothedDerivedTrace:createSmoothedDerivedTrace,subtractA:subtractA,setSubtractA:setSubtractA,subtractB:subtractB,setSubtractB:setSubtractB,traceMathOperation:traceMathOperation,setTraceMathOperation:setTraceMathOperation,subtractInterpolation:subtractInterpolation,setSubtractInterpolation:setSubtractInterpolation,createTraceMathDerivedTrace:createTraceMathDerivedTrace,traceMathUnitWarning:traceMathUnitWarning,traceOpsError:traceOpsError},analysisMenuProps:{C:C,hasTraceOps:showTraceOps,registry:analysisRegistry,toggleAnalysisOpen:toggleAnalysisOpen,target:analysisTarget},noiseCardProps:{C:C,allTr:allTr,noiseSource:noiseSource,setNoiseSource:setNoiseSource,noiseFilter:noiseFilter,setNoiseFilter:setNoiseFilter,npsdStats:npsdStats,addSavedNoise:addSavedNoise,noiseResults:noiseResults,removeNoise:removeNoiseResult},ip3CardProps:{C:C,ip3Ctl:ip3Ctl,ip3Pts:ip3Pts,ip3Res:ip3Res,yU:yU,ip3Gain:ip3Gain,setIP3Gain:setIP3Gain,saveIP3:saveCurrentIP3,ip3Results:ip3Results,removeIP3:removeIP3Result,setMarkers:setMarkers,selectedMarker:selectedMarker,selectedIndex:selectedMkrIdx,assignSelectedRole:assignSelectedRole,clearSelectedRole:clearSelectedRole,autoPickIP3:autoPickIP3},peakSpurProps:{C:C,target:analysisTarget,peakTableLimit:peakTableLimit,setPeakTableLimit:setPeakTableLimit,peakTableMinSpacing:peakTableMinSpacing,setPeakTableMinSpacing:setPeakTableMinSpacing,peakTableMinAmp:peakTableMinAmp,setPeakTableMinAmp:setPeakTableMinAmp,addPeakMarker:addPeakTableMarker,addAllPeakMarkers:addAllPeakTableMarkers},rangeStatsProps:{C:C,target:analysisTarget},bandwidthProps:{C:C,target:analysisTarget,selectedMarker:selectedMarker,bandwidthDrop:bandwidthDrop,setBandwidthDrop:setBandwidthDrop,addMarker:addAnalysisMarker,addMarkers:addAnalysisMarkers},vswrProps:{C:C,target:analysisTarget,onGenerateTrace:onGenerateTouchstoneTrace},returnLossProps:{C:C,target:analysisTarget,onGenerateTrace:onGenerateTouchstoneTrace},groupDelayProps:{C:C,target:analysisTarget,onGenerateTrace:onGenerateTouchstoneTrace},reciprocityIsolationProps:{C:C,target:analysisTarget,getTraceByName:getTraceByName,getTraceFile:getTraceFile},thresholdProps:{C:C,target:analysisTarget,thresholdManual:thresholdManual,setThresholdManual:setThresholdManual,addMarkers:addAnalysisMarkers},rippleProps:{C:C,target:analysisTarget,addMarkers:addAnalysisMarkers},obwProps:{C:C,target:analysisTarget,obwPercent:obwPercent,setObwPercent:setObwPercent},channelPowerProps:{C:C,target:analysisTarget},touchstoneStabilityProps:{C:C,target:analysisTarget,onGenerateTrace:onGenerateTouchstoneTrace}};
   var importExportPanelProps={visible:showImportExportPanel,C:C,hasData:hasData,files:files,allTr:allTr,panes:panes,activePaneId:activePaneId,fRef:fRef,iRef:iRef,openWorkspace:openWorkspace,exportWorkspace:exportWorkspace,exportTraceData:exportTraceData,exportChartPng:exportChartPng,exportChartSvg:exportChartSvg,clearAllFiles:clearAllFiles};
   var dataTableProps={visible:showDT,hasData:hasData,C:C,allTr:allTr,dtTrace:dtTrace,setDtTrace:setDtTrace,zoom:zoom,yU:yU};
   var footerProps={hasData:hasData};

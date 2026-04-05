@@ -8,6 +8,7 @@
   var h=React.createElement;
   var useState=React.useState;
   var useEffect=React.useEffect;
+  var useRef=React.useRef;
   var UH=global.UIHelpers||{};
   var TH=global.TraceHelpers||{};
   var TM=global.TraceModel||{};
@@ -16,6 +17,13 @@
   var Sec=UH.Sec;
   var MR=UH.MR;
   var fmtF=UH.fmtF||function(v){return String(v);};
+  var formatScalarWithUnit=UH.formatScalarWithUnit||function(value,unit,opts){
+    var n=Number(value);
+    var digits=opts&&isFinite(Number(opts.digits))?Math.max(0,Math.floor(Number(opts.digits))):3;
+    if(!isFinite(n))return "--";
+    if(opts&&opts.valueOnly)return n.toFixed(digits);
+    return unit?(n.toFixed(digits)+" "+unit):n.toFixed(digits);
+  };
   var getTraceLabel=TM.getTraceLabel||function(tr){return tr?(tr.dn||tr.name||""):"";};
   var isDerivedTrace=TM.isDerivedTrace||function(){return false;};
   var isTouchstoneTrace=TM.isTouchstoneTrace||function(){return false;};
@@ -146,6 +154,75 @@
     return rows;
   }
 
+  function getTouchstoneMarkerReadout(file,trace,freq){
+    var network=trace&&trace.touchstoneNetwork&&typeof trace.touchstoneNetwork==="object"?trace.touchstoneNetwork:null;
+    if(!network)network=file&&file.touchstoneNetwork&&typeof file.touchstoneNetwork==="object"?file.touchstoneNetwork:null;
+    var source=trace&&trace.networkSource&&typeof trace.networkSource==="object"?trace.networkSource:null;
+    if(!network||!source||!Array.isArray(network.samples)||!isFinite(freq))return null;
+    var row=Number(source.row);
+    var col=Number(source.col);
+    if(!isFinite(row)||!isFinite(col)||row<1||col<1)return null;
+    var ref=network.referenceOhms;
+    var z0=50;
+    if(Array.isArray(ref)&&ref.length&&isFinite(Number(ref[0])))z0=Number(ref[0]);
+    else if(isFinite(Number(ref)))z0=Number(ref);
+    function readComplexCell(cell){
+      if(!cell||typeof cell!=="object")return null;
+      var re=cell.re!=null?Number(cell.re):(cell.real!=null?Number(cell.real):NaN);
+      var im=cell.im!=null?Number(cell.im):(cell.imag!=null?Number(cell.imag):NaN);
+      if(!isFinite(re)&&!isFinite(im))return null;
+      return {re:isFinite(re)?re:0,im:isFinite(im)?im:0};
+    }
+    var samples=network.samples;
+    if(samples.length===1){
+      var only=readComplexCell(samples[0]&&samples[0].sMatrix&&samples[0].sMatrix[row-1]&&samples[0].sMatrix[row-1][col-1]);
+      if(!only)return null;
+      var onlyMag=Math.hypot(only.re,only.im);
+      var onlyPhase=Math.atan2(only.im,only.re)*180/Math.PI;
+      var onlyDen=(1-only.re)*(1-only.re)+only.im*only.im;
+      var onlyZ=onlyDen>0?{re:z0*(((1-only.re)*(1+only.re))+only.im*only.im)/onlyDen,im:z0*(2*only.im)/onlyDen}:null;
+      return {freq:Number(samples[0].freq),re:only.re,im:only.im,mag:onlyMag,phase:onlyPhase,z:onlyZ};
+    }
+    function sampleAt(sample){
+      var cell=sample&&sample.sMatrix&&sample.sMatrix[row-1]&&sample.sMatrix[row-1][col-1];
+      var f=Number(sample&&sample.freq);
+      var complex=readComplexCell(cell);
+      if(!isFinite(f)||!complex)return null;
+      return {freq:f,re:complex.re,im:complex.im};
+    }
+    var points=samples.map(sampleAt).filter(Boolean).sort(function(a,b){ return a.freq-b.freq; });
+    if(!points.length)return null;
+    if(freq<=points[0].freq||points.length===1){
+      var p0=points[0];
+      var mag0=Math.hypot(p0.re,p0.im);
+      var phase0=Math.atan2(p0.im,p0.re)*180/Math.PI;
+      var den0=(1-p0.re)*(1-p0.re)+p0.im*p0.im;
+      var z0v=den0>0?{re:z0*(((1-p0.re)*(1+p0.re))+p0.im*p0.im)/den0,im:z0*(2*p0.im)/den0}:null;
+      return {freq:p0.freq,re:p0.re,im:p0.im,mag:mag0,phase:phase0,z:z0v};
+    }
+    for(var i=0;i<points.length-1;i++){
+      var a=points[i],b=points[i+1];
+      if(freq<a.freq||freq>b.freq)continue;
+      var span=b.freq-a.freq;
+      var t=span!==0?(freq-a.freq)/span:0;
+      if(t<0)t=0;
+      if(t>1)t=1;
+      var re=a.re+((b.re-a.re)*t);
+      var im=a.im+((b.im-a.im)*t);
+      var mag=Math.hypot(re,im);
+      var phase=Math.atan2(im,re)*180/Math.PI;
+      var den=(1-re)*(1-re)+im*im;
+      var z=den>0?{re:z0*(((1-re)*(1+re))+im*im)/den,im:z0*(2*im)/den}:null;
+      return {freq:a.freq+((b.freq-a.freq)*t),re:re,im:im,mag:mag,phase:phase,z:z};
+    }
+    var last=points[points.length-1];
+    var magLast=Math.hypot(last.re,last.im);
+    var phaseLast=Math.atan2(last.im,last.re)*180/Math.PI;
+    var denLast=(1-last.re)*(1-last.re)+last.im*last.im;
+    var zLast=denLast>0?{re:z0*(((1-last.re)*(1+last.re))+last.im*last.im)/denLast,im:z0*(2*last.im)/denLast}:null;
+    return {freq:last.freq,re:last.re,im:last.im,mag:magLast,phase:phaseLast,z:zLast};
+  }
+
   function SidebarPane(props){
     var p=withAppProps(props);
     if(typeof p.render==="function")return p.render();
@@ -184,6 +261,9 @@
     var _selectionByFamily=useState({});
     var draftSelectionByFamily=_selectionByFamily[0],setDraftSelectionByFamily=_selectionByFamily[1];
     var selectionByFamily=controlledSelectionByFamily||draftSelectionByFamily||{};
+    var _pressCell=useState(null);
+    var pressCell=_pressCell[0],setPressCell=_pressCell[1];
+    var pressTimerRef=useRef(null);
     var activeView=viewByFamily[activeFamily]||getTouchstoneDefaultView(activeFamily);
     var familyViews=getTouchstoneViewsForFamily(activeFamily);
     var selectedCount=Object.keys(selectionByFamily).reduce(function(total,family){
@@ -219,15 +299,17 @@
 
     function toggleCell(row,col){
       var key=buildTouchstoneCellKey(row,col);
+      if(pressTimerRef.current)clearTimeout(pressTimerRef.current);
+      setPressCell(key);
+      pressTimerRef.current=setTimeout(function(){
+        pressTimerRef.current=null;
+        setPressCell(null);
+      },180);
       setDraftSelectionByFamily(function(prev){
         var next=Object.assign({},prev||{});
         var family=Object.assign({},next[activeFamily]||{});
-        var views=Array.isArray(family[key])?family[key].slice():(family[key]?[String(family[key])]:[]);
-        var existingIndex=views.indexOf(activeView);
-        if(existingIndex!==-1)views.splice(existingIndex,1);
-        else views.push(activeView);
-        if(views.length)family[key]=views;
-        else delete family[key];
+        family={};
+        family[key]=[activeView];
         next[activeFamily]=family;
         if(p.onToggleCell)p.onToggleCell(fileId,activeFamily,row,col,activeView,file);
         return next;
@@ -272,6 +354,15 @@
       syncSelection(next,preset);
       if(preset==="clear"&&p.onClearFileViews)p.onClearFileViews(fileId,file);
     }
+
+    useEffect(function(){
+      return function(){
+        if(pressTimerRef.current){
+          clearTimeout(pressTimerRef.current);
+          pressTimerRef.current=null;
+        }
+      };
+    },[]);
 
     var familyTabs=TOUCHSTONE_FAMILIES.map(function(family){
       var active=activeFamily===family;
@@ -323,28 +414,30 @@
       for(var c=1;c<=portCount;c++){
         (function(row,col){
           var key=buildTouchstoneCellKey(row,col);
-          var cellViews=((selectionByFamily[activeFamily]||{})[key])||[];
-          if(!Array.isArray(cellViews))cellViews=cellViews?[String(cellViews)]:[];
-          var selected=cellViews.indexOf(activeView)!==-1;
+          var selected=false;
           var label=buildTouchstoneCellLabel(activeFamily,row,col);
+          var isPressed=pressCell===key;
           cellNodes.push(h("button",{
             key:key,
             onClick:function(){toggleCell(row,col);},
-            title:(selected?"Selected ":"Select ")+label+" as "+activeView,
+            title:"Add "+label+" as "+activeView,
             style:{
               minHeight:24,
               padding:"2px 3px",
               border:"1px solid "+(selected?(p.C&&p.C.accent||"var(--accent)"):"var(--border)"),
               borderRadius:4,
-              background:selected?((p.C&&p.C.accent)||"var(--accent)")+"18":"var(--bg)",
+              background:isPressed?((p.C&&p.C.accent)||"var(--accent)")+"2a":(selected?((p.C&&p.C.accent)||"var(--accent)")+"18":"var(--bg)"),
               color:selected?(p.C&&p.C.accent)||"var(--accent)":"var(--text)",
               cursor:"pointer",
               fontSize:10,
               lineHeight:1.1,
               textAlign:"center",
-              whiteSpace:"nowrap"
+              whiteSpace:"nowrap",
+              transform:isPressed?"scale(0.97)":"scale(1)",
+              boxShadow:isPressed?"0 0 0 2px rgba(0,0,0,0.04), inset 0 0 0 1px rgba(255,255,255,0.18)":"none",
+              transition:"transform 120ms ease, background 120ms ease, box-shadow 120ms ease, border-color 120ms ease"
             }
-          },h("div",{style:{fontWeight:700}},label),h("div",{style:{fontSize:9,color:selected?(p.C&&p.C.accent)||"var(--accent)":"var(--muted)" }},cellViews.length?cellViews.join(" / "):activeView)));
+          },h("div",{style:{fontWeight:700}},label),h("div",{style:{fontSize:9,color:selected?(p.C&&p.C.accent)||"var(--accent)":"var(--muted)" }},activeView)));
         })(r,c);
       }
       rows.push(h("div",{key:"row-"+r,style:{display:"grid",gridTemplateColumns:"auto repeat("+portCount+", minmax(24px, 1fr))",gap:4,alignItems:"stretch",marginBottom:4}},cellNodes));
@@ -355,7 +448,7 @@
         h("div",{style:{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}},
           h("span",{style:{fontSize:10,fontWeight:700,letterSpacing:0.6,textTransform:"uppercase",color:"var(--muted)"}},"Touchstone"),
           h("span",{style:{fontSize:10,fontWeight:700,color:"var(--text)",border:"1px solid var(--border)",borderRadius:999,padding:"1px 6px",lineHeight:1.2}},formatTouchstoneFamilyBadge(file)),
-          h("span",{style:{fontSize:10,color:"var(--muted)"}},"Selected: "+selectedCount)
+          h("span",{style:{fontSize:10,color:"var(--muted)"}},"Click a cell to add trace")
         ),
         h("div",{style:{display:"flex",gap:4,flexWrap:"wrap"}},
           h("button",{
@@ -393,7 +486,7 @@
     var selected=p.selectedTraceName===tr.name;
     var traceColor=(p.traceColorMap&&p.traceColorMap[tr.name])||((C.tr&&C.tr[i%(C.tr.length||1)])||"var(--text)");
     var touchstoneFamily=(isTouchstoneTrace(tr)?String(getTouchstoneTraceFamily(tr)||"").toUpperCase():"");
-    var isDerivedVisual=!!(isDerivedTrace(tr)||tr.operationType==="touchstone-stability"||touchstoneFamily==="Y"||touchstoneFamily==="Z");
+    var isDerivedVisual=!!(isDerivedTrace(tr)||tr.operationType==="touchstone-stability"||tr.operationType==="touchstone-group-delay"||touchstoneFamily==="Y"||touchstoneFamily==="Z");
     var paneBadge=(p.paneMode>1&&p.tracePaneId)?("P"+String(String(p.tracePaneId).split("-")[1]||"1")):null;
     return h("div",{
       draggable:true,
@@ -446,6 +539,7 @@
     if(!m)return null;
     var i=p.index||0;
     var markers=p.markers||[];
+    var trace=(p.getTraceByName&&m.trace)?p.getTraceByName(m.trace):null;
     var yU=p.yU||"";
     var selected=p.selectedMkrIdx===i;
     var mc=(p.traceColorMap&&m.trace&&p.traceColorMap[m.trace])||((p.mcMap&&p.mcMap[m.type])||(p.C&&p.C.accent)||"var(--accent)");
@@ -455,11 +549,23 @@
     var fUnit=fScale===1e9?"GHz":fScale===1e6?"MHz":fScale===1e3?"kHz":"Hz";
     var _freq=useState((m.freq/fScale).toFixed(fScale===1e9?6:3));
     var freqVal=_freq[0],setFreqVal=_freq[1];
-    var _amp=useState(m.amp.toFixed(3));
-    var ampVal=_amp[0],setAmpVal=_amp[1];
+    var ampDisplay=formatScalarWithUnit(m.amp,yU,{digits:3});
+    var touchstoneInfo=null;
+    var savedTouchstoneInfo=null;
 
     useEffect(function(){setFreqVal((m.freq/fScale).toFixed(fScale===1e9?6:3));},[m.freq,fScale]);
-    useEffect(function(){setAmpVal(m.amp.toFixed(3));},[m.amp]);
+
+    if(selected&&trace){
+      if(isFinite(m.smithPhase)||isFinite(m.smithZReal)||isFinite(m.smithZImag)||isFinite(m.smithMag)){
+        savedTouchstoneInfo={};
+        if(isFinite(m.smithMag))savedTouchstoneInfo.mag=m.smithMag;
+        if(isFinite(m.smithPhase))savedTouchstoneInfo.phase=m.smithPhase;
+        if(isFinite(m.smithZReal)||isFinite(m.smithZImag)){
+          savedTouchstoneInfo.z={re:isFinite(m.smithZReal)?m.smithZReal:null,im:isFinite(m.smithZImag)?m.smithZImag:null};
+        }
+      }
+      if(!savedTouchstoneInfo&&p.getTraceFile)touchstoneInfo=getTouchstoneMarkerReadout(p.getTraceFile(m.trace),trace,m.freq);
+    }
 
     function commitFreq(raw){
       var n=parseFloat(raw);
@@ -507,10 +613,71 @@
         style:{display:"flex",alignItems:"center",gap:4,padding:"3px 0",borderBottom:"1px solid var(--border)"}
       },
         h("span",{style:{color:"var(--muted)",fontSize:12,minWidth:40}},"Amp"),
-        h("div",{style:{flex:1,fontFamily:"monospace",fontSize:12,background:"var(--bg)",color:"var(--text)",border:"1px solid var(--border)",borderRadius:3,padding:"1px 4px",minWidth:0}},ampVal),
-        h("span",{style:{fontSize:11,color:"var(--muted)",flexShrink:0}},yU)
+        h("div",{style:{flex:1,fontFamily:"monospace",fontSize:12,background:"var(--bg)",color:"var(--text)",border:"1px solid var(--border)",borderRadius:3,padding:"1px 4px",minWidth:0}},ampDisplay)
       )
     ];
+
+    var touchstoneData=savedTouchstoneInfo||touchstoneInfo;
+    var isStabilityTrace=trace&&trace.operationType==="touchstone-stability";
+    if(touchstoneData&&!isStabilityTrace){
+      var paneId=p.getTracePaneId&&m.trace?p.getTracePaneId(m.trace):null;
+      var renderMode=String(p.getPaneRenderMode&&paneId?p.getPaneRenderMode(paneId):"cartesian").trim().toLowerCase();
+      var traceViewRaw=trace&&trace.networkSource&&trace.networkSource.view!=null?trace.networkSource.view:(trace&&trace.touchstoneView!=null?trace.touchstoneView:null);
+      var traceView=String(traceViewRaw||"").trim().toLowerCase();
+      var sRe=isFinite(touchstoneData.re)?Number(touchstoneData.re):null;
+      var sIm=isFinite(touchstoneData.im)?Number(touchstoneData.im):null;
+      var zReal=touchstoneData.z&&touchstoneData.z.re!=null?touchstoneData.z.re:touchstoneData.z&&touchstoneData.z.real!=null?touchstoneData.z.real:null;
+      var zImag=touchstoneData.z&&touchstoneData.z.im!=null?touchstoneData.z.im:touchstoneData.z&&touchstoneData.z.imag!=null?touchstoneData.z.imag:null;
+      var touchstoneDb=isFinite(touchstoneData.mag)?((20*Math.log10(Math.max(touchstoneData.mag,1e-12))).toFixed(2)+" dB"):"--";
+      var touchstonePhase=isFinite(touchstoneData.phase)?touchstoneData.phase.toFixed(2)+" deg":"--";
+      var yReal=null;
+      var yImag=null;
+      if(isFinite(zReal)||isFinite(zImag)){
+        var zr=isFinite(zReal)?Number(zReal):0;
+        var zi=isFinite(zImag)?Number(zImag):0;
+        var yDen=(zr*zr)+(zi*zi);
+        if(yDen>0){
+          yReal=zr/yDen;
+          yImag=-zi/yDen;
+        }
+      }
+
+      if(renderMode==="smith"){
+        children.push(h(MR,{key:"tszr",label:"Z real",value:isFinite(zReal)?formatScalarWithUnit(Number(zReal),"Ohm",{digits:3}):"--"}));
+        children.push(h(MR,{key:"tszi",label:"Z imag",value:isFinite(zImag)?formatScalarWithUnit(Number(zImag),"Ohm",{digits:3}):"--"}));
+      }else if(renderMode==="smith-inverted"){
+        children.push(h(MR,{key:"tsyr",label:"Y real",value:isFinite(yReal)?formatScalarWithUnit(Number(yReal),"S",{digits:3}):"--"}));
+        children.push(h(MR,{key:"tsyi",label:"Y imag",value:isFinite(yImag)?formatScalarWithUnit(Number(yImag),"S",{digits:3}):"--"}));
+      }else{
+        if(traceView==="db"){
+          ampDisplay=touchstoneDb;
+          children.push(h(MR,{key:"tsph",label:"Phase",value:touchstonePhase}));
+        }else if(traceView==="phase"){
+          ampDisplay=touchstonePhase;
+          children.push(h(MR,{key:"tsf",label:"S dB",value:touchstoneDb}));
+        }else if(traceView==="real"){
+          if(isFinite(sRe))ampDisplay=sRe.toFixed(6);
+          children.push(h(MR,{key:"tsim",label:"Imag",value:isFinite(sIm)?sIm.toFixed(6):"--"}));
+        }else if(traceView==="imag"){
+          if(isFinite(sIm))ampDisplay=sIm.toFixed(6);
+          children.push(h(MR,{key:"tsre",label:"Real",value:isFinite(sRe)?sRe.toFixed(6):"--"}));
+        }else if(traceView==="mag"){
+          if(isFinite(touchstoneData.mag))ampDisplay=Number(touchstoneData.mag).toFixed(6);
+          children.push(h(MR,{key:"tsph",label:"Phase",value:touchstonePhase}));
+        }else{
+          children.push(h(MR,{key:"tsf",label:"S dB",value:touchstoneDb}));
+          children.push(h(MR,{key:"tsph",label:"Phase",value:touchstonePhase}));
+        }
+      }
+    }
+
+    children[2]=h("div",{
+      key:"ma",
+      style:{display:"flex",alignItems:"center",gap:4,padding:"3px 0",borderBottom:"1px solid var(--border)"}
+    },
+      h("span",{style:{color:"var(--muted)",fontSize:12,minWidth:40}},"Amp"),
+      h("div",{style:{flex:1,fontFamily:"monospace",fontSize:12,background:"var(--bg)",color:"var(--text)",border:"1px solid var(--border)",borderRadius:3,padding:"1px 4px",minWidth:0}},ampDisplay)
+    );
 
     if(m.type==="delta"&&m.refIdx!==undefined&&markers[m.refIdx]){
       children.push(h(MR,{key:"mdf",label:"dFreq",value:fmtF(m.freq-markers[m.refIdx].freq,true)}));
@@ -594,7 +761,7 @@
       visibleTraceRows.forEach(function(tr,i){
         var np=nearestPoint(tr,rl.value,null,null);
         if(!np||!isFinite(np.amp))return;
-        block.push(h(MR,{key:"rlv-"+rl.id+"-"+tr.name,label:getTraceLabel(tr)||tr.name,value:np.amp.toFixed(2)+" "+yU,vc:C.tr&&C.tr.length?C.tr[i%C.tr.length]:undefined,hlColor:C.tr&&C.tr.length?C.tr[i%C.tr.length]:undefined}));
+        block.push(h(MR,{key:"rlv-"+rl.id+"-"+tr.name,label:getTraceLabel(tr)||tr.name,value:formatScalarWithUnit(np.amp,yU,{digits:2}),vc:C.tr&&C.tr.length?C.tr[i%C.tr.length]:undefined,hlColor:C.tr&&C.tr.length?C.tr[i%C.tr.length]:undefined}));
       });
     }else{
       visibleTraceRows.forEach(function(tr,i){
@@ -613,15 +780,6 @@
       return h("span",{key:key,style:{color:"var(--dim)",fontSize:14,lineHeight:1,padding:"0 2px",userSelect:"none"}},"\u00B7");
     }
     var files=p.files||[];
-    var tags=files.map(function(f){
-      return h("span",{
-        key:f.id,
-        style:{display:"inline-flex",alignItems:"center",gap:4,fontSize:11,fontFamily:"monospace",padding:"2px 8px",background:"var(--ft)",border:"1px solid var(--ftb)",borderRadius:12,color:"var(--text)"}
-      },
-        f.fileName,
-        h("button",{title:"Remove this imported file and its traces from the workspace.",onClick:function(){if(p.removeFile)p.removeFile(f.id);},style:{background:"none",border:"none",color:"#f55",cursor:"pointer",fontSize:13,padding:0,lineHeight:"1",marginLeft:2}},"\u00D7")
-      );
-    });
     var btns=[];
     if(p.hasData){
       btns.push(h(Btn,{key:"io-panel",className:"io-glow",active:p.showImportExportPanel,soft:true,color:p.C&&p.C.accent,title:"Open or close the import/export panel on the right side.",onClick:p.toggleImportExportPanel},"Import / Export"));
@@ -652,7 +810,6 @@
         h("polyline",{points:"4,16 7,10 10,14 13,8 16,12 19,6 22,11",fill:"none",stroke:"var(--trace1)",strokeWidth:1.5})
       ),
       h("span",{style:{fontWeight:700,fontSize:14}},"Mergen Scope"),
-      files.length?h("div",{style:{display:"flex",gap:4,flexWrap:"wrap",alignItems:"center"}},tags):null,
       h("div",{style:{flex:1}}),
       btns.length?h("div",{style:{display:"flex",gap:5,flexWrap:"wrap"}},btns):null
     );
@@ -761,9 +918,9 @@
         var dn=allTr.find(function(t){return t.name===name;});
         items.push(h(Sec,{key:"ss-"+name},(dn&&dn.dn)||name));
         items.push(h(MR,{key:"sn-"+name,label:"Points",value:st.n}));
-        items.push(h(MR,{key:"sp-"+name,label:"Peak",value:st.pk.amp.toFixed(2)+" "+(p.yU||"")}));
+        items.push(h(MR,{key:"sp-"+name,label:"Peak",value:formatScalarWithUnit(st.pk.amp,p.yU||"",{digits:2})}));
         items.push(h(MR,{key:"spf-"+name,label:"Peak Freq",value:fmtF(st.pk.freq,true)}));
-        items.push(h(MR,{key:"smn-"+name,label:"Min",value:st.mn.amp.toFixed(2)+" "+(p.yU||"")}));
+        items.push(h(MR,{key:"smn-"+name,label:"Min",value:formatScalarWithUnit(st.mn.amp,p.yU||"",{digits:2})}));
         items.push(h(MR,{key:"sd-"+name,label:"\u0394",value:st.delta.toFixed(2)+" dB"}));
       });
     }
@@ -792,7 +949,7 @@
     if(p.showMarkers&&markers.length){
       items.push(h(Sec,{key:"sm"},"Markers ("+markers.length+")"));
       markers.forEach(function(m,i){
-        items.push(h(MarkerItem,{key:"mk-"+i,marker:m,index:i,markers:markers,yU:p.yU,rmMkr:p.rmMkr,mcMap:p.mcMap,C:C,traceColorMap:p.traceColorMap,setMarkers:p.setMarkers,allTr:allTr,zoom:p.zoom,selectedMkrIdx:p.selectedMkrIdx,onSelect:function(idx){if(p.setSelectedRefLineId)p.setSelectedRefLineId(null);if(p.setSelectedMkrIdx)p.setSelectedMkrIdx(idx);}}));
+        items.push(h(MarkerItem,{key:"mk-"+i,marker:m,index:i,markers:markers,yU:p.yU,rmMkr:p.rmMkr,mcMap:p.mcMap,C:C,traceColorMap:p.traceColorMap,setMarkers:p.setMarkers,allTr:allTr,zoom:p.zoom,getTraceByName:getTraceByName,getTraceFile:p.getTraceFile,getTracePaneId:p.getTracePaneId,getPaneRenderMode:p.getPaneRenderMode,selectedMkrIdx:p.selectedMkrIdx,onSelect:function(idx){if(p.setSelectedRefLineId)p.setSelectedRefLineId(null);if(p.setSelectedMkrIdx)p.setSelectedMkrIdx(idx);}}));
       });
     }
 
@@ -840,6 +997,11 @@
     var cData=p.cData||[];
     var toolbarXTicks=cData.length?makeNiceTicks({min:cData[0].fs,max:cData[cData.length-1].fs},11):null;
     var selectedMarker=p.selectedMarker!==undefined?p.selectedMarker:((p.markers||[])[p.selectedMkrIdx]||null);
+    var paneTraces=(Array.isArray(p.paneTraces)&&p.paneTraces.length)?p.paneTraces:allTr;
+    var markerTraceOptions=paneTraces.filter(function(tr){
+      return tr&&Array.isArray(tr.data)&&tr.data.length&&(p.vis?p.vis[tr.name]:true);
+    });
+    var markerTraceValue=p.markerTrace&&p.markerTrace!=="__auto__"?p.markerTrace:"__auto__";
 
     function fmtDivValue(step,unit){
       if(!isFinite(step))return "--";
@@ -866,6 +1028,21 @@
     if(p.showMarkerTools)row1.push(group("Marker",[
       h(Btn,{key:"bn",active:p.mkrMode==="normal"&&!p.refMode&&!p.newMarkerArmed,color:C.mn,title:"Place or move a normal marker on the active pane.",onClick:function(){if(p.setNewMarkerArmed)p.setNewMarkerArmed(false);if(p.setSelectedRefLineId)p.setSelectedRefLineId(null);if(p.interactionCtl&&p.interactionCtl.selectNormal)p.interactionCtl.selectNormal();else{if(p.setMkrMode)p.setMkrMode("normal");if(p.setRefMode)p.setRefMode(null);}},style:{background:p.mkrMode==="normal"&&!p.refMode&&!p.newMarkerArmed?(colorWithAlpha(C.mn||"var(--accent)",0.10)||"var(--card)"):"transparent"}},"Normal"),
       h(Btn,{key:"bd",active:p.mkrMode==="delta"&&!p.refMode,color:C.md,title:"Create delta markers referenced to another marker.",onClick:function(){if(p.setNewMarkerArmed)p.setNewMarkerArmed(false);if(p.interactionCtl&&p.interactionCtl.selectDelta)p.interactionCtl.selectDelta();else{if(p.setMkrMode)p.setMkrMode("delta");if(p.setRefMode)p.setRefMode(null);if((p.markers||[]).length>0&&p.dRef===null&&p.setDRef)p.setDRef(0);}}},"Delta"),
+      h("div",{key:"mtrace-wrap",style:{display:"flex",alignItems:"center",gap:4,padding:"3px 6px",border:"1px solid var(--border)",borderRadius:6,background:"var(--bg)",minWidth:210,maxWidth:320}},
+        h("span",{style:{fontSize:11,color:"var(--dim)",fontWeight:700,whiteSpace:"nowrap"}},"Trace"),
+        h("select",{
+          value:markerTraceValue,
+          title:"Choose marker target trace from the active pane.",
+          onChange:function(ev){if(p.setMarkerTrace)p.setMarkerTrace(ev.target.value||"__auto__");},
+          style:{flex:1,minWidth:120,background:"var(--card)",color:"var(--text)",border:"1px solid var(--border)",borderRadius:4,padding:"2px 6px",fontSize:11}
+        },
+          h("option",{value:"__auto__"},"Auto (Active Pane)"),
+          markerTraceOptions.map(function(tr){
+            var label=getTraceLabel(tr)||tr.name;
+            return h("option",{key:"mto-"+tr.name,value:tr.name},label);
+          })
+        )
+      ),
       h(Btn,{key:"bnew",active:p.newMarkerArmed,color:C.accent,title:"Arm one-shot new-marker placement on the next chart click.",onClick:function(){if(p.setSelectedRefLineId)p.setSelectedRefLineId(null);if(p.setRefMode)p.setRefMode(null);if(p.setMkrMode)p.setMkrMode("normal");if(p.setNewMarkerArmed)p.setNewMarkerArmed(function(prev){return !prev;});}},"New Marker"),
       h(Btn,{key:"bun",color:C.accent,title:"Clear the currently selected marker or reference line.",onClick:function(){if(p.setNewMarkerArmed)p.setNewMarkerArmed(false);if(p.setSelectedMkrIdx)p.setSelectedMkrIdx(null);if(p.setSelectedRefLineId)p.setSelectedRefLineId(null);},disabled:(p.selectedMkrIdx===null||p.selectedMkrIdx===undefined)&&(p.selectedRefLineId===null||p.selectedRefLineId===undefined)},"Unselect")
     ],C.tr&&C.tr[3]));
@@ -874,6 +1051,10 @@
       h(Btn,{key:"padd",color:C.tr&&C.tr.length?C.tr[Math.min(panes.length,C.tr.length-1)]:undefined,title:"Add another stacked pane, up to four panes total.",onClick:function(){if(p.setPaneMode)p.setPaneMode(Math.min(4,panes.length+1));},disabled:panes.length>=4},"+ Pane"),
       h(Btn,{key:"prem",color:"#f64",title:"Remove the last pane and move its traces back into the remaining panes.",onClick:function(){if(panes.length>1&&p.setPaneMode)p.setPaneMode(panes.length-1);},disabled:panes.length<=1},"- Pane"),
       paneButtons,
+      p.hasTouchstoneFiles?h("select",{key:"prm",value:p.activePaneRenderMode||"cartesian",onChange:function(ev){if(p.setActivePaneRenderMode)p.setActivePaneRenderMode(ev.target.value);},style:{background:"var(--card)",color:"var(--text)",border:"1px solid var(--border)",borderRadius:4,padding:"4px 6px",fontSize:12,maxWidth:130}},(p.availablePaneRenderModes||["cartesian"]).map(function(mode){
+        var label=mode==="smith"?"Smith":(mode==="smith-inverted"?"Inv Smith":"Cartesian");
+        return h("option",{key:mode,value:mode},label);
+      })):null,
       h(Btn,{key:"pfitall",color:C.accent,title:"Fit every pane vertically to the traces shown in that pane.",onClick:p.fitAllPanes,disabled:!p.hasData},"Fit All")
     ],C.tr&&C.tr[1]));
 
@@ -971,14 +1152,14 @@
       h("div",{style:{padding:"4px 10px",border:"1px solid var(--border)",borderBottom:"none",borderRadius:"6px 6px 0 0",display:"flex",fontSize:11,fontWeight:700,color:"var(--muted)",background:"var(--bg)"}},
         h("span",{style:{flex:1}},"#"),
         h("span",{style:{flex:3,textAlign:"right"}},"Freq"),
-        h("span",{style:{flex:2,textAlign:"right"}},p.yU||"")
+        h("span",{style:{flex:2,textAlign:"right"}},"Amp")
       ),
       h("div",{style:{maxHeight:320,overflowY:"auto",border:"1px solid var(--border)",borderRadius:"0 0 6px 6px",background:"var(--card)"}},
         (data||[]).map(function(d,i){
           return h("div",{key:i,style:{display:"flex",padding:"2px 10px",fontSize:11,fontFamily:"monospace",borderBottom:"1px solid var(--bg)",background:i%2===0?"transparent":"var(--da)"}},
             h("span",{style:{flex:1,color:"var(--dim)"}},i+1),
             h("span",{style:{flex:3,textAlign:"right",color:"var(--text)"}},Number(d.freq).toFixed(1)),
-            h("span",{style:{flex:2,textAlign:"right",color:"var(--damp)"}},Number(d.amp).toFixed(3))
+            h("span",{style:{flex:2,textAlign:"right",color:"var(--damp)"}},formatScalarWithUnit(Number(d.amp),p.yU||"",{digits:3}))
           );
         })
       )

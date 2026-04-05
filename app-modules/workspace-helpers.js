@@ -18,7 +18,7 @@
   var noisePSD=AH.noisePSD||function(data){return data||[];};
   var normalizeAnalysisOpenState=ATH.normalizeAnalysisOpenState||function(state){return Object.assign({},state||{});};
   var getDefaultAnalysisOpenState=ATH.getDefaultAnalysisOpenState||function(){return {};};
-  var WORKSPACE_FILE_VERSION=2;
+  var WORKSPACE_FILE_VERSION=3;
   var nearestPoint=PH.nearestPoint||function(){return null;};
   var getIP3PointsFromMarkers=MH.getIP3PointsFromMarkers||function(){return {f1:null,f2:null,im3l:null,im3u:null};};
   var clampPaneCount=PAH.clampPaneCount||function(count){
@@ -34,6 +34,36 @@
     var panes=[];
     for(var i=1;i<=count;i++)panes.push({id:"pane-"+i,title:"Pane "+i});
     return panes;
+  };
+  var normalizePaneRenderMode=PAH.normalizePaneRenderMode||function(renderMode){
+    var mode=String(renderMode||"cartesian").trim().toLowerCase().replace(/\s+/g,"-").replace(/_/g,"-");
+    if(mode==="smithinverted")mode="smith-inverted";
+    if(mode!=="smith"&&mode!=="smith-inverted"&&mode!=="cartesian")mode="cartesian";
+    return mode;
+  };
+  var clonePane=PAH.clonePane||function(pane,index){
+    if(!pane||!pane.id)return null;
+    return {
+      id:pane.id,
+      title:pane.title||("Pane "+(index+1)),
+      renderMode:normalizePaneRenderMode(pane.renderMode)
+    };
+  };
+  var normalizePanes=PAH.normalizePanes||function(panes,mode){
+    var next=(Array.isArray(panes)?panes:[]).map(clonePane).filter(Boolean);
+    if(!next.length)return buildPanes(mode||1);
+    var count=clampPaneCount(mode||next.length);
+    var built=buildPanes(count,next);
+    var byId={};
+    next.forEach(function(pane){byId[pane.id]=pane;});
+    return built.map(function(pane){
+      var prev=byId[pane.id]||null;
+      return {
+        id:pane.id,
+        title:(prev&&prev.title)||pane.title,
+        renderMode:normalizePaneRenderMode(prev&&prev.renderMode||pane.renderMode)
+      };
+    });
   };
   var normalizeTraceData=FSH.normalizeTraceData||function(data){return Array.isArray(data)?data:[];};
 
@@ -68,6 +98,21 @@
     return next;
   }
 
+  function clonePaneRenderModes(panes){
+    var out={};
+    (Array.isArray(panes)?panes:[]).forEach(function(pane){
+      if(!pane||!pane.id)return;
+      out[pane.id]=normalizePaneRenderMode(pane.renderMode);
+    });
+    return out;
+  }
+
+  function clonePanes(panes,mode){
+    return normalizePanes(panes,mode).map(function(pane,index){
+      return clonePane(pane,index);
+    }).filter(Boolean);
+  }
+
   function cloneNetworkSource(networkSource){
     if(!networkSource||typeof networkSource!=="object")return null;
     var next={};
@@ -86,6 +131,8 @@
     next.sourceTraceIds=Array.isArray(trace&&trace.sourceTraceIds)?trace.sourceTraceIds.slice().filter(Boolean):[];
     var networkSource=cloneNetworkSource(trace&&trace.networkSource);
     if(networkSource)next.networkSource=networkSource;
+    var touchstoneNetwork=cloneTouchstoneNetwork(trace&&trace.touchstoneNetwork);
+    if(touchstoneNetwork)next.touchstoneNetwork=touchstoneNetwork;
     if(fallbackFileId!==undefined)next.fileId=fallbackFileId;
     if(fallbackFileName!==undefined){
       next.fileName=fallbackFileName;
@@ -314,6 +361,14 @@
     var validNames={};
     var markerState;
     var refState;
+    var sourcePanes=Array.isArray(snapshot.panes)?snapshot.panes:(
+      snapshot.paneRenderModes&&typeof snapshot.paneRenderModes==="object"?
+        Object.keys(snapshot.paneRenderModes).map(function(paneId,index){
+          return {id:paneId,title:"Pane "+(index+1),renderMode:snapshot.paneRenderModes[paneId]};
+        }):
+        null
+    );
+    var sourcePaneRenderModes=snapshot.paneRenderModes&&typeof snapshot.paneRenderModes==="object"?snapshot.paneRenderModes:{};
     next.version=WORKSPACE_FILE_VERSION;
     next.files=(snapshot.files||[]).map(cloneFile).filter(Boolean);
     next.derivedTraces=(snapshot.derivedTraces||[]).map(function(trace){
@@ -324,9 +379,18 @@
       if(trace.id)validIds[trace.id]=true;
       if(trace.name)validNames[trace.name]=true;
     });
-    next.paneMode=clampPaneCount(snapshot.paneMode||1);
-    panes=buildPanes(next.paneMode);
+    next.paneMode=clampPaneCount(snapshot.paneMode||(sourcePanes&&sourcePanes.length)||1);
+    panes=normalizePanes(sourcePanes,next.paneMode);
+    if(!panes.length)panes=buildPanes(next.paneMode);
+    panes=panes.map(function(pane,index){
+      var nextPane=clonePane(pane,index)||{id:"pane-"+(index+1),title:"Pane "+(index+1),renderMode:"cartesian"};
+      var mappedMode=sourcePaneRenderModes[nextPane.id];
+      if(mappedMode!==undefined&&mappedMode!==null)nextPane.renderMode=normalizePaneRenderMode(mappedMode);
+      return nextPane;
+    });
     paneIds=panes.map(function(pane){return pane.id;});
+    next.panes=panes;
+    next.paneRenderModes=clonePaneRenderModes(panes);
     next.traceAssignments=normalizeTraceAssignments(snapshot.traceAssignments,validNames,paneIds);
     next.paneActiveTraceMap=normalizePaneActiveTraceMap(snapshot.paneActiveTraceMap||snapshot.paneActiveTraceKeys,validNames,paneIds);
     next.activePaneId=paneIds.indexOf(snapshot.activePaneId)!==-1?snapshot.activePaneId:"pane-1";
@@ -372,12 +436,17 @@
 
   function buildWorkspaceSnapshot(stateDeps){
     stateDeps=stateDeps&&typeof stateDeps==="object"?stateDeps:{};
+    var panes=clonePanes(stateDeps.panes,stateDeps.paneMode);
+    var paneMode=stateDeps.paneMode||panes.length||1;
+    if(!panes.length)panes=buildPanes(paneMode);
     return normalizeWorkspaceSnapshot({
       version:WORKSPACE_FILE_VERSION,
       files:(stateDeps.files||[]).map(cloneFile).filter(Boolean),
       derivedTraces:(stateDeps.derivedTraces||[]).map(function(trace){return cloneTrace(trace);}).filter(Boolean),
       vis:Object.assign({},stateDeps.vis||{}),
-      paneMode:stateDeps.paneMode,
+      paneMode:paneMode,
+      panes:panes,
+      paneRenderModes:clonePaneRenderModes(panes),
       activePaneId:stateDeps.activePaneId,
       traceAssignments:Object.assign({},stateDeps.traceAssignments||{}),
       paneActiveTraceMap:Object.assign({},stateDeps.paneActiveTraceMap||{}),
@@ -401,6 +470,8 @@
     return !!(payload&&typeof payload==="object"&&(
       Array.isArray(payload.files)||
       Array.isArray(payload.derivedTraces)||
+      Array.isArray(payload.panes)||
+      payload.paneRenderModes||
       payload.traceAssignments||
       payload.paneActiveTraceMap||
       payload.ui||
@@ -532,6 +603,7 @@
       derivedTraces:[],
       vis:visibleMap,
       paneMode:preset.paneMode||1,
+      panes:buildPanes(preset.paneMode||1),
       activePaneId:preset.activePaneId||"pane-1",
       traceAssignments:traceAssignments,
       paneActiveTraceMap:paneActiveTraceMap,
@@ -587,6 +659,8 @@
     if(deps.setVis)deps.setVis(next.vis);
     if(deps.setDerivedTraces)deps.setDerivedTraces(next.derivedTraces);
     if(deps.setPaneMode)deps.setPaneMode(next.paneMode);
+    if(deps.setPanes)deps.setPanes(next.panes);
+    if(deps.setPaneRenderModes)deps.setPaneRenderModes(next.paneRenderModes);
     if(deps.setActivePaneId)deps.setActivePaneId(next.activePaneId);
     if(deps.setTracePaneMap)deps.setTracePaneMap(next.traceAssignments);
     if(deps.setPaneActiveTrace){

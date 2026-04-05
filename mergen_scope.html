@@ -33,6 +33,9 @@
 <meta http-equiv="content-type" content="text/html; charset=UTF-8">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 
 <!-- SEO Meta Tags -->
 <title>Spectrum Analyzer .DAT File Viewer | Mergen Scope</title>
@@ -159,28 +162,37 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',-apple-system,Bl
 <script src="./vendor/react-dom/react-dom.production.min.js"></script>
 <script src="./vendor/prop-types/prop-types.min.js"></script>
 <script src="./vendor/recharts/Recharts.min.js"></script>
-<script src="./app-modules/trace-model.js"></script>
-<script src="./app-modules/trace-helpers.js"></script>
-<script src="./app-modules/trace-ops-helpers.js"></script>
-<script src="./app-modules/analysis-helpers.js"></script>
-<script src="./app-modules/analysis-target-helpers.js"></script>
-<script src="./app-modules/range-analysis-helpers.js"></script>
-<script src="./app-modules/file-store-helpers.js"></script>
-<script src="./app-modules/touchstone-math-helpers.js"></script>
-<script src="./app-modules/parser-helpers.js"></script>
-<script src="./app-modules/marker-helpers.js"></script>
-<script src="./app-modules/derived-state-helpers.js"></script>
-<script src="./app-modules/ui-helpers.js"></script>
-<script src="./app-modules/pane-helpers.js"></script>
-<script src="./app-modules/demo-workspaces.js"></script>
-<script src="./app-modules/workspace-helpers.js"></script>
-<script src="./app-modules/export-helpers.js"></script>
-<script src="./app-modules/app-hooks.js"></script>
-<script src="./app-modules/app-shell-components.js"></script>
-<script src="./app-modules/app-analysis-components.js"></script>
-<script src="./app-modules/app-chart-components.js"></script>
-<script src="./app-modules/app-controller.js"></script>
+<script src="./app-modules/trace-model.js?v=20260402"></script>
+<script src="./app-modules/trace-helpers.js?v=20260402"></script>
+<script src="./app-modules/trace-ops-helpers.js?v=20260402"></script>
+<script src="./app-modules/analysis-helpers.js?v=20260402"></script>
+<script src="./app-modules/analysis-target-helpers.js?v=20260402"></script>
+<script src="./app-modules/range-analysis-helpers.js?v=20260402"></script>
+<script src="./app-modules/file-store-helpers.js?v=20260402"></script>
+<script src="./app-modules/touchstone-math-helpers.js?v=20260402"></script>
+<script src="./app-modules/parser-helpers.js?v=20260402"></script>
+<script src="./app-modules/marker-helpers.js?v=20260402"></script>
+<script src="./app-modules/derived-state-helpers.js?v=20260402"></script>
+<script src="./app-modules/ui-helpers.js?v=20260402"></script>
+<script src="./app-modules/pane-helpers.js?v=20260402"></script>
+<script src="./app-modules/demo-workspaces.js?v=20260402"></script>
+<script src="./app-modules/workspace-helpers.js?v=20260402"></script>
+<script src="./app-modules/export-helpers.js?v=20260402"></script>
+<script src="./app-modules/app-hooks.js?v=20260402"></script>
+<script src="./app-modules/app-shell-components.js?v=20260402"></script>
+<script src="./app-modules/app-analysis-components.js?v=20260402"></script>
+<script src="./app-modules/app-chart-components.js?v=20260402"></script>
+<script src="./app-modules/app-controller.js?v=20260402"></script>
 <script type="module">
+var APP_BUILD_VERSION="20260402";
+try{
+  var currentUrl=new URL(window.location.href);
+  var versionParam=currentUrl.searchParams.get("v");
+  if(versionParam!==APP_BUILD_VERSION){
+    currentUrl.searchParams.set("v",APP_BUILD_VERSION);
+    window.location.replace(currentUrl.toString());
+  }
+}catch(_){ }
 var React=window.React;
 var h=React.createElement;
 var createRoot=window.ReactDOM.createRoot;

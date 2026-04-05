@@ -10,7 +10,6 @@
   var ENBW=AH.ENBW;
   var getAnalysisColor=ATH.getAnalysisColor;
   var buildPeakSpurTable=RAH.buildPeakSpurTable;
-  var buildMarkerDeltaTable=RAH.buildMarkerDeltaTable;
   var computeRangeStats=RAH.computeRangeStats;
   var computeBandwidthAtDrop=RAH.computeBandwidthAtDrop;
   var findThresholdCrossingsForLevel=RAH.findThresholdCrossingsForLevel;
@@ -28,6 +27,10 @@
   var isIP3Label=MH.isIP3Label||function(){return false;};
   var isTouchstoneTrace=ATH.isTouchstoneTrace||function(){return false;};
   var getTouchstoneContext=ATH.getTraceTouchstoneContext||function(){return null;};
+  var getTouchstoneTraceKind=ATH.getTouchstoneTraceKind||function(){return null;};
+  var isTouchstoneReflectionTarget=ATH.isTouchstoneReflectionTarget||function(){return false;};
+  var isTouchstoneTransmissionTarget=ATH.isTouchstoneTransmissionTarget||function(){return false;};
+  var getAnalysisDisplayTitle=ATH.getAnalysisDisplayTitle||function(item){return item&&item.title?item.title:"";};
   var normalizeTouchstoneFamily=ATH.normalizeTouchstoneFamily||function(value){return String(value||"S").trim().toUpperCase()||"S";};
 
 function AnalysisFeatureCard(props){
@@ -37,6 +40,31 @@ function AnalysisFeatureCard(props){
   if(props.description)kids.push(h("div",{key:"d",style:{fontSize:11,color:"var(--muted)",marginBottom:8,lineHeight:1.5}},props.description));
   if(props.children)kids=kids.concat(Array.isArray(props.children)?props.children:[props.children]);
   return h("div",{style:{marginBottom:10,padding:"8px 10px",border:"1px solid "+(tint?(tint+"44"):"var(--border)"),borderRadius:8,background:tint?(tint+"0f"):"var(--card)"}},kids);
+}
+
+function ReadOnlyMetricRow(props){
+  var label=String(props&&props.label||"").trim();
+  var value=(props&&props.value)!=null?String(props.value):"--";
+  var color=(props&&props.color)||"var(--muted)";
+  return h("div",{style:{display:"grid",gridTemplateColumns:"118px 1fr",alignItems:"center",gap:6}},
+    h("div",{style:{fontSize:11,color:color,fontWeight:600}},label+":"),
+    h("input",{
+      type:"text",
+      readOnly:true,
+      value:value,
+      tabIndex:-1,
+      style:{
+        width:"100%",
+        background:"var(--bg)",
+        color:"var(--text)",
+        border:"1px solid var(--border)",
+        borderRadius:4,
+        fontSize:11,
+        fontFamily:"monospace",
+        padding:"4px 6px"
+      }
+    })
+  );
 }
 /* Saved result item components moved to UIHelpers */
 function NoisePSDCard(props){
@@ -218,6 +246,10 @@ function appendAnalysisUnsupported(items,keyBase,target){
   return items;
 }
 
+function isTouchstoneAnalysisTarget(target){
+  return !!(target&&target.touchstone&&target.touchstone.isTouchstone);
+}
+
 function isFiniteNumber(value){
   return typeof value==="number"&&isFinite(value);
 }
@@ -239,6 +271,16 @@ function formatComplex(value,digits){
 function formatRange(minValue,maxValue,digits){
   if(!isFiniteNumber(minValue)||!isFiniteNumber(maxValue))return "--";
   return formatScalar(minValue,digits)+" .. "+formatScalar(maxValue,digits);
+}
+
+function formatDuration(value){
+  if(!isFiniteNumber(value))return "--";
+  var abs=Math.abs(value);
+  if(abs>=1)return value.toFixed(6)+" s";
+  if(abs>=1e-3)return (value*1e3).toFixed(3)+" ms";
+  if(abs>=1e-6)return (value*1e6).toFixed(3)+" us";
+  if(abs>=1e-9)return (value*1e9).toFixed(3)+" ns";
+  return (value*1e12).toFixed(3)+" ps";
 }
 
 function toComplex(value){
@@ -395,6 +437,355 @@ function getTouchstoneCell(matrix,row,col){
   return null;
 }
 
+function resolveTouchstoneCellIndices(target,row,col){
+  var touchstone=target&&target.touchstone||null;
+  var source=touchstone&&touchstone.source||null;
+  var hasMetric=!!(source&&source.metric);
+  var rawRow=isFiniteNumber(row)?Number(row):(isFiniteNumber(touchstone&&touchstone.row)?Number(touchstone.row):NaN);
+  var rawCol=isFiniteNumber(col)?Number(col):(isFiniteNumber(touchstone&&touchstone.col)?Number(touchstone.col):NaN);
+  if(!isFiniteNumber(rawRow)||!isFiniteNumber(rawCol))return null;
+  // Raw touchstone selector traces store row/col as 1-based. Derived/analysis traces use 0-based.
+  if(!hasMetric){
+    rawRow-=1;
+    rawCol-=1;
+  }
+  return {
+    row:Math.max(0,Math.floor(rawRow)),
+    col:Math.max(0,Math.floor(rawCol))
+  };
+}
+
+function getTouchstoneCellSeries(target,row,col){
+  var touchstone=target&&target.touchstone||null;
+  if(!touchstone||!Array.isArray(touchstone.samples))return [];
+  var indices=resolveTouchstoneCellIndices(target,row,col);
+  if(!indices)return [];
+  var rowIndex=indices.row;
+  var colIndex=indices.col;
+  var rangeHz=target&&target.rangeHz||null;
+  return touchstone.samples.map(function(sample){
+    if(!sample||!isFiniteNumber(sample.freq))return null;
+    if(rangeHz&&isFiniteNumber(rangeHz.left)&&isFiniteNumber(rangeHz.right)&&!(sample.freq>=rangeHz.left&&sample.freq<=rangeHz.right))return null;
+    var matrix=getTouchstoneMatrix(sample);
+    var cell=toComplex(getTouchstoneCell(matrix,rowIndex,colIndex));
+    if(!cell)return null;
+    return {freq:Number(sample.freq),value:cell};
+  }).filter(Boolean);
+}
+
+function getTouchstoneMagnitudeSeries(target,row,col){
+  return getTouchstoneCellSeries(target,row,col).map(function(point){
+    return {
+      freq:point.freq,
+      amp:complexAbs(point.value)
+    };
+  }).filter(function(point){
+    return isFiniteNumber(point.freq)&&isFiniteNumber(point.amp);
+  });
+}
+
+function getTouchstoneDbSeries(target,row,col){
+  return getTouchstoneMagnitudeSeries(target,row,col).map(function(point){
+    return {
+      freq:point.freq,
+      amp:point.amp>0?20*Math.log10(point.amp):-Infinity
+    };
+  }).filter(function(point){
+    return isFiniteNumber(point.freq)&&isFiniteNumber(point.amp);
+  });
+}
+
+function getTouchstoneReflectionLinearMagnitudeSeries(target,row,col){
+  var touchstone=target&&target.touchstone||null;
+  var view=String(touchstone&&touchstone.view||"").trim().toLowerCase();
+  if(view==="db"){
+    // Explicitly convert displayed dB representation back to linear |Sii| before RL/VSWR calculations.
+    return getTouchstoneDbSeries(target,row,col).map(function(point){
+      return {
+        freq:point.freq,
+        amp:Math.pow(10,Number(point.amp)/20)
+      };
+    }).filter(function(point){
+      return isFiniteNumber(point.freq)&&isFiniteNumber(point.amp)&&point.amp>=0;
+    });
+  }
+  return getTouchstoneMagnitudeSeries(target,row,col).map(function(point){
+    return {freq:point.freq,amp:Math.max(0,Number(point.amp))};
+  }).filter(function(point){
+    return isFiniteNumber(point.freq)&&isFiniteNumber(point.amp);
+  });
+}
+
+function summarizeScalarSeries(points){
+  var summary={
+    count:0,
+    min:Infinity,
+    max:-Infinity,
+    average:0,
+    center:null
+  };
+  var total=0;
+  (points||[]).forEach(function(point,idx){
+    if(!point||!isFiniteNumber(point.amp))return;
+    summary.count++;
+    if(point.amp<summary.min)summary.min=point.amp;
+    if(point.amp>summary.max)summary.max=point.amp;
+    total+=point.amp;
+    if(idx===Math.floor(((points||[]).length||1)/2))summary.center=point;
+  });
+  if(summary.count){
+    summary.average=total/summary.count;
+  }
+  return summary;
+}
+
+function summarizeReflectionSeries(points){
+  var summary={
+    count:0,
+    minMagnitude:Infinity,
+    maxMagnitude:-Infinity,
+    minReturnLoss:Infinity,
+    maxReturnLoss:-Infinity,
+    minVSWR:Infinity,
+    maxVSWR:-Infinity,
+    averageReturnLoss:0,
+    averageVSWR:0,
+    center:null
+  };
+  var rlTotal=0;
+  var rlCount=0;
+  var vswrTotal=0;
+  var vswrCount=0;
+  (points||[]).forEach(function(point,idx){
+    if(!point||!isFiniteNumber(point.amp))return;
+    var mag=Math.max(0,Number(point.amp));
+    var returnLoss=mag>0?-20*Math.log10(mag):Infinity;
+    var vswr=mag>=1?Infinity:(1+mag)/Math.max(1e-12,1-mag);
+    summary.count++;
+    if(mag<summary.minMagnitude)summary.minMagnitude=mag;
+    if(mag>summary.maxMagnitude)summary.maxMagnitude=mag;
+    if(returnLoss<summary.minReturnLoss)summary.minReturnLoss=returnLoss;
+    if(returnLoss>summary.maxReturnLoss)summary.maxReturnLoss=returnLoss;
+    if(vswr<summary.minVSWR)summary.minVSWR=vswr;
+    if(vswr>summary.maxVSWR)summary.maxVSWR=vswr;
+    if(isFinite(returnLoss)){rlTotal+=returnLoss;rlCount++;}
+    if(isFinite(vswr)){vswrTotal+=vswr;vswrCount++;}
+    if(idx===Math.floor(((points||[]).length||1)/2))summary.center=point;
+  });
+  if(summary.count){
+    summary.averageReturnLoss=rlCount?rlTotal/rlCount:Infinity;
+    summary.averageVSWR=vswrCount?vswrTotal/vswrCount:Infinity;
+  }
+  return summary;
+}
+
+function touchstoneFreqScaleToHz(unit){
+  var key=String(unit||"Hz").trim().toUpperCase();
+  if(key==="GHZ")return 1e9;
+  if(key==="MHZ")return 1e6;
+  if(key==="KHZ")return 1e3;
+  return 1;
+}
+
+function getTouchstoneGroupDelayChoices(target){
+  var touchstone=target&&target.touchstone||null;
+  var portCount=Number(touchstone&&touchstone.portCount);
+  if(!(portCount>0))portCount=Number(inferTouchstonePortCount(touchstone)||0);
+  if(portCount<=1){
+    return [{key:"S11",label:"S11",row:0,col:0}];
+  }
+  return [
+    {key:"S11",label:"S11",row:0,col:0},
+    {key:"S21",label:"S21",row:1,col:0},
+    {key:"S12",label:"S12",row:0,col:1},
+    {key:"S22",label:"S22",row:1,col:1}
+  ];
+}
+
+function unwrapPhaseRadians(phases){
+  var result=[];
+  var offset=0;
+  var lastWrapped=null;
+  (phases||[]).forEach(function(phase){
+    if(!isFiniteNumber(phase))return;
+    if(lastWrapped!==null){
+      var delta=phase-lastWrapped;
+      while(delta>Math.PI){
+        offset-=Math.PI*2;
+        delta-=Math.PI*2;
+      }
+      while(delta<-Math.PI){
+        offset+=Math.PI*2;
+        delta+=Math.PI*2;
+      }
+    }
+    result.push(phase+offset);
+    lastWrapped=phase;
+  });
+  return result;
+}
+
+function computeGroupDelay(freqHz,complexValues,options){
+  options=options||{};
+  var minMagnitude=isFiniteNumber(options.minMagnitude)?Math.max(0,Number(options.minMagnitude)):1e-10;
+  var outlierMultiplier=isFiniteNumber(options.outlierMultiplier)?Math.max(5,Number(options.outlierMultiplier)):100;
+  var maxAbsoluteDelaySec=isFiniteNumber(options.maxAbsoluteDelaySec)?Math.max(0,Number(options.maxAbsoluteDelaySec)):null;
+  var rows=[];
+  var nonMonotonicCount=0;
+  var duplicateFreqCount=0;
+  var lowMagnitudeCount=0;
+  var derivativeRejectCount=0;
+  var outlierRejectCount=0;
+  var freqs=Array.isArray(freqHz)?freqHz:[];
+  var values=Array.isArray(complexValues)?complexValues:[];
+  var count=Math.min(freqs.length,values.length);
+  for(var i=0;i<count;i++){
+    var f=Number(freqs[i]);
+    var value=values[i]||null;
+    if(!isFiniteNumber(f)||!value)continue;
+    var re=Number(value.re);
+    var im=Number(value.im);
+    if(!isFiniteNumber(re)||!isFiniteNumber(im))continue;
+    rows.push({freq:f,re:re,im:im,srcIndex:i});
+  }
+  if(rows.length<3){
+    return {points:[],reason:"At least three valid samples are required for a reliable derivative.",stats:{totalInput:rows.length}};
+  }
+  for(i=1;i<rows.length;i++){
+    if(rows[i].freq<=rows[i-1].freq)nonMonotonicCount++;
+  }
+  rows.sort(function(a,b){return a.freq-b.freq;});
+  var sanitized=[];
+  rows.forEach(function(row){
+    var last=sanitized.length?sanitized[sanitized.length-1]:null;
+    if(last&&row.freq===last.freq){
+      duplicateFreqCount++;
+      return;
+    }
+    sanitized.push(row);
+  });
+  if(sanitized.length<3){
+    return {points:[],reason:"Too few unique frequency points remain after removing duplicates.",stats:{duplicateFreqCount:duplicateFreqCount,totalInput:rows.length}};
+  }
+  var wrappedPhases=sanitized.map(function(row){
+    return Math.atan2(row.im,row.re);
+  });
+  var unwrapped=unwrapPhaseRadians(wrappedPhases);
+  var delaySec=new Array(sanitized.length);
+  for(i=0;i<sanitized.length;i++){
+    var useCenter=i>0&&i<sanitized.length-1;
+    var leftIndex=useCenter?(i-1):i;
+    var rightIndex=useCenter?(i+1):i+(i===0?1:-1);
+    if(rightIndex<0||rightIndex>=sanitized.length||leftIndex<0||leftIndex>=sanitized.length){
+      derivativeRejectCount++;
+      delaySec[i]=NaN;
+      continue;
+    }
+    var left=sanitized[leftIndex];
+    var right=sanitized[rightIndex];
+    var magLeft=Math.hypot(left.re,left.im);
+    var magRight=Math.hypot(right.re,right.im);
+    if(magLeft<minMagnitude||magRight<minMagnitude){
+      lowMagnitudeCount++;
+      delaySec[i]=NaN;
+      continue;
+    }
+    var df=right.freq-left.freq;
+    if(!isFiniteNumber(df)||df<=0){
+      derivativeRejectCount++;
+      delaySec[i]=NaN;
+      continue;
+    }
+    var dphi=unwrapped[rightIndex]-unwrapped[leftIndex];
+    var tau=-(dphi/(2*Math.PI*df));
+    delaySec[i]=isFiniteNumber(tau)?tau:NaN;
+  }
+
+  var finiteDelayValues=delaySec.filter(function(value){return isFiniteNumber(value);});
+  if(finiteDelayValues.length>=5){
+    var absValues=finiteDelayValues.map(function(value){return Math.abs(value);}).sort(function(a,b){return a-b;});
+    var medAbs=absValues[Math.floor(absValues.length/2)]||0;
+    var robustCap=medAbs>0?medAbs*outlierMultiplier:null;
+    var cap=maxAbsoluteDelaySec!=null?maxAbsoluteDelaySec:robustCap;
+    if(cap!=null&&isFiniteNumber(cap)&&cap>0){
+      for(i=0;i<delaySec.length;i++){
+        if(!isFiniteNumber(delaySec[i]))continue;
+        if(Math.abs(delaySec[i])>cap){
+          delaySec[i]=NaN;
+          outlierRejectCount++;
+        }
+      }
+    }
+  }
+
+  var points=[];
+  for(i=0;i<sanitized.length;i++){
+    if(!isFiniteNumber(delaySec[i]))continue;
+    points.push({freq:sanitized[i].freq,amp:delaySec[i]});
+  }
+  return {
+    points:points,
+    reason:points.length?"":("Unable to derive stable group delay values in the current range."),
+    stats:{
+      totalInput:rows.length,
+      uniqueFreqCount:sanitized.length,
+      nonMonotonicCount:nonMonotonicCount,
+      duplicateFreqCount:duplicateFreqCount,
+      lowMagnitudeCount:lowMagnitudeCount,
+      derivativeRejectCount:derivativeRejectCount,
+      outlierRejectCount:outlierRejectCount,
+      minMagnitude:minMagnitude
+    }
+  };
+}
+
+function computeTouchstoneGroupDelay(target,row,col,options){
+  var touchstone=target&&target.touchstone||null;
+  if(!touchstone||!Array.isArray(touchstone.samples))return {points:[],reason:"Touchstone samples are unavailable for this trace.",stats:{}};
+  var rowIndex=isFiniteNumber(row)?Math.max(0,Math.floor(row)):0;
+  var colIndex=isFiniteNumber(col)?Math.max(0,Math.floor(col)):0;
+  var rangeHz=target&&target.rangeHz||null;
+  var freqHz=[];
+  var values=[];
+  touchstone.samples.forEach(function(sample){
+    if(!sample||!isFiniteNumber(sample.freq))return;
+    // Touchstone parser normalizes sample.freq to Hz already.
+    var sampleFreqHz=Number(sample.freq);
+    if(rangeHz&&isFiniteNumber(rangeHz.left)&&isFiniteNumber(rangeHz.right)){
+      if(sampleFreqHz<rangeHz.left||sampleFreqHz>rangeHz.right)return;
+    }
+    var matrix=getTouchstoneMatrix(sample);
+    var cell=toComplex(getTouchstoneCell(matrix,rowIndex,colIndex));
+    if(!cell)return;
+    freqHz.push(sampleFreqHz);
+    values.push(cell);
+  });
+  return computeGroupDelay(freqHz,values,options||{});
+}
+
+function formatDurationWithUnit(value,unit){
+  if(!isFiniteNumber(value))return "--";
+  var key=String(unit||"s").toLowerCase();
+  var scales={s:1,ms:1e3,us:1e6,ns:1e9,ps:1e12};
+  var factor=scales[key]||1;
+  var digits=key==="s"?6:3;
+  return (value*factor).toFixed(digits)+" "+(scales[key]?key:"s");
+}
+
+function chooseDurationUnit(summary){
+  if(!summary||!isFiniteNumber(summary.min)||!isFiniteNumber(summary.max))return "s";
+  var abs=Math.max(Math.abs(summary.min),Math.abs(summary.max),Math.abs(summary.average||0));
+  if(abs>=1)return "s";
+  if(abs>=1e-3)return "ms";
+  if(abs>=1e-6)return "us";
+  if(abs>=1e-9)return "ns";
+  return "ps";
+}
+
+function summarizeGroupDelay(points){
+  return summarizeScalarSeries(points);
+}
+
 function computeTouchstoneStabilityPoint(sample){
   if(!sample||!isFiniteNumber(sample.freq))return null;
   var matrix=getTouchstoneMatrix(sample);
@@ -526,6 +917,11 @@ function buildTouchstoneTracePayload(metric,points,target,summary){
     view:metric,
     kind:"analysis",
     operationType:"touchstone-stability",
+    isComplex:false,
+    supportsPhase:false,
+    supportsSmith:false,
+    traceDomain:"scalar",
+    traceClassification:"scalar-real",
     units:{x:(target&&target.xUnit)||"Hz",y:""},
     metadata:{
       metric:metric,
@@ -547,6 +943,112 @@ function buildTouchstoneTracePayload(metric,points,target,summary){
     traceLabel:(target&&target.traceLabel?target.traceLabel:"Touchstone")+" ["+label+"]",
     data:data,
     summary:summary,
+    touchstone:touchstone
+  };
+}
+
+function getTouchstoneFileStemFromTarget(target){
+  var touchstone=target&&target.touchstone||null;
+  var fileName=touchstone&&touchstone.fileName||"";
+  var clean=String(fileName||"").replace(/^.*[\\/]/,"");
+  return clean.replace(/\.[^.]+$/,"")||clean||"Touchstone";
+}
+
+function buildTouchstoneDerivedTraceLabel(target,cellCode,metricLabel){
+  var fileStem=getTouchstoneFileStemFromTarget(target);
+  var cell=String(cellCode||"").trim();
+  var metric=String(metricLabel||"").trim();
+  return [fileStem,cell,metric].filter(function(part){
+    return !!String(part||"").trim();
+  }).join(" ");
+}
+
+function buildTouchstoneGroupDelayTracePayload(target,choice,result,displayUnit){
+  var touchstone=target&&target.touchstone||null;
+  var source=touchstone&&touchstone.source||null;
+  var code=choice&&choice.key?choice.key:"S21";
+  var metric="group-delay:"+code.toLowerCase();
+  return {
+    metric:metric,
+    label:"Group Delay "+code,
+    family:"S",
+    view:"group-delay",
+    kind:"analysis",
+    operationType:"touchstone-group-delay",
+    units:{x:(target&&target.xUnit)||"Hz",y:"s"},
+    metadata:{
+      metric:metric,
+      metricLabel:"Group Delay "+code,
+      metricUnit:"s",
+      displayUnit:displayUnit||"s",
+      touchstoneParameterType:touchstone&&touchstone.parameterType||"S",
+      touchstoneFileName:touchstone&&touchstone.fileName||null,
+      touchstonePortCount:touchstone&&touchstone.portCount||null,
+      touchstoneFamily:"S",
+      groupDelayStats:result&&result.stats||{}
+    },
+    networkSource:source?Object.assign({},source,{family:"S",view:"group-delay",row:choice.row,col:choice.col,metric:metric}):{
+      parentFileId:touchstone&&touchstone.fileId!=null?touchstone.fileId:null,
+      family:"S",
+      view:"group-delay",
+      row:choice&&choice.row,
+      col:choice&&choice.col,
+      metric:metric
+    },
+    sourceTraceId:target&&target.trace&&target.trace.id||null,
+    sourceTraceName:target&&target.trace&&target.trace.name||null,
+    traceLabel:buildTouchstoneDerivedTraceLabel(target,code,"Group Delay"),
+    data:(result&&result.points||[]).filter(function(point){
+      return isFiniteNumber(point&&point.freq)&&isFiniteNumber(point&&point.amp);
+    }),
+    summary:summarizeGroupDelay(result&&result.points||[]),
+    touchstone:touchstone
+  };
+}
+
+function buildTouchstoneReflectionTracePayload(target,metricCode,points,config){
+  config=config||{};
+  var touchstone=target&&target.touchstone||null;
+  var source=touchstone&&touchstone.source||null;
+  var indices=resolveTouchstoneCellIndices(target,null,null)||{row:0,col:0};
+  var row=indices.row;
+  var col=indices.col;
+  var cellCode="S"+(row+1)+(col+1);
+  var metric=String(metricCode||"").trim().toLowerCase();
+  var opType=metric==="vswr"?"touchstone-vswr":"touchstone-return-loss";
+  return {
+    metric:metric+":s"+(row+1)+(col+1),
+    label:config.label||metric.toUpperCase(),
+    family:"S",
+    view:metric,
+    kind:"analysis",
+    operationType:opType,
+    units:{x:(target&&target.xUnit)||"Hz",y:config.yUnit||""},
+    metadata:{
+      metric:metric,
+      metricLabel:config.label||metric.toUpperCase(),
+      metricUnit:config.metricUnit||"",
+      touchstoneParameterType:touchstone&&touchstone.parameterType||"S",
+      touchstoneFileName:touchstone&&touchstone.fileName||null,
+      touchstonePortCount:touchstone&&touchstone.portCount||null,
+      touchstoneFamily:"S"
+    },
+    networkSource:source?Object.assign({},source,{family:"S",view:metric,row:row,col:col,metric:metric}):{
+      parentFileId:touchstone&&touchstone.fileId!=null?touchstone.fileId:null,
+      family:"S",
+      view:metric,
+      row:row,
+      col:col,
+      metric:metric
+    },
+    sourceTraceId:target&&target.trace&&target.trace.id||null,
+    sourceTraceName:target&&target.trace&&target.trace.name||null,
+    traceLabel:buildTouchstoneDerivedTraceLabel(target,cellCode,config.label||metric.toUpperCase()),
+    data:(points||[]).map(function(point){
+      return {freq:Number(point&&point.freq),amp:Number(point&&point.amp)};
+    }).filter(function(point){
+      return isFiniteNumber(point.freq)&&isFiniteNumber(point.amp);
+    }),
     touchstone:touchstone
   };
 }
@@ -573,8 +1075,9 @@ function AnalysisMenuCard(props){
   items.push(h(AnalysisFeatureCard,{key:"head",first:!props.hasTraceOps,color:C.accent,title:"Analysis",description:"Measurement and numeric analysis tools live here. Open one or more functions below."}));
   items.push(h("div",{key:"btns",style:{display:"flex",gap:6,marginBottom:8,flexWrap:"wrap"}},
     (props.registry||[]).map(function(item){
-      return h("button",{key:item.id,title:"Open or close the "+item.title+" analysis card.",onClick:function(){props.toggleAnalysisOpen(item.id);},style:{padding:"5px 8px",background:item.isOpen?(getAnalysisColor(item,C)+"22"):"transparent",border:"1px solid "+(item.isOpen?getAnalysisColor(item,C):"var(--border)"),color:item.isOpen?getAnalysisColor(item,C):"var(--muted)",borderRadius:4,cursor:"pointer",fontSize:11}},
-        item.title+(item.resultCount?(" ("+item.resultCount+")"):""));
+      var displayTitle=getAnalysisDisplayTitle(item,props.target||null)||item.title;
+      return h("button",{key:item.id,title:"Open or close the "+displayTitle+" analysis card.",onClick:function(){props.toggleAnalysisOpen(item.id);},style:{padding:"5px 8px",background:item.isOpen?(getAnalysisColor(item,C)+"22"):"transparent",border:"1px solid "+(item.isOpen?getAnalysisColor(item,C):"var(--border)"),color:item.isOpen?getAnalysisColor(item,C):"var(--muted)",borderRadius:4,cursor:"pointer",fontSize:11}},
+        displayTitle+(item.resultCount?(" ("+item.resultCount+")"):""));
     })
   ));
   if(!(props.registry||[]).some(function(item){return item.isOpen;}))items.push(h("div",{key:"idle",style:{fontSize:11,color:"var(--muted)",lineHeight:1.4}},"Choose a function to open its controls here. Phase 4 tools act on the selected trace in the active pane over the visible range."));
@@ -589,7 +1092,7 @@ function isVisibleAnalysisCard(props,id){
 
 function PeakSpurTableCard(props){
   var C=props.C,target=props.target,items=[];
-  items.push(h(AnalysisFeatureCard,{key:"head",color:C.tr[2],title:"Peak / Spur Table",description:"Find local peaks on the selected trace within the active pane's visible range."}));
+  items.push(h(AnalysisFeatureCard,{key:"head",color:C.tr[2],title:"Peak Table",description:"Find local peaks on the selected trace within the active pane's visible range."}));
   appendAnalysisTargetRows(items,"pst",target,C.tr[2]);
   if(!target||!target.supported)return appendAnalysisUnsupported(items,"pst",target);
   items.push(h("div",{key:"controls",style:{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:6,marginBottom:8}},
@@ -625,102 +1128,365 @@ function PeakSpurTableCard(props){
   return items;
 }
 
-function MarkerDeltaTableCard(props){
-  var C=props.C,target=props.target,items=[];
-  items.push(h(AnalysisFeatureCard,{key:"head",color:C.md,title:"Marker Delta Table",description:"Show marker deltas on the selected trace in the active pane's visible range."}));
-  appendAnalysisTargetRows(items,"mdt",target,C.md);
-  if(!target||!target.supported)return appendAnalysisUnsupported(items,"mdt",target);
-  var rows=buildMarkerDeltaTable(props.markers,target.trace.name,target.rangeHz,target.xUnit,target.yUnit);
-  if(!rows.length){
-    items.push(h("div",{key:"none",style:{fontSize:11,color:"var(--muted)",lineHeight:1.4}},"Place at least two markers on the selected trace to see delta rows."));
-    return items;
-  }
-  var scale=xUnitScale(target.xUnit);
-  items.push(h("div",{key:"rows",style:{display:"grid",gap:4}},
-    rows.map(function(row,idx){
-      var slopeDisplay="--";
-      if(isFinite(row.slope)&&scale>0){
-        slopeDisplay=(row.deltaY/(row.deltaX/scale)).toFixed(4)+" "+(target.yUnit||"dB")+"/"+target.xUnit;
-      }
-      return h("div",{key:"mdr-"+idx,style:{padding:"4px 6px",border:"1px solid var(--border)",borderRadius:4,background:"var(--bg)",fontSize:11,lineHeight:1.45}},
-        h("div",{style:{fontWeight:600,color:C.md,marginBottom:2}},row.from+" -> "+row.to),
-        h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,fontFamily:"monospace"}},
-          h("span",null,"dX: "+fmtF(row.deltaX,true)),
-          h("span",null,"dY: "+row.deltaY.toFixed(3)+(target.yUnit?(" "+target.yUnit):"")),
-          h("span",null,"Slope: "+slopeDisplay)));
-    })
-  ));
-  return items;
-}
-
 function RangeStatsCard(props){
   var C=props.C,target=props.target,items=[];
-  items.push(h(AnalysisFeatureCard,{key:"head",color:C.tr[1],title:"Range Statistics",description:"Compute simple amplitude statistics over the visible range of the selected trace."}));
-  appendAnalysisTargetRows(items,"rst",target,C.tr[1]);
+  items.push(h(AnalysisFeatureCard,{key:"head",color:C.tr[1],title:"Range Statistics",description:"Compact range summary for the active trace window."}));
   if(!target||!target.supported)return appendAnalysisUnsupported(items,"rst",target);
   var stats=computeRangeStats(target.data);
   if(!stats)return appendAnalysisUnsupported(items,"rst2",{reason:"Not enough visible samples to compute range statistics."});
-  items.push(h(MR,{key:"count",label:"Points",value:stats.count,vc:C.tr[1]}));
-  items.push(h(MR,{key:"min",label:"Min",value:stats.min.amp.toFixed(3)+(target.yUnit?(" "+target.yUnit):""),vc:C.tr[1]}));
-  items.push(h(MR,{key:"minf",label:"Min Freq",value:fmtF(stats.min.freq,true)}));
-  items.push(h(MR,{key:"max",label:"Max",value:stats.max.amp.toFixed(3)+(target.yUnit?(" "+target.yUnit):""),vc:C.tr[1]}));
-  items.push(h(MR,{key:"maxf",label:"Max Freq",value:fmtF(stats.max.freq,true)}));
-  items.push(h(MR,{key:"avg",label:"Average",value:stats.average.toFixed(3)+(target.yUnit?(" "+target.yUnit):""),vc:C.tr[1]}));
-  items.push(h(MR,{key:"med",label:"Median",value:isFinite(stats.median)?(stats.median.toFixed(3)+(target.yUnit?(" "+target.yUnit):"")):"--"}));
+  var unitSuffix=target.yUnit?(" "+target.yUnit):"";
+  items.push(h("div",{key:"context",style:{fontSize:11,color:"var(--muted)",marginBottom:6,lineHeight:1.35}},
+    (target.traceLabel||"--")+" | "+formatHzRange(target&&target.rangeHz)
+  ));
+  items.push(h("div",{key:"grid",style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}},
+    h("div",{style:{fontSize:11,padding:"4px 6px",border:"1px solid var(--border)",borderRadius:4,background:"var(--bg)"}},h("span",{style:{color:"var(--muted)"}},"N "),String(stats.count)),
+    h("div",{style:{fontSize:11,padding:"4px 6px",border:"1px solid var(--border)",borderRadius:4,background:"var(--bg)"}},h("span",{style:{color:"var(--muted)"}},"Avg "),stats.average.toFixed(3)+unitSuffix),
+    h("div",{style:{fontSize:11,padding:"4px 6px",border:"1px solid var(--border)",borderRadius:4,background:"var(--bg)"}},h("span",{style:{color:"var(--muted)"}},"Min "),stats.min.amp.toFixed(3)+unitSuffix+" @ "+fmtF(stats.min.freq,true)),
+    h("div",{style:{fontSize:11,padding:"4px 6px",border:"1px solid var(--border)",borderRadius:4,background:"var(--bg)"}},h("span",{style:{color:"var(--muted)"}},"Max "),stats.max.amp.toFixed(3)+unitSuffix+" @ "+fmtF(stats.max.freq,true))
+  ));
   return items;
 }
 
 function BandwidthHelperCard(props){
   var C=props.C,target=props.target,items=[];
-  items.push(h(AnalysisFeatureCard,{key:"head",color:C.tr[0],title:"3 dB / 10 dB Bandwidth",description:"Estimate bandwidth from a selected peak marker or the strongest visible peak in the active pane."}));
-  appendAnalysisTargetRows(items,"bwh",target,C.tr[0]);
+  var title=isTouchstoneAnalysisTarget(target)?"Passband Metrics":"3 dB / 10 dB Bandwidth";
+  items.push(h(AnalysisFeatureCard,{key:"head",color:C.tr[0],title:title,description:isTouchstoneAnalysisTarget(target)?"Passband metrics = edge bandwidth at drop level + ripple summary.":"Estimate bandwidth from the strongest visible peak or selected peak marker."}));
   if(!target||!target.supported)return appendAnalysisUnsupported(items,"bwh",target);
+  if(isTouchstoneAnalysisTarget(target)&&!isTouchstoneTransmissionTarget(target)){
+    return appendAnalysisUnsupported(items,"bwh",{reason:"Passband Metrics is only available for Touchstone transmission traces (Sij, i != j)."});
+  }
+  items.push(h("div",{key:"context",style:{fontSize:11,color:"var(--muted)",marginBottom:6,lineHeight:1.35}},
+    (target.traceLabel||"--")+" | "+formatHzRange(target&&target.rangeHz)
+  ));
   items.push(h("div",{key:"drop",style:{display:"flex",alignItems:"center",gap:6,marginBottom:8}},
     h("span",{style:{fontSize:11,color:"var(--muted)"}},"Drop"),
     h("select",{value:props.bandwidthDrop,onChange:function(ev){props.setBandwidthDrop(ev.target.value);},style:{flex:1,background:"var(--bg)",color:"var(--text)",border:"1px solid var(--border)",borderRadius:4,fontSize:11,padding:"3px 6px"}},
       h("option",{value:"3"},"3 dB"),
       h("option",{value:"10"},"10 dB"))
   ));
+  var sourceData=isTouchstoneAnalysisTarget(target)?getTouchstoneDbSeries(target):target.data;
   var reference=(props.selectedMarker&&props.selectedMarker.type==="peak"&&target.trace&&props.selectedMarker.trace===target.trace.name&&(!target.rangeHz||(props.selectedMarker.freq>=target.rangeHz.left&&props.selectedMarker.freq<=target.rangeHz.right)))?props.selectedMarker:null;
-  var refPoint=reference||((buildPeakSpurTable(target.data,{limit:1})[0])||null);
+  var refPoint=reference||((buildPeakSpurTable(sourceData,{limit:1})[0])||null);
   if(!refPoint){
     items.push(h("div",{key:"none",style:{fontSize:11,color:"var(--muted)"}},"No visible peak could be used as the bandwidth reference."));
     return items;
   }
-  var result=computeBandwidthAtDrop(target.data,refPoint.freq,refPoint.amp,parseFloat(props.bandwidthDrop)||3);
+  var result=computeBandwidthAtDrop(sourceData,refPoint.freq,refPoint.amp,parseFloat(props.bandwidthDrop)||3);
   items.push(h(MR,{key:"src",label:"Reference",value:(reference?"Selected peak marker":"Strongest visible peak"),vc:C.tr[0]}));
   items.push(h(MR,{key:"rf",label:"Ref Freq",value:fmtF(refPoint.freq,true)}));
-  items.push(h(MR,{key:"ra",label:"Ref Amp",value:refPoint.amp.toFixed(3)+(target.yUnit?(" "+target.yUnit):"")}));
+  items.push(h(MR,{key:"ra",label:"Ref Amp",value:(isTouchstoneAnalysisTarget(target)?formatScalar(refPoint.amp,3)+" dB":refPoint.amp.toFixed(3)+(target.yUnit?(" "+target.yUnit):""))}));
   if(!result){
     items.push(h("div",{key:"err",style:{fontSize:11,color:"var(--muted)",lineHeight:1.4}},"Could not find both bandwidth edges in the visible range."));
     return items;
   }
-  items.push(h(MR,{key:"lvl",label:"Level",value:result.level.toFixed(3)+(target.yUnit?(" "+target.yUnit):""),vc:C.tr[0]}));
-  items.push(h(MR,{key:"left",label:"Left Edge",value:fmtF(result.left,true)}));
-  items.push(h(MR,{key:"right",label:"Right Edge",value:fmtF(result.right,true)}));
-  items.push(h(MR,{key:"bw",label:"Bandwidth",value:fmtF(result.bandwidth,true),vc:C.tr[0]}));
+  items.push(h("div",{key:"grid",style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:6}},
+    h("div",{style:{fontSize:11,padding:"4px 6px",border:"1px solid var(--border)",borderRadius:4,background:"var(--bg)"}},h("span",{style:{color:"var(--muted)"}},"Level "),(isTouchstoneAnalysisTarget(target)?formatScalar(result.level,3)+" dB":result.level.toFixed(3)+(target.yUnit?(" "+target.yUnit):""))),
+    h("div",{style:{fontSize:11,padding:"4px 6px",border:"1px solid var(--border)",borderRadius:4,background:"var(--bg)"}},h("span",{style:{color:"var(--muted)"}},"BW "),fmtF(result.bandwidth,true)),
+    h("div",{style:{fontSize:11,padding:"4px 6px",border:"1px solid var(--border)",borderRadius:4,background:"var(--bg)"}},h("span",{style:{color:"var(--muted)"}},"Left "),fmtF(result.left,true)),
+    h("div",{style:{fontSize:11,padding:"4px 6px",border:"1px solid var(--border)",borderRadius:4,background:"var(--bg)"}},h("span",{style:{color:"var(--muted)"}},"Right "),fmtF(result.right,true))
+  ));
+  if(isTouchstoneAnalysisTarget(target)){
+    var bandData=sourceData.filter(function(point){return point.freq>=result.left&&point.freq<=result.right;});
+    var ripple=bandData.length?computeRippleFlatness(bandData):null;
+    if(ripple){
+      items.push(h(MR,{key:"ripple",label:"Passband Ripple",value:ripple.ripple.toFixed(3)+" dB",vc:C.tr[0]}));
+      items.push(h(MR,{key:"span",label:"Passband Span",value:fmtF(ripple.spanHz,true),vc:C.tr[0]}));
+    }
+  }
+  if(typeof props.addMarker==="function"){
+    items.push(h("div",{key:"actions",style:{display:"flex",gap:6,marginBottom:6}},
+      h("button",{title:"Place marker at left edge.",onClick:function(){props.addMarker(target,{freq:result.left,amp:result.level},{type:"normal",label:"BW-L"});},style:{flex:1,padding:"4px 8px",background:"transparent",border:"1px solid "+C.tr[0],color:C.tr[0],borderRadius:4,cursor:"pointer",fontSize:11}},"Mark Left"),
+      h("button",{title:"Place marker at right edge.",onClick:function(){props.addMarker(target,{freq:result.right,amp:result.level},{type:"normal",label:"BW-R"});},style:{flex:1,padding:"4px 8px",background:"transparent",border:"1px solid "+C.tr[0],color:C.tr[0],borderRadius:4,cursor:"pointer",fontSize:11}},"Mark Right")
+    ));
+  }
   items.push(h("div",{key:"note",style:{fontSize:11,color:"var(--muted)",lineHeight:1.4}},"Edge estimate: "+result.mode+". Linear interpolation is used when the exact level is not sampled directly."));
+  return items;
+}
+
+function ReturnLossCard(props){
+  var C=props.C,target=props.target,items=[];
+  var onGenerateTrace=getTouchstoneGenerateTraceCallback(props);
+  items.push(h(AnalysisFeatureCard,{key:"head",color:C.tr[6]||C.accent,title:"Return Loss",description:"Report return loss from the selected Touchstone reflection trace over the visible range."}));
+  if(!target||!target.supported)return appendAnalysisUnsupported(items,"rls",target);
+  if(!isTouchstoneReflectionTarget(target)){
+    return appendAnalysisUnsupported(items,"rls",{reason:"Return loss is only available for Touchstone reflection traces (Sii)."});
+  }
+  var series=getTouchstoneReflectionLinearMagnitudeSeries(target);
+  if(!series.length){
+    return appendAnalysisUnsupported(items,"rls",{reason:"No visible Touchstone samples were available in the current range."});
+  }
+  var summary=summarizeReflectionSeries(series);
+  var rlPoints=series.map(function(point){
+    var mag=Math.max(0,Number(point.amp));
+    var rl=mag>0?-20*Math.log10(mag):Infinity;
+    return {freq:point.freq,amp:rl};
+  }).filter(function(point){
+    return isFiniteNumber(point.freq)&&isFiniteNumber(point.amp);
+  });
+  items.push(h("div",{key:"context",style:{fontSize:11,color:"var(--muted)",marginBottom:6,lineHeight:1.35}},
+    (target.traceLabel||"--")+" | "+formatHzRange(target&&target.rangeHz)
+  ));
+  items.push(h("div",{key:"what",style:{fontSize:11,color:"var(--muted)",lineHeight:1.4,marginBottom:6,padding:"4px 6px",border:"1px solid var(--border)",borderRadius:4,background:"var(--bg)"}},
+    "What it is: RL = -20*log10(|Sii|). Higher return loss means lower reflected power."
+  ));
+  items.push(h("div",{key:"rows",style:{display:"grid",gap:6}},
+    h(ReadOnlyMetricRow,{label:"Min RL",value:formatScalar(summary.minReturnLoss,3)+" dB",color:C.tr[6]||C.accent}),
+    h(ReadOnlyMetricRow,{label:"Max RL",value:formatScalar(summary.maxReturnLoss,3)+" dB",color:C.tr[6]||C.accent}),
+    h(ReadOnlyMetricRow,{label:"Avg RL",value:formatScalar(summary.averageReturnLoss,3)+" dB",color:C.tr[6]||C.accent}),
+    h(ReadOnlyMetricRow,{label:"Reflection Mag",value:formatRange(summary.minMagnitude,summary.maxMagnitude,4),color:C.tr[6]||C.accent})
+  ));
+  var rlPayload=buildTouchstoneReflectionTracePayload(target,"return-loss",rlPoints,{label:"Return Loss",yUnit:"dB",metricUnit:"dB"});
+  var canGenerate=!!onGenerateTrace&&rlPayload.data&&rlPayload.data.length>0;
+  items.push(h("button",{
+    key:"generate",
+    title:canGenerate?"Generate or refresh a derived Return Loss trace.":"Generate trace callbacks are not wired yet.",
+    disabled:!canGenerate,
+    onClick:function(){
+      if(!canGenerate)return;
+      emitTouchstoneTrace(props,rlPayload.metric,rlPayload);
+    },
+    style:{
+      width:"100%",
+      padding:"5px 8px",
+      background:canGenerate?((C.tr[6]||C.accent)+"12"):"transparent",
+      border:"1px solid "+(C.tr[6]||C.accent),
+      color:C.tr[6]||C.accent,
+      borderRadius:4,
+      cursor:canGenerate?"pointer":"not-allowed",
+      fontSize:11,
+      fontWeight:600,
+      opacity:canGenerate?1:0.55,
+      marginTop:6
+    }
+  },"Generate Return Loss Trace"));
+  return items;
+}
+
+function VSWRCard(props){
+  var C=props.C,target=props.target,items=[];
+  var onGenerateTrace=getTouchstoneGenerateTraceCallback(props);
+  items.push(h(AnalysisFeatureCard,{key:"head",color:C.tr[7]||C.accent,title:"VSWR",description:"Report voltage standing wave ratio from the selected Touchstone reflection trace over the visible range."}));
+  if(!target||!target.supported)return appendAnalysisUnsupported(items,"vsw",target);
+  if(!isTouchstoneReflectionTarget(target)){
+    return appendAnalysisUnsupported(items,"vsw",{reason:"VSWR is only available for Touchstone reflection traces (Sii)."});
+  }
+  var series=getTouchstoneReflectionLinearMagnitudeSeries(target);
+  if(!series.length){
+    return appendAnalysisUnsupported(items,"vsw",{reason:"No visible Touchstone samples were available in the current range."});
+  }
+  var summary=summarizeReflectionSeries(series);
+  var vswrPoints=series.map(function(point){
+    var mag=Math.max(0,Math.abs(Number(point.amp)));
+    var vswr=mag>=1?Infinity:(1+mag)/Math.max(1e-12,1-mag);
+    return {freq:point.freq,amp:vswr};
+  }).filter(function(point){
+    return isFiniteNumber(point.freq)&&isFiniteNumber(point.amp);
+  });
+  items.push(h("div",{key:"context",style:{fontSize:11,color:"var(--muted)",marginBottom:6,lineHeight:1.35}},
+    (target.traceLabel||"--")+" | "+formatHzRange(target&&target.rangeHz)
+  ));
+  items.push(h("div",{key:"what",style:{fontSize:11,color:"var(--muted)",lineHeight:1.4,marginBottom:6,padding:"4px 6px",border:"1px solid var(--border)",borderRadius:4,background:"var(--bg)"}},
+    "What it is: VSWR = (1 + |Gamma|) / (1 - |Gamma|), where Gamma = |Sii|. Values closer to 1 are better."
+  ));
+  items.push(h("div",{key:"rows",style:{display:"grid",gap:6}},
+    h(ReadOnlyMetricRow,{label:"Min VSWR",value:formatScalar(summary.minVSWR,4),color:C.tr[7]||C.accent}),
+    h(ReadOnlyMetricRow,{label:"Max VSWR",value:formatScalar(summary.maxVSWR,4),color:C.tr[7]||C.accent}),
+    h(ReadOnlyMetricRow,{label:"Avg VSWR",value:formatScalar(summary.averageVSWR,4),color:C.tr[7]||C.accent}),
+    h(ReadOnlyMetricRow,{label:"Reflection Mag",value:formatRange(summary.minMagnitude,summary.maxMagnitude,4),color:C.tr[7]||C.accent})
+  ));
+  var vswrPayload=buildTouchstoneReflectionTracePayload(target,"vswr",vswrPoints,{label:"VSWR",yUnit:"",metricUnit:"ratio"});
+  var canGenerate=!!onGenerateTrace&&vswrPayload.data&&vswrPayload.data.length>0;
+  items.push(h("button",{
+    key:"generate",
+    title:canGenerate?"Generate or refresh a derived VSWR trace.":"Generate trace callbacks are not wired yet.",
+    disabled:!canGenerate,
+    onClick:function(){
+      if(!canGenerate)return;
+      emitTouchstoneTrace(props,vswrPayload.metric,vswrPayload);
+    },
+    style:{
+      width:"100%",
+      padding:"5px 8px",
+      background:canGenerate?((C.tr[7]||C.accent)+"12"):"transparent",
+      border:"1px solid "+(C.tr[7]||C.accent),
+      color:C.tr[7]||C.accent,
+      borderRadius:4,
+      cursor:canGenerate?"pointer":"not-allowed",
+      fontSize:11,
+      fontWeight:600,
+      opacity:canGenerate?1:0.55,
+      marginTop:6
+    }
+  },"Generate VSWR Trace"));
+  return items;
+}
+
+function GroupDelayCard(props){
+  var C=props.C,target=props.target,items=[];
+  var onGenerateTrace=getTouchstoneGenerateTraceCallback(props);
+  var _gdlChoice=React.useState(""),groupDelayChoice=_gdlChoice[0],setGroupDelayChoice=_gdlChoice[1];
+  items.push(h(AnalysisFeatureCard,{key:"head",color:C.tr[8]||C.accent,title:"Group Delay",description:"Phase-slope delay from the selected Touchstone S-parameter."}));
+  if(!target||!target.supported)return appendAnalysisUnsupported(items,"gdl",target);
+  if(!isTouchstoneAnalysisTarget(target)){
+    return appendAnalysisUnsupported(items,"gdl",{reason:"Group delay is only available for Touchstone-backed traces."});
+  }
+  var touchstone=target.touchstone||null;
+  if(String(touchstone.parameterType||"S").toUpperCase()!=="S"){
+    return appendAnalysisUnsupported(items,"gdl",{reason:"Group delay is currently implemented for S-parameters only."});
+  }
+  var choices=getTouchstoneGroupDelayChoices(target);
+  if(!choices.length){
+    return appendAnalysisUnsupported(items,"gdl",{reason:"No valid S-parameter selections are available for this Touchstone file."});
+  }
+  var selectedChoice=choices.find(function(choice){return choice.key===groupDelayChoice;})||choices[0];
+  var result=computeTouchstoneGroupDelay(target,selectedChoice.row,selectedChoice.col,{
+    minMagnitude:1e-10,
+    outlierMultiplier:100,
+    maxAbsoluteDelaySec:5e-3
+  });
+  if(!result.points.length){
+    return appendAnalysisUnsupported(items,"gdl",{reason:result.reason||"Unable to derive group delay from the visible Touchstone samples."});
+  }
+  var summary=summarizeGroupDelay(result.points);
+  var displayUnit=chooseDurationUnit(summary);
+  var paneLabel=(target&&target.paneId)?String(target.paneId).replace("pane-","P"):"--";
+  items.push(h("div",{key:"context",style:{fontSize:11,color:"var(--muted)",marginBottom:6,lineHeight:1.35}},
+    paneLabel+" | "+(target.traceLabel||"--")+" | "+formatHzRange(target&&target.rangeHz)
+  ));
+  items.push(h("div",{key:"controls",style:{display:"grid",gridTemplateColumns:"1fr",gap:6,marginBottom:8}},
+    h("div",null,
+      h("div",{style:{fontSize:11,color:"var(--muted)",marginBottom:3}},"Sij"),
+      h("select",{value:selectedChoice.key,onChange:function(ev){setGroupDelayChoice(ev.target.value);},style:{width:"100%",background:"var(--bg)",color:"var(--text)",border:"1px solid var(--border)",borderRadius:4,fontSize:11,padding:"3px 6px"}},
+        choices.map(function(choice){return h("option",{key:choice.key,value:choice.key},choice.label);})
+      )
+    )
+  ));
+  items.push(h("div",{key:"stats",style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:6}},
+    h("div",{style:{fontSize:11,padding:"4px 6px",border:"1px solid var(--border)",borderRadius:4,background:"var(--bg)"}},h("span",{style:{color:"var(--muted)"}},"Min "),formatDurationWithUnit(summary.min,displayUnit)),
+    h("div",{style:{fontSize:11,padding:"4px 6px",border:"1px solid var(--border)",borderRadius:4,background:"var(--bg)"}},h("span",{style:{color:"var(--muted)"}},"Max "),formatDurationWithUnit(summary.max,displayUnit)),
+    h("div",{style:{fontSize:11,padding:"4px 6px",border:"1px solid var(--border)",borderRadius:4,background:"var(--bg)"}},h("span",{style:{color:"var(--muted)"}},"Avg "),formatDurationWithUnit(summary.average,displayUnit)),
+    h("div",{style:{fontSize:11,padding:"4px 6px",border:"1px solid var(--border)",borderRadius:4,background:"var(--bg)"}},h("span",{style:{color:"var(--muted)"}},"N "),String(summary.count)+" ("+displayUnit+")")
+  ));
+  if(result.stats&&result.stats.duplicateFreqCount>0){
+    items.push(h("div",{key:"dup-note",style:{fontSize:11,color:"#b8860b",lineHeight:1.4}},"Duplicate frequency samples were ignored before differentiation."));
+  }
+  if(result.stats&&result.stats.nonMonotonicCount>0){
+    items.push(h("div",{key:"mono-note",style:{fontSize:11,color:"#b8860b",lineHeight:1.4}},"Non-monotonic sample ordering was detected and safely sorted by frequency."));
+  }
+  if(result.stats&&result.stats.lowMagnitudeCount>0){
+    items.push(h("div",{key:"mag-note",style:{fontSize:11,color:"#b8860b",lineHeight:1.4}},"Very low-magnitude regions were masked to avoid unstable phase-derivative spikes."));
+  }
+  if(result.stats&&result.stats.outlierRejectCount>0){
+    items.push(h("div",{key:"outlier-note",style:{fontSize:11,color:"#b8860b",lineHeight:1.4}},"Extreme delay outliers were masked to keep the plot meaningful."));
+  }
+  var payload=buildTouchstoneGroupDelayTracePayload(target,selectedChoice,result,displayUnit);
+  var canGenerate=!!onGenerateTrace&&payload.data&&payload.data.length>0;
+  items.push(h("button",{
+    key:"generate",
+    title:canGenerate?"Generate or refresh a derived group-delay trace for the selected S-parameter.":"Generate trace callbacks are not wired yet.",
+    disabled:!canGenerate,
+    onClick:function(){
+      if(!canGenerate)return;
+      emitTouchstoneTrace(props,payload.metric,payload);
+    },
+    style:{
+      width:"100%",
+      padding:"5px 8px",
+      background:canGenerate?((C.tr[8]||C.accent)+"12"):"transparent",
+      border:"1px solid "+(C.tr[8]||C.accent),
+      color:C.tr[8]||C.accent,
+      borderRadius:4,
+      cursor:canGenerate?"pointer":"not-allowed",
+      fontSize:11,
+      fontWeight:600,
+      opacity:canGenerate?1:0.55,
+      marginTop:4
+    }
+  },"Generate Group Delay "+selectedChoice.key+" Trace"));
+  return items;
+}
+
+function ReciprocityIsolationCard(props){
+  var C=props.C,target=props.target,items=[];
+  items.push(h(AnalysisFeatureCard,{key:"head",color:C.tr[9]||C.accent,title:"Reciprocity / Isolation",description:"Compare a Touchstone transmission trace with its reciprocal path and summarize the visible isolation behavior."}));
+  appendAnalysisTargetRows(items,"ric",target,C.tr[9]||C.accent);
+  if(!target||!target.supported)return appendAnalysisUnsupported(items,"ric",target);
+  if(!isTouchstoneTransmissionTarget(target)){
+    return appendAnalysisUnsupported(items,"ric",{reason:"Reciprocity and isolation are only available for Touchstone transmission traces (Sij, i != j)."});
+  }
+  var touchstone=target.touchstone||null;
+  var row=isFiniteNumber(touchstone&&touchstone.row)?Math.max(0,Math.floor(touchstone.row)):null;
+  var col=isFiniteNumber(touchstone&&touchstone.col)?Math.max(0,Math.floor(touchstone.col)):null;
+  if(row==null||col==null){
+    return appendAnalysisUnsupported(items,"ric",{reason:"The selected Touchstone trace does not expose a valid matrix index."});
+  }
+  var selectedSeries=getTouchstoneMagnitudeSeries(target,row,col);
+  var reciprocalSeries=getTouchstoneMagnitudeSeries(target,col,row);
+  if(!selectedSeries.length||!reciprocalSeries.length){
+    return appendAnalysisUnsupported(items,"ric",{reason:"No reciprocal Touchstone samples were available in the current range."});
+  }
+  var reciprocalByFreq={};
+  reciprocalSeries.forEach(function(point){ reciprocalByFreq[point.freq]=point; });
+  var diffs=[];
+  selectedSeries.forEach(function(point){
+    var other=reciprocalByFreq[point.freq];
+    if(!other)return;
+    var selectedDb=point.amp>0?20*Math.log10(point.amp):-Infinity;
+    var reciprocalDb=other.amp>0?20*Math.log10(other.amp):-Infinity;
+    if(!isFinite(selectedDb)||!isFinite(reciprocalDb))return;
+    diffs.push({
+      freq:point.freq,
+      selectedDb:selectedDb,
+      reciprocalDb:reciprocalDb,
+      deltaDb:selectedDb-reciprocalDb
+    });
+  });
+  if(!diffs.length){
+    return appendAnalysisUnsupported(items,"ric",{reason:"Unable to align the selected trace with its reciprocal path."});
+  }
+  var selectedDbValues=diffs.map(function(row){return row.selectedDb;});
+  var reciprocalDbValues=diffs.map(function(row){return row.reciprocalDb;});
+  var deltaDbValues=diffs.map(function(row){return row.deltaDb;});
+  function range(values){
+    var min=Infinity,max=-Infinity;
+    values.forEach(function(value){
+      if(!isFiniteNumber(value))return;
+      if(value<min)min=value;
+      if(value>max)max=value;
+    });
+    return {min:min,max:max};
+  }
+  var selectedRange=range(selectedDbValues);
+  var reciprocalRange=range(reciprocalDbValues);
+  var deltaRange=range(deltaDbValues);
+  var absDeltaAvg=0;
+  deltaDbValues.forEach(function(value){ absDeltaAvg+=Math.abs(value); });
+  absDeltaAvg/=deltaDbValues.length;
+  items.push(h(MR,{key:"sel",label:"Selected Range",value:formatRange(selectedRange.min,selectedRange.max,3)+" dB",vc:C.tr[9]||C.accent}));
+  items.push(h(MR,{key:"rec",label:"Reciprocal Range",value:formatRange(reciprocalRange.min,reciprocalRange.max,3)+" dB",vc:C.tr[9]||C.accent}));
+  items.push(h(MR,{key:"del",label:"Delta Range",value:formatRange(deltaRange.min,deltaRange.max,3)+" dB",vc:C.tr[9]||C.accent}));
+  items.push(h(MR,{key:"avg",label:"Avg |Delta|",value:absDeltaAvg.toFixed(3)+" dB",vc:C.tr[9]||C.accent}));
   return items;
 }
 
 function ThresholdCrossingsCard(props){
   var C=props.C,target=props.target,items=[];
-  items.push(h(AnalysisFeatureCard,{key:"head",color:C.refH,title:"Threshold Crossings",description:"Find where the selected trace crosses a horizontal level in the visible range."}));
-  appendAnalysisTargetRows(items,"thc",target,C.refH);
+  items.push(h(AnalysisFeatureCard,{key:"head",color:C.refH,title:"Threshold Crossings",description:"Find threshold intersections and optionally place markers."}));
   if(!target||!target.supported)return appendAnalysisUnsupported(items,"thc",target);
+  items.push(h("div",{key:"context",style:{fontSize:11,color:"var(--muted)",marginBottom:6,lineHeight:1.35}},
+    (target.traceLabel||"--")+" | "+formatHzRange(target&&target.rangeHz)
+  ));
   items.push(h("div",{key:"manual",style:{display:"flex",alignItems:"center",gap:6,marginBottom:8}},
     h("span",{style:{fontSize:11,color:"var(--muted)"}},"Manual"),
     h("input",{type:"number",step:"0.1",value:props.thresholdManual,onChange:function(ev){props.setThresholdManual(ev.target.value);},style:{flex:1,background:"var(--bg)",color:"var(--text)",border:"1px solid var(--border)",borderRadius:4,fontSize:11,padding:"3px 6px"}}),
     h("span",{style:{fontSize:11,color:"var(--muted)"}} ,target.yUnit||"")
   ));
-  var usingHLine=props.selectedHLine&&isFinite(props.selectedHLine.value);
-  var level=usingHLine?props.selectedHLine.value:parseFloat(props.thresholdManual);
+  var level=parseFloat(props.thresholdManual);
   if(!isFinite(level)){
-    items.push(h("div",{key:"need",style:{fontSize:11,color:"var(--muted)",lineHeight:1.4}},"Enter a manual threshold or select an H-line in the active pane."));
+    items.push(h("div",{key:"need",style:{fontSize:11,color:"var(--muted)",lineHeight:1.4}},"Enter a manual threshold level."));
     return items;
   }
-  items.push(h(MR,{key:"src",label:"Threshold Source",value:usingHLine?"Selected H-line":"Manual input",vc:C.refH}));
-  items.push(h(MR,{key:"lvl",label:"Level",value:level.toFixed(3)+(target.yUnit?(" "+target.yUnit):"")}));
+  items.push(h(MR,{key:"lvl",label:"Level",value:level.toFixed(3)+(target.yUnit?(" "+target.yUnit):""),vc:C.refH}));
   var hits=findThresholdCrossingsForLevel(target.data,level);
   if(!hits.length){
     items.push(h("div",{key:"none",style:{fontSize:11,color:"var(--muted)"}},"No threshold crossings were found in the visible range."));
@@ -733,21 +1499,36 @@ function ThresholdCrossingsCard(props){
         h("span",null,fmtF(hit.freq,true)));
     })
   ));
+  if(typeof props.addMarkers==="function"){
+    var hitMarkers=hits.map(function(hit){return {freq:hit.freq,amp:level};});
+    items.push(h("button",{key:"mark",title:"Place markers on all threshold crossings.",onClick:function(){props.addMarkers(target,hitMarkers,{type:"normal",labelPrefix:"TH"});},style:{width:"100%",padding:"4px 8px",background:"transparent",border:"1px solid "+C.refH,color:C.refH,borderRadius:4,cursor:"pointer",fontSize:11,marginTop:6}},"Mark Crossings"));
+  }
   items.push(h("div",{key:"note",style:{fontSize:11,color:"var(--muted)",lineHeight:1.4}},"Crossings are estimated with linear interpolation between adjacent visible samples."));
   return items;
 }
 
 function RippleFlatnessCard(props){
   var C=props.C,target=props.target,items=[];
-  items.push(h(AnalysisFeatureCard,{key:"head",color:C.tr[5],title:"Ripple / Flatness",description:"Measure peak-to-peak flatness over the visible range of the selected trace."}));
-  appendAnalysisTargetRows(items,"rfl",target,C.tr[5]);
+  items.push(h(AnalysisFeatureCard,{key:"head",color:C.tr[5],title:"Ripple / Flatness",description:"Compact ripple summary for the active trace range."}));
   if(!target||!target.supported)return appendAnalysisUnsupported(items,"rfl",target);
   var result=computeRippleFlatness(target.data);
   if(!result)return appendAnalysisUnsupported(items,"rfl2",{reason:"Not enough visible samples to compute ripple."});
-  items.push(h(MR,{key:"min",label:"Min",value:result.min.amp.toFixed(3)+(target.yUnit?(" "+target.yUnit):""),vc:C.tr[5]}));
-  items.push(h(MR,{key:"max",label:"Max",value:result.max.amp.toFixed(3)+(target.yUnit?(" "+target.yUnit):""),vc:C.tr[5]}));
-  items.push(h(MR,{key:"ripple",label:"Ripple",value:result.ripple.toFixed(3)+(target.yUnit?(" "+target.yUnit):""),vc:C.tr[5]}));
-  items.push(h(MR,{key:"span",label:"Range Span",value:fmtF(result.spanHz,true)}));
+  var unitSuffix=target.yUnit?(" "+target.yUnit):"";
+  items.push(h("div",{key:"context",style:{fontSize:11,color:"var(--muted)",marginBottom:6,lineHeight:1.35}},
+    (target.traceLabel||"--")+" | "+formatHzRange(target&&target.rangeHz)
+  ));
+  items.push(h("div",{key:"what",style:{fontSize:11,color:"var(--muted)",lineHeight:1.4,marginBottom:6,padding:"4px 6px",border:"1px solid var(--border)",borderRadius:4,background:"var(--bg)"}},
+    "What it is: Ripple = Max - Min over the visible range of the selected trace."
+  ));
+  items.push(h("div",{key:"rows",style:{display:"grid",gap:6,marginBottom:6}},
+    h(ReadOnlyMetricRow,{label:"Ripple",value:result.ripple.toFixed(3)+unitSuffix,color:C.tr[5]}),
+    h(ReadOnlyMetricRow,{label:"Span",value:fmtF(result.spanHz,true),color:C.tr[5]}),
+    h(ReadOnlyMetricRow,{label:"Min",value:result.min.amp.toFixed(3)+unitSuffix+" @ "+fmtF(result.min.freq,true),color:C.tr[5]}),
+    h(ReadOnlyMetricRow,{label:"Max",value:result.max.amp.toFixed(3)+unitSuffix+" @ "+fmtF(result.max.freq,true),color:C.tr[5]})
+  ));
+  if(typeof props.addMarkers==="function"){
+    items.push(h("button",{key:"mark",title:"Place markers at ripple min and max.",onClick:function(){props.addMarkers(target,[result.min,result.max],{type:"peak",labelPrefix:"RP"});},style:{width:"100%",padding:"4px 8px",background:"transparent",border:"1px solid "+C.tr[5],color:C.tr[5],borderRadius:4,cursor:"pointer",fontSize:11}},"Mark Min/Max"));
+  }
   return items;
 }
 
@@ -796,11 +1577,13 @@ function appendTouchstoneTargetRows(items,keyBase,target,color){
     return items;
   }
   var portCount=touchstone.portCount!=null?touchstone.portCount:inferTouchstonePortCount(touchstone);
+  var traceKind=getTouchstoneTraceKind(target)||"--";
   items.push(h(MR,{key:keyBase+"-file",label:"File",value:touchstone.fileName||"Touchstone file",vc:color}));
   items.push(h(MR,{key:keyBase+"-ports",label:"Ports",value:portCount!=null?String(portCount):"--",vc:color}));
   items.push(h(MR,{key:keyBase+"-param",label:"Parameter",value:String(touchstone.parameterType||"S"),vc:color}));
   items.push(h(MR,{key:keyBase+"-family",label:"Family",value:normalizeTouchstoneFamily(touchstone.family),vc:color}));
   items.push(h(MR,{key:keyBase+"-view",label:"View",value:String(touchstone.view||"dB"),vc:color}));
+  items.push(h(MR,{key:keyBase+"-kind",label:"Kind",value:traceKind,vc:color}));
   items.push(h(MR,{key:keyBase+"-metric",label:"Metric",value:touchstone.metric||"--"}));
   if(touchstone.referenceOhms!=null)items.push(h(MR,{key:keyBase+"-ref",label:"Z0",value:Array.isArray(touchstone.referenceOhms)?touchstone.referenceOhms.join(", "):String(touchstone.referenceOhms),vc:color}));
   return items;
@@ -954,14 +1737,23 @@ function AnalysisPanelStack(props){
   if(isVisibleAnalysisCard(props,"peak-spur-table")&&props.normalizedAnalysisOpenState&&props.normalizedAnalysisOpenState["peak-spur-table"]){
     sections.push(h(PeakSpurTableCard,Object.assign({key:"peak-spur-table"},props.peakSpurProps)));
   }
-  if(isVisibleAnalysisCard(props,"marker-delta-table")&&props.normalizedAnalysisOpenState&&props.normalizedAnalysisOpenState["marker-delta-table"]){
-    sections.push(h(MarkerDeltaTableCard,Object.assign({key:"marker-delta-table"},props.markerDeltaProps)));
-  }
   if(isVisibleAnalysisCard(props,"range-stats")&&props.normalizedAnalysisOpenState&&props.normalizedAnalysisOpenState["range-stats"]){
     sections.push(h(RangeStatsCard,Object.assign({key:"range-stats"},props.rangeStatsProps)));
   }
   if(isVisibleAnalysisCard(props,"bandwidth-helper")&&props.normalizedAnalysisOpenState&&props.normalizedAnalysisOpenState["bandwidth-helper"]){
     sections.push(h(BandwidthHelperCard,Object.assign({key:"bandwidth-helper"},props.bandwidthProps)));
+  }
+  if(isVisibleAnalysisCard(props,"vswr")&&props.normalizedAnalysisOpenState&&props.normalizedAnalysisOpenState["vswr"]){
+    sections.push(h(VSWRCard,Object.assign({key:"vswr"},props.vswrProps)));
+  }
+  if(isVisibleAnalysisCard(props,"return-loss")&&props.normalizedAnalysisOpenState&&props.normalizedAnalysisOpenState["return-loss"]){
+    sections.push(h(ReturnLossCard,Object.assign({key:"return-loss"},props.returnLossProps)));
+  }
+  if(isVisibleAnalysisCard(props,"group-delay")&&props.normalizedAnalysisOpenState&&props.normalizedAnalysisOpenState["group-delay"]){
+    sections.push(h(GroupDelayCard,Object.assign({key:"group-delay"},props.groupDelayProps)));
+  }
+  if(isVisibleAnalysisCard(props,"reciprocity-isolation")&&props.normalizedAnalysisOpenState&&props.normalizedAnalysisOpenState["reciprocity-isolation"]){
+    sections.push(h(ReciprocityIsolationCard,Object.assign({key:"reciprocity-isolation"},props.reciprocityIsolationProps)));
   }
   if(isVisibleAnalysisCard(props,"threshold-crossings")&&props.normalizedAnalysisOpenState&&props.normalizedAnalysisOpenState["threshold-crossings"]){
     sections.push(h(ThresholdCrossingsCard,Object.assign({key:"threshold-crossings"},props.thresholdProps)));
@@ -987,9 +1779,12 @@ global.AppAnalysis={
   TraceOpsCard:TraceOpsCard,
   AnalysisMenuCard:AnalysisMenuCard,
   PeakSpurTableCard:PeakSpurTableCard,
-  MarkerDeltaTableCard:MarkerDeltaTableCard,
   RangeStatsCard:RangeStatsCard,
   BandwidthHelperCard:BandwidthHelperCard,
+  ReturnLossCard:ReturnLossCard,
+  VSWRCard:VSWRCard,
+  GroupDelayCard:GroupDelayCard,
+  ReciprocityIsolationCard:ReciprocityIsolationCard,
   ThresholdCrossingsCard:ThresholdCrossingsCard,
   RippleFlatnessCard:RippleFlatnessCard,
   OccupiedBandwidthCard:OccupiedBandwidthCard,
