@@ -460,8 +460,80 @@
     return parseRSDat(text,fileName);
   }
 
-  function parseMeasurementFile(text,fileName){
-    return parseImportedFile(text,fileName);
+  function parseTabular(text, fileName, explicitConfig) {
+    var lines = text.split(/\r?\n/).filter(function(l){ return l.trim().length > 0; });
+    var config = explicitConfig;
+    if (!config) {
+      // Heuristics Engine
+      var bestDelimiter = ",";
+      var delims = [",", "\t", ";"];
+      var maxCols = 0;
+      delims.forEach(function(d){
+        var cols = (lines[0] || "").split(d).length;
+        if (cols > maxCols) { maxCols = cols; bestDelimiter = d; }
+      });
+      
+      var skipRows = 0;
+      for(var i=0; i<Math.min(20, lines.length); i++){
+        var pts = lines[i].split(bestDelimiter).map(Number);
+        if(!pts.some(isNaN)) { skipRows = i; break; }
+      }
+
+      var headers = skipRows > 0 ? lines[skipRows-1].split(bestDelimiter).map(function(s){return s.trim().toLowerCase();}) : [];
+      var xCol = 0;
+      var yCols = [];
+      var ext = String(fileName || "").split('.').pop().toLowerCase();
+      var isDat = ext === "dat";
+      var domain = isDat ? "frequency" : "time";
+      var confidence = isDat ? 0.8 : 0.5;
+
+      headers.forEach(function(h, idx){
+        if (h.indexOf('freq')!==-1 || h.indexOf('hz')!==-1) { domain = "frequency"; xCol = idx; confidence+=0.2; }
+        else if (h.indexOf('time')!==-1 || h==='s' || h==='t') { domain = "time"; xCol = idx; confidence+=0.2; }
+        else if (h.indexOf('v')!==-1 || h.indexOf('ch')!==-1 || h.indexOf('amp')!==-1 || h.indexOf('db')!==-1) { yCols.push(idx); confidence+=0.2; }
+      });
+
+      if (yCols.length === 0) {
+        for(var j=0; j<maxCols; j++) { if (j !== xCol) yCols.push(j); }
+      }
+
+      config = { delimiter: bestDelimiter, skipRows: skipRows, xCol: xCol, yCols: yCols, xMult: 1, yMult: 1, domain: domain, confidence: confidence, headers: headers };
+      
+      if (confidence < 0.8) {
+        return { format: "needs-import-wizard", text: text, fileName: fileName, suggestedConfig: config, previewLines: lines.slice(0, 100) };
+      }
+    }
+
+    var traces = [];
+    config.yCols.forEach(function(yColIdx, idx){
+      var name = config.headers && config.headers[yColIdx] ? config.headers[yColIdx] : "CH" + (idx+1);
+      traces.push(window.TraceModel.makeTrace(fileName, name, ++_fc));
+      traces[traces.length-1].domain = config.domain;
+      traces[traces.length-1].dn = fileName + " " + name;
+    });
+
+    for(var i=config.skipRows; i<lines.length; i++) {
+        var row = lines[i].split(config.delimiter);
+        if(row.length <= config.xCol) continue;
+        var xVal = Number(row[config.xCol]) * (config.xMult || 1);
+        if (isNaN(xVal)) continue;
+        config.yCols.forEach(function(yCol, tIdx) {
+            if (row.length > yCol) {
+                var yVal = Number(row[yCol]) * (config.yMult || 1);
+                if (!isNaN(yVal)) traces[tIdx].data.push({ freq: xVal, amp: yVal });
+            }
+        });
+    }
+
+    traces = traces.filter(function(t) { return t.data.length > 1; });
+    
+    return { format: "tabular", meta: { "Domain": config.domain, "Columns": config.yCols.length }, traces: traces, rawText: text, suggestedConfig: config };
+  }
+
+  function parseMeasurementFile(text, fileName, fileProfile){
+    var profile = fileProfile || (window.FileClassifier ? window.FileClassifier.classify(text, fileName) : null);
+    if (profile && profile.format === "tabular") return parseTabular(text, fileName, null);
+    return parseImportedFile(text, fileName);
   }
 
   global.ParserHelpers={
@@ -476,6 +548,7 @@
     detectImportedFileFormat:detectImportedFileFormat,
     parseTouchstone:parseTouchstone,
     parseImportedFile:parseImportedFile,
+    parseTabular:parseTabular,
     parseMeasurementFile:parseMeasurementFile
   };
 })(window);

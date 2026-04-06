@@ -37,6 +37,7 @@
       name:prefix+traceLabel+"_"+fileCounter,
       mode:"",
       detector:"",
+      domain:"frequency",
       data:[],
       file:fileName,
       dn:prefix+traceLabel
@@ -71,6 +72,7 @@
       detector:sourceTrace&&sourceTrace.detector?sourceTrace.detector:"",
       data:Array.isArray(data)?data:[],
       file:sourceTrace&&sourceTrace.file?sourceTrace.file:null,
+      domain:sourceTrace&&sourceTrace.domain?sourceTrace.domain:"frequency",
       dn:displayName||((getTraceLabel(sourceTrace)||"Trace")+" ["+(operationType||"derived")+"]")
     };
   }
@@ -154,11 +156,22 @@
       yUnit="";
       yLabel="Amplitude";
     }
+    var xName = "Frequency";
+    var domainType = "frequency";
+    if (target && target.domain === "time") {
+      xName = "Time";
+      domainType = "time";
+    } else if (!target) {
+      // If no target is visible, fallback to file extensions of traces if possible,
+      // but if we are dropping a file, we at least don't say Frequency if the global mode or hints say Time.
+    }
+    
     return {
-      xLabel:hasData?(xName+" ("+(fUnit||"Hz")+")"):"",
+      xLabel: hasData ? (xName + " (" + (domainType === "time" ? "s" : (fUnit || "Hz")) + ")") : (xName + " (" + (domainType === "time" ? "s" : (fUnit || "Hz")) + ")"),
       yLabel:hasData?yLabel:"",
       yUnit:yUnit||"",
-      hasMixedYUnits:unitKeys.length>1
+      hasMixedYUnits:unitKeys.length>1,
+      axisDomain:domainType
     };
   }
 

@@ -587,6 +587,7 @@ function useFileStore(dep){
   var _f=useState([]),files=_f[0],setFiles=_f[1];
   var _e=useState(null),error=_e[0],setError=_e[1];
   var _v=useState({}),vis=_v[0],setVis=_v[1];
+  var _iw=useState([]),wizards=_iw[0],setWizards=_iw[1];
 
   var allTr=useMemo(function(){return files.flatMap(function(f){return f.traces;});},[files]);
   var fileMap=useMemo(function(){
@@ -604,7 +605,8 @@ function useFileStore(dep){
       var reader=new FileReader();
       reader.onload=function(ev){
         try{
-          var parsed=parseMeasurementFile(ev.target.result,file.name);
+          var fileProfile = window.FileClassifier ? window.FileClassifier.classify(ev.target.result, file.name) : null;
+          var parsed=parseMeasurementFile(ev.target.result,file.name,fileProfile);
           if(parsed.format==="touchstone"){
             var touchstoneFile={id:++_fid,fileName:file.name,meta:parsed.meta||{},traces:[],format:"touchstone",touchstoneNetwork:parsed.touchstoneNetwork||null};
             var defaultTouchstoneState=makeDefaultTouchstoneState(touchstoneFile);
@@ -615,11 +617,14 @@ function useFileStore(dep){
               _fileId:touchstoneFile.id
             });
           }
-          if(parsed.traces.length===0)setError(function(p){return(p?p+" | ":"")+file.name+": no data";});
+          if(parsed.format==="needs-import-wizard"){
+             setWizards(function(p){return p.concat(Object.assign({}, parsed, {append: append}));});
+          }
+          else if((parsed.traces||[]).length===0)setError(function(p){return(p?p+" | ":"")+file.name+": no data";});
           else{
             var fileId=parsed._fileId||(++_fid);
             parsed.traces.forEach(function(tr){tr.fileId=fileId;tr.fileName=file.name;});
-            results.push({id:fileId,fileName:file.name,meta:parsed.meta,traces:parsed.traces,format:parsed.format||"rs-dat",touchstoneNetwork:parsed.touchstoneNetwork||null,touchstoneUiState:parsed.touchstoneUiState||null});
+            results.push({id:fileId,fileName:file.name,meta:parsed.meta,traces:parsed.traces,format:parsed.format||"rs-dat",touchstoneNetwork:parsed.touchstoneNetwork||null,touchstoneUiState:parsed.touchstoneUiState||null,rawText:parsed.rawText||null,suggestedConfig:parsed.suggestedConfig||null});
           }
         }catch(e){setError(function(p){return(p?p+" | ":"")+file.name+": "+e.message;});}
         pending--;
@@ -714,7 +719,70 @@ function useFileStore(dep){
     dep.setShowNoise(false);dep.setShowIP3(false);dep.resetIP3();dep.setRefLines([]);dep.setRefMode(null);dep.setYMnI("");dep.setYMxI("");dep.setNoiseResults([]);dep.setIP3Results([]);
   },[dep]);
 
-  return {files:files,setFiles:setFiles,error:error,setError:setError,vis:vis,setVis:setVis,allTr:allTr,fileMap:fileMap,m0:m0,loadFiles:loadFiles,onDrop:onDrop,removeFile:removeFile,removeTrace:removeTrace,clearAllFiles:clearAllFiles};
+  var resolveWizard=useCallback(function(wizardId, config){
+    var wizard = wizards.find(function(w){return w.fileName===wizardId;});
+    if(!wizard) return;
+    setWizards(function(prev){
+      var next = prev.slice();
+      var idx = next.findIndex(function(w){return w.fileName===wizardId;});
+      if(idx!==-1) next.splice(idx,1);
+      return next;
+    });
+
+    setTimeout(function(){
+       try {
+         var PH = window.ParserHelpers;
+         var parsed = PH.parseTabular(wizard.text, wizard.fileName, config);
+         var fileId=(++_fid);
+         parsed.traces.forEach(function(tr){tr.fileId=fileId;tr.fileName=wizard.fileName;});
+         var result = {id:fileId,fileName:wizard.fileName,meta:parsed.meta,traces:parsed.traces,format:"tabular",rawText:wizard.text,suggestedConfig:config};
+         
+         if(wizard.isReconfigured){
+            setFiles(function(p){
+              var next=p.slice();
+              var idx=next.findIndex(function(f){return f.id===wizard.fileId;});
+              if(idx!==-1) next[idx] = Object.assign({}, next[idx], result, {id: wizard.fileId});
+              return next;
+            });
+            setVis(function(p){var nv=Object.assign({},p);result.traces.forEach(function(t){nv[t.name]=true;});return nv;});
+         }
+         else if(wizard.append){
+           setFiles(function(p){return mergeFileLists(p,[result]);});
+           setVis(function(p){var nv=Object.assign({},p);result.traces.forEach(function(t){nv[t.name]=true;});return nv;});
+         } else {
+           setFiles([result]);
+           var nv={}; result.traces.forEach(function(t){nv[t.name]=true;});
+           setVis(nv);
+           dep.clearMarkers();dep.setZoom(null);dep.setYZoom(null);dep.setDRef(null);setError(null);
+         }
+       } catch(e){
+         setError(function(p){return(p?p+" | ":"")+wizard.fileName+": "+e.message;});
+       }
+    }, 10);
+  },[wizards, dep, setFiles, setVis, setError]);
+
+  var cancelWizard=useCallback(function(wizardId){
+    setWizards(function(p){return p.filter(function(w){return w.fileName!==wizardId;});});
+  },[]);
+
+  var openWizardForFile=useCallback(function(fileId){
+    var file=files.find(function(f){return f.id===fileId;});
+    if(!file||!file.rawText)return;
+    setWizards(function(p){
+      return p.concat({
+        format:"needs-import-wizard",
+        text:file.rawText,
+        fileName:file.fileName,
+        suggestedConfig:file.suggestedConfig,
+        previewLines:file.rawText.split(/\r?\n/).slice(0,100),
+        append:false,
+        isReconfigured:true,
+        fileId:fileId
+      });
+    });
+  },[files]);
+
+  return {files:files,setFiles:setFiles,error:error,setError:setError,vis:vis,setVis:setVis,wizards:wizards,resolveWizard:resolveWizard,cancelWizard:cancelWizard,openWizardForFile:openWizardForFile,allTr:allTr,fileMap:fileMap,m0:m0,loadFiles:loadFiles,onDrop:onDrop,removeFile:removeFile,removeTrace:removeTrace,clearAllFiles:clearAllFiles};
 }
 
 function useChartNav(dep){
@@ -1284,12 +1352,29 @@ function useMarkerActions(dep){
   var resolveMarkerTarget=useCallback(function(pt,targetAmp){
     var act=(dep.paneTraces&&dep.paneTraces.length?dep.paneTraces:dep.allTr).filter(function(t){return dep.vis[t.name];});
     if(!act.length)return null;
+    function getIntp(tr) {
+      if(pt[tr.name]!==undefined&&isFinite(pt[tr.name])) return {trace:tr.name,amp:pt[tr.name],freq:pt.freq,isInterpolated:false};
+      var z = dep.zoom;
+      var Th = window.TraceHelpers;
+      var data = Th.getVisibleTraceData(tr, z).filter(function(p){return isFinite(p.freq)&&isFinite(p.amp);});
+      if(!data.length)return null;
+      var lo=0, hi=data.length-1;
+      while(lo<hi){ var mid=(lo+hi)>>1; if(data[mid].freq<pt.freq)lo=mid+1; else hi=mid; }
+      if(lo>0 && data[lo].freq > pt.freq) {
+        var p0=data[lo-1], p1=data[lo];
+        var intp = Th.interpolatePointAtX(p0, p1, pt.freq);
+        return {trace:tr.name,amp:intp.amp,freq:intp.freq,isInterpolated:true};
+      }
+      var fp = window.ParserHelpers.nearestPoint(tr, pt.freq, z?z.left:null, z?z.right:null);
+      if(fp&&isFinite(fp.amp)) return {trace:tr.name,amp:fp.amp,freq:fp.freq,isInterpolated:false};
+      return null;
+    }
+
     if(dep.markerTrace&&dep.markerTrace!=="__auto__"){
       var forced=act.find(function(t){return t.name===dep.markerTrace;});
       if(forced){
-        if(pt[forced.name]!==undefined&&isFinite(pt[forced.name]))return {trace:forced.name,amp:pt[forced.name],freq:pt.freq};
-        var fp=nearestPoint(forced,pt.freq,dep.zoom?dep.zoom.left:null,dep.zoom?dep.zoom.right:null);
-        if(fp&&isFinite(fp.amp))return {trace:forced.name,amp:fp.amp,freq:fp.freq};
+        var res = getIntp(forced);
+        if(res) return res;
       }
     }
     if(isFinite(targetAmp)){
@@ -1297,28 +1382,28 @@ function useMarkerActions(dep){
       for(var i=0;i<act.length;i++){
         if(pt[act[i].name]!==undefined&&isFinite(pt[act[i].name])){
           var err=Math.abs(pt[act[i].name]-targetAmp);
-          if(err<bestErr){bestErr=err;best={trace:act[i].name,amp:pt[act[i].name],freq:pt.freq};}
+          if(err<bestErr){bestErr=err;best={trace:act[i].name,amp:pt[act[i].name],freq:pt.freq,isInterpolated:false};}
         }
       }
       if(best)return best;
     }
     for(var i=0;i<act.length;i++){
-      if(pt[act[i].name]!==undefined&&isFinite(pt[act[i].name]))return {trace:act[i].name,amp:pt[act[i].name],freq:pt.freq};
+      if(pt[act[i].name]!==undefined&&isFinite(pt[act[i].name]))return {trace:act[i].name,amp:pt[act[i].name],freq:pt.freq,isInterpolated:false};
     }
     if(isFinite(targetAmp)){
       var nearBest=null,nearErr=Infinity;
       for(var j=0;j<act.length;j++){
-        var np1=nearestPoint(act[j],pt.freq,dep.zoom?dep.zoom.left:null,dep.zoom?dep.zoom.right:null);
+        var np1=getIntp(act[j]);
         if(np1&&isFinite(np1.amp)){
           var nErr=Math.abs(np1.amp-targetAmp);
-          if(nErr<nearErr){nearErr=nErr;nearBest={trace:act[j].name,amp:np1.amp,freq:np1.freq};}
+          if(nErr<nearErr){nearErr=nErr;nearBest={trace:act[j].name,amp:np1.amp,freq:np1.freq,isInterpolated:np1.isInterpolated};}
         }
       }
       if(nearBest)return nearBest;
     }
     for(var j=0;j<act.length;j++){
-      var np2=nearestPoint(act[j],pt.freq,dep.zoom?dep.zoom.left:null,dep.zoom?dep.zoom.right:null);
-      if(np2&&isFinite(np2.amp))return {trace:act[j].name,amp:np2.amp,freq:np2.freq};
+      var np2=getIntp(act[j]);
+      if(np2&&isFinite(np2.amp)) return np2;
     }
     return null;
   },[dep.allTr,dep.paneTraces,dep.vis,dep.markerTrace,dep.zoom]);
@@ -1347,13 +1432,13 @@ function useMarkerActions(dep){
       dep.setMarkers(function(prev){
         var next=prev.slice();
         var current=next[sel]||{};
-        next[sel]=Object.assign({},current,{freq:point.freq,amp:point.amp,trace:point.trace,type:type||current.type||"normal"});
+        next[sel]=Object.assign({},current,{freq:point.freq,amp:point.amp,trace:point.trace,type:type||current.type||"normal",isInterpolated:!!point.isInterpolated});
         if(next[sel].type!=="delta")delete next[sel].refIdx;
         return next;
       });
       return;
     }
-    dep.addMarker({freq:point.freq,amp:point.amp,trace:point.trace,type:type||"normal"},true);
+    dep.addMarker({freq:point.freq,amp:point.amp,trace:point.trace,type:type||"normal",isInterpolated:!!point.isInterpolated},true);
   }
   function findBestAcrossTraces(kind){
     var best=null;

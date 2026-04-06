@@ -1,0 +1,26 @@
+{
+  "name": "mergen-scope",
+  "version": "1.0.0",
+  "description": "<p>   <img src=\"mergen-scope-icon.svg\" alt=\"Mergen Scope icon\" width=\"72\"> </p>",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AlpGoXd/mergen-scope.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/AlpGoXd/mergen-scope/issues"
+  },
+  "homepage": "https://github.com/AlpGoXd/mergen-scope#readme",
+  "devDependencies": {
+    "@types/node": "^25.5.2",
+    "typescript": "^6.0.2",
+    "vite": "^8.0.4"
+  }
+}

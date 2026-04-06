@@ -805,7 +805,7 @@
         strokeWidth:selected?2:1,
         ifOverflow:"hidden",
         label:{
-          value:(selected?"[":"")+(m.label||("M"+(i+1)))+(selected?"]":""),
+          value:(selected?"[":"")+((m.label||("M"+(i+1)))+(m.isInterpolated?" (intp)":""))+(selected?"]":""),
           position:"top",
           offset:8,
           fill:col,
@@ -896,7 +896,9 @@
     var paneDropActive=props.dragTraceName!==null&&props.dragTraceName!==undefined&&resolveTracePaneId(props,props.dragTraceName)!==paneId;
     var activeTarget=(model.paneActiveTraceName?resolveTraceByName(props,model.paneActiveTraceName):null)||(model.traces||[]).find(function(tr){ return props.vis&&props.vis[tr.name]; })||(model.traces&&model.traces[0])||null;
     paneTargetUnit=activeTarget?getEffectiveTraceYUnit(activeTarget):paneTargetUnit;
-    var paneXLabel=(paneAxisInfo&&paneAxisInfo.xLabel)||("Frequency ("+(model.fUnit||"Hz")+")");
+    var fallbackDomain = (activeTarget && activeTarget.domain === "time") ? "time" : "frequency";
+    var fallbackXLabel = fallbackDomain === "time" ? "Time (s)" : ("Frequency ("+(model.fUnit||"Hz")+")");
+    var paneXLabel=(paneAxisInfo&&paneAxisInfo.xLabel)||fallbackXLabel;
     var paneYLabel=(paneAxisInfo&&paneAxisInfo.hasMixedYUnits)?"Amplitude":(paneTargetUnit?getYAxisTextForUnit(paneTargetUnit,activeTarget):((paneAxisInfo&&paneAxisInfo.yLabel)||"Amplitude"));
     var paneHeader=renderPaneHeader(Object.assign({},props,{model:model}));
 

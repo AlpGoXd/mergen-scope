@@ -163,6 +163,12 @@
 
   function isAnalysisItemVisible(item,target){
     if(!item)return false;
+    
+    // Explicitly hide all analysis tools if the target is a time-domain trace
+    // as per user request: "the analysises are for spectrum analyses i dont have any tim domain analyses yet"
+    var isTimeDomain = target && target.trace && target.trace.domain === "time";
+    if(isTimeDomain) return false;
+
     var scope=getAnalysisScope(item);
     if(scope==="touchstone"){
       if(!isTouchstoneTarget(target))return false;

@@ -596,7 +596,7 @@
 
     var children=[
       h("div",{key:"mh",style:{display:"flex",alignItems:"center",gap:4,marginBottom:2,cursor:"pointer"}},
-        h("span",{style:{color:mc,fontWeight:700,fontSize:11}},(m.label||"M"+(i+1))+" "+(selected?"<":"")),
+        h("span",{style:{color:mc,fontWeight:700,fontSize:11}},(m.label||"M"+(i+1))+(m.isInterpolated?" (intp)":"")+" "+(selected?"<":"")),
         h("span",{style:{fontSize:10,color:"var(--dim)"}},m.trace),
         h("button",{title:"Remove this marker.",onClick:function(ev){ev.stopPropagation();if(p.rmMkr)p.rmMkr(i);},style:{marginLeft:"auto",background:"none",border:"none",color:"#f55",cursor:"pointer",fontSize:13,padding:0,lineHeight:"1"}},"x")
       ),
@@ -875,6 +875,7 @@
         h("span",{style:{flex:1,fontFamily:"monospace",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",color:"var(--text)"}},f.fileName),
         isTouchstoneFile(f)?h("span",{style:{fontSize:10,color:p.C&&p.C.accent?p.C.accent:"var(--accent)",border:"1px solid "+(p.C&&p.C.accent?p.C.accent:"var(--accent)"),borderRadius:999,padding:"1px 6px",lineHeight:1.2,whiteSpace:"nowrap"}},formatTouchstoneFamilyBadge(f)):null,
         h("span",{style:{color:"var(--dim)",fontSize:10}},(f.traces||[]).length+" tr"),
+        (f.rawText && f.format === "tabular") ? h("button", {title:"Re-run Import Wizard for this file.", onClick:function(){ if(p.openWizardForFile) p.openWizardForFile(f.id); }, style: {background:"none",border:"1px solid var(--border)",color:p.C&&p.C.accent?p.C.accent:"var(--accent)",borderRadius:4,fontSize:10,padding:"2px 4px",cursor:"pointer"}}, "Wizard") : null,
         h("button",{title:"Remove this imported file and all of its traces.",onClick:function(){if(p.removeFile)p.removeFile(f.id);},style:{background:"none",border:"none",color:"#f55",cursor:"pointer",fontSize:13,padding:0,lineHeight:"1"}},"\u00D7")
       ));
       if(p.showMeta){
