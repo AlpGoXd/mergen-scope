@@ -293,8 +293,7 @@ export function normalizeTraceData(data: readonly DataPoint[]): DataPoint[] {
   for (const row of rows) {
     const last = out[out.length - 1];
     if (last && last.freq === row.freq) {
-      // Overwrite if same frequency (casting last to allow mutation in this pure-ish function)
-      (last as any).amp = row.amp;
+      out[out.length - 1] = row;
     } else {
       out.push(row);
     }

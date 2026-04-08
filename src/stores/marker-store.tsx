@@ -124,7 +124,9 @@ function markerReducer(state: MarkerState, action: MarkerAction): MarkerState {
       const { idx, updates } = action.payload;
       if (idx < 0 || idx >= state.markers.length) return state;
       const newMarkers = [...state.markers];
-      newMarkers[idx] = { ...newMarkers[idx], ...updates };
+      const current = newMarkers[idx];
+      if (!current) return state;
+      newMarkers[idx] = { ...current, ...updates };
       return { ...state, markers: newMarkers };
     }
     case 'SET_SELECTED_IDX': {

@@ -7,6 +7,8 @@
 import type { DataPoint, Trace } from "./trace.ts";
 import type { ZoomWindow } from "./marker.ts";
 import type { TouchstoneNetwork, NetworkSource } from "./touchstone.ts";
+import type { Dataset } from "./dataset.ts";
+import type { DisplayTrace } from "./display.ts";
 
 // ---------------------------------------------------------------------------
 // Analysis scope — where an analysis item is visible
@@ -103,6 +105,15 @@ export type TouchstoneTraceKind =
 export interface AnalysisTarget {
   /** Active pane ID. */
   readonly paneId: string;
+
+  /** Selected dataset, if resolved through the new model. */
+  readonly dataset: Dataset | null;
+
+  /** Selected display trace, if resolved through the new model. */
+  readonly displayTrace: DisplayTrace | null;
+
+  /** Selected dataset family. */
+  readonly datasetFamily: string | null;
 
   /** The resolved target trace, or null if none available. */
   readonly trace: Trace | null;

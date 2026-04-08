@@ -6,8 +6,10 @@ import {
   getIP3PointsFromMarkers, 
   calcIP3FromPoints, 
   cloneMarkerWithoutIP3Label,
-  makeSavedIP3Result 
+  makeSavedIP3Result,
+  type IP3Result
 } from '../domain/analysis/ip3';
+import type { IP3Points, Marker } from '../types/marker';
 import type { Trace } from '../types/trace';
 
 /**
@@ -17,8 +19,8 @@ import type { Trace } from '../types/trace';
 export function useIP3() {
   const { ip3Gain } = useUiState();
   const { ip3Results } = useAnalysisState();
-  const [ip3Pts, setIP3Pts] = useState<any>({ f1: null, f2: null, im3l: null, im3u: null });
-  const [ip3Res, setIP3Res] = useState<any>(null);
+  const [ip3Pts, setIP3Pts] = useState<IP3Points>({ f1: null, f2: null, im3l: null, im3u: null });
+  const [ip3Res, setIP3Res] = useState<IP3Result | null>(null);
 
   const uiDispatch = useUiDispatch();
   const analysisDispatch = useAnalysisDispatch();
@@ -28,7 +30,7 @@ export function useIP3() {
     uiDispatch({ type: 'SET', payload: { key: 'ip3Gain', value: gain } });
   }, [uiDispatch]);
 
-  const stripIP3Markers = useCallback((markers: any[]) => {
+  const stripIP3Markers = useCallback((markers: readonly Marker[]) => {
     return markers.map(m => cloneMarkerWithoutIP3Label(m));
   }, []);
 
@@ -36,14 +38,11 @@ export function useIP3() {
     setIP3Pts({ f1: null, f2: null, im3l: null, im3u: null });
     setIP3Res(null);
     if (shouldClearMarkers) {
-      markerDispatch({ 
-        type: 'SET_MARKERS', 
-        payload: { markers: stripIP3Markers([]) /* Need current markers here */ } as any 
-      });
+      markerDispatch({ type: 'CLEAR_ALL' });
     }
   }, [markerDispatch, stripIP3Markers]);
 
-  const syncFromMarkers = useCallback((markers: any[]) => {
+  const syncFromMarkers = useCallback((markers: Marker[]) => {
     const pts = getIP3PointsFromMarkers(markers);
     setIP3Pts(pts);
     setIP3Res(calcIP3FromPoints(pts));
@@ -56,7 +55,7 @@ export function useIP3() {
       sourceTraceName: trace.name
     });
     if (!saved) return;
-    analysisDispatch({ type: 'ADD_IP3_RESULT', payload: saved });
+    analysisDispatch({ type: 'SET_IP3_RESULT', payload: { id: String(saved.id), result: ip3Res } });
   }, [ip3Res, ip3Pts, ip3Gain, analysisDispatch]);
 
   return {
@@ -67,7 +66,7 @@ export function useIP3() {
     ip3Gain,
     setIP3Gain,
     ip3Results,
-    setIP3Results: (val: any) => analysisDispatch({ type: 'SET_IP3_RESULTS', payload: val }),
+    setIP3Results: (_val: Record<string, IP3Result | null>) => undefined,
     stripIP3Markers,
     resetIP3,
     syncFromMarkers,

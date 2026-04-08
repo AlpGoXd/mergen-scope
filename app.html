@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Mergen Scope</title>
+    <meta
+      name="description"
+      content="Mergen Scope is a browser-based RF signal analysis workspace for Touchstone, DAT, and CSV traces."
+    />
+  </head>
+  <body>
+    <div id="root">
+      <div style="font-family:system-ui,sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;gap:1rem;color:#ccc;background:#0f0f0f;text-align:center;padding:2rem">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#555" stroke-width="1.5"><rect x="2" y="4" width="20" height="16" rx="2"/><polyline points="4,16 7,10 10,14 13,8 16,12 19,6 22,11" fill="none" stroke="#555" stroke-width="1.5"/></svg>
+        <p style="font-size:1.1rem;color:#888;margin:0">You are opening the source file, not the built app.</p>
+        <div style="background:#1a1a1a;border:1px solid #333;border-radius:8px;padding:1rem 1.5rem;text-align:left;max-width:420px">
+          <p style="margin:0 0 0.75rem;font-size:0.9rem;color:#aaa;font-weight:600">Build once, then open directly:</p>
+          <code style="font-size:0.9rem;color:#4ade80">npm install &amp;&amp; npm run build</code>
+          <p style="margin:0.75rem 0 0.25rem;font-size:0.85rem;color:#666">Then open <code style="color:#aaa">dist/app.html</code> directly in your browser.</p>
+          <hr style="border:none;border-top:1px solid #2a2a2a;margin:0.75rem 0">
+          <p style="margin:0;font-size:0.8rem;color:#555">For development: <code style="color:#888">npm run dev</code> → <a href="http://localhost:5173/" style="color:#60a5fa">localhost:5173</a></p>
+        </div>
+      </div>
+    </div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

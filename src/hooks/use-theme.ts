@@ -1,4 +1,4 @@
-import { useState, useLayoutEffect, useCallback } from 'react';
+import { useState, useLayoutEffect, useEffect, useCallback } from 'react';
 import { useUiState, useUiDispatch } from '../stores/ui-store';
 import type { ThemeColors } from '../types/theme';
 
@@ -56,6 +56,35 @@ export function useTheme() {
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class', 'style'] });
     return () => observer.disconnect();
   }, [theme, readColors]);
+
+  // Keep light/dark theme synchronized with browser preference.
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+      return;
+    }
+    if (theme === 'glass') {
+      return;
+    }
+
+    const media = window.matchMedia('(prefers-color-scheme: dark)');
+    const syncTheme = () => {
+      const preferred = media.matches ? 'dark' : 'light';
+      if (theme !== preferred) {
+        uiDispatch({ type: 'SET', payload: { key: 'theme', value: preferred } });
+      }
+    };
+
+    // Sync immediately on mount, then on browser/OS theme changes.
+    syncTheme();
+
+    if (typeof media.addEventListener === 'function') {
+      media.addEventListener('change', syncTheme);
+      return () => media.removeEventListener('change', syncTheme);
+    }
+
+    media.addListener(syncTheme);
+    return () => media.removeListener(syncTheme);
+  }, [theme, uiDispatch]);
 
   const setTheme = useCallback((nextTheme: "dark" | "light" | "glass") => {
     uiDispatch({ type: 'SET', payload: { key: 'theme', value: nextTheme } });

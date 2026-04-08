@@ -1,13 +1,20 @@
 import React, { createContext, useContext, useReducer } from 'react';
-import type { AnalysisOpenState } from '../types/analysis';
-import type { IP3Result } from '../domain/analysis/ip3';
 import type { DataPoint } from '../types/trace';
+import type { IP3Result } from '../domain/analysis/ip3';
+import type { PeakTableRow, RangeStats } from '../domain/analysis/range-stats';
+import type { BandwidthResult } from '../domain/analysis/bandwidth';
+import type { RippleResult } from '../domain/analysis/ripple';
+import type { AnalysisOpenState } from '../types/analysis';
 import { setAnalysisOpenState, clearAllAnalysisOpenState, getDefaultAnalysisOpenState } from '../domain/analysis/registry';
 
 export interface AnalysisState {
   analysisOpenState: AnalysisOpenState;
-  noiseResults: Record<string, DataPoint[]>; // traceName -> PSD points
-  ip3Results: Record<string, IP3Result | null>; // traceName or unique id -> result
+  noiseResults: Record<string, DataPoint[]>;
+  ip3Results: Record<string, IP3Result | null>;
+  peakResults: Record<string, PeakTableRow[]>;
+  bandwidthResults: Record<string, BandwidthResult | null>;
+  rippleResults: Record<string, RippleResult | null>;
+  rangeStatsResults: Record<string, RangeStats | null>;
 }
 
 export type AnalysisAction =
@@ -15,12 +22,20 @@ export type AnalysisAction =
   | { type: 'CLEAR_ALL_PANELS' }
   | { type: 'SET_NOISE_RESULT'; payload: { id: string; result: DataPoint[] | null } }
   | { type: 'SET_IP3_RESULT'; payload: { id: string; result: IP3Result | null } }
+  | { type: 'SET_PEAKS_RESULT'; payload: { id: string; result: PeakTableRow[] | null } }
+  | { type: 'SET_BANDWIDTH_RESULT'; payload: { id: string; result: BandwidthResult | null } }
+  | { type: 'SET_RIPPLE_RESULT'; payload: { id: string; result: RippleResult | null } }
+  | { type: 'SET_RANGE_STATS_RESULT'; payload: { id: string; result: RangeStats | null } }
   | { type: 'RESTORE'; payload: Partial<AnalysisState> };
 
 const defaultState: AnalysisState = {
   analysisOpenState: getDefaultAnalysisOpenState(),
   noiseResults: {},
   ip3Results: {},
+  peakResults: {},
+  bandwidthResults: {},
+  rippleResults: {},
+  rangeStatsResults: {},
 };
 
 const AnalysisStateContext = createContext<AnalysisState | null>(null);
@@ -42,30 +57,49 @@ function analysisReducer(state: AnalysisState, action: AnalysisAction): Analysis
     case 'SET_NOISE_RESULT': {
       const { id, result } = action.payload;
       const nextNoise = { ...state.noiseResults };
-      if (result === null) {
-        delete nextNoise[id];
-      } else {
-        nextNoise[id] = result;
-      }
+      if (result === null) delete nextNoise[id];
+      else nextNoise[id] = result;
       return { ...state, noiseResults: nextNoise };
     }
     case 'SET_IP3_RESULT': {
       const { id, result } = action.payload;
       const nextIp3 = { ...state.ip3Results };
-      if (result === null) {
-        delete nextIp3[id];
-      } else {
-        nextIp3[id] = result;
-      }
+      if (result === null) delete nextIp3[id];
+      else nextIp3[id] = result;
       return { ...state, ip3Results: nextIp3 };
     }
+    case 'SET_PEAKS_RESULT': {
+      const { id, result } = action.payload;
+      const nextPeaks = { ...state.peakResults };
+      if (result === null) delete nextPeaks[id];
+      else nextPeaks[id] = result;
+      return { ...state, peakResults: nextPeaks };
+    }
+    case 'SET_BANDWIDTH_RESULT': {
+      const { id, result } = action.payload;
+      const nextBW = { ...state.bandwidthResults };
+      if (result === null) delete nextBW[id];
+      else nextBW[id] = result;
+      return { ...state, bandwidthResults: nextBW };
+    }
+    case 'SET_RIPPLE_RESULT': {
+      const { id, result } = action.payload;
+      const nextRipple = { ...state.rippleResults };
+      if (result === null) delete nextRipple[id];
+      else nextRipple[id] = result;
+      return { ...state, rippleResults: nextRipple };
+    }
+    case 'SET_RANGE_STATS_RESULT': {
+      const { id, result } = action.payload;
+      const nextStats = { ...state.rangeStatsResults };
+      if (result === null) delete nextStats[id];
+      else nextStats[id] = result;
+      return { ...state, rangeStatsResults: nextStats };
+    }
     case 'RESTORE': {
-      // Typically we don't restore large computed arrays from a workspace save.
-      // We restore open state, and re-compute the rest.
       return {
         ...defaultState,
         ...action.payload,
-        // Override nested structures if provided
         analysisOpenState: action.payload.analysisOpenState ?? defaultState.analysisOpenState,
       };
     }

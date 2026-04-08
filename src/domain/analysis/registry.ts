@@ -14,6 +14,8 @@ import type {
   TouchstoneTraceKind,
   TouchstoneContext,
 } from "../../types/analysis.ts";
+import type { Dataset, NetworkDataset } from "../../types/dataset.ts";
+import type { DisplayTrace } from "../../types/display.ts";
 import { getVisibleTraceData } from "../trace-math.ts";
 import type { ZoomWindow } from "../../types/marker.ts";
 import type { RawFileRecord } from "../../types/file.ts";
@@ -136,7 +138,7 @@ export function getTraceTouchstoneContext(
   const file = files?.find(f => f.id === fileId || f.fileName === fileName) || null;
   
   const network = (isRaw ? (trace as RawTrace).touchstoneNetwork : null) || file?.touchstoneNetwork || null;
-  const source = (isRaw ? (trace as RawTrace).networkSource : null) || file?.networkSource || null;
+  const source = (isRaw ? (trace as RawTrace).networkSource : null) || null;
   
   const isTouchstone = !!(network || source || file?.format === 'touchstone');
   if (!isTouchstone) return null;
@@ -172,6 +174,86 @@ export function getTraceTouchstoneContext(
   };
 }
 
+function getTouchstoneContextFromDataset(
+  dataset: Dataset | null | undefined,
+  displayTrace: DisplayTrace | null | undefined,
+): TouchstoneContext | null {
+  if (!dataset || dataset.family !== 'network') {
+    return null;
+  }
+
+  const networkDataset = dataset as NetworkDataset;
+  const source = displayTrace?.source.sourceType === 'network-parameter' ? displayTrace.source : null;
+  const fileName = dataset.fileName ?? null;
+  const legacyParameterType = networkDataset.parameterFamily === 'Y' || networkDataset.parameterFamily === 'Z' || networkDataset.parameterFamily === 'H' || networkDataset.parameterFamily === 'G'
+    ? networkDataset.parameterFamily
+    : 'S';
+
+  return {
+    isTouchstone: true,
+    fileId: dataset.fileId ?? null,
+    fileName,
+    parameterType: networkDataset.parameterFamily,
+    portCount: networkDataset.portCount,
+    family: source?.parameterFamily ?? networkDataset.parameterFamily,
+    view: source?.component ?? displayTrace?.defaultView ?? 'cartesian',
+    row: source?.row ?? null,
+    col: source?.col ?? null,
+    metric: source?.component?.startsWith('stability-') || source?.component === 'group-delay' ? source.component : null,
+    referenceOhms: networkDataset.referenceOhms,
+    freqUnit: 'Hz',
+    dataFormat: 'RI',
+    comments: [],
+    samples: networkDataset.samples,
+    network: {
+      parameterType: legacyParameterType,
+      portCount: networkDataset.portCount,
+      referenceOhms: networkDataset.referenceOhms,
+      freqUnit: 'Hz',
+      dataFormat: 'RI',
+      comments: [],
+      samples: networkDataset.samples.map((sample) => ({ freq: sample.freqHz, sMatrix: sample.matrix })),
+      matrixFormat: 'full',
+      version: 1,
+    },
+    source: source ? {
+      parentFileId: dataset.fileId ?? null,
+      family: source.parameterFamily,
+      view: source.component,
+      row: source.row,
+      col: source.col,
+      metric: source.component.startsWith('stability-') || source.component === 'group-delay' ? source.component : undefined,
+      portCount: networkDataset.portCount,
+      referenceOhms: networkDataset.referenceOhms,
+      parameterType: networkDataset.parameterFamily,
+      fileName: fileName ?? undefined,
+      freqUnit: 'Hz',
+      dataFormat: 'RI',
+    } : null,
+    traceLabel: displayTrace?.label ?? '',
+  };
+}
+
+function findDisplayTraceByLegacyName(
+  displayTraces: readonly DisplayTrace[] | undefined,
+  legacyTraceName: string | null,
+): DisplayTrace | null {
+  if (!legacyTraceName || !displayTraces) {
+    return null;
+  }
+  return displayTraces.find((item) => item.compat?.legacyTraceName === legacyTraceName) ?? null;
+}
+
+function findDatasetById(
+  datasets: readonly Dataset[] | undefined,
+  datasetId: string | null | undefined,
+): Dataset | null {
+  if (!datasets || !datasetId) {
+    return null;
+  }
+  return datasets.find((dataset) => dataset.id === datasetId) ?? null;
+}
+
 /** 
  * Resolve the current analysis target from pane and trace state.
  * Ported from analysis-target-helpers.js.
@@ -182,12 +264,16 @@ export function resolveAnalysisTarget(args: {
   activeTraceName: string | null;
   zoom: ZoomWindow | null;
   files?: readonly RawFileRecord[];
+  datasets?: readonly Dataset[];
+  displayTraces?: readonly DisplayTrace[];
 }): AnalysisTarget {
-  const { paneId, paneTraces, activeTraceName, zoom, files } = args;
+  const { paneId, paneTraces, activeTraceName, zoom, files, datasets, displayTraces } = args;
   
   const trace = (activeTraceName ? paneTraces.find(t => t.name === activeTraceName) : null) 
     || paneTraces[0] 
     || null;
+  const displayTrace = findDisplayTraceByLegacyName(displayTraces, trace?.name ?? activeTraceName ?? null);
+  const dataset = findDatasetById(datasets, displayTrace?.datasetId);
 
   const data = trace ? getVisibleTraceData(trace, zoom).filter(p => isFinite(p.freq) && isFinite(p.amp)) : [];
   
@@ -198,12 +284,16 @@ export function resolveAnalysisTarget(args: {
     rangeHz = zoom;
   }
 
-  const touchstone = getTraceTouchstoneContext(trace, files);
-  const traceLabel = trace ? (trace.dn || trace.name || '') : '';
+  const touchstone = getTouchstoneContextFromDataset(dataset, displayTrace) ?? getTraceTouchstoneContext(trace, files);
+  const traceLabel = displayTrace?.label ?? (trace ? (trace.dn || trace.name || '') : '');
+  const datasetFamily = dataset?.family ?? (touchstone ? 'network' : trace?.domain === 'time' ? 'waveform' : trace ? 'spectrum' : null);
 
   if (!trace) {
     return {
       paneId,
+      dataset,
+      displayTrace,
+      datasetFamily,
       trace: null,
       traceLabel: "",
       data: [],
@@ -221,12 +311,15 @@ export function resolveAnalysisTarget(args: {
   if (!data.length) {
     return {
       paneId,
+      dataset,
+      displayTrace,
+      datasetFamily,
       trace,
       traceLabel,
       data: [],
       rangeHz,
       xUnit: trace.domain === 'time' ? 's' : 'Hz',
-      yUnit: (typeof trace.units.y === 'string' ? trace.units.y : (trace.units.y as any)?.unit) || '',
+      yUnit: trace.units.y ?? '',
       supported: false,
       touchstone,
       touchstoneSupported: !!touchstone,
@@ -237,12 +330,15 @@ export function resolveAnalysisTarget(args: {
 
   return {
     paneId,
+    dataset,
+    displayTrace,
+    datasetFamily,
     trace,
     traceLabel,
     data,
     rangeHz,
     xUnit: trace.domain === 'time' ? 's' : 'Hz',
-    yUnit: (typeof trace.units.y === 'string' ? trace.units.y : (trace.units.y as any)?.unit) || '',
+    yUnit: trace.units.y ?? '',
     supported: true,
     touchstone,
     touchstoneSupported: !!touchstone,
@@ -256,7 +352,7 @@ export function resolveAnalysisTarget(args: {
 // ---------------------------------------------------------------------------
 
 function isTouchstoneTarget(target: AnalysisTarget | null | undefined): boolean {
-  return !!(target?.touchstone?.isTouchstone);
+  return !!(target?.datasetFamily === 'network' || target?.touchstone?.isTouchstone);
 }
 
 function getAnalysisScope(item: AnalysisItem): AnalysisScope {
@@ -281,23 +377,24 @@ export function isAnalysisItemVisible(
 ): boolean {
   if (!item) return false;
 
-  // Hide all analysis tools for time-domain traces
-  const isTimeDomain = target?.trace?.domain === "time";
-  if (isTimeDomain) return false;
+  const family = target?.datasetFamily ?? (target?.touchstone ? 'network' : target?.trace?.domain === 'time' ? 'waveform' : 'spectrum');
 
   const scope = getAnalysisScope(item);
 
+  if (family === 'waveform') {
+    return item.id === 'threshold-crossings' || item.id === 'range-stats';
+  }
+
   if (scope === "network") {
     if (!isTouchstoneTarget(target)) return false;
-    if (item.id === "bandwidth-helper") return isTouchstoneTransmissionTarget(target);
     if (item.id === "vswr" || item.id === "return-loss") return isTouchstoneReflectionTarget(target);
     if (item.id === "reciprocity-isolation") return isTouchstoneTransmissionTarget(target);
     return true;
   }
 
-  if (scope === "spectrum") return !isTouchstoneTarget(target);
+  if (scope === "spectrum") return family === 'spectrum';
 
-  return true; // "shared"
+  return family === 'spectrum' || family === 'network'; // "shared"
 }
 
 // ---------------------------------------------------------------------------

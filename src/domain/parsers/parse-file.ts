@@ -55,8 +55,11 @@ export function parseMeasurementFile(
   fileProfile?: FileClassification | null,
 ): ParsedFile {
   const profile = fileProfile ?? classify(text, fileName);
+  const isDatFile = /\.dat$/i.test(String(fileName ?? ""));
 
-  if (profile.format === "tabular") {
+  // Prefer the dedicated R&S DAT parser for .dat files to avoid
+  // misclassification into multi-column tabular imports.
+  if (profile.format === "tabular" && !isDatFile) {
     return parseTabularFile(text, fileName, null);
   }
 

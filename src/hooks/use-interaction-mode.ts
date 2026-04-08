@@ -7,31 +7,28 @@ import { useRefLineState, useRefLineDispatch } from '../stores/ref-line-store';
  * Ported from app-modules/app-hooks.js:useInteractionMode.
  */
 export function useInteractionMode() {
-  const { markers, mkrMode, dRef } = useMarkerState();
+  const { markers, mkrMode } = useMarkerState();
   const markerDispatch = useMarkerDispatch();
 
   const { refMode } = useRefLineState();
   const refLineDispatch = useRefLineDispatch();
 
   const selectNormal = useCallback(() => {
-    refLineDispatch({ type: 'SET_REF_MODE', payload: null });
-    markerDispatch({ type: 'SET_MKR_MODE', payload: 'normal' });
+    refLineDispatch({ type: 'SET_MODE', payload: null });
+    markerDispatch({ type: 'SET_MODE', payload: 'normal' });
   }, [refLineDispatch, markerDispatch]);
 
   const selectDelta = useCallback(() => {
-    refLineDispatch({ type: 'SET_REF_MODE', payload: null });
-    markerDispatch({ type: 'SET_MKR_MODE', payload: 'delta' });
-    if (markers.length > 0 && dRef === null) {
-      markerDispatch({ type: 'SET_DREF', payload: 0 });
-    }
-  }, [refLineDispatch, markerDispatch, markers, dRef]);
+    refLineDispatch({ type: 'SET_MODE', payload: null });
+    markerDispatch({ type: 'SET_MODE', payload: 'delta' });
+  }, [refLineDispatch, markerDispatch]);
 
   const clearRefPlacement = useCallback(() => {
-    refLineDispatch({ type: 'SET_REF_MODE', payload: null });
+    refLineDispatch({ type: 'SET_MODE', payload: null });
   }, [refLineDispatch]);
 
   const toggleRefPlacement = useCallback((kind: 'h' | 'v' | null) => {
-    refLineDispatch({ type: 'SET_REF_MODE', payload: refMode === kind ? null : kind });
+    refLineDispatch({ type: 'SET_MODE', payload: refMode === kind ? null : kind });
   }, [refLineDispatch, refMode]);
 
   const action = useMemo(() => {
@@ -44,10 +41,10 @@ export function useInteractionMode() {
     if (action === 'place-hline') return 'Click to place H-line';
     if (action === 'place-vline') return 'Click to place V-line';
     if (mkrMode === 'delta' && markers.length > 0) {
-      return `Delta reference: M${(dRef === null ? 1 : dRef + 1)}`;
+      return 'Delta mode active';
     }
     return null;
-  }, [action, mkrMode, markers, dRef]);
+  }, [action, mkrMode, markers]);
 
   return {
     selectNormal,

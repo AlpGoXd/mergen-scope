@@ -1,0 +1,118 @@
+:root {
+  color-scheme: light dark;
+  --bg: #fff;
+  --card: #f6f8fa;
+  --border: #d1d9e0;
+  --accent: #0078d4;
+  --text: #1f2328;
+  --muted: #656d76;
+  --dim: #8b949e;
+  --grid: rgba(0, 0, 0, 0.2);
+  
+  --tr0: #00994d; --tr1: #d4380d; --tr2: #0066cc; --tr3: #b8860b; --tr4: #8b3dbb; --tr5: #008577;
+  --dr0: #5b8def; --dr1: #ef7d57; --dr2: #44b88b; --dr3: #b07cf7; --dr4: #d4a72c; --dr5: #e56aa6;
+  
+  --mn: #c2185b; --md: #6d28d9; --mp: #d12f2f;
+  --tipBg: #fff; --tipBd: #d1d9e0;
+  --dAlt: #f6f8fa; --dAmp: #996600;
+  --noiseTr: #9966cc; --ip3C: #ff6699;
+  --refV: #d97706; --refH: #0f8f9a;
+  --cross: rgba(0, 120, 212, 0.4);
+}
+
+.theme-dark {
+  --bg: #0d1117;
+  --card: #161b22;
+  --border: #30363d;
+  --accent: #58a6ff;
+  --text: #e6edf3;
+  --muted: #8b949e;
+  --dim: #484f58;
+  --grid: rgba(255, 255, 255, 0.06);
+
+  --tr0: #00ff88; --tr1: #ff6644; --tr2: #44aaff; --tr3: #ffcc00; --tr4: #cc66ff; --tr5: #00ffcc;
+  --dr0: #7fb3ff; --dr1: #ff9b73; --dr2: #62d3a3; --dr3: #c39bff; --dr4: #ffd766; --dr5: #ff96c2;
+
+  --mn: #ff5fa2; --md: #a78bfa; --mp: #ff6b6b;
+  --tipBg: #1c2128; --tipBd: #30363d;
+  --dAlt: rgba(13, 17, 23, 0.5); --dAmp: #ffcc00;
+  --noiseTr: #cc99ff; --ip3C: #ff88aa;
+  --refV: #f59e0b; --refH: #22b8c7;
+  --cross: rgba(88, 166, 255, 0.4);
+}
+
+.theme-glass {
+  --bg: #0f172a;
+  --card: rgba(30, 41, 59, 0.7);
+  --border: rgba(255, 255, 255, 0.1);
+  --accent: #38bdf8;
+  --text: #f1f5f9;
+  --muted: #94a3b8;
+  --dim: #64748b;
+  --grid: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(12px);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: 'Inter', -apple-system, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: var(--bg);
+  color: var(--text);
+  overflow: hidden;
+}
+
+#root {
+  height: 100vh;
+  width: 100vw;
+}
+
+/* Recharts Customization */
+.recharts-cartesian-grid-horizontal line,
+.recharts-cartesian-grid-vertical line {
+  stroke: var(--grid) !important;
+}
+
+.recharts-default-tooltip {
+  background: var(--tipBg) !important;
+  border-color: var(--tipBd) !important;
+  color: var(--text) !important;
+  border-radius: 8px !important;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1) !important;
+}
+
+/* Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--dim);
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.2s ease-out forwards;
+}

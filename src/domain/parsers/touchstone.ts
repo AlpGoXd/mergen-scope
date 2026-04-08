@@ -20,6 +20,7 @@ import {
   normalizeReferenceArray,
   touchstonePairToComplex,
 } from "../touchstone-math.ts";
+import { buildNetworkDatasetFromTouchstone } from "../dataset-builders.ts";
 import { incrementFileCounter } from "./rs-dat.ts";
 
 // ---------------------------------------------------------------------------
@@ -197,7 +198,8 @@ export function parseTouchstoneFile(text: string, fileName: string): ParsedFile 
   });
 
   if (!dataTokens.length) {
-    return { format: "touchstone", meta: buildMeta(), touchstoneNetwork: buildNetwork(), traces: [] };
+    const networkDataset = buildNetworkDatasetFromTouchstone(buildNetwork(), fileNameStr);
+    return { format: "touchstone", meta: buildMeta(), touchstoneNetwork: buildNetwork(), traces: [], datasets: [networkDataset], displayTraces: [] };
   }
 
   const freqScaleMap: Record<string, number> = { Hz: 1, kHz: 1e3, MHz: 1e6, GHz: 1e9 };
@@ -230,6 +232,7 @@ export function parseTouchstoneFile(text: string, fileName: string): ParsedFile 
   }
 
   const network: TouchstoneNetwork = { ...buildNetwork(), samples };
+  const networkDataset = buildNetworkDatasetFromTouchstone(network, fileNameStr);
 
-  return { format: "touchstone", meta: buildMeta(), touchstoneNetwork: network, traces: [] };
+  return { format: "touchstone", meta: buildMeta(), touchstoneNetwork: network, traces: [], datasets: [networkDataset], displayTraces: [] };
 }

@@ -7,6 +7,7 @@
 import type { DataPoint, RawTrace, TraceDomain } from "../../types/trace.ts";
 import type { ParsedFile, WizardConfig } from "../../types/file.ts";
 import { makeTrace } from "../trace-model.ts";
+import { buildScalarDisplayTraceFromSeriesDataset, buildSeriesDatasetFromTrace } from "../dataset-builders.ts";
 import { incrementFileCounter } from "./rs-dat.ts";
 
 // ---------------------------------------------------------------------------
@@ -116,10 +117,16 @@ export function parseTabularFile(
 
   const filtered = traces.filter((t) => t.data.length > 1);
 
+  const datasetFamily = config.domain === 'time' ? 'waveform' : 'spectrum';
+  const datasets = filtered.map((trace) => buildSeriesDatasetFromTrace(trace, datasetFamily));
+  const displayTraces = datasets.map((dataset, index) => buildScalarDisplayTraceFromSeriesDataset(dataset, dataset.series[0]!, filtered[index]!));
+
   return {
     format: "tabular",
     meta: { Domain: config.domain, Columns: String(config.yCols.length) },
     traces: filtered,
+    datasets,
+    displayTraces,
     rawText: text,
     suggestedConfig: config,
   };

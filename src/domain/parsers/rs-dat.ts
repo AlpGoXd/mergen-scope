@@ -7,6 +7,7 @@
 import type { DataPoint, RawTrace } from "../../types/trace.ts";
 import type { ParsedFile, FileMetadata, MetadataEntry } from "../../types/file.ts";
 import { makeTrace } from "../trace-model.ts";
+import { buildScalarDisplayTraceFromSeriesDataset, buildSeriesDatasetFromTrace } from "../dataset-builders.ts";
 import { normalizeTraceData, dedupeParsedTraces } from "./helpers.ts";
 
 // ---------------------------------------------------------------------------
@@ -140,5 +141,8 @@ export function parseRSDat(text: string, fileName: string): ParsedFile {
     }),
   );
 
-  return { format: "rs-dat", meta: meta as FileMetadata, traces: finalTraces };
+  const datasets = finalTraces.map((trace) => buildSeriesDatasetFromTrace(trace, "spectrum"));
+  const displayTraces = datasets.map((dataset, index) => buildScalarDisplayTraceFromSeriesDataset(dataset, dataset.series[0]!, finalTraces[index]!));
+
+  return { format: "rs-dat", meta: meta as FileMetadata, traces: finalTraces, datasets, displayTraces };
 }

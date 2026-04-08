@@ -6,6 +6,42 @@
 
 import type { DataPoint } from "../../types/trace.ts";
 
+export interface NoiseStats {
+  readonly rbw: number;
+  readonly peak?: DataPoint | null;
+  readonly min?: DataPoint | null;
+  readonly avg?: number;
+  readonly src?: string | null;
+}
+
+export interface NoiseTraceRef {
+  readonly id?: string | number | null;
+  readonly name?: string | null;
+  readonly dn?: string | null;
+}
+
+export interface SavedNoiseResult {
+  readonly id: number;
+  readonly functionType: 'noise-psd';
+  readonly traceLabel: string;
+  readonly sourceTraceId: string | number | null;
+  readonly sourceTraceName: string | null;
+  readonly parameters: {
+    readonly filter: string;
+    readonly filterLabel: string;
+    readonly rbw: number;
+    readonly enbw: number;
+    readonly correction: number;
+  };
+  readonly values: {
+    readonly peak: number;
+    readonly peakFreq: number;
+    readonly min: number;
+    readonly minFreq: number;
+    readonly avg: number;
+  };
+}
+
 // ---------------------------------------------------------------------------
 // ENBW filter constants
 // ---------------------------------------------------------------------------
@@ -46,10 +82,10 @@ export function noisePSD(
  * Ported from analysis-helpers.js.
  */
 export function makeSavedNoiseResult(
-  npsdStats: any, 
+  npsdStats: NoiseStats,
   noiseFilter: string, 
-  trace: any
-): any {
+  trace: NoiseTraceRef
+): SavedNoiseResult | null {
   if (!npsdStats || !trace) return null;
   const entry = ENBW[noiseFilter] ?? ENBW["gaussian"]!;
   return {

@@ -8,8 +8,8 @@ import {
   type BinaryOp,
   type InterpolationMethod
 } from '../domain/trace-ops';
-import { makeTraceId } from '../trace-model'; // Assuming it's exported from domain/trace-model.ts
-import type { Trace, DerivedTrace } from '../types/trace';
+import { makeTraceId } from '../domain/trace-model';
+import type { DerivedTrace } from '../types/trace';
 
 /**
  * Hook for managing trace operations (offset, scale, smoothing, subtraction).
@@ -66,11 +66,12 @@ export function useTraceOps() {
       domain: src.domain,
       units: src.units,
       paneId: tracePaneMap[src.name] || activePaneId || 'pane-1',
+      file: src.file,
       mode: src.mode,
       detector: src.detector,
     };
 
-    traceDispatch({ type: 'ADD_TRACE', payload: { trace: derived } });
+    traceDispatch({ type: 'ADD_DERIVED', payload: derived });
   }, [allTraces, offsetSource, offsetValue, tracePaneMap, activePaneId, traceDispatch]);
 
   /** Perform Scale operation. */
@@ -94,11 +95,12 @@ export function useTraceOps() {
       domain: src.domain,
       units: src.units,
       paneId: tracePaneMap[src.name] || activePaneId || 'pane-1',
+      file: src.file,
       mode: src.mode,
       detector: src.detector,
     };
 
-    traceDispatch({ type: 'ADD_TRACE', payload: { trace: derived } });
+    traceDispatch({ type: 'ADD_DERIVED', payload: derived });
   }, [allTraces, scaleSource, scaleValue, tracePaneMap, activePaneId, traceDispatch]);
 
   /** Perform Smoothing operation. */
@@ -122,11 +124,12 @@ export function useTraceOps() {
       domain: src.domain,
       units: src.units,
       paneId: tracePaneMap[src.name] || activePaneId || 'pane-1',
+      file: src.file,
       mode: src.mode,
       detector: src.detector,
     };
 
-    traceDispatch({ type: 'ADD_TRACE', payload: { trace: derived } });
+    traceDispatch({ type: 'ADD_DERIVED', payload: derived });
   }, [allTraces, smoothSource, smoothMethod, smoothWindow, smoothPolyOrder, tracePaneMap, activePaneId, traceDispatch]);
 
   /** Perform Trace Math (Subtraction, etc.) operation. */
@@ -150,17 +153,18 @@ export function useTraceOps() {
       name: `math-${id}`,
       dn: label,
       sourceTraceIds: [srcA.id, srcB.id],
-      operationType: 'math' as any, // "math" in future? Original JS used "subtract"
+      operationType: traceMathOperation,
       parameters: { operation: traceMathOperation, interpolation: result.appliedInterpolation },
       data: result.data,
       domain: srcA.domain,
       units: srcA.units,
       paneId: activePaneId || 'pane-1',
+      file: srcA.file,
       mode: srcA.mode,
       detector: srcA.detector,
     };
 
-    traceDispatch({ type: 'ADD_TRACE', payload: { trace: derived } });
+    traceDispatch({ type: 'ADD_DERIVED', payload: derived });
   }, [allTraces, subtractA, subtractB, traceMathOperation, subtractInterpolation, activePaneId, traceDispatch]);
 
   return {

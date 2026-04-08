@@ -3,16 +3,25 @@ import { useFileState, useFileDispatch } from '../stores/file-store';
 import { 
   makeDefaultTouchstoneState, 
   cloneTouchstoneSelectionState, 
-  reconcileTouchstoneFileSelections 
+  reconcileTouchstoneFileSelections,
+  appendTouchstoneDisplayTrace,
 } from '../domain/touchstone/selections';
 import type { TouchstoneSelectionState, TouchstoneFamily, TouchstoneView } from '../types/touchstone';
+
+function sanitizeView(family: TouchstoneFamily, view: TouchstoneView): TouchstoneView {
+  if (family === 'S') {
+    return view;
+  }
+  return view === 'dB' ? 'Mag' : view;
+}
 
 /**
  * Hook for managing Touchstone-specific UI state and trace reconciliation.
  * Ported from app-controller.js logic.
  */
 export function useTouchstoneState() {
-  const { files } = useFileState();
+  const fileState = useFileState();
+  const { files } = fileState;
   const fileDispatch = useFileDispatch();
   const [touchstoneStateByFileId, setTouchstoneStateByFileId] = useState<Record<string, TouchstoneSelectionState>>({});
 
@@ -42,53 +51,105 @@ export function useTouchstoneState() {
     });
   }, [files]);
 
+  useEffect(() => {
+      const nextFiles = fileState.files.map((file) => {
+      if (!file.touchstoneNetwork || (file.displayTraces?.length ?? file.traces.length) > 0) {
+        return file;
+      }
+
+      const state = touchstoneStateByFileId[file.id] || makeDefaultTouchstoneState(file);
+      return reconcileTouchstoneFileSelections(file, state);
+    });
+
+    if (nextFiles.every((file, index) => file === fileState.files[index])) {
+      return;
+    }
+
+    fileDispatch({
+      type: 'RESTORE_FILES',
+      payload: {
+        files: nextFiles,
+        rawFileData: fileState.rawFileData,
+        vis: fileState.vis,
+        wizardQueue: fileState.wizardQueue,
+      },
+    });
+  }, [fileDispatch, fileState.files, fileState.rawFileData, fileState.vis, fileState.wizardQueue, touchstoneStateByFileId]);
+
   /** Update selection state for a specific file and reconcile traces. */
   const updateFileSelection = useCallback((fileId: string, updater: (prev: TouchstoneSelectionState) => TouchstoneSelectionState) => {
-    const file = files.find(f => f.id === fileId);
+    const file = files.find(f => String(f.id) === String(fileId));
     if (!file || !file.touchstoneNetwork) return;
 
     setTouchstoneStateByFileId(prev => {
       const currentState = prev[fileId] || makeDefaultTouchstoneState(file);
       const nextState = updater(cloneTouchstoneSelectionState(currentState));
       
-      // Reconcile traces in the store
-      const updatedFile = reconcileTouchstoneFileSelections(file, nextState);
-      fileDispatch({ type: 'UPDATE_FILE', payload: { file: updatedFile } });
+      // Reconcile traces in-memory; file-store update action can be wired later.
+      const reconciled = reconcileTouchstoneFileSelections(file, nextState);
+      fileDispatch({
+        type: 'RESTORE_FILES',
+        payload: {
+          files: fileState.files.map((current) => (String(current.id) === String(fileId) ? reconciled : current)),
+          rawFileData: fileState.rawFileData,
+          vis: fileState.vis,
+          wizardQueue: fileState.wizardQueue,
+        },
+      });
 
       return { ...prev, [fileId]: nextState };
     });
-  }, [files, fileDispatch]);
+  }, [fileDispatch, fileState.files, fileState.rawFileData, fileState.vis, fileState.wizardQueue]);
 
-  /** Helper to toggle a cell selection. */
-  const toggleCell = useCallback((fileId: string, family: TouchstoneFamily, row: number, col: number, view: TouchstoneView) => {
-    updateFileSelection(fileId, prev => {
-      const next = cloneTouchstoneSelectionState(prev);
-      const key = `${row}:${col}`;
-      const familyCells = next.selectedCellsByFamily[family] || {};
-      const currentViews = familyCells[key] || [];
+  /** Append a new trace from the active family/view and cell. */
+  const appendCell = useCallback((fileId: string, family: TouchstoneFamily, row: number, col: number, view: TouchstoneView) => {
+    const file = files.find((entry) => String(entry.id) === String(fileId));
+    if (!file || !file.touchstoneNetwork) return;
 
-      if (currentViews.includes(view)) {
-        familyCells[key] = currentViews.filter(v => v !== view);
-        if (familyCells[key].length === 0) delete familyCells[key];
-      } else {
-        familyCells[key] = [...currentViews, view];
-      }
-      
-      next.selectedCellsByFamily[family] = familyCells;
-      return next;
+    setTouchstoneStateByFileId((prev) => {
+      const currentState = prev[fileId] || makeDefaultTouchstoneState(file);
+      const nextState = cloneTouchstoneSelectionState(currentState);
+      const updatedState: TouchstoneSelectionState = {
+        ...nextState,
+        activeFamily: family,
+        activeViewByFamily: {
+          ...nextState.activeViewByFamily,
+          [family]: sanitizeView(family, view),
+        },
+      };
+      const reconciled = appendTouchstoneDisplayTrace(file, updatedState, family, row, col, sanitizeView(family, view));
+
+      fileDispatch({
+        type: 'RESTORE_FILES',
+        payload: {
+          files: fileState.files.map((current) => (String(current.id) === String(fileId) ? reconciled : current)),
+          rawFileData: fileState.rawFileData,
+          vis: fileState.vis,
+          wizardQueue: fileState.wizardQueue,
+        },
+      });
+
+      return { ...prev, [fileId]: updatedState };
     });
-  }, [updateFileSelection]);
+  }, [fileDispatch, fileState.files, fileState.rawFileData, fileState.vis, fileState.wizardQueue, files]);
 
   /** Helper to change active family. */
   const setActiveFamily = useCallback((fileId: string, family: TouchstoneFamily) => {
-    updateFileSelection(fileId, prev => ({ ...prev, activeFamily: family }));
+    updateFileSelection(fileId, prev => ({
+      ...prev,
+      activeFamily: family,
+      activeViewByFamily: {
+        ...prev.activeViewByFamily,
+        [family]: sanitizeView(family, prev.activeViewByFamily[family]),
+      },
+    }));
   }, [updateFileSelection]);
 
   /** Helper to change active view for a family. */
   const setActiveView = useCallback((fileId: string, family: TouchstoneFamily, view: TouchstoneView) => {
     updateFileSelection(fileId, prev => {
       const next = cloneTouchstoneSelectionState(prev);
-      next.activeViewByFamily[family] = view;
+      next.activeViewByFamily[family] = sanitizeView(family, view);
       return next;
     });
   }, [updateFileSelection]);
@@ -96,7 +157,7 @@ export function useTouchstoneState() {
   return {
     touchstoneStateByFileId,
     updateFileSelection,
-    toggleCell,
+    appendCell,
     setActiveFamily,
     setActiveView
   };

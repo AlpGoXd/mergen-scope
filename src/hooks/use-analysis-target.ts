@@ -11,17 +11,16 @@ import { resolveAnalysisTarget, makeAnalysisRegistry } from '../domain/analysis/
  * This is a composed hook that coordinates state from multiple stores.
  */
 export function useAnalysisTarget() {
-  const { activePaneId, paneActiveTraceMap, paneXZooms, sharedZoom, zoomAll } = usePaneState();
-  const { allTraces } = useTraceState();
+  const { activePaneId, paneActiveTraceMap, paneXZooms, sharedZoom, zoomAll, tracePaneMap } = usePaneState();
+  const { allTraces, allDatasets, allDisplayTraces } = useTraceState();
   const { files } = useFileState();
-  const { vis } = useUiState() as any; // Global visibility map
-  const { openState, noiseResults, ip3Results } = useAnalysisState();
+  const { vis } = useUiState();
+  const { analysisOpenState, noiseResults, ip3Results } = useAnalysisState();
 
   // 1. Resolve active pane zoom
   const zoom = zoomAll ? sharedZoom : (activePaneId ? (paneXZooms[activePaneId] || null) : null);
 
   // 2. Filter traces for the active pane
-  const { tracePaneMap } = usePaneState(); // Need this to find which traces are in which pane
   const paneTraces = useMemo(() => {
     const pId = activePaneId || 'pane-1';
     return allTraces.filter(tr => (tracePaneMap[tr.name] || 'pane-1') === pId && (!vis || vis[tr.name]));
@@ -37,28 +36,30 @@ export function useAnalysisTarget() {
       paneTraces,
       activeTraceName,
       zoom,
-      files
+      files,
+      datasets: allDatasets,
+      displayTraces: allDisplayTraces,
     });
-  }, [activePaneId, paneTraces, activeTraceName, zoom, files]);
+  }, [activePaneId, paneTraces, activeTraceName, zoom, files, allDatasets, allDisplayTraces]);
 
   // 5. Aggregate result counts for the registry
   const resultCounts = useMemo(() => {
     const counts: Record<string, number> = {};
-    if (noiseResults) counts['noise-psd'] = 1; // Or array length if multiple
-    if (ip3Results) counts['ip3'] = 1;
+    counts['noise-psd'] = Object.keys(noiseResults).length;
+    counts['ip3'] = Object.keys(ip3Results).length;
     // ... add more as implemented
     return counts;
   }, [noiseResults, ip3Results]);
 
   // 6. Build the registry
   const registry = useMemo(() => {
-    return makeAnalysisRegistry(openState, resultCounts, { target });
-  }, [openState, resultCounts, target]);
+    return makeAnalysisRegistry(analysisOpenState, resultCounts, { target });
+  }, [analysisOpenState, resultCounts, target]);
 
   return {
     target,
     registry,
-    openState,
+    openState: analysisOpenState,
     paneTraces,
     activeTraceName
   };

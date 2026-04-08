@@ -3,6 +3,7 @@ import type { RawFileRecord, WizardConfig, ParsedFile } from '../types/file';
 import { parseMeasurementFile } from '../domain/parsers/parse-file';
 import { classify } from '../domain/parsers/classifier';
 import { parseTabularFile } from '../domain/parsers/tabular';
+import { adaptDisplayTracesToLegacyTraces } from '../domain/display-trace-adapter';
 
 export interface WizardEntry {
   id: string;
@@ -25,6 +26,8 @@ export type FileAction =
   | { type: 'RERUN_WIZARD'; payload: { fileId: string; fileName: string; previousConfig: WizardConfig } }
   | { type: 'SKIP_WIZARD'; payload: { id: string } }
   | { type: 'REMOVE_FILE'; payload: { fileId: string } }
+  | { type: 'SET_DISPLAY_TRACE_HIDDEN'; payload: { fileId: string; displayTraceId: string; hidden: boolean } }
+  | { type: 'SHOW_ALL_DISPLAY_TRACES'; payload: { fileId: string } }
   | { type: 'SET_VISIBILITY'; payload: { traceName: string; visible: boolean } }
   | { type: 'RESTORE_FILES'; payload: FileState }
   | { type: 'ADD_PARSED_FILE'; payload: { id: string; fileName: string; parsed: ParsedFile; text: string } };
@@ -66,6 +69,8 @@ function fileReducer(state: FileState, action: FileAction): FileState {
           fileName,
           meta: parsed.meta,
           traces: parsed.traces,
+          datasets: parsed.datasets,
+          displayTraces: parsed.displayTraces,
           format: parsed.format,
           touchstoneNetwork: parsed.touchstoneNetwork,
         };
@@ -93,6 +98,8 @@ function fileReducer(state: FileState, action: FileAction): FileState {
         fileName: entry.fileName,
         meta: parsed.meta,
         traces: parsed.traces,
+        datasets: parsed.datasets,
+        displayTraces: parsed.displayTraces,
         format: parsed.format,
         touchstoneNetwork: undefined, // Tabular doesn't have it
       };
@@ -160,6 +167,64 @@ function fileReducer(state: FileState, action: FileAction): FileState {
         vis: newVis
       };
     }
+    case 'SET_DISPLAY_TRACE_HIDDEN': {
+      const { fileId, displayTraceId, hidden } = action.payload;
+      const targetFile = state.files.find((file) => String(file.id) === String(fileId));
+      if (!targetFile?.displayTraces || !targetFile.datasets) {
+        return state;
+      }
+
+      const nextDisplayTraces = targetFile.displayTraces.map((displayTrace) =>
+        displayTrace.id === displayTraceId ? { ...displayTrace, hidden } : displayTrace,
+      );
+      const visibleDisplayTraces = nextDisplayTraces.filter((displayTrace) => !displayTrace.hidden);
+      const nextFile: RawFileRecord = {
+        ...targetFile,
+        displayTraces: nextDisplayTraces,
+        traces: adaptDisplayTracesToLegacyTraces(targetFile.datasets, visibleDisplayTraces, targetFile),
+      };
+      const nextVis = { ...state.vis };
+      const toggledTrace = targetFile.displayTraces.find((displayTrace) => displayTrace.id === displayTraceId) ?? null;
+      const legacyTraceName = toggledTrace?.compat?.legacyTraceName ?? toggledTrace?.id ?? null;
+      if (legacyTraceName) {
+        if (hidden) {
+          delete nextVis[legacyTraceName];
+        } else {
+          nextVis[legacyTraceName] = true;
+        }
+      }
+
+      return {
+        ...state,
+        files: state.files.map((file) => (String(file.id) === String(fileId) ? nextFile : file)),
+        vis: nextVis,
+      };
+    }
+    case 'SHOW_ALL_DISPLAY_TRACES': {
+      const { fileId } = action.payload;
+      const targetFile = state.files.find((file) => String(file.id) === String(fileId));
+      if (!targetFile?.displayTraces || !targetFile.datasets) {
+        return state;
+      }
+
+      const nextDisplayTraces = targetFile.displayTraces.map((displayTrace) => ({ ...displayTrace, hidden: false }));
+      const nextFile: RawFileRecord = {
+        ...targetFile,
+        displayTraces: nextDisplayTraces,
+        traces: adaptDisplayTracesToLegacyTraces(targetFile.datasets, nextDisplayTraces, targetFile),
+      };
+      const nextVis = { ...state.vis };
+      nextDisplayTraces.forEach((displayTrace) => {
+        const legacyTraceName = displayTrace.compat?.legacyTraceName ?? displayTrace.id;
+        nextVis[legacyTraceName] = true;
+      });
+
+      return {
+        ...state,
+        files: state.files.map((file) => (String(file.id) === String(fileId) ? nextFile : file)),
+        vis: nextVis,
+      };
+    }
     case 'SET_VISIBILITY': {
       const { traceName, visible } = action.payload;
       return {
@@ -175,6 +240,8 @@ function fileReducer(state: FileState, action: FileAction): FileState {
         fileName,
         meta: parsed.meta,
         traces: parsed.traces,
+        datasets: parsed.datasets,
+        displayTraces: parsed.displayTraces,
         format: parsed.format,
         touchstoneNetwork: parsed.touchstoneNetwork,
       };

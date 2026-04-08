@@ -1,255 +1,230 @@
-import type { RawFileRecord } from "../../types/file.ts";
-import type { RawTrace, Trace } from "../../types/trace.ts";
-import type { 
-  TouchstoneSelectionState, 
-  TouchstoneFamily,
-  TouchstoneView,
-  NetworkSource
-} from "../../types/touchstone.ts";
-import { 
-  convertSMatrixToYMatrix, 
-  convertSMatrixToZMatrix, 
-  computeTwoPortStability 
-} from "../touchstone-math.ts";
-import { 
-  makeTraceId, 
-  makeTouchstoneTraceName, 
-  makeTouchstoneTraceLabel 
-} from "../trace-model.ts";
-import { normalizeTraceData } from "../trace-math.ts";
+import type { RawFileRecord } from '../../types/file.ts';
+import type { TouchstoneSelectionState, TouchstoneFamily, TouchstoneView } from '../../types/touchstone.ts';
+import type { Dataset, NetworkDataset } from '../../types/dataset.ts';
+import type { DisplayTrace } from '../../types/display.ts';
+import { buildNetworkDatasetFromTouchstone, buildNetworkProjectionDisplayTrace, convertNetworkDataset } from '../dataset-builders.ts';
+import { adaptDisplayTracesToLegacyTraces } from '../display-trace-adapter.ts';
+
+function getSourceNetworkDataset(file: RawFileRecord): NetworkDataset | null {
+  const existing = (file.datasets ?? []).find((dataset): dataset is NetworkDataset => dataset.family === 'network' && dataset.kind === 'source') ?? null;
+  if (existing) {
+    return existing;
+  }
+  return file.touchstoneNetwork ? buildNetworkDatasetFromTouchstone(file.touchstoneNetwork, file.fileName, file.id) : null;
+}
+
+function getDerivedNetworkDatasets(file: RawFileRecord): NetworkDataset[] {
+  return (file.datasets ?? []).filter((dataset): dataset is NetworkDataset => dataset.family === 'network' && dataset.kind === 'derived');
+}
+
+function getOrCreateDataset(file: RawFileRecord, family: TouchstoneFamily, cache: Map<TouchstoneFamily, NetworkDataset>): NetworkDataset | null {
+  if (cache.has(family)) {
+    return cache.get(family) ?? null;
+  }
+
+  const source = getSourceNetworkDataset(file);
+  if (!source) {
+    return null;
+  }
+
+  if (family === 'S') {
+    cache.set(family, source);
+    return source;
+  }
+
+  const existing = getDerivedNetworkDatasets(file).find((dataset) => dataset.parameterFamily === family) ?? null;
+  if (existing) {
+    cache.set(family, existing);
+    return existing;
+  }
+
+  const derived = convertNetworkDataset(source, family);
+  if (derived) {
+    cache.set(family, derived);
+  }
+  return derived;
+}
+
+function viewToComponent(view: TouchstoneView): 'magnitude-db' | 'magnitude-linear' | 'phase' | 'real' | 'imag' {
+  if (view === 'dB') return 'magnitude-db';
+  if (view === 'Mag') return 'magnitude-linear';
+  if (view === 'Phase') return 'phase';
+  if (view === 'Real') return 'real';
+  return 'imag';
+}
+
+function getAllowedViews(family: TouchstoneFamily): readonly TouchstoneView[] {
+  return family === 'S'
+    ? ['dB', 'Mag', 'Phase', 'Real', 'Imag']
+    : ['Mag', 'Phase', 'Real', 'Imag'];
+}
+
+function getFamilyDefaultView(family: TouchstoneFamily): TouchstoneView {
+  return family === 'S' ? 'dB' : 'Mag';
+}
+
+function sanitizeView(family: TouchstoneFamily, view: TouchstoneView): TouchstoneView {
+  return getAllowedViews(family).includes(view) ? view : getFamilyDefaultView(family);
+}
+
+function makeTouchstoneTraceLabel(file: RawFileRecord, family: TouchstoneFamily, row: number, col: number, view: TouchstoneView): string {
+  return `${file.fileName} ${family}${row}${col} ${view}`;
+}
+
+function makeTouchstoneTraceBaseName(file: RawFileRecord, family: TouchstoneFamily, row: number, col: number, view: TouchstoneView): string {
+  return `${file.fileName.replace(/\.[^.]+$/, '')}_${family}${row}${col}_${view}`;
+}
+
+function makeUniqueInstanceKey(file: RawFileRecord, family: TouchstoneFamily, row: number, col: number, view: TouchstoneView): string {
+  const baseName = makeTouchstoneTraceBaseName(file, family, row, col, view);
+  const currentCount = (file.displayTraces ?? []).filter(
+    (displayTrace) => (displayTrace.compat?.legacyTraceName ?? '').startsWith(baseName),
+  ).length;
+  return String(currentCount + 1);
+}
 
 /** Default selection state for a new Touchstone file. */
 export function makeDefaultTouchstoneState(file: RawFileRecord): TouchstoneSelectionState {
   const portCount = file.touchstoneNetwork?.portCount ?? 0;
-  const selectedCellsByFamily: Record<TouchstoneFamily, Record<string, TouchstoneView[]>> = { 
-    S: {}, Y: {}, Z: {} 
+  const selectedCellsByFamily: Record<TouchstoneFamily, Record<string, TouchstoneView[]>> = {
+    S: {}, Y: {}, Z: {}
   };
-  
+
   if (portCount === 1) {
-    selectedCellsByFamily.S["1:1"] = ["dB"];
+    selectedCellsByFamily.S['1:1'] = ['dB'];
   } else if (portCount === 2) {
-    selectedCellsByFamily.S["1:1"] = ["dB"];
-    selectedCellsByFamily.S["2:1"] = ["dB"];
+    selectedCellsByFamily.S['1:1'] = ['dB'];
+    selectedCellsByFamily.S['2:1'] = ['dB'];
   } else if (portCount > 2) {
-    for (let i = 1; i <= portCount; i++) {
-      selectedCellsByFamily.S[`${i}:${i}`] = ["dB"];
+    for (let i = 1; i <= portCount; i += 1) {
+      selectedCellsByFamily.S[`${i}:${i}`] = ['dB'];
     }
   }
 
   return {
-    activeFamily: "S",
+    activeFamily: 'S',
     isExpanded: true,
-    activeViewByFamily: { S: "dB", Y: "Mag", Z: "Mag" },
-    selectedCellsByFamily
+    activeViewByFamily: { S: 'dB', Y: 'Mag', Z: 'Mag' },
+    selectedCellsByFamily,
   };
 }
 
 /** Clone a Touchstone selection state object. */
 export function cloneTouchstoneSelectionState(state: TouchstoneSelectionState): TouchstoneSelectionState {
-  const next = { ...state };
-  
-  function cloneFamilySelections(source: Record<string, TouchstoneView[]>): Record<string, TouchstoneView[]> {
+  const cloneFamilySelections = (source: Record<string, TouchstoneView[]>): Record<string, TouchstoneView[]> => {
     const result: Record<string, TouchstoneView[]> = {};
-    Object.keys(source || {}).forEach(key => {
+    Object.keys(source || {}).forEach((key) => {
       result[key] = [...(source[key] || [])];
     });
     return result;
+  };
+
+  return {
+    ...state,
+    activeViewByFamily: { ...state.activeViewByFamily },
+    selectedCellsByFamily: {
+      S: cloneFamilySelections(state.selectedCellsByFamily.S),
+      Y: cloneFamilySelections(state.selectedCellsByFamily.Y),
+      Z: cloneFamilySelections(state.selectedCellsByFamily.Z),
+    },
+  };
+}
+
+export function appendTouchstoneDisplayTrace(
+  file: RawFileRecord,
+  selectionState: TouchstoneSelectionState,
+  family: TouchstoneFamily,
+  row: number,
+  col: number,
+  requestedView?: TouchstoneView,
+): RawFileRecord {
+  const datasetCache = new Map<TouchstoneFamily, NetworkDataset>();
+  const sourceDataset = getSourceNetworkDataset(file);
+  if (!sourceDataset) {
+    return file;
+  }
+  datasetCache.set('S', sourceDataset);
+
+  const dataset = getOrCreateDataset(file, family, datasetCache);
+  if (!dataset) {
+    return file;
   }
 
-  next.activeViewByFamily = { ...next.activeViewByFamily };
-  next.selectedCellsByFamily = {
-    S: cloneFamilySelections(state.selectedCellsByFamily.S),
-    Y: cloneFamilySelections(state.selectedCellsByFamily.Y),
-    Z: cloneFamilySelections(state.selectedCellsByFamily.Z),
-  };
-  return next;
-}
-
-/** Build a network source metadata object for a trace. */
-function buildTouchstoneTraceNetworkSource(
-  file: RawFileRecord, 
-  family: string, 
-  row: number | null, 
-  col: number | null, 
-  view: string,
-  metric: string | null = null
-): NetworkSource {
-  const network = file.touchstoneNetwork;
-  return {
-    parentFileId: file.id,
-    family: family.toUpperCase(),
-    view,
-    row,
-    col,
-    metric: metric || undefined,
-    fileName: file.fileName,
-    portCount: network?.portCount,
-    parameterType: network?.parameterType,
-    referenceOhms: network?.referenceOhms ? [...network.referenceOhms] : undefined,
-    freqUnit: network?.freqUnit,
-    dataFormat: network?.dataFormat
-  };
-}
-
-/** 
- * Create or update a Trace object from specific Touchstone cell selections.
- * Ported from app-hooks.js.
- */
-export function materializeTouchstoneTrace(
-  file: RawFileRecord, 
-  family: string, 
-  row: number, 
-  col: number, 
-  view: string,
-  existingTrace?: Trace | null
-): RawTrace | null {
-  const network = file.touchstoneNetwork;
-  if (!network || !network.samples) return null;
-
-  const rowIndex = row - 1;
-  const colIndex = col - 1;
-  const fam = family.toUpperCase();
-
-  const data = network.samples.map(sample => {
-    let matrix = sample.sMatrix;
-    if (fam === "Y") matrix = convertSMatrixToYMatrix(sample.sMatrix, network.referenceOhms || 50) as any;
-    else if (fam === "Z") matrix = convertSMatrixToZMatrix(sample.sMatrix, network.referenceOhms || 50) as any;
-    
-    const rowObj = matrix?.[rowIndex];
-    const cell = rowObj?.[colIndex];
-    if (!cell) return null;
-
-    let amp = 0;
-    const mag = Math.hypot(cell.re, cell.im);
-    
-    if (view === "Phase") amp = Math.atan2(cell.im, cell.re) * 180 / Math.PI;
-    else if (view === "Real") amp = cell.re;
-    else if (view === "Imag") amp = cell.im;
-    else if (view === "Mag") amp = mag;
-    else if (view === "dB") amp = mag > 0 ? 20 * Math.log10(mag) : -300;
-    else amp = mag;
-
-    return { freq: sample.freq, amp };
-  }).filter((p): p is { freq: number; amp: number } => p !== null && isFinite(p.freq) && isFinite(p.amp));
-
-  if (!data.length) return null;
-
-  const yUnit = view === "Phase" ? "deg" : (fam === "S" ? (view === "dB" ? "dB" : "") : (fam === "Y" ? "S" : "Ohm"));
-
-  const id = existingTrace?.id || makeTraceId();
-  return {
-    id,
-    kind: "raw",
-    sourceTraceIds: [id],
-    operationType: null,
-    parameters: null,
-    paneId: existingTrace?.paneId ?? null,
-    mode: existingTrace?.mode ?? "",
-    detector: existingTrace?.detector ?? "",
-    file: file.fileName,
-    fileName: file.fileName,
-    fileId: file.id,
-    domain: "frequency",
-    units: { x: network.freqUnit || "Hz", y: yUnit },
-    name: makeTouchstoneTraceName(file.fileName, fam, row, col, view),
-    dn: makeTouchstoneTraceLabel(file.fileName, fam, row, col, view),
-    data: normalizeTraceData(data),
-    networkSource: buildTouchstoneTraceNetworkSource(file, fam, row, col, view)
-  };
-}
-
-/** Reconcile traces for a Touchstone file based on selections. */
-export function reconcileTouchstoneFileSelections(
-  file: RawFileRecord, 
-  selectionState: TouchstoneSelectionState
-): RawFileRecord {
-  const nextTraces: Trace[] = [];
-  const existingTraces = file.traces || [];
-  
-  // Keep non-touchstone traces or stability traces if they exist
-  const otherTraces = existingTraces.filter(tr => {
-    const src = (tr as RawTrace).networkSource;
-    return !src || src.parentFileId !== file.id || src.metric;
+  const view = sanitizeView(family, requestedView ?? selectionState.activeViewByFamily[family]);
+  const instanceKey = makeUniqueInstanceKey(file, family, row, col, view);
+  const baseName = makeTouchstoneTraceBaseName(file, family, row, col, view);
+  const nextTrace = buildNetworkProjectionDisplayTrace(dataset, {
+    row: row - 1,
+    col: col - 1,
+    component: viewToComponent(view),
+    label: `${family}${row}${col} ${view}`,
+    legacyTraceName: `${baseName}__${instanceKey}`,
+    legacyDisplayName: makeTouchstoneTraceLabel(file, family, row, col, view),
+    instanceKey,
   });
-  nextTraces.push(...otherTraces);
 
-  const families: TouchstoneFamily[] = ["S", "Y", "Z"];
-  families.forEach(fam => {
-    const familyCells = selectionState.selectedCellsByFamily[fam] || {};
-    Object.keys(familyCells).forEach(key => {
-      const [rStr, cStr] = key.split(":");
-      const row = parseInt(rStr || "1");
-      const col = parseInt(cStr || "1");
-      const views = familyCells[key] || [];
-      
-      views.forEach((view: TouchstoneView) => {
-        const existing = existingTraces.find(tr => {
-          const src = (tr as RawTrace).networkSource;
-          return src && src.family === fam && src.row === row && src.col === col && src.view === view;
-        });
-        const materialized = materializeTouchstoneTrace(file, fam, row, col, view, existing);
-        if (materialized) nextTraces.push(materialized);
+  const nextDisplayTraces = [...(file.displayTraces ?? []), nextTrace];
+  const datasets: Dataset[] = [sourceDataset, ...(['Y', 'Z'] as const).flatMap((nextFamily) => {
+    const cached = getOrCreateDataset(file, nextFamily, datasetCache);
+    return cached && cached.id !== sourceDataset.id ? [cached] : [];
+  })];
+
+  return {
+    ...file,
+    datasets,
+    displayTraces: nextDisplayTraces,
+    traces: adaptDisplayTracesToLegacyTraces(datasets, nextDisplayTraces.filter((displayTrace) => !displayTrace.hidden), file),
+  };
+}
+
+/** Reconcile datasets/display traces for a Touchstone file based on selections. */
+export function reconcileTouchstoneFileSelections(file: RawFileRecord, selectionState: TouchstoneSelectionState): RawFileRecord {
+  const sourceDataset = getSourceNetworkDataset(file);
+  if (!sourceDataset) {
+    return file;
+  }
+
+  const datasetCache = new Map<TouchstoneFamily, NetworkDataset>();
+  datasetCache.set('S', sourceDataset);
+
+  const nextDisplayTraces: DisplayTrace[] = [];
+  const families: TouchstoneFamily[] = ['S', 'Y', 'Z'];
+
+  families.forEach((family) => {
+    const familyCells = selectionState.selectedCellsByFamily[family] || {};
+    Object.keys(familyCells).forEach((key) => {
+      const [rowString, colString] = key.split(':');
+      const row = Math.max(1, parseInt(rowString || '1', 10));
+      const col = Math.max(1, parseInt(colString || '1', 10));
+      const dataset = getOrCreateDataset(file, family, datasetCache);
+      if (!dataset) {
+        return;
+      }
+
+      (familyCells[key] || []).forEach((view) => {
+        const safeView = sanitizeView(family, view);
+        nextDisplayTraces.push(buildNetworkProjectionDisplayTrace(dataset, {
+          row: row - 1,
+          col: col - 1,
+          component: viewToComponent(safeView),
+          label: `${family}${row}${col} ${safeView}`,
+          legacyTraceName: makeTouchstoneTraceBaseName(file, family, row, col, safeView),
+          legacyDisplayName: makeTouchstoneTraceLabel(file, family, row, col, safeView),
+        }));
       });
     });
   });
 
+  const datasets: Dataset[] = [sourceDataset, ...(['Y', 'Z'] as const).flatMap((family) => {
+    const dataset = datasetCache.get(family);
+    return dataset && dataset.id !== sourceDataset.id ? [dataset] : [];
+  })];
+  const traces = adaptDisplayTracesToLegacyTraces(datasets, nextDisplayTraces, file);
+
   return {
     ...file,
-    traces: nextTraces
+    datasets,
+    displayTraces: nextDisplayTraces,
+    traces,
   };
-}
-
-/** Build a stability factor trace (K, mu1, mu2, etc.). */
-export function buildTouchstoneStabilityTrace(
-  file: RawFileRecord, 
-  metric: string, 
-  existingTrace?: Trace | null
-): RawTrace | null {
-  const network = file.touchstoneNetwork;
-  if (!network || network.portCount !== 2 || !network.samples) return null;
-
-  const data = network.samples.map(sample => {
-    const result = computeTwoPortStability(sample.sMatrix);
-    if (!result) return null;
-    
-    let amp = 0;
-    if (metric === "k") amp = result.kFactor;
-    else if (metric === "mu1") amp = result.mu1;
-    else if (metric === "mu2") amp = result.mu2;
-    else if (metric === "deltaMag") amp = result.deltaAbs;
-    else return null;
-
-    return { freq: sample.freq, amp };
-  }).filter((p): p is { freq: number; amp: number } => p !== null && isFinite(p.freq) && isFinite(p.amp));
-
-  if (!data.length) return null;
-
-  const id = existingTrace?.id || makeTraceId();
-  const labels: Record<string, string> = { k: "K", mu1: "mu1", mu2: "mu2", deltaMag: "|delta|" };
-  
-  return {
-    id,
-    kind: "raw",
-    sourceTraceIds: [id],
-    operationType: null, // "touchstone-stability" as OperationType in future?
-    parameters: { metric },
-    paneId: existingTrace?.paneId ?? null,
-    mode: "",
-    detector: "",
-    file: file.fileName,
-    fileName: file.fileName,
-    fileId: file.id,
-    domain: "frequency",
-    units: { x: network.freqUnit || "Hz", y: "" },
-    name: makeTouchstoneTraceName(file.fileName, "STAB", 0, 0, metric),
-    dn: `${getFileBaseName(file.fileName)} ${labels[metric] || metric}`,
-    data: normalizeTraceData(data),
-    networkSource: buildTouchstoneTraceNetworkSource(file, "stability", null, null, metric, metric)
-  };
-}
-
-// Helper to match JS implementation
-function getFileBaseName(fileName: string | null | undefined): string {
-  const name = String(fileName ?? "").replace(/^.*[\\/]/, "");
-  return name.replace(/\.[^.]+$/, "") || name || "touchstone";
 }

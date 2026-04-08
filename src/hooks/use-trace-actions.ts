@@ -3,6 +3,8 @@ import { useTraceState, useTraceDispatch } from '../stores/trace-store';
 import { usePaneState, usePaneDispatch } from '../stores/pane-store';
 import { useUiState, useUiDispatch } from '../stores/ui-store';
 import { useMarkerState, useMarkerDispatch } from '../stores/marker-store';
+import { useFileDispatch, useFileState } from '../stores/file-store';
+import type { Trace } from '../types/trace';
 
 /**
  * Hook for high-level trace actions (select, remove, toggle, move).
@@ -17,50 +19,75 @@ export function useTraceActions() {
   const uiDispatch = useUiDispatch();
   const markerState = useMarkerState();
   const markerDispatch = useMarkerDispatch();
+  const fileState = useFileState();
+  const fileDispatch = useFileDispatch();
 
   const selectTrace = useCallback((traceName: string) => {
-    // 1. Set as selected in UI
-    uiDispatch({ type: 'SET_SELECTED_TRACE', name: traceName });
-    
-    // 2. Set as active in its pane
+    uiDispatch({ type: 'SET', payload: { key: 'selectedTraceName', value: traceName } });
+
     const paneId = paneState.tracePaneMap[traceName] || 'pane-1';
-    paneDispatch({ type: 'SET_PANE_ACTIVE_TRACE', paneId, traceName });
-    paneDispatch({ type: 'SET_ACTIVE_PANE', paneId });
+    paneDispatch({ type: 'SET_PANE_ACTIVE_TRACE', payload: { paneId, traceName } });
+    paneDispatch({ type: 'SET_ACTIVE_PANE', payload: paneId });
   }, [uiDispatch, paneDispatch, paneState.tracePaneMap]);
 
-  const removeTrace = useCallback((traceId: string, traceName: string) => {
-    // 1. Remove from trace store (vis + data)
-    traceDispatch({ type: 'REMOVE_TRACE', id: traceId, name: traceName });
-    
-    // 2. Remove from pane mappings
-    paneDispatch({ type: 'REMOVE_TRACE_ASSIGNMENT', traceName });
-    
-    // 3. Cleanup UI state if it was selected
-    if (uiState.selectedTraceName === traceName) {
-      uiDispatch({ type: 'SET_SELECTED_TRACE', name: null });
+  const removeTrace = useCallback((trace: Trace) => {
+    if (trace.kind === 'derived') {
+      traceDispatch({ type: 'REMOVE_DERIVED', payload: trace.id });
+    } else {
+      const directFileId = trace.fileId !== undefined && trace.fileId !== null ? String(trace.fileId) : null;
+      const ownerFile = directFileId
+        ? fileState.files.find((file) => String(file.id) === directFileId) ?? null
+        : fileState.files.find((file) => file.traces.some((item) => item.name === trace.name)) ?? null;
+      const sourceDisplayTrace = ownerFile?.displayTraces?.find(
+        (displayTrace) => (displayTrace.compat?.legacyTraceName ?? displayTrace.id) === trace.name,
+      ) ?? null;
+
+      if (ownerFile && sourceDisplayTrace) {
+        fileDispatch({
+          type: 'SET_DISPLAY_TRACE_HIDDEN',
+          payload: {
+            fileId: String(ownerFile.id),
+            displayTraceId: sourceDisplayTrace.id,
+            hidden: true,
+          },
+        });
+      } else if (ownerFile) {
+        fileDispatch({ type: 'REMOVE_FILE', payload: { fileId: String(ownerFile.id) } });
+      }
     }
-    
-    // 4. Cleanup markers if they were pointing to this trace
-    if (markerState.markerTrace === traceName) {
-      markerDispatch({ type: 'SET_MARKER_TRACE', name: '__auto__' });
+
+    markerDispatch({ type: 'REMOVE_MARKERS_FOR_TRACES', payload: [trace.name] });
+
+    if (uiState.selectedTraceName === trace.name) {
+      uiDispatch({ type: 'SET', payload: { key: 'selectedTraceName', value: null } });
     }
-  }, [traceDispatch, paneDispatch, uiState.selectedTraceName, uiDispatch, markerState.markerTrace, markerDispatch]);
+
+    if (markerState.markerTrace === trace.name) {
+      markerDispatch({ type: 'SET_TRACE', payload: '' });
+    }
+  }, [traceDispatch, fileDispatch, fileState.files, markerDispatch, uiState.selectedTraceName, uiDispatch, markerState.markerTrace]);
 
   const toggleVisibility = useCallback((traceName: string) => {
     const nextVis = !traceState.vis[traceName];
     traceDispatch({ type: 'SET_VISIBILITY', name: traceName, visible: nextVis });
-    
+
     if (nextVis) {
       selectTrace(traceName);
     }
   }, [traceState.vis, traceDispatch, selectTrace]);
 
   const moveTraceToPane = useCallback((traceName: string, paneId: string) => {
-    paneDispatch({ type: 'ASSIGN_TRACE_TO_PANE', traceName, paneId });
-    paneDispatch({ type: 'SET_PANE_ACTIVE_TRACE', paneId, traceName });
-    paneDispatch({ type: 'SET_ACTIVE_PANE', paneId });
-    uiDispatch({ type: 'SET_SELECTED_TRACE', name: traceName });
-  }, [paneDispatch, uiDispatch]);
+    const trace = traceState.allTraces.find((t) => t.name === traceName);
+    if (!trace) return;
+
+    paneDispatch({
+      type: 'ASSIGN_TRACE_TO_PANE',
+      payload: { trace, targetPaneId: paneId, allTraces: traceState.allTraces },
+    });
+    paneDispatch({ type: 'SET_PANE_ACTIVE_TRACE', payload: { paneId, traceName } });
+    paneDispatch({ type: 'SET_ACTIVE_PANE', payload: paneId });
+    uiDispatch({ type: 'SET', payload: { key: 'selectedTraceName', value: traceName } });
+  }, [traceState.allTraces, paneDispatch, uiDispatch]);
 
   return {
     selectTrace,

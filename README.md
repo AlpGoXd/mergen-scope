@@ -5,7 +5,7 @@
 </p>
 
 [![Live Demo](https://img.shields.io/badge/demo-live-brightgreen)](https://alpgoxd.github.io/mergen-scope/)
-[![License: GPL-3.0-only](https://img.shields.io/badge/License-GPL--3.0--only-blue.svg)](LICENSE)
+[![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](LICENSE)
 
 Mergen Scope is a free, open-source, browser-based viewer for Rohde & Schwarz spectrum analyzer `.dat` files and Touchstone `.sNp` files. Visualize RF spectrum data, network measurements, and spectral analysis online with no installation required.
 
@@ -32,13 +32,13 @@ Mergen Scope is a free, open-source, browser-based viewer for Rohde & Schwarz sp
 - Touchstone matrix picker: S/Y/Z family selection with per-cell trace generation
 - Touchstone analysis toolkit: VSWR, Return Loss, Group Delay, Reciprocity/Isolation, and 2-port stability metrics
 - Touchstone stability trace generation: create derived scalar traces for `K`, `mu1`, `mu2`, and `|delta|`
+- Smith chart view for reflection parameters
 - Zoom and pan: navigate large frequency ranges with oscilloscope-style division readout
 - Saved results: keep Noise PSD and IP3 results inside the current workspace
 - Workspace import/export: save and reopen complete sessions as portable JSON
 - Data export: download raw traces, derived traces, current Noise PSD analysis trace, and saved analysis results as JSON
 - Chart export: capture the current chart view as PNG or SVG
 - No installation required: runs in any modern browser
-- No CDN dependencies: all libraries are vendored locally and work offline
 
 ---
 
@@ -60,17 +60,28 @@ Mergen Scope is a free, open-source, browser-based viewer for Rohde & Schwarz sp
 
 ## Getting Started
 
-### Local Use
+### Local Development
 
 ```bash
 git clone https://github.com/AlpGoXd/mergen-scope.git
+cd mergen-scope
+npm install
+npm run dev
 ```
 
-Open `mergen_scope.html` directly in a modern browser. No build step and no install.
+Then open `http://localhost:5173/` in your browser. Click **Open Viewer** to launch the app.
+
+### Build for Deployment
+
+```bash
+npm run build
+```
+
+Output goes to `dist/`. The build uses base path `/mergen-scope/` for GitHub Pages.
 
 ### GitHub Pages Deployment
 
-Push to `main`. GitHub Actions deploys automatically via `.github/workflows/deploy-pages.yml`.
+Push to `main`. GitHub Actions builds and deploys automatically via `.github/workflows/deploy-pages.yml`.
 
 ---
 
@@ -197,68 +208,22 @@ Detector;RMS
 
 ## Architecture
 
-No build step. The app still runs directly in the browser from GitHub Pages using local vendored runtime files under `vendor/`.
+Built with TypeScript, React 19, Vite, and Recharts. All dependencies are installed via npm — no vendored CDN files.
 
-`mergen_scope.html` is now a thin loader/bootstrap file. It mainly defines the document shell, loads the vendored browser runtime plus local `app-modules/*.js` files in order, and mounts `window.AppController.AppRoot` directly.
+**Entry points:**
+- `index.html` — static landing page (no React)
+- `app.html` — React application shell, mounts `<div id="root">`
 
-The app runtime is split across browser-global modules under `app-modules/`:
+**Source layout under `src/`:**
+- `components/` — React UI components (layout, chart, analysis, sidebar, wizard, shared)
+- `domain/` — business logic and calculations (parsers, trace math, analysis math, Touchstone)
+- `hooks/` — React custom hooks
+- `stores/` — Zustand stores (trace, pane, marker, analysis, ui, file, ref-line)
+- `types/` — TypeScript interfaces
 
-- `app-modules/app-hooks.js` for extracted React hooks plus helper wiring used by the controller
-- `app-modules/app-shell-components.js` for shell UI pieces such as buttons, trace rows, marker/ref-line cards, top bar, and footer components
-- `app-modules/app-analysis-components.js` for the analysis card/component stack used by the right-side analysis panel
-- `app-modules/app-chart-components.js` for the empty-chart state and chart workspace rendering components
-- `app-modules/app-controller.js` for app orchestration, derived view-model composition, and the browser-mounted `AppRoot`
+**State management:** Zustand stores, each owning a distinct slice (traces, panes, markers, analysis results, UI, file metadata, reference lines). `StoreRoot` wraps the app in all providers.
 
-The split keeps the no-build architecture intact while moving the high-churn app code out of the HTML entrypoint. The current rules are:
-
-- keep direct file-open support
-- keep GitHub Pages compatibility
-- keep local plain scripts attached to `window`
-- keep the browser-global module boundary stable
-
-Current helper split:
-
-- `app-modules/trace-helpers.js` for chart/window helpers
-- `app-modules/trace-model.js` for trace identity, units, and axis-label helpers
-- `app-modules/trace-ops-helpers.js` for smoothing, interpolation, and trace-math helpers
-- `app-modules/analysis-helpers.js` for Noise PSD, IP3 math, and saved-result shaping helpers
-- `app-modules/analysis-target-helpers.js` for pane-aware analysis registry, target resolution, and unit gating
-- `app-modules/range-analysis-helpers.js` for range stats, crossings, bandwidth, OBW, and channel-power math
-- `app-modules/file-store-helpers.js` for trace normalization, dedupe, and file-signature helpers
-- `app-modules/parser-helpers.js` for nearest-point lookup and R&S `.dat` parsing helpers
-- `app-modules/marker-helpers.js` for IP3 marker-role helpers and peak/min search math
-- `app-modules/derived-state-helpers.js` for derived-trace dependency cleanup helpers
-- `app-modules/ui-helpers.js` for formatting, theme colors, metric rows, and saved-result item components
-- `app-modules/pane-helpers.js` for pane ownership, per-pane trace filtering, and pane Y-domain helpers
-- `app-modules/workspace-helpers.js` for workspace snapshot normalization, demo preset restoration, and session import/export payload helpers
-- `app-modules/export-helpers.js` for chart export rendering and trace/data export package helpers
-- `app-modules/app-hooks.js` for extracted React hook blocks plus helper wiring previously living in `mergen_scope.html`
-- `app-modules/app-shell-components.js` for shell UI pieces such as buttons, trace rows, marker/ref-line cards, top bar, and footer components
-- `app-modules/app-analysis-components.js` for the analysis card/component stack used by the right-side analysis panel
-- `app-modules/app-chart-components.js` for the empty-chart state and chart workspace rendering components
-- `app-modules/app-controller.js` for app orchestration, root composition, and the browser-mounted `AppRoot`
-
-The app now has a practical raw-vs-derived trace model:
-
-- imported files create immutable raw traces
-- Trace Ops creates derived traces
-- derived traces keep source-trace references plus operation metadata
-- current derived operations include offset, scale, smoothing, and trace math
-
-Current multi-pane model:
-
-- 1 to 4 stacked panes
-- shared or pane-local X navigation depending on the `Zoom All` toggle
-- independent Y scaling per pane
-- pane-local active trace
-- pane-local reference lines by default, with optional linked lock mode
-- marker and analysis actions act on the selected trace in the active pane
-
-Current sync philosophy:
-
-- no permanent synchronized pane cursor line
-- no always-on shared vertical guide line
-- future pane synchronization should prefer marker-linked sync or hover-linked readout sync when needed, not a forced global cursor
+**Analysis framework:** Modular analysis cards in `components/analysis/`. Each card reads from the active pane/trace via `use-analysis-target` and calls pure domain functions for computation.
 
 ---
 
@@ -270,21 +235,15 @@ Current status:
 - Phase 4 is complete
 - Touchstone import support is complete
 - Touchstone measurement tools are in active expansion
+- TypeScript + Vite migration is complete
 
 Roadmap in order:
 
-1. First usable multi-pane release
-   Status: completed
-2. Expanded analysis toolkit
-   Status: completed
-3. Export and session portability
-   Status: completed
-   Implemented: workspace/session JSON export and import, trace/data export, saved analysis export, and chart PNG/SVG export
-4. Touchstone import support
-   Status: completed
-5. Touchstone measurement tools
-   Status: in progress
-   Implemented: Touchstone stability (K, mu1, mu2, |delta|) plus VSWR, Return Loss, Group Delay, and Reciprocity/Isolation cards
+1. First usable multi-pane release — completed
+2. Expanded analysis toolkit — completed
+3. Export and session portability — completed
+4. Touchstone import support — completed
+5. Touchstone measurement tools — in progress
 6. Performance and scaling pass
 7. Oscilloscope waveform support
 
@@ -314,19 +273,19 @@ I'm an EE engineer. Like most of us, I don't have time to go deep into React or 
 
 Right now it's only been tested with Rohde & Schwarz `.dat` files, but the goal is to eventually open any type of waveform or instrument export file, online, with no software to install.
 
-Feel free to open issues, suggest changes, and help make this tool better. The aim is to keep it as dependency-free as possible and useful for day-to-day measurement work.
+Feel free to open issues, suggest changes, and help make this tool better.
 
 ---
 
 ## Contributing
 
-Open an issue or submit a pull request. When testing changes, verify against the regression checklist in the HTML comment at the top of `mergen_scope.html`.
+Open an issue or submit a pull request. Run `npm run build` to verify the build passes before submitting.
 
 ---
 
 ## License
 
-GNU GPL-3.0-only. See [LICENSE](LICENSE).
+Apache-2.0. See [LICENSE](LICENSE).
 
 ---
 

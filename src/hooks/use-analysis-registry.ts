@@ -10,13 +10,13 @@ import type { AnalysisRegistryEntry } from '../types/analysis';
  */
 export function useAnalysisRegistry() {
   const { analysisOpenState, noiseResults, ip3Results } = useAnalysisState();
-  const target = useAnalysisTarget();
+  const { target } = useAnalysisTarget();
 
   const registry = useMemo((): AnalysisRegistryEntry[] => {
     // Map existing results to counts for the registry badge
     const counts: Record<string, number> = {
-      'noise-psd': noiseResults.length,
-      'ip3': ip3Results.length,
+      'noise-psd': Object.keys(noiseResults).length,
+      'ip3': Object.keys(ip3Results).length,
     };
 
     return makeAnalysisRegistry(analysisOpenState, counts, { target });

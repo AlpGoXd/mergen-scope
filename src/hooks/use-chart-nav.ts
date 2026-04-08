@@ -3,8 +3,9 @@ import { usePaneState, usePaneDispatch } from '../stores/pane-store';
 import { useTraceState } from '../stores/trace-store';
 import { useUiState } from '../stores/ui-store';
 import { placeMarker } from '../domain/markers';
-import type { Trace, DataPoint } from '../types/trace';
+import type { Trace } from '../types/trace';
 import type { ZoomWindow } from '../types/marker';
+import type { HoverRow } from './use-shared-cursor';
 
 // Standard chart layout constants (sync with CSS/Theme if possible)
 const CHART_MARGIN_LEFT = 0;
@@ -12,13 +13,32 @@ const CHART_Y_AXIS_WIDTH = 56;
 const CHART_PLOT_LEFT = CHART_MARGIN_LEFT + CHART_Y_AXIS_WIDTH;
 const CHART_MARGIN_RIGHT = 12;
 
-export function useChartNav(cursor: any) {
-  const { activePaneId, panes, sharedZoom, zoomAll, paneXZooms, paneYZooms } = usePaneState();
+interface ChartCursorApi {
+  setHoverX: (value: number | null) => void;
+  setHoverData: (rows: HoverRow[] | null) => void;
+}
+
+interface ChartMouseEvent {
+  readonly activeLabel?: number;
+  readonly activePayload?: Array<{ readonly payload?: { readonly freq?: number } }>;
+  readonly nativeEvent?: { readonly clientX?: number };
+}
+
+interface PanState {
+  readonly mode: 'x-pan' | 'x-zoom';
+  readonly startClientX: number;
+  readonly startLabel: number;
+  readonly startZoom: ZoomWindow;
+  didMove: boolean;
+}
+
+export function useChartNav(cursor: ChartCursorApi) {
+  const { activePaneId, sharedZoom, zoomAll, paneXZooms, tracePaneMap } = usePaneState();
   const { allTraces } = useTraceState();
   // Note: UiStore handles global visibility. In many places, visibility is per-trace name.
   // We'll assume for now that FileStore/UiStore integration provides a vis map.
   // Actually, FileStore has 'vis' in its state in the original JS. Let's check FileStore.
-  const { vis } = useUiState() as any; // Assuming vis map is here or in FileStore
+  const { vis } = useUiState();
   
   const dispatch = usePaneDispatch();
 
@@ -27,7 +47,7 @@ export function useChartNav(cursor: any) {
   const [selB, setSelB] = useState<number | null>(null);
   
   const chartRef = useRef<HTMLDivElement | null>(null);
-  const panRef = useRef<any>(null);
+  const panRef = useRef<PanState | null>(null);
   const mouseBtnRef = useRef(0);
   const suppressClickRef = useRef(false);
 
@@ -35,11 +55,8 @@ export function useChartNav(cursor: any) {
 
   const getActivePaneTraces = useCallback((): Trace[] => {
     if (!activePaneId) return [];
-    // We'd need the trace-pane map here. It's in PaneStore.
-    // However, for brevity and following the consumption pattern:
-    const { tracePaneMap } = usePaneState(); 
     return allTraces.filter(tr => (tracePaneMap[tr.name] || 'pane-1') === activePaneId);
-  }, [allTraces, activePaneId]);
+  }, [allTraces, activePaneId, tracePaneMap]);
 
   const getXDomain = useCallback(() => {
     let mn = Infinity, mx = -Infinity;
@@ -78,7 +95,7 @@ export function useChartNav(cursor: any) {
     return dom.left + frac * (dom.right - dom.left);
   }, [getXDomainHz]);
 
-  const chartMM = useCallback((ev: any) => {
+  const chartMM = useCallback((ev: ChartMouseEvent | undefined) => {
     const pan = panRef.current;
     if (pan && pan.mode === 'x-pan') return;
     
@@ -94,7 +111,7 @@ export function useChartNav(cursor: any) {
     let f: number | null = null;
     if (ev.activePayload && ev.activePayload[0]?.payload?.freq != null) {
       f = ev.activePayload[0].payload.freq;
-    } else if (ev.nativeEvent && isFinite(ev.nativeEvent.clientX)) {
+    } else if (typeof ev.nativeEvent?.clientX === 'number' && isFinite(ev.nativeEvent.clientX)) {
       f = freqFromClientX(ev.nativeEvent.clientX);
     }
 
@@ -116,7 +133,7 @@ export function useChartNav(cursor: any) {
     cursor.setHoverX(f);
     
     // Find nearest points for all visible traces in the active pane
-    const vals: any[] = [];
+    const vals: HoverRow[] = [];
     const paneTraces = getActivePaneTraces();
     paneTraces.forEach((tr) => {
       if (vis && !vis[tr.name]) return;

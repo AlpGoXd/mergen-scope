@@ -6,6 +6,8 @@
 
 import type { Trace, TraceDomain } from "./trace.ts";
 import type { TouchstoneNetwork } from "./touchstone.ts";
+import type { Dataset } from "./dataset.ts";
+import type { DisplayTrace } from "./display.ts";
 
 // ---------------------------------------------------------------------------
 // File classification
@@ -66,6 +68,12 @@ export interface ParsedFile {
   /** Parsed traces. */
   readonly traces: readonly Trace[];
 
+  /** Parsed datasets, the new canonical import representation. */
+  readonly datasets?: readonly Dataset[];
+
+  /** Display traces generated from the parsed datasets. */
+  readonly displayTraces?: readonly DisplayTrace[];
+
   /** Touchstone network data (only for Touchstone files). */
   readonly touchstoneNetwork?: TouchstoneNetwork;
 
@@ -102,6 +110,12 @@ export interface RawFileRecord {
 
   /** Parsed traces belonging to this file. */
   readonly traces: readonly Trace[];
+
+  /** Canonical datasets belonging to this file. */
+  readonly datasets?: readonly Dataset[];
+
+  /** Display traces derived from the datasets. */
+  readonly displayTraces?: readonly DisplayTrace[];
 
   /** Detected format. */
   readonly format?: string;

@@ -1,5 +1,12 @@
 import { useState, useCallback } from 'react';
 
+export interface HoverRow {
+  readonly name: string;
+  readonly value: number;
+  readonly freq: number;
+  readonly interpolated?: boolean;
+}
+
 /**
  * Hook for managing the crosshair/cursor state on the chart.
  * As per Agent-State-PROMPT.md, this uses local state only.
@@ -8,14 +15,14 @@ import { useState, useCallback } from 'react';
  */
 export function useSharedCursor() {
   const [hoverX, setHoverX] = useState<number | null>(null);
-  const [hoverData, setHoverData] = useState<any[] | null>(null);
+  const [hoverData, setHoverData] = useState<HoverRow[] | null>(null);
 
   const clear = useCallback(() => {
     setHoverX(null);
     setHoverData(null);
   }, []);
 
-  const setSharedCursor = useCallback((freq: number | null, rows: any[] | null) => {
+  const setSharedCursor = useCallback((freq: number | null, rows: HoverRow[] | null) => {
     setHoverX(freq && isFinite(freq) ? freq : null);
     setHoverData(Array.isArray(rows) ? rows : null);
   }, []);

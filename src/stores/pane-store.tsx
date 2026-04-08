@@ -7,8 +7,7 @@ import {
   normalizePanes, 
   normalizeTracePaneMap, 
   normalizePaneActiveTraceMap, 
-  canAssignTraceToPane,
-  getAlternatePaneId
+  canAssignTraceToPane
 } from '../domain/pane-math';
 import { useTraceState } from './trace-store';
 
@@ -62,12 +61,10 @@ function paneReducer(state: PaneState, action: PaneAction): PaneState {
       // If we shrunk the panes, we might need to evacuate traces
       const validPaneIds = new Set(nextPanes.map(p => p.id));
       const nextTracePaneMap = { ...state.tracePaneMap };
-      let mappingChanged = false;
       
       for (const [traceName, pid] of Object.entries(nextTracePaneMap)) {
         if (!validPaneIds.has(pid)) {
           nextTracePaneMap[traceName] = 'pane-1';
-          mappingChanged = true;
         }
       }
 

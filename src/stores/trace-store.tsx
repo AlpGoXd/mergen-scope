@@ -1,6 +1,9 @@
 import React, { createContext, useContext, useReducer, useEffect, useMemo } from 'react';
 import type { Trace } from '../types/trace';
+import type { Dataset } from '../types/dataset';
+import type { DisplayTrace } from '../types/display';
 import { reconcileDerivedTraceGraph } from '../domain/derived-state';
+import { adaptDisplayTracesToLegacyTraces } from '../domain/display-trace-adapter';
 import { useFileState } from './file-store';
 
 export interface TraceState {
@@ -10,6 +13,8 @@ export interface TraceState {
 
 export interface TraceContextValue extends TraceState {
   allTraces: Trace[];
+  allDatasets: Dataset[];
+  allDisplayTraces: DisplayTrace[];
 }
 
 export type TraceAction =
@@ -35,7 +40,6 @@ function traceReducer(state: TraceState, action: TraceAction): TraceState {
       return { ...state, derivedTraces: [...state.derivedTraces, action.payload] };
     }
     case 'REMOVE_DERIVED': {
-      const removedIds = [action.payload];
       // Run reconcile immediately with the SAME raw traces (we'll just let the external effect do full reconcile if needed)?
       // Actually, removing a trace might cascade to other derived traces if they depend on it.
       // We need rawTraces to reconcile properly right here... But we don't have it in the reducer.
@@ -93,7 +97,24 @@ export function TraceStoreProvider({ children }: { children: React.ReactNode }) 
   const fileState = useFileState();
 
   const rawTraces = useMemo(() => {
-    return fileState.files.flatMap(f => f.traces);
+    return fileState.files.flatMap((file) => {
+      if (file.datasets && file.displayTraces) {
+        return adaptDisplayTracesToLegacyTraces(
+          file.datasets,
+          file.displayTraces.filter((displayTrace) => !displayTrace.hidden),
+          file,
+        );
+      }
+      return file.traces;
+    });
+  }, [fileState.files]);
+
+  const allDatasets = useMemo(() => {
+    return fileState.files.flatMap((file) => file.datasets ?? []);
+  }, [fileState.files]);
+
+  const allDisplayTraces = useMemo(() => {
+    return fileState.files.flatMap((file) => file.displayTraces ?? []);
   }, [fileState.files]);
 
   // Reconcile derived traces whenever raw traces change
@@ -101,12 +122,22 @@ export function TraceStoreProvider({ children }: { children: React.ReactNode }) 
     dispatch({ type: 'RECONCILE', payload: rawTraces });
   }, [rawTraces]);
 
+  useEffect(() => {
+    rawTraces.forEach((trace) => {
+      if (state.vis[trace.name] === undefined) {
+        dispatch({ type: 'SET_VISIBILITY', name: trace.name, visible: true });
+      }
+    });
+  }, [rawTraces, state.vis]);
+
   const contextValue = useMemo<TraceContextValue>(() => {
     return {
       ...state,
       allTraces: [...rawTraces, ...state.derivedTraces],
+      allDatasets,
+      allDisplayTraces,
     };
-  }, [state, rawTraces]);
+  }, [state, rawTraces, allDatasets, allDisplayTraces]);
 
   return (
     <TraceDispatchContext.Provider value={dispatch}>

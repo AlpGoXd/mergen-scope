@@ -27,16 +27,21 @@ export function cloneMarkerWithoutIP3Label(marker: Marker | null): Marker | null
 
 /** Extract IP3 points from a set of markers based on their labels. */
 export function getIP3PointsFromMarkers(markers: Marker[]): IP3Points {
-  const pts: any = { f1: null, f2: null, im3l: null, im3u: null };
-  Object.keys(IP3_ROLE_LABELS).forEach((key) => {
-    const label = IP3_ROLE_LABELS[key];
+  const pts: {
+    f1: IP3Points['f1'];
+    f2: IP3Points['f2'];
+    im3l: IP3Points['im3l'];
+    im3u: IP3Points['im3u'];
+  } = { f1: null, f2: null, im3l: null, im3u: null };
+  IP3_ROLE_KEYS.forEach((key) => {
+    const label = IP3_ROLE_LABELS[key] ?? key.toUpperCase();
     const marker = (markers || []).find((item) => item && item.label === label);
     if (marker) {
       pts[key] = {
         freq: marker.freq,
         amp: marker.amp,
         trace: marker.trace,
-        label: marker.label
+        label,
       };
     }
   });
@@ -103,6 +108,29 @@ export interface IP3RoleRefs {
   readonly [key: string]: string | null;
 }
 
+export interface SavedIP3Result {
+  readonly id: number;
+  readonly functionType: 'ip3';
+  readonly traceLabel: string;
+  readonly sourceTraceId: string | null;
+  readonly sourceTraceName: string | null;
+  readonly parameters: {
+    readonly gain: number | null;
+    readonly roles: Record<string, string | null | undefined>;
+  };
+  readonly values: {
+    readonly oip3_l: number;
+    readonly oip3_u: number;
+    readonly oip3_avg: number;
+    readonly deltaL: number;
+    readonly deltaU: number;
+    readonly f1: number;
+    readonly f2: number;
+    readonly fim3l: number;
+    readonly fim3u: number;
+  };
+}
+
 /**
  * Build IP3 role reference map from marker points.
  * Used when saving IP3 results to link back to source traces.
@@ -139,7 +167,7 @@ export function makeSavedIP3Result(
     sourceTraceName?: string | null;
     roles?: Record<string, string | null>;
   }
-): any {
+): SavedIP3Result | null {
   if (!ip3Res || !ip3Pts) return null;
   const info = traceInfo || {};
   const gain = (ip3Gain !== '' && !isNaN(parseFloat(ip3Gain))) ? parseFloat(ip3Gain) : null;
