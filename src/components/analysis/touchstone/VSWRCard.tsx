@@ -16,9 +16,9 @@ export function VSWRCard() {
 			description="Voltage standing-wave ratio computed from the active Sii trace."
 			onClose={() => analysisDispatch({ type: 'TOGGLE_PANEL', payload: { id: 'vswr', forceValue: false } })}
 		>
-			{!result && <div style={{ fontSize: '11px', color: 'var(--muted)' }}>No valid Touchstone reflection data.</div>}
+			{!result && <div style={{ fontSize: 'var(--font-label)', lineHeight: 'var(--lh-label)', color: 'var(--muted)' }}>No valid Touchstone reflection data.</div>}
 			{result && (
-				<div style={{ display: 'grid', gap: '6px', fontSize: '11px' }}>
+				<div style={{ display: 'grid', gap: '6px', fontSize: 'var(--font-label)', lineHeight: 'var(--lh-label)' }}>
 					<div>Min VSWR: <strong>{result.min.value.toFixed(4)}</strong> @ {fmtF(result.min.freq)}</div>
 					<div>Max VSWR: <strong>{result.max.value.toFixed(4)}</strong> @ {fmtF(result.max.freq)}</div>
 					<div>Average: <strong>{result.average.toFixed(4)}</strong></div>

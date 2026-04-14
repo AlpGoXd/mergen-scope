@@ -54,6 +54,67 @@ const PREFIX_TABLE: readonly PrefixEntry[] = [
   { factor: 1e-12, prefix: "p" },
 ];
 
+function choosePrefixEntry(referenceValue: number): PrefixEntry {
+  const absVal = Math.abs(referenceValue);
+  let choice = PREFIX_TABLE[PREFIX_TABLE.length - 1]!;
+  for (const entry of PREFIX_TABLE) {
+    if (absVal >= entry.factor) {
+      choice = entry;
+      break;
+    }
+  }
+  return choice;
+}
+
+function clampDecimals(value: number): number {
+  return Math.max(1, Math.min(9, value));
+}
+
+export function getAdaptiveDecimalsForSpan(
+  visibleSpan: number,
+  scaleFactor = 1,
+): number {
+  const scaledSpan = Math.abs(visibleSpan) / Math.max(Math.abs(scaleFactor), 1e-30);
+  if (!Number.isFinite(scaledSpan) || scaledSpan <= 0) {
+    return 3;
+  }
+  return clampDecimals(-Math.floor(Math.log10(scaledSpan)) + 3);
+}
+
+export function formatAdaptiveEngineeringValue(
+  value: number,
+  baseUnit: string,
+  visibleSpan: number,
+): string {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "--";
+
+  const reference = Math.max(Math.abs(n), Math.abs(visibleSpan), 1e-12);
+  const choice = choosePrefixEntry(reference);
+  const digits = getAdaptiveDecimalsForSpan(visibleSpan, choice.factor);
+  const scaled = n / choice.factor;
+  return `${trimFixedNumber(scaled.toFixed(digits))} ${choice.prefix}${baseUnit}`;
+}
+
+function formatFixedEngineeringValue(
+  value: number,
+  factor: number,
+  digits: number,
+  suffix: string,
+): string {
+  const scaled = value / factor;
+  return `${scaled.toFixed(digits)}${suffix}`;
+}
+
+function hasAdjacentDuplicateLabels(labels: readonly string[]): boolean {
+  for (let index = 1; index < labels.length; index += 1) {
+    if (labels[index] === labels[index - 1]) {
+      return true;
+    }
+  }
+  return false;
+}
+
 // ---------------------------------------------------------------------------
 // Frequency formatting
 // ---------------------------------------------------------------------------
@@ -82,14 +143,7 @@ export function formatEngineeringValue(
   if (!Number.isFinite(n)) return "--";
   if (n === 0) return `0 ${baseUnit}`;
 
-  const absVal = Math.abs(n);
-  let choice = PREFIX_TABLE[PREFIX_TABLE.length - 1]!;
-  for (const entry of PREFIX_TABLE) {
-    if (absVal >= entry.factor) {
-      choice = entry;
-      break;
-    }
-  }
+  const choice = choosePrefixEntry(n);
 
   const scaled = n / choice.factor;
   const txt = trimFixedNumber(scaled.toFixed(digits));
@@ -162,4 +216,69 @@ export function formatScalarWithUnit(
   const base = n.toFixed(digits);
   if (options.valueOnly) return base;
   return unitText ? `${base} ${unitText}` : base;
+}
+
+export function formatAdaptiveXAxisValue(
+  value: number,
+  visibleSpan: number,
+  options?: {
+    readonly domain?: "frequency" | "time" | null;
+    readonly unit?: string | null;
+  },
+): string {
+  const domain = options?.domain ?? null;
+  const unit = options?.unit ?? null;
+
+  if (domain === "frequency") {
+    return formatAdaptiveEngineeringValue(value, "Hz", visibleSpan);
+  }
+
+  if (domain === "time" || isSecondUnit(unit)) {
+    return formatAdaptiveEngineeringValue(value, "s", visibleSpan);
+  }
+
+  return formatScalarWithUnit(value, unit, { digits: 3 });
+}
+
+export function formatAdaptiveXAxisTickLabels(
+  values: readonly number[],
+  visibleSpan: number,
+  options?: {
+    readonly domain?: "frequency" | "time" | null;
+    readonly unit?: string | null;
+  },
+): string[] {
+  const domain = options?.domain ?? null;
+  const unit = options?.unit ?? null;
+  const finiteValues = values.filter((value) => Number.isFinite(value));
+  if (!finiteValues.length) {
+    return values.map(() => "--");
+  }
+
+  if (domain !== "frequency" && domain !== "time" && !isSecondUnit(unit)) {
+    return values.map((value) => formatScalarWithUnit(value, unit, { digits: 3 }));
+  }
+
+  const baseUnit = domain === "time" || isSecondUnit(unit) ? "s" : "Hz";
+  const reference = finiteValues.reduce((max, value) => Math.max(max, Math.abs(value)), Math.abs(visibleSpan));
+  const choice = choosePrefixEntry(Math.max(reference, 1e-12));
+  const suffix = baseUnit === "Hz"
+    ? choice.prefix
+    : `${choice.prefix}${baseUnit}`;
+
+  let digits = getAdaptiveDecimalsForSpan(visibleSpan, choice.factor);
+  let labels = finiteValues.map((value) => formatFixedEngineeringValue(value, choice.factor, digits, suffix));
+
+  while (digits < 9 && hasAdjacentDuplicateLabels(labels)) {
+    digits += 1;
+    labels = finiteValues.map((value) => formatFixedEngineeringValue(value, choice.factor, digits, suffix));
+  }
+
+  let cursor = 0;
+  return values.map((value) => {
+    if (!Number.isFinite(value)) return "--";
+    const label = labels[cursor];
+    cursor += 1;
+    return label ?? "--";
+  });
 }

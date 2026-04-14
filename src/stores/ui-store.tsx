@@ -28,12 +28,12 @@ export type UiAction =
 const defaultState: UiState = {
   showSidebar: true,
   showDetailedFiles: true,
-  showRightPanel: true,
+  showRightPanel: false, // Hidden by default as part of v1 regression fix
   showDots: false,
   showMeta: true,
   showTouchstoneControls: false,
   showTraceOps: false,
-  showAnalysisPanel: false,
+  showAnalysisPanel: false, // Hidden by default
   showImportExportPanel: false,
   showMarkers: true,
   showMarkerTools: true,
@@ -62,6 +62,7 @@ const defaultState: UiState = {
   ip3Gain: '',
   dtTrace: null,
   traceColors: {},
+  traceInterpolations: {},
   vis: {},
   selectedTraceName: null,
   paneAssignmentWarning: null,

@@ -40,11 +40,11 @@ export function RangeStatsCard() {
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <span style={{ fontSize: '11px', color: 'var(--muted)', minWidth: '40px' }}>Trace:</span>
+          <span style={{ fontSize: 'var(--font-label)', lineHeight: 'var(--lh-label)', color: 'var(--muted)', minWidth: '40px' }}>Trace:</span>
           <select 
             value={sourceTrace} 
             onChange={(e) => setSourceTrace(e.target.value)}
-            style={{ flex: 1, background: 'var(--bg)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: '4px', fontSize: '11px', padding: '3px 6px' }}
+            style={{ flex: 1, background: 'var(--bg)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: '4px', fontSize: 'var(--font-label)', lineHeight: 'var(--lh-label)', padding: '0.24rem 0.45rem' }}
           >
             <option value="">(Select Trace)</option>
             {allTraces.filter((t) => tracePaneMap[t.name] === activePaneId).map((t) => (
@@ -59,25 +59,25 @@ export function RangeStatsCard() {
 
         {result && (
           <div style={{ marginTop: '12px', padding: '10px', background: 'var(--bg-soft)', borderRadius: '6px', border: '1px solid var(--border)' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', fontSize: '11px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', fontSize: 'var(--font-label)', lineHeight: 'var(--lh-label)' }}>
               <div>
-                <div style={{ color: 'var(--dim)', fontSize: '10px' }}>Maximum</div>
+                <div style={{ color: 'var(--dim)', fontSize: 'var(--font-caption)' }}>Maximum</div>
                 <div style={{ color: 'var(--text)', fontWeight: 'bold' }}>{result.max.amp.toFixed(2)} dB</div>
-                <div style={{ color: 'var(--dim)', fontSize: '9px' }}>@ {fmtF(result.max.freq)}</div>
+                <div style={{ color: 'var(--dim)', fontSize: 'var(--font-caption)' }}>@ {fmtF(result.max.freq)}</div>
               </div>
               <div>
-                <div style={{ color: 'var(--dim)', fontSize: '10px' }}>Minimum</div>
+                <div style={{ color: 'var(--dim)', fontSize: 'var(--font-caption)' }}>Minimum</div>
                 <div style={{ color: 'var(--text)', fontWeight: 'bold' }}>{result.min.amp.toFixed(2)} dB</div>
-                <div style={{ color: 'var(--dim)', fontSize: '9px' }}>@ {fmtF(result.min.freq)}</div>
+                <div style={{ color: 'var(--dim)', fontSize: 'var(--font-caption)' }}>@ {fmtF(result.min.freq)}</div>
               </div>
               <div style={{ borderTop: '1px solid var(--border)', paddingTop: '8px', gridColumn: 'span 2' }}>
-                <div style={{ color: 'var(--dim)', fontSize: '10px' }}>Average Amplitude</div>
-                <div style={{ color: 'var(--text)', fontSize: '14px' }}>{result.average.toFixed(3)} dB</div>
+                <div style={{ color: 'var(--dim)', fontSize: 'var(--font-caption)' }}>Average Amplitude</div>
+                <div style={{ color: 'var(--text)', fontSize: 'var(--font-emphasis)', lineHeight: 'var(--lh-body)' }}>{result.average.toFixed(3)} dB</div>
               </div>
               <div style={{ borderTop: '1px solid var(--border)', paddingTop: '8px', gridColumn: 'span 2' }}>
-                <div style={{ color: 'var(--dim)', fontSize: '10px' }}>Frequency Span</div>
+                <div style={{ color: 'var(--dim)', fontSize: 'var(--font-caption)' }}>Frequency Span</div>
                 <div style={{ color: 'var(--text)' }}>{fmtF(result.spanHz)}</div>
-                <div style={{ color: 'var(--dim)', fontSize: '9px' }}>{result.count} samples analyzed</div>
+                <div style={{ color: 'var(--dim)', fontSize: 'var(--font-caption)' }}>{result.count} samples analyzed</div>
               </div>
             </div>
           </div>

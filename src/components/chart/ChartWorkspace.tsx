@@ -29,7 +29,7 @@ export function ChartWorkspace() {
             border: '1px solid rgba(255, 184, 77, 0.45)',
             background: 'rgba(255, 184, 77, 0.12)',
             color: 'var(--text)',
-            fontSize: '12px',
+            fontSize: 'var(--font-body)',
             display: 'flex',
             alignItems: 'center',
             gap: '12px',
@@ -46,7 +46,7 @@ export function ChartWorkspace() {
               borderRadius: '6px',
               padding: '2px 8px',
               cursor: 'pointer',
-              fontSize: '11px',
+              fontSize: 'var(--font-label)',
             }}
           >
             Dismiss

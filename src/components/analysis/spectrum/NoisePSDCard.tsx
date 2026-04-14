@@ -1,4 +1,4 @@
-import { useNoisePSD } from '../../../hooks/use-noise-psd';
+﻿import { useNoisePSD } from '../../../hooks/use-noise-psd';
 import { useTraceState } from '../../../stores/trace-store';
 import { useAnalysisDispatch } from '../../../stores/analysis-store';
 import { AnalysisFeatureCard } from '../AnalysisFeatureCard';
@@ -40,7 +40,7 @@ export function NoisePSDCard() {
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-          <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--muted)' }}>Source Trace</label>
+          <label style={{ fontSize: 'var(--font-label)', fontWeight: 400, color: 'var(--muted)' }}>Source Trace</label>
           <select 
             value={noiseSource || ''} 
             onChange={(e) => setNoiseSource(e.target.value)}
@@ -51,7 +51,8 @@ export function NoisePSDCard() {
               border: '1px solid var(--border)', 
               borderRadius: '6px', 
               padding: '6px',
-              fontSize: '12px' 
+              fontSize: 'var(--font-body)',
+              lineHeight: 'var(--lh-body)' 
             }}
           >
             <option value="">(Select Trace)</option>
@@ -62,7 +63,7 @@ export function NoisePSDCard() {
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-          <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--muted)' }}>Filter Bandwidth</label>
+          <label style={{ fontSize: 'var(--font-label)', fontWeight: 400, color: 'var(--muted)' }}>Filter Bandwidth</label>
           <input 
             type="text" 
             value={noiseFilter} 
@@ -75,7 +76,8 @@ export function NoisePSDCard() {
               border: '1px solid var(--border)', 
               borderRadius: '6px', 
               padding: '6px',
-              fontSize: '12px' 
+              fontSize: 'var(--font-body)',
+              lineHeight: 'var(--lh-body)' 
             }}
           />
         </div>
@@ -116,7 +118,7 @@ export function NoisePSDCard() {
                 >
                   &times;
                 </button>
-                <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--noiseTr)', marginBottom: '4px' }}>
+                <div style={{ fontSize: 'var(--font-label)', fontWeight: 400, color: 'var(--noiseTr)', marginBottom: '4px' }}>
                   {id}
                 </div>
                 <MR label="Samples" value={`${result.length}`} />
@@ -128,3 +130,4 @@ export function NoisePSDCard() {
     </AnalysisFeatureCard>
   );
 }
+

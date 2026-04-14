@@ -53,6 +53,7 @@ export interface DatasetBase {
   readonly fileId?: string | number | null;
   readonly fileName?: string | null;
   readonly hidden?: boolean;
+  readonly isUniform?: boolean;
   readonly provenance: Provenance;
   readonly capabilities: DatasetCapabilities;
 }
@@ -138,6 +139,7 @@ export function makeDatasetBase(
     fileId?: string | number | null;
     fileName?: string | null;
     hidden?: boolean;
+    isUniform?: boolean;
     provenance?: Provenance;
     capabilities?: Partial<DatasetCapabilities>;
   } = {},
@@ -155,6 +157,7 @@ export function makeDatasetBase(
     fileId: options.fileId ?? null,
     fileName: options.fileName ?? null,
     hidden: options.hidden ?? false,
+    isUniform: options.isUniform ?? false,
     provenance,
     capabilities,
   };
@@ -184,6 +187,7 @@ export function makeSpectrumDataset(
     fileId?: string | number | null;
     fileName?: string | null;
     hidden?: boolean;
+    isUniform?: boolean;
     provenance?: Provenance;
     capabilities?: Partial<DatasetCapabilities>;
   } = {},
@@ -205,6 +209,7 @@ export function makeWaveformDataset(
     fileId?: string | number | null;
     fileName?: string | null;
     hidden?: boolean;
+    isUniform?: boolean;
     provenance?: Provenance;
     capabilities?: Partial<DatasetCapabilities>;
   } = {},
@@ -230,6 +235,7 @@ export function makeNetworkDataset(
     fileId?: string | number | null;
     fileName?: string | null;
     hidden?: boolean;
+    isUniform?: boolean;
     provenance?: Provenance;
     kind?: DatasetKind;
     capabilities?: Partial<DatasetCapabilities>;
@@ -262,6 +268,7 @@ export function makeIQDataset(
     fileId?: string | number | null;
     fileName?: string | null;
     hidden?: boolean;
+    isUniform?: boolean;
     provenance?: Provenance;
     kind?: DatasetKind;
     capabilities?: Partial<DatasetCapabilities>;
@@ -281,6 +288,7 @@ export function makeSymbolDataset(
     fileId?: string | number | null;
     fileName?: string | null;
     hidden?: boolean;
+    isUniform?: boolean;
     provenance?: Provenance;
     kind?: DatasetKind;
     capabilities?: Partial<DatasetCapabilities>;

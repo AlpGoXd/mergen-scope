@@ -21,7 +21,9 @@ export interface BtnProps extends React.ComponentPropsWithoutRef<'button'> {
  */
 export function Btn({
   active,
-  color = 'var(--accent)',
+  color, // Keep the prop in case some caller passes it but ignore it for styling, unless it's a data trace? 
+         // Actually, wait, "Saturated colors (Mint, Teal, Orange-Red) are reserved strictly for data traces on the plot." 
+         // So Btn doesn't need to use `color` at all. The buttons on toolbars won't use it.
   soft,
   bold,
   children,
@@ -30,30 +32,18 @@ export function Btn({
   disabled,
   ...props
 }: BtnProps) {
+  
+  const baseClass = active ? 'btn-active' : 'btn';
+  const combinedClassName = className ? `${baseClass} ${className}` : baseClass;
 
-  // color-mix works with any valid CSS color including var() references
-  const tint26 = `color-mix(in srgb, ${color} 26%, white)`;
-  const tint18 = `color-mix(in srgb, ${color} 18%, white)`;
-  const tint42 = `color-mix(in srgb, ${color} 42%, white)`;
-
-  const btnStyle: React.CSSProperties = {
-    background: active ? tint26 : (soft ? tint18 : 'transparent'),
-    border: `1px solid ${active ? color : (soft ? tint42 : 'var(--border)')}`,
-    color: active ? color : 'var(--text)',
-    borderRadius: '6px',
-    padding: '5px 10px',
-    cursor: disabled ? 'default' : 'pointer',
-    fontSize: '12px',
-    whiteSpace: 'nowrap',
-    fontWeight: bold ? 600 : 500,
-    opacity: disabled ? 0.4 : 1,
-    lineHeight: '1.4',
-    transition: 'all 0.15s ease-in-out',
+  const mergedStyle: React.CSSProperties = {
+    opacity: disabled ? 0.45 : 1,
+    ...(color ? ({ '--group-color': color } as React.CSSProperties) : {}),
     ...style,
   };
 
   return (
-    <button className={className} disabled={disabled} style={btnStyle} {...props}>
+    <button className={combinedClassName} disabled={disabled} style={mergedStyle} {...props}>
       {children}
     </button>
   );

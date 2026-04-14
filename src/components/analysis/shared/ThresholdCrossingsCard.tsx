@@ -25,20 +25,20 @@ export function ThresholdCrossingsCard() {
 	return (
 		<AnalysisFeatureCard title="Threshold Crossings" description="Locate where the active trace crosses a threshold.">
 			<div style={{ display: 'grid', gap: '8px' }}>
-				<label style={{ display: 'grid', gap: '4px', fontSize: '11px' }}>
+				<label style={{ display: 'grid', gap: '4px', fontSize: 'var(--font-label)' }}>
 					Threshold
 					<input value={thresholdText} onChange={(event) => setThresholdText(event.target.value)} />
 				</label>
-				<div style={{ fontSize: '11px' }}>
+				<div style={{ fontSize: 'var(--font-label)', lineHeight: 'var(--lh-label)' }}>
 					Found {crossings.length} crossing{crossings.length === 1 ? '' : 's'}
 				</div>
 				<div style={{ maxHeight: '160px', overflow: 'auto', border: '1px solid var(--border)', borderRadius: '6px' }}>
 					{crossings.slice(0, 20).map((point, idx) => (
-						<div key={idx} style={{ padding: '6px', fontSize: '11px', borderTop: idx === 0 ? 'none' : '1px solid var(--border)' }}>
+						<div key={idx} style={{ padding: '6px', fontSize: 'var(--font-label)', lineHeight: 'var(--lh-label)', borderTop: idx === 0 ? 'none' : '1px solid var(--border)' }}>
 							f={point.freq.toExponential(5)} ({point.mode})
 						</div>
 					))}
-					{crossings.length === 0 && <div style={{ padding: '6px', fontSize: '11px', color: 'var(--dim)' }}>No crossings</div>}
+					{crossings.length === 0 && <div style={{ padding: '6px', fontSize: 'var(--font-label)', lineHeight: 'var(--lh-label)', color: 'var(--dim)' }}>No crossings</div>}
 				</div>
 			</div>
 		</AnalysisFeatureCard>

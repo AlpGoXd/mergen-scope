@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useReducer } from 'react';
 import type { RawFileRecord, WizardConfig, ParsedFile } from '../types/file';
+import type { InterpolationStrategy } from '../types/interpolation';
 import { parseMeasurementFile } from '../domain/parsers/parse-file';
 import { classify } from '../domain/parsers/classifier';
 import { parseTabularFile } from '../domain/parsers/tabular';
@@ -27,6 +28,7 @@ export type FileAction =
   | { type: 'SKIP_WIZARD'; payload: { id: string } }
   | { type: 'REMOVE_FILE'; payload: { fileId: string } }
   | { type: 'SET_DISPLAY_TRACE_HIDDEN'; payload: { fileId: string; displayTraceId: string; hidden: boolean } }
+  | { type: 'SET_DISPLAY_TRACE_INTERPOLATION'; payload: { fileId: string; displayTraceId: string; interpolation: InterpolationStrategy } }
   | { type: 'SHOW_ALL_DISPLAY_TRACES'; payload: { fileId: string } }
   | { type: 'SET_VISIBILITY'; payload: { traceName: string; visible: boolean } }
   | { type: 'RESTORE_FILES'; payload: FileState }
@@ -198,6 +200,28 @@ function fileReducer(state: FileState, action: FileAction): FileState {
         ...state,
         files: state.files.map((file) => (String(file.id) === String(fileId) ? nextFile : file)),
         vis: nextVis,
+      };
+    }
+    case 'SET_DISPLAY_TRACE_INTERPOLATION': {
+      const { fileId, displayTraceId, interpolation } = action.payload;
+      const targetFile = state.files.find((file) => String(file.id) === String(fileId));
+      if (!targetFile?.displayTraces || !targetFile.datasets) {
+        return state;
+      }
+
+      const nextDisplayTraces = targetFile.displayTraces.map((displayTrace) =>
+        displayTrace.id === displayTraceId ? { ...displayTrace, interpolation } : displayTrace,
+      );
+      const visibleDisplayTraces = nextDisplayTraces.filter((displayTrace) => !displayTrace.hidden);
+      const nextFile: RawFileRecord = {
+        ...targetFile,
+        displayTraces: nextDisplayTraces,
+        traces: adaptDisplayTracesToLegacyTraces(targetFile.datasets, visibleDisplayTraces, targetFile),
+      };
+
+      return {
+        ...state,
+        files: state.files.map((file) => (String(file.id) === String(fileId) ? nextFile : file)),
       };
     }
     case 'SHOW_ALL_DISPLAY_TRACES': {

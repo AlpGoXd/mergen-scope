@@ -1,4 +1,5 @@
 import type { DatasetBasis, DatasetFamily, NetworkParameterFamily } from './dataset';
+import type { InterpolationStrategy } from './interpolation';
 
 export type DisplayTraceKind = 'dataset-projection' | 'derived-trace';
 export type DisplayViewMode = 'cartesian' | 'smith' | 'polar' | 'eye' | 'constellation';
@@ -63,7 +64,10 @@ export interface DisplayTraceBase {
   readonly kind: DisplayTraceKind;
   readonly label: string;
   readonly datasetId: string;
+  readonly family: DatasetFamily;
   readonly hidden?: boolean;
+  readonly isUniform?: boolean;
+  readonly interpolation?: InterpolationStrategy;
   readonly provenance: {
     readonly parentDatasetId: string;
     readonly parentDisplayTraceIds: readonly string[];
@@ -127,6 +131,9 @@ export function makeScalarDisplayTrace(
   points: readonly ScalarDisplayPoint[],
   options: {
     hidden?: boolean;
+    family?: DatasetFamily;
+    isUniform?: boolean;
+    interpolation?: InterpolationStrategy;
     supportedViews?: readonly DisplayViewMode[];
     defaultView?: DisplayViewMode;
     xUnit?: string | null;
@@ -141,7 +148,10 @@ export function makeScalarDisplayTrace(
     kind: 'dataset-projection',
     label,
     datasetId,
+    family: options.family ?? 'spectrum',
     hidden: options.hidden ?? false,
+    isUniform: options.isUniform ?? false,
+    interpolation: options.interpolation,
     provenance:
       options.provenance ?? makeDisplayTraceProvenance(datasetId, [], []),
     source,
@@ -164,6 +174,9 @@ export function makeComplexDisplayTrace(
   points: readonly ComplexDisplayPoint[],
   options: {
     hidden?: boolean;
+    family?: DatasetFamily;
+    isUniform?: boolean;
+    interpolation?: InterpolationStrategy;
     supportedViews?: readonly DisplayViewMode[];
     defaultView?: DisplayViewMode;
     xUnit?: string | null;
@@ -178,7 +191,10 @@ export function makeComplexDisplayTrace(
     kind: 'dataset-projection',
     label,
     datasetId,
+    family: options.family ?? 'network',
     hidden: options.hidden ?? false,
+    isUniform: options.isUniform ?? false,
+    interpolation: options.interpolation,
     provenance:
       options.provenance ?? makeDisplayTraceProvenance(datasetId, [], []),
     source,

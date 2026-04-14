@@ -12,6 +12,7 @@ import type { AnalysisOpenState } from "./analysis.ts";
 import type { ZoomWindow } from "./marker.ts";
 import type { ComplexMatrix } from "./touchstone.ts";
 import type { XUnit, YUnit } from "./units.ts";
+import type { InterpolationStrategy } from "./interpolation.ts";
 
 // ---------------------------------------------------------------------------
 // Workspace file version
@@ -85,6 +86,7 @@ export interface WorkspaceDatasetBase {
   readonly fileId?: string | number | null;
   readonly fileName?: string | null;
   readonly hidden?: boolean;
+  readonly isUniform?: boolean;
   readonly provenance: WorkspaceProvenance;
   readonly capabilities: WorkspaceDatasetCapabilities;
 }
@@ -166,7 +168,10 @@ export interface WorkspaceDisplayTraceBase {
   readonly kind: WorkspaceDisplayTraceKind;
   readonly label: string;
   readonly datasetId: string;
+  readonly family: WorkspaceDatasetFamily;
   readonly hidden?: boolean;
+  readonly isUniform?: boolean;
+  readonly interpolation?: InterpolationStrategy;
   readonly provenance: WorkspaceDisplayTraceProvenance;
   readonly source: WorkspaceDisplayTraceSourceRef;
   readonly supportedViews: readonly WorkspaceDisplayViewMode[];
@@ -269,6 +274,7 @@ export interface WorkspaceUiState {
   readonly ip3Gain: string;
   readonly dtTrace: string | null;
   readonly traceColors: Readonly<Record<string, string>>;
+  readonly traceInterpolations: Readonly<Record<string, InterpolationStrategy>>;
 }
 
 /** Trace operations panel section open state. */

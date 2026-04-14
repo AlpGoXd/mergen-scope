@@ -22,9 +22,10 @@ export function TouchstoneMatrixPicker({ portCount, family, onToggle, view }: To
 									border: '1px solid var(--border)',
 									background: 'transparent',
 									color: 'var(--text)',
-									fontSize: '11px',
+									fontSize: 'var(--font-label)',
+									lineHeight: 'var(--lh-label)',
 									borderRadius: '6px',
-									padding: '4px',
+									padding: '0.3rem 0.35rem',
 									cursor: 'pointer',
 								}}
 							>

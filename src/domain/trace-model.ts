@@ -14,6 +14,7 @@ import type {
   TraceUnits,
 } from "../types/trace.ts";
 import type { NetworkSource } from "../types/touchstone.ts";
+import { FAMILY_DEFAULTS } from "./interpolation.ts";
 
 // ---------------------------------------------------------------------------
 // Trace ID counter (module-level state)
@@ -69,10 +70,12 @@ export function makeTrace(
     name: `${prefix}${traceLabel}_${fileCounter}`,
     mode: "",
     detector: "",
+    family: "spectrum",
     domain: "frequency" as const,
     data: [],
     file: fileName,
     dn: `${prefix}${traceLabel}`,
+    isUniform: false,
   };
 }
 
@@ -103,9 +106,12 @@ export function createDerivedTrace(
     name: `drv_${op}_${id}`,
     mode: sourceTrace?.mode ?? "",
     detector: sourceTrace?.detector ?? "",
+    family: sourceTrace?.family ?? "spectrum",
     data: Array.isArray(data) ? data : [],
     file: sourceTrace?.file ?? null,
     domain: sourceTrace?.domain ?? "frequency",
+    isUniform: sourceTrace?.isUniform ?? false,
+    interpolation: sourceTrace?.interpolation ?? (sourceTrace ? FAMILY_DEFAULTS[sourceTrace.family] : undefined),
     dn:
       displayName ??
       `${getTraceLabel(sourceTrace) || "Trace"} [${op}]`,

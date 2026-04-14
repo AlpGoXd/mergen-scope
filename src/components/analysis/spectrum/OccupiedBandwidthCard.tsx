@@ -26,11 +26,11 @@ export function OccupiedBandwidthCard() {
 	return (
 		<AnalysisFeatureCard title="Occupied Bandwidth" description="Find bandwidth that contains a percentage of total power.">
 			<div style={{ display: 'grid', gap: '8px' }}>
-				<label style={{ display: 'grid', gap: '4px', fontSize: '11px' }}>
+				<label style={{ display: 'grid', gap: '4px', fontSize: 'var(--font-label)' }}>
 					Occupied power (%)
 					<input value={percentText} onChange={(event) => setPercentText(event.target.value)} />
 				</label>
-				<div style={{ fontSize: '11px' }}>
+				<div style={{ fontSize: 'var(--font-label)', lineHeight: 'var(--lh-label)' }}>
 					{result?.supported && typeof result.bandwidth === 'number'
 						? `${result.bandwidth.toExponential(4)} Hz`
 						: 'Select a trace with power units (dBm or dBW).'}

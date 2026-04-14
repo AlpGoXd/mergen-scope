@@ -2,6 +2,7 @@ import React, { createContext, useContext, useReducer, useEffect, useMemo } from
 import type { Trace } from '../types/trace';
 import type { Dataset } from '../types/dataset';
 import type { DisplayTrace } from '../types/display';
+import type { InterpolationStrategy } from '../types/interpolation';
 import { reconcileDerivedTraceGraph } from '../domain/derived-state';
 import { adaptDisplayTracesToLegacyTraces } from '../domain/display-trace-adapter';
 import { useFileState } from './file-store';
@@ -22,6 +23,7 @@ export type TraceAction =
   | { type: 'REMOVE_DERIVED'; payload: string }
   | { type: 'REMOVE_MULTIPLE_DERIVED'; payload: string[] }
   | { type: 'RECONCILE'; payload: Trace[] }
+  | { type: 'SET_DERIVED_INTERPOLATION'; payload: { traceId: string; interpolation: InterpolationStrategy } }
   | { type: 'SET_VISIBILITY'; name: string; visible: boolean }
   | { type: 'SET_ALL_VISIBILITY'; visible: boolean }
   | { type: 'RESTORE'; payload: { derivedTraces: Trace[]; vis: Record<string, boolean> } };
@@ -63,6 +65,15 @@ function traceReducer(state: TraceState, action: TraceAction): TraceState {
       // If none were removed because of bad dependencies, we can avoid state update
       if (result.removed.length === 0) return state;
       return { ...state, derivedTraces: [...result.kept] };
+    }
+    case 'SET_DERIVED_INTERPOLATION': {
+      const { traceId, interpolation } = action.payload;
+      return {
+        ...state,
+        derivedTraces: state.derivedTraces.map((trace) =>
+          trace.id === traceId ? { ...trace, interpolation } : trace,
+        ),
+      };
     }
     case 'SET_VISIBILITY': {
       return { 

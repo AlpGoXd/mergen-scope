@@ -6,15 +6,16 @@ import React from 'react';
 export function Sec({ children, first }: { children: React.ReactNode; first?: boolean }) {
   return (
     <div style={{
-      fontSize: '11px',
+      fontSize: 'var(--font-caption)',
       textTransform: 'uppercase',
       color: 'var(--muted)',
-      letterSpacing: '1px',
-      marginBottom: '8px',
-      marginTop: first ? '0' : '16px',
-      fontWeight: 700
+      letterSpacing: '0.12em',
+      marginBottom: '0.45rem',
+      marginTop: first ? '0' : '0',
+      fontWeight: 400
     }}>
       {children}
     </div>
   );
 }
+

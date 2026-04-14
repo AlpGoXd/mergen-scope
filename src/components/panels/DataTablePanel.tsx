@@ -15,15 +15,15 @@ export function DataTablePanel() {
 
 	return (
 		<div style={{ padding: '10px' }}>
-			<h3 style={{ margin: '0 0 8px 0', fontSize: '13px' }}>Data Table</h3>
+			<h3 style={{ margin: '0 0 8px 0', fontSize: 'var(--font-title)', lineHeight: 'var(--lh-title)' }}>Data Table</h3>
 			{!trace && (
-				<div style={{ fontSize: '12px', color: 'var(--dim)' }}>
+				<div style={{ fontSize: 'var(--font-label)', lineHeight: 'var(--lh-label)', color: 'var(--dim)' }}>
 					Select a trace to inspect its source points.
 				</div>
 			)}
 			{trace && (
 				<div style={{ border: '1px solid var(--border)', borderRadius: '8px', overflow: 'auto', maxHeight: '56vh' }}>
-					<table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px' }}>
+					<table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 'var(--font-label)', lineHeight: 'var(--lh-label)', fontFamily: 'var(--font-mono)' }}>
 						<thead>
 							<tr style={{ background: 'var(--bg)' }}>
 								<th style={{ textAlign: 'left', padding: '6px' }}>#</th>

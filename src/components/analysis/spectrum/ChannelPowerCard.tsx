@@ -26,11 +26,11 @@ export function ChannelPowerCard() {
 	return (
 		<AnalysisFeatureCard title="Channel Power" description="Integrate selected trace power over channel bandwidth.">
 			<div style={{ display: 'grid', gap: '8px' }}>
-				<label style={{ display: 'grid', gap: '4px', fontSize: '11px' }}>
+				<label style={{ display: 'grid', gap: '4px', fontSize: 'var(--font-label)' }}>
 					Bandwidth (Hz)
 					<input value={bandwidthHzText} onChange={(event) => setBandwidthHzText(event.target.value)} />
 				</label>
-				<div style={{ fontSize: '11px' }}>
+				<div style={{ fontSize: 'var(--font-label)', lineHeight: 'var(--lh-label)' }}>
 					{result?.supported && typeof result.powerDbm === 'number'
 						? `${result.powerDbm.toFixed(4)} dBm`
 						: 'Select a trace with spectral density units (dBm/Hz or dBW/Hz).'}

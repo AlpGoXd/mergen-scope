@@ -54,11 +54,11 @@ export function PeakTableCard() {
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <span style={{ fontSize: '11px', color: 'var(--muted)', minWidth: '40px' }}>Trace:</span>
+          <span style={{ fontSize: 'var(--font-label)', lineHeight: 'var(--lh-label)', color: 'var(--muted)', minWidth: '40px' }}>Trace:</span>
           <select 
             value={sourceTrace} 
             onChange={(e) => setSourceTrace(e.target.value)}
-            style={{ flex: 1, background: 'var(--bg)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: '4px', fontSize: '11px', padding: '3px 6px' }}
+            style={{ flex: 1, background: 'var(--bg)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: '4px', fontSize: 'var(--font-label)', lineHeight: 'var(--lh-label)', padding: '0.24rem 0.45rem' }}
           >
             <option value="">(Select Trace)</option>
             {paneTraces.map(t => (
@@ -72,21 +72,21 @@ export function PeakTableCard() {
 
         <div style={{ display: 'flex', gap: '8px' }}>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: '10px', color: 'var(--dim)', marginBottom: '2px' }}>Limit</div>
+            <div style={{ fontSize: 'var(--font-caption)', color: 'var(--dim)', marginBottom: '2px' }}>Limit</div>
             <input 
               type="number" 
               value={limit} 
               onChange={(e) => setLimit(parseInt(e.target.value) || 1)} 
-              style={{ width: '100%', background: 'var(--bg)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: '4px', fontSize: '11px', padding: '3px 6px' }}
+              style={{ width: '100%', background: 'var(--bg)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: '4px', fontSize: 'var(--font-label)', lineHeight: 'var(--lh-label)', padding: '0.24rem 0.45rem' }}
             />
           </div>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: '10px', color: 'var(--dim)', marginBottom: '2px' }}>Spacing (Hz)</div>
+            <div style={{ fontSize: 'var(--font-caption)', color: 'var(--dim)', marginBottom: '2px' }}>Spacing (Hz)</div>
             <input 
               type="number" 
               value={minSpacingHz} 
               onChange={(e) => setMinSpacingHz(parseFloat(e.target.value) || 0)} 
-              style={{ width: '100%', background: 'var(--bg)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: '4px', fontSize: '11px', padding: '3px 6px' }}
+              style={{ width: '100%', background: 'var(--bg)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: '4px', fontSize: 'var(--font-label)', lineHeight: 'var(--lh-label)', padding: '0.24rem 0.45rem' }}
             />
           </div>
         </div>
@@ -102,7 +102,7 @@ export function PeakTableCard() {
 
         {results.length > 0 && (
           <div style={{ marginTop: '12px' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 'var(--font-label)', lineHeight: 'var(--lh-label)' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--border)', color: 'var(--muted)' }}>
                   <th style={{ textAlign: 'left', padding: '4px' }}>Rank</th>
@@ -115,7 +115,7 @@ export function PeakTableCard() {
                   <tr key={r.rank} style={{ borderBottom: '1px dotted var(--da)', color: 'var(--text)' }}>
                     <td style={{ padding: '4px' }}>#{r.rank}</td>
                     <td style={{ padding: '4px' }}>{fmtF(r.freq)}</td>
-                    <td style={{ padding: '4px', textAlign: 'right', fontFamily: 'monospace' }}>{r.amp.toFixed(2)}</td>
+                    <td style={{ padding: '4px', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>{r.amp.toFixed(2)}</td>
                   </tr>
                 ))}
               </tbody>

@@ -1,5 +1,14 @@
 :root {
   color-scheme: light dark;
+  font-size: clamp(11.4px, 0.13vw + 10.5px, 13px);
+
+  --marker-color: #e07860;
+  --pane-color:   #5ba89a;
+  --search-color: #7aab5e;
+  --view-color:   #6a9fd8;
+  --lines-color:  #d4a04a;
+  --dots-color:   #9977bb;
+  --group-color:  #e07860;
   --bg: #fff;
   --card: #f6f8fa;
   --border: #d1d9e0;
@@ -18,6 +27,19 @@
   --noiseTr: #9966cc; --ip3C: #ff6699;
   --refV: #d97706; --refH: #0f8f9a;
   --cross: rgba(0, 120, 212, 0.4);
+
+  --font-mono: "IBM Plex Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  --font-caption: clamp(0.78rem, 0.76rem + 0.08vw, 0.86rem);
+  --font-label: clamp(0.84rem, 0.82rem + 0.10vw, 0.93rem);
+  --font-body: clamp(0.91rem, 0.88rem + 0.12vw, 1rem);
+  --font-emphasis: clamp(0.99rem, 0.95rem + 0.14vw, 1.08rem);
+  --font-title: clamp(1.08rem, 1.03rem + 0.2vw, 1.22rem);
+  --font-display: clamp(1.28rem, 1.18rem + 0.34vw, 1.56rem);
+  --lh-caption: clamp(0.96rem, 0.93rem + 0.06vw, 1.04rem);
+  --lh-label: clamp(1.08rem, 1.04rem + 0.08vw, 1.18rem);
+  --lh-body: clamp(1.24rem, 1.18rem + 0.1vw, 1.34rem);
+  --lh-title: clamp(1.36rem, 1.28rem + 0.14vw, 1.5rem);
+  --control-height: clamp(1.95rem, 1.88rem + 0.16vw, 2.18rem);
 }
 
 .theme-dark {
@@ -62,11 +84,73 @@
 body {
   margin: 0;
   font-family: 'Inter', -apple-system, system-ui, sans-serif;
+  font-size: var(--font-body);
+  line-height: 1.45;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   background-color: var(--bg);
   color: var(--text);
   overflow: hidden;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+.btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  border-radius: 7px;
+  padding: 5px 13px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+}
+
+.btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--border) 50%, transparent);
+  border-color: var(--muted);
+  color: var(--text);
+}
+
+.btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.btn-active {
+  background: color-mix(in srgb, var(--group-color, var(--accent)) 14%, transparent);
+  border: 1px solid var(--group-color, var(--accent));
+  color: var(--group-color, var(--accent));
+  font-weight: 600;
+  border-radius: 7px;
+  padding: 5px 13px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+}
+
+.btn-active:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--group-color, var(--accent)) 22%, transparent);
+}
+
+.btn-active:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+table {
+  font-size: var(--font-label);
 }
 
 #root {

@@ -16,16 +16,16 @@ export function TopBar() {
   const {
     showSidebar,
     showRightPanel,
-    showMarkerTools,
+    showAnalysisPanel,
+    showTraceOps,
+    showDT,
+    showImportExportPanel,
     showPaneTools,
     showSearchTools,
+    showMarkerTools,
     showLineTools,
     showViewTools,
     showDots,
-    showDT,
-    showAnalysisPanel,
-    showTraceOps,
-    showImportExportPanel
   } = useUiState();
 
   const { files } = useFileState();
@@ -40,14 +40,11 @@ export function TopBar() {
 
   const hasData = files.length > 0;
 
-  const dotSep = (key: string) => (
-    <span key={key} style={{ color: 'var(--dim)', fontSize: '14px', lineHeight: 1, padding: '0 2px', userSelect: 'none' }}>
-      &middot;
-    </span>
-  );
-
   const handleToggle = (key: keyof UiState, currentVal: boolean) => {
     uiDispatch({ type: 'SET', payload: { key, value: !currentVal } });
+    if (key === 'showRightPanel' && !currentVal && !showAnalysisPanel && !showTraceOps && !showDT && !showImportExportPanel) {
+      uiDispatch({ type: 'SET', payload: { key: 'showAnalysisPanel', value: true } });
+    }
     if ((key === 'showAnalysisPanel' || key === 'showTraceOps' || key === 'showDT' || key === 'showImportExportPanel') && !currentVal) {
       uiDispatch({ type: 'SET', payload: { key: 'showRightPanel', value: true } });
     }
@@ -61,16 +58,36 @@ export function TopBar() {
   };
 
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const groupStyle: React.CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    flexWrap: 'wrap',
+    padding: '6px 8px',
+    border: '1px solid color-mix(in srgb, var(--accent) 10%, var(--border))',
+    borderRadius: '12px',
+    background: 'linear-gradient(180deg, color-mix(in srgb, var(--card) 82%, white), color-mix(in srgb, var(--card) 96%, transparent))',
+  };
+
+  const groupLabelStyle: React.CSSProperties = {
+    fontSize: 'var(--font-caption)',
+    fontWeight: 500,
+    letterSpacing: '0.08em',
+    textTransform: 'uppercase',
+    color: 'var(--muted)',
+    marginRight: '2px',
+  };
 
   return (
     <div style={{
-      height: '44px',
+      minHeight: '56px',
       background: 'var(--card)',
       borderBottom: '1px solid var(--border)',
       display: 'flex',
       alignItems: 'center',
-      padding: '0 12px',
-      gap: '6px',
+      padding: '8px 12px',
+      gap: '10px',
+      flexWrap: 'wrap',
       flexShrink: 0,
       zIndex: 10
     }}>
@@ -86,141 +103,41 @@ export function TopBar() {
           height={20}
           style={{ display: 'block', flexShrink: 0 }}
         />
-        <span style={{ fontWeight: 700, fontSize: '15px', letterSpacing: '-0.2px', color: 'var(--tr0)' }}>
+        <span style={{ fontWeight: 400, fontSize: 'var(--font-title)', letterSpacing: '-0.2px', color: 'var(--tr0)' }}>
           Mergen <span style={{ color: 'var(--accent)' }}>Scope</span>
         </span>
-        <span style={{ fontSize: '10px', color: 'var(--dim)', background: 'var(--bg)', padding: '1px 6px', borderRadius: '4px', fontWeight: 600 }}>
+        <span style={{ fontSize: 'var(--font-caption)', color: 'var(--dim)', background: 'var(--bg)', padding: '0.1rem 0.4rem', borderRadius: '4px', fontWeight: 400 }}>
           v2.0-TS
         </span>
       </a>
 
       {hasData && (
-        <>
-          <Btn
-            active={showImportExportPanel}
-            soft
-            color="#b7dfc8"
-            title="Toggle import/export panel"
-            onClick={() => handleToggle('showImportExportPanel', showImportExportPanel)}
-          >
-            Import / Export
-          </Btn>
-          {dotSep('s1')}
-          <Btn
-            active={showSidebar}
-            soft
-            color="#c7cfe8"
-            title="Toggle sidebar"
-            onClick={() => handleToggle('showSidebar', showSidebar)}
-          >
-            Panel
-          </Btn>
-          <Btn
-            active={showRightPanel}
-            soft
-            color="#e8b4a8"
-            title="Toggle right panel"
-            onClick={() => handleToggle('showRightPanel', showRightPanel)}
-          >
-            Right Panel
-          </Btn>
-          <Btn
-            active={showMarkerTools}
-            soft
-            color="#d7ae63"
-            title="Toggle marker tools"
-            onClick={() => handleToggle('showMarkerTools', showMarkerTools)}
-          >
-            Marker
-          </Btn>
-          <Btn
-            active={showPaneTools}
-            soft
-            color="#e69473"
-            title="Toggle pane tools"
-            onClick={() => handleToggle('showPaneTools', showPaneTools)}
-          >
-            Pane
-          </Btn>
-          <Btn
-            active={showSearchTools}
-            soft
-            color="#7eb2da"
-            title="Toggle search tools"
-            onClick={() => handleToggle('showSearchTools', showSearchTools)}
-          >
-            Search
-          </Btn>
-          <Btn
-            active={showLineTools}
-            soft
-            color="#d8ac7a"
-            title="Toggle reference line tools"
-            onClick={() => handleToggle('showLineTools', showLineTools)}
-          >
-            Lines
-          </Btn>
-          <Btn
-            active={showViewTools}
-            soft
-            color="#8db7df"
-            title="Toggle view tools"
-            onClick={() => handleToggle('showViewTools', showViewTools)}
-          >
-            View
-          </Btn>
-          {dotSep('s2')}
-          <Btn
-            active={showAnalysisPanel}
-            soft
-            color="#e7b2a5"
-            title="Toggle analysis panel"
-            onClick={() => handleToggle('showAnalysisPanel', showAnalysisPanel)}
-          >
-            Analysis
-          </Btn>
-          <Btn
-            active={showDots}
-            soft
-            color="#d7c2ef"
-            title="Toggle plotted sample dots"
-            onClick={() => handleToggle('showDots', showDots)}
-          >
-            Dots
-          </Btn>
-          <Btn
-            active={showDT}
-            soft
-            color="#f3a6c8"
-            title="Toggle data table"
-            onClick={() => handleToggle('showDT', showDT)}
-          >
-            Data
-          </Btn>
-          <Btn
-            active={showTraceOps}
-            soft
-            color="#d9b8eb"
-            title="Toggle trace operations"
-            onClick={() => handleToggle('showTraceOps', showTraceOps)}
-          >
-            Trace Ops
-          </Btn>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', flex: '1 1 820px', minWidth: 0 }}>
+          <div style={groupStyle}>
+            <span style={groupLabelStyle}>Panels</span>
+            <Btn active={showSidebar} soft color="#6f8fd6" title="Toggle sidebar" onClick={() => handleToggle('showSidebar', showSidebar)}>Left</Btn>
+            <Btn active={showRightPanel} soft color="#d78a73" title="Toggle right panel" onClick={() => handleToggle('showRightPanel', showRightPanel)}>Right</Btn>
+          </div>
 
-          {dotSep('s3')}
-          {dotSep('s4')}
-          <Btn
-            color="#efb0ab"
-            soft
-            title="Remove all loaded files and clear state"
-            onClick={handleClearAll}
-          >
-            Clear All
-          </Btn>
-        </>
+          <div style={groupStyle}>
+            <span style={groupLabelStyle}>Workbench</span>
+            <Btn active={showPaneTools} color="var(--pane-color)" title="Toggle pane tools" onClick={() => handleToggle('showPaneTools', showPaneTools)}>Pane</Btn>
+            <Btn active={showMarkerTools} color="var(--marker-color)" title="Toggle marker tools" onClick={() => handleToggle('showMarkerTools', showMarkerTools)}>Marker</Btn>
+            <Btn active={showSearchTools} color="var(--search-color)" title="Toggle search tools" onClick={() => handleToggle('showSearchTools', showSearchTools)}>Search</Btn>
+            <Btn active={showLineTools} color="var(--lines-color)" title="Toggle reference line tools" onClick={() => handleToggle('showLineTools', showLineTools)}>Lines</Btn>
+            <Btn active={showViewTools} color="var(--view-color)" title="Toggle view tools" onClick={() => handleToggle('showViewTools', showViewTools)}>View</Btn>
+            <Btn active={showDots} color="var(--dots-color)" title="Toggle plotted sample dots" onClick={() => handleToggle('showDots', showDots)}>Dots</Btn>
+          </div>
+
+          <div style={groupStyle}>
+            <span style={groupLabelStyle}>Reset</span>
+            <Btn title="Remove all loaded files and clear state" onClick={handleClearAll}>Clear All</Btn>
+          </div>
+        </div>
       )}
 
-      <div style={{ marginLeft: 'auto', display: 'flex', gap: '6px' }}>
+      <div style={{ marginLeft: 'auto', display: 'flex', gap: '6px', ...groupStyle }}>
+        <span style={groupLabelStyle}>Workspace</span>
         <input
           type="file"
           ref={fileInputRef}

@@ -16,9 +16,9 @@ export function ReturnLossCard() {
 			description="Return loss from the active reflection coefficient."
 			onClose={() => analysisDispatch({ type: 'TOGGLE_PANEL', payload: { id: 'return-loss', forceValue: false } })}
 		>
-			{!result && <div style={{ fontSize: '11px', color: 'var(--muted)' }}>No valid Touchstone reflection data.</div>}
+			{!result && <div style={{ fontSize: 'var(--font-label)', lineHeight: 'var(--lh-label)', color: 'var(--muted)' }}>No valid Touchstone reflection data.</div>}
 			{result && (
-				<div style={{ display: 'grid', gap: '6px', fontSize: '11px' }}>
+				<div style={{ display: 'grid', gap: '6px', fontSize: 'var(--font-label)', lineHeight: 'var(--lh-label)' }}>
 					<div>Min RL: <strong>{result.min.value.toFixed(3)} dB</strong> @ {fmtF(result.min.freq)}</div>
 					<div>Max RL: <strong>{result.max.value.toFixed(3)} dB</strong> @ {fmtF(result.max.freq)}</div>
 					<div>Average: <strong>{result.average.toFixed(3)} dB</strong></div>

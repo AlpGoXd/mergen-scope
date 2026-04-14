@@ -86,6 +86,7 @@ function buildNetworkDataset(file: WorkspaceFileRecord): WorkspaceNetworkDataset
     fileId: file.id,
     fileName: file.fileName,
     hidden: false,
+    isUniform: true,
     provenance: provenance(id, importStep(`import-${id}`, 'Import Touchstone file', [], { fileName: file.fileName, parameterFamily: network.parameterType })),
     capabilities: capabilitiesForFamily('network'),
     xDomain: 'frequency',
@@ -101,6 +102,7 @@ function buildSeriesDataset(file: WorkspaceFileRecord): WorkspaceDatasetRecord {
   const traces = file.traces ?? [];
   const family: 'waveform' | 'spectrum' = traces.some((trace) => trace.domain === 'time') ? 'waveform' : 'spectrum';
   const id = datasetId(file.id, family);
+  const isUniform = traces.every((trace) => trace.isUniform ?? false);
   if (family === 'waveform') {
     return {
       id,
@@ -110,6 +112,7 @@ function buildSeriesDataset(file: WorkspaceFileRecord): WorkspaceDatasetRecord {
       fileId: file.id,
       fileName: file.fileName,
       hidden: false,
+      isUniform,
       provenance: provenance(id, importStep(`import-${id}`, 'Import file', [], { fileName: file.fileName })),
       capabilities: capabilitiesForFamily('waveform'),
       xDomain: 'time',
@@ -124,6 +127,7 @@ function buildSeriesDataset(file: WorkspaceFileRecord): WorkspaceDatasetRecord {
     fileId: file.id,
     fileName: file.fileName,
     hidden: false,
+    isUniform,
     provenance: provenance(id, importStep(`import-${id}`, 'Import file', [], { fileName: file.fileName })),
     capabilities: capabilitiesForFamily('spectrum'),
     xDomain: 'frequency',
@@ -222,6 +226,9 @@ function displayTraceFromLegacy(trace: Trace, datasetIdValue: string): Workspace
   const shared = {
     label: trace.dn || trace.name,
     datasetId: datasetIdValue,
+    family: trace.family,
+    isUniform: trace.isUniform ?? false,
+    interpolation: trace.interpolation,
     provenance: {
       parentDatasetId: datasetIdValue,
       parentDisplayTraceIds: trace.sourceTraceIds ?? [],
@@ -247,6 +254,9 @@ function derivedTraceFromLegacy(trace: DerivedTrace, datasetIdValue: string): Wo
     kind: 'derived-trace',
     label: trace.dn || trace.name,
     datasetId: datasetIdValue,
+    family: trace.family,
+    isUniform: trace.isUniform ?? false,
+    interpolation: trace.interpolation,
     provenance: {
       parentDatasetId: datasetIdValue,
       parentDisplayTraceIds: trace.sourceTraceIds ?? [],
@@ -280,10 +290,13 @@ function legacyTraceFromDisplay(displayTrace: WorkspaceDisplayTraceRecord, datas
       name: displayTrace.label.replace(/\s+/g, '_'),
       mode: '',
       detector: '',
+      family: displayTrace.family,
       domain: dataset.family === 'waveform' ? 'time' : 'frequency',
       data,
       file: dataset.fileName ?? null,
       dn: displayTrace.label,
+      isUniform: displayTrace.isUniform ?? dataset.isUniform ?? false,
+      interpolation: displayTrace.interpolation,
     };
   }
 
@@ -298,10 +311,13 @@ function legacyTraceFromDisplay(displayTrace: WorkspaceDisplayTraceRecord, datas
     name: displayTrace.label.replace(/\s+/g, '_'),
     mode: '',
     detector: '',
+    family: displayTrace.family,
     domain: dataset.family === 'waveform' ? 'time' : 'frequency',
     data,
     file: dataset.fileName ?? null,
     dn: displayTrace.label,
+    isUniform: displayTrace.isUniform ?? dataset.isUniform ?? false,
+    interpolation: displayTrace.interpolation,
     fileId: dataset.fileId ?? null,
     fileName: dataset.fileName ?? null,
   };
@@ -431,6 +447,7 @@ function defaultUiState(): WorkspaceSnapshot['ui'] {
     ip3Gain: '',
     dtTrace: null,
     traceColors: {},
+    traceInterpolations: {},
   };
 }
 

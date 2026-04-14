@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+﻿import React, { useState, useRef, useCallback } from 'react';
 import { useFileDispatch } from '../../stores/file-store';
 
 export interface EmptyChartPaneProps {
@@ -110,20 +110,20 @@ export function EmptyChartPane({ mode = 'files' }: EmptyChartPaneProps) {
             placeItems: 'center',
             background: isDragOver ? 'rgba(88,166,255,0.14)' : 'rgba(88,166,255,0.08)',
             color: isDragOver ? 'var(--accent)' : 'var(--muted)',
-            fontSize: '24px',
+            fontSize: 'var(--font-display)',
             lineHeight: 1,
           }}>
             +
           </div>
-          <div style={{ fontSize: '30px', fontWeight: 800, letterSpacing: '-0.03em' }}>
+          <div style={{ fontSize: 'var(--font-display)', fontWeight: 400, letterSpacing: '-0.03em' }}>
             {isDragOver ? (isTraceMode ? 'Drop trace to move' : 'Drop to import') : (isTraceMode ? 'Drop traces here' : 'Drop files here')}
           </div>
-          <div style={{ fontSize: '15px', color: 'var(--muted)', lineHeight: 1.5, maxWidth: '620px' }}>
+          <div style={{ fontSize: 'var(--font-emphasis)', color: 'var(--muted)', lineHeight: 1.5, maxWidth: '620px' }}>
             {isTraceMode
               ? 'Drag a trace row from the sidebar and drop it in this pane to move it here.'
               : 'Drop a .dat, .csv, or Touchstone .s1p/.s2p/.sNp file onto the chart area, or click anywhere here to browse.'}
           </div>
-          <div style={{ fontSize: '12px', color: 'var(--dim)' }}>
+          <div style={{ fontSize: 'var(--font-label)', color: 'var(--dim)' }}>
             {isTraceMode
               ? 'You can also use the pane header button to move the selected trace here.'
               : 'The workspace will load the file and show it in the chart once parsing finishes.'}
@@ -133,3 +133,4 @@ export function EmptyChartPane({ mode = 'files' }: EmptyChartPaneProps) {
     </>
   );
 }
+

@@ -1,4 +1,4 @@
-import { useFileState } from '../../stores/file-store';
+﻿import { useFileState } from '../../stores/file-store';
 
 /**
  * FooterBar component for app-level status and controls.
@@ -21,19 +21,19 @@ export function FooterBar() {
 
   return (
     <div style={{
-      padding: '10px 12px 12px',
+      padding: '8px 12px 10px',
       borderTop: '1px solid var(--border)',
       display: 'flex',
       flexDirection: 'column',
-      gap: '8px',
+      gap: '6px',
       alignItems: 'center',
       flexShrink: 0,
-      background: 'linear-gradient(to bottom, transparent, rgba(0,0,0,0.015))'
+      background: 'linear-gradient(to bottom, color-mix(in srgb, var(--card) 80%, transparent), color-mix(in srgb, var(--card) 96%, white))'
     }}>
       <div style={{
-        fontSize: '11px',
-        fontWeight: 700,
-        letterSpacing: '0.4px',
+        fontSize: 'var(--font-caption)',
+        fontWeight: 500,
+        letterSpacing: '0.08em',
         textTransform: 'uppercase',
         color: 'var(--muted)'
       }}>
@@ -51,15 +51,15 @@ export function FooterBar() {
             display: 'inline-flex',
             alignItems: 'center',
             gap: '8px',
-            padding: '6px 10px',
+            padding: '5px 9px',
             border: '1px solid var(--border)',
             borderRadius: '999px',
-            background: 'var(--card)',
-            fontSize: '11px',
+            background: 'color-mix(in srgb, var(--card) 96%, white)',
+            fontSize: 'var(--font-caption)',
             lineHeight: 1.2,
-            boxShadow: '0 1px 0 rgba(0,0,0,0.03)'
+            boxShadow: '0 1px 0 rgba(0,0,0,0.02)'
           }}>
-            <span style={{ fontWeight: 700, color: 'var(--text)', whiteSpace: 'nowrap' }}>
+            <span style={{ fontWeight: 400, color: 'var(--text)', whiteSpace: 'nowrap' }}>
               {item.action}
             </span>
             <span style={{ color: 'var(--dim)', whiteSpace: 'nowrap' }}>
@@ -71,3 +71,5 @@ export function FooterBar() {
     </div>
   );
 }
+
+

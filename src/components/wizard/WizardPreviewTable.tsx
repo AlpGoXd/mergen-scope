@@ -9,7 +9,7 @@ export function WizardPreviewTable({ lines, delimiter }: WizardPreviewTableProps
 
 	return (
 		<div style={{ border: '1px solid var(--border)', borderRadius: '6px', maxHeight: '240px', overflow: 'auto' }}>
-			<table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px' }}>
+			<table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 'var(--font-label)', lineHeight: 'var(--lh-label)' }}>
 				<thead>
 					<tr style={{ background: 'var(--bg)' }}>
 						{Array.from({ length: maxCols }, (_, idx) => (

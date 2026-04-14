@@ -19,7 +19,7 @@ export function WizardColumnConfig(props: WizardColumnConfigProps) {
 
 	return (
 		<div style={{ display: 'grid', gap: '8px' }}>
-			<label style={{ display: 'grid', gap: '4px', fontSize: '11px' }}>
+			<label style={{ display: 'grid', gap: '4px', fontSize: 'var(--font-label)' }}>
 				X column
 				<select value={xCol} onChange={(event) => onChangeXCol(Number(event.target.value))}>
 					{headers.map((header, idx) => (
@@ -31,10 +31,10 @@ export function WizardColumnConfig(props: WizardColumnConfigProps) {
 			</label>
 
 			<div style={{ display: 'grid', gap: '4px' }}>
-				<span style={{ fontSize: '11px' }}>Y columns</span>
+				<span style={{ fontSize: 'var(--font-label)' }}>Y columns</span>
 				<div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px' }}>
 					{headers.map((header, idx) => (
-						<label key={idx} style={{ display: 'flex', gap: '6px', alignItems: 'center', fontSize: '11px' }}>
+						<label key={idx} style={{ display: 'flex', gap: '6px', alignItems: 'center', fontSize: 'var(--font-label)' }}>
 							<input
 								type="checkbox"
 								checked={yCols.includes(idx)}

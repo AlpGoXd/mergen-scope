@@ -21,6 +21,7 @@ interface ChartCursorApi {
 interface ChartMouseEvent {
   readonly activeLabel?: number;
   readonly activePayload?: Array<{ readonly payload?: { readonly freq?: number } }>;
+  readonly xValue?: number;
   readonly nativeEvent?: { readonly clientX?: number };
 }
 
@@ -107,12 +108,14 @@ export function useChartNav(cursor: ChartCursorApi) {
       return;
     }
 
-    // Try to get freq from event (Recharts payload or mouse pos)
+    // Prefer the true cursor x-value over snapped payload/sample labels.
     let f: number | null = null;
-    if (ev.activePayload && ev.activePayload[0]?.payload?.freq != null) {
-      f = ev.activePayload[0].payload.freq;
+    if (typeof ev.xValue === 'number' && isFinite(ev.xValue)) {
+      f = ev.xValue;
     } else if (typeof ev.nativeEvent?.clientX === 'number' && isFinite(ev.nativeEvent.clientX)) {
       f = freqFromClientX(ev.nativeEvent.clientX);
+    } else if (ev.activePayload && ev.activePayload[0]?.payload?.freq != null) {
+      f = ev.activePayload[0].payload.freq;
     }
 
     if (f === null || !isFinite(f)) {
@@ -137,7 +140,7 @@ export function useChartNav(cursor: ChartCursorApi) {
     const paneTraces = getActivePaneTraces();
     paneTraces.forEach((tr) => {
       if (vis && !vis[tr.name]) return;
-      const res = placeMarker(tr.data, f!);
+      const res = placeMarker(tr, f!);
       if (res && isFinite(res.amp)) {
         vals.push({
           name: tr.dn || tr.name,

@@ -1,23 +1,29 @@
-﻿import { useMemo, useRef, useState } from 'react';
-import { useTraceState } from '../../stores/trace-store';
-import { useMarkerState, useMarkerDispatch } from '../../stores/marker-store';
-import { useRefLineState, useRefLineDispatch } from '../../stores/ref-line-store';
-import { useUiState, useUiDispatch } from '../../stores/ui-store';
-import { usePaneState } from '../../stores/pane-store';
-import { useFileState, useFileDispatch } from '../../stores/file-store';
-import { useTouchstoneState } from '../../hooks/use-touchstone-state';
-import { useTraceActions } from '../../hooks/use-trace-actions';
-import { useTheme } from '../../hooks/use-theme';
-import { Sec } from '../shared/Sec';
-import { MR } from '../shared/MR';
-import { TouchstoneMatrixPicker } from '../sidebar/TouchstoneMatrixPicker';
+import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
+import { formatAdaptiveXAxisValue, formatEngineeringValue, formatScalarWithUnit } from '../../domain/format';
+import { getInterpolationOptionDisabledReason, getResolvedInterpolationStrategy } from '../../domain/interpolation';
+import { placeMarker } from '../../domain/markers';
 import { makeDefaultTouchstoneState } from '../../domain/touchstone/selections';
-import type { Trace } from '../../types/trace';
+import { useTouchstoneState } from '../../hooks/use-touchstone-state';
+import { useTheme } from '../../hooks/use-theme';
+import { useTraceActions } from '../../hooks/use-trace-actions';
+import { useFileDispatch, useFileState } from '../../stores/file-store';
+import { useMarkerDispatch, useMarkerState } from '../../stores/marker-store';
+import { usePaneState } from '../../stores/pane-store';
+import { useRefLineDispatch, useRefLineState } from '../../stores/ref-line-store';
+import { useTraceDispatch, useTraceState } from '../../stores/trace-store';
+import { useUiDispatch, useUiState } from '../../stores/ui-store';
+import type { InterpolationStrategy } from '../../types/interpolation';
+import type { Dataset } from '../../types/dataset';
+import type { RawFileRecord, WizardConfig, FileMetadata, MetadataEntry } from '../../types/file';
 import type { Marker } from '../../types/marker';
 import type { RefLine } from '../../types/ref-line';
-import type { RawFileRecord, WizardConfig, FileMetadata, MetadataEntry } from '../../types/file';
+import type { ThemeColors } from '../../types/theme';
 import type { TouchstoneFamily, TouchstoneView } from '../../types/touchstone';
-import type { Dataset } from '../../types/dataset';
+import type { Trace } from '../../types/trace';
+import { MR } from '../shared/MR';
+import { PretextLabel } from '../shared/PretextLabel';
+import { Sec } from '../shared/Sec';
+import { TouchstoneMatrixPicker } from '../sidebar/TouchstoneMatrixPicker';
 
 const MATRIX_VIEWS_BY_FAMILY: Record<TouchstoneFamily, readonly TouchstoneView[]> = {
   S: ['dB', 'Mag', 'Phase', 'Real', 'Imag'],
@@ -25,32 +31,142 @@ const MATRIX_VIEWS_BY_FAMILY: Record<TouchstoneFamily, readonly TouchstoneView[]
   Z: ['Mag', 'Phase', 'Real', 'Imag'],
 };
 
-export function Sidebar() {
+const FREQUENCY_UNIT_SCALE: Record<string, number> = {
+  hz: 1,
+  khz: 1e3,
+  mhz: 1e6,
+  ghz: 1e9,
+  thz: 1e12,
+};
+
+const TIME_UNIT_SCALE: Record<string, number> = {
+  s: 1,
+  sec: 1,
+  secs: 1,
+  second: 1,
+  seconds: 1,
+  ms: 1e-3,
+  us: 1e-6,
+  ns: 1e-9,
+  ps: 1e-12,
+};
+
+const PREFIX_SCALE: Record<string, number> = {
+  T: 1e12,
+  G: 1e9,
+  M: 1e6,
+  k: 1e3,
+  K: 1e3,
+  '': 1,
+  m: 1e-3,
+  u: 1e-6,
+  n: 1e-9,
+  p: 1e-12,
+};
+
+const badgeStyle: CSSProperties = {
+  fontSize: 'var(--font-caption)',
+  color: 'var(--dim)',
+  border: '1px solid color-mix(in srgb, var(--accent) 8%, var(--border))',
+  borderRadius: '999px',
+  padding: '0.08rem 0.42rem',
+  lineHeight: 'var(--lh-caption)',
+  background: 'rgba(255,255,255,0.78)',
+};
+
+const headerCellStyle: CSSProperties = {
+  fontSize: 'var(--font-caption)',
+  lineHeight: 'var(--lh-caption)',
+  color: 'var(--muted)',
+  userSelect: 'none',
+};
+
+const smallButtonBaseStyle: CSSProperties = {
+  background: 'rgba(255, 255, 255, 0.98)',
+  border: '1px solid var(--border)',
+  borderRadius: '6px',
+  padding: '0.22rem 0.58rem',
+  fontSize: 'var(--font-label)',
+  cursor: 'pointer',
+  color: 'var(--text)',
+  fontWeight: 400,
+  lineHeight: 'var(--lh-label)',
+  transition: 'all 0.15s ease-in-out',
+};
+
+const subsectionLabelStyle: CSSProperties = {
+  fontSize: 'var(--font-caption)',
+  fontWeight: 500,
+  color: 'var(--muted)',
+  textTransform: 'uppercase',
+  letterSpacing: '0.08em',
+};
+
+export function Sidebar({ width = 300 }: { width?: number }) {
   const { files } = useFileState();
-  const { allTraces, allDatasets, allDisplayTraces, vis } = useTraceState();
+  const { allTraces, allDisplayTraces, vis } = useTraceState();
   const { markers, selectedMkrIdx } = useMarkerState();
   const { refLines, selectedRefLineId } = useRefLineState();
-  const { selectedTraceName, showSidebar, showMeta, showDetailedFiles, traceColors } = useUiState();
-  const { tracePaneMap } = usePaneState();
+  const { selectedTraceName, showSidebar, showDetailedFiles, traceColors } = useUiState();
+  const { tracePaneMap, zoomAll, sharedZoom, paneXZooms } = usePaneState();
 
   const fileDispatch = useFileDispatch();
   const markerDispatch = useMarkerDispatch();
   const refLineDispatch = useRefLineDispatch();
+  const traceDispatch = useTraceDispatch();
   const uiDispatch = useUiDispatch();
   const { touchstoneStateByFileId, appendCell, setActiveFamily, setActiveView } = useTouchstoneState();
-  const [expandedTouchstoneFileId, setExpandedTouchstoneFileId] = useState<string | null>(null);
-  const [showDerivedDatasets, setShowDerivedDatasets] = useState(false);
-  const [expandedMetadataByFileId, setExpandedMetadataByFileId] = useState<Record<string, boolean>>({});
-
   const { selectTrace, removeTrace, toggleVisibility } = useTraceActions();
   const { colors } = useTheme();
 
+  const [activeTabByFileId, setActiveTabByFileId] = useState<Record<string, 'matrix' | 'meta' | null>>({});
+  const compactSidebar = files.length <= 1 && allTraces.length <= 1 && markers.length === 0 && refLines.length === 0;
+  const effectiveWidth = compactSidebar ? Math.min(width, 248) : width;
+  const sidebarMinWidth = compactSidebar ? '176px' : '200px';
+  const sidebarMaxWidth = 'min(45vw, 560px)';
+  const sidebarInnerGap = compactSidebar ? '5px' : '7px';
+  const sidebarInnerPadding = compactSidebar ? '4px 4px 6px' : '5px 5px 7px';
+  const fileCardPadding = compactSidebar ? '4px' : '5px';
+  const fileCardGap = compactSidebar ? '3px' : '4px';
+  const fileCardRadius = compactSidebar ? '8px' : '10px';
+
   const visibleDisplayTraces = allDisplayTraces.filter((displayTrace) => !displayTrace.hidden);
-  const derivedDatasets = allDatasets.filter((dataset) => dataset.kind === 'derived');
-  const sourceDatasetsByFileId = files.reduce<Record<string, Dataset[]>>((acc, file) => {
-    acc[String(file.id)] = (file.datasets ?? []).filter((dataset) => dataset.kind === 'source');
-    return acc;
-  }, {});
+  const displayTraceLocationByLegacyName = useMemo(() => {
+    const result = new Map<string, { fileId: string; displayTraceId: string }>();
+    files.forEach((file) => {
+      (file.displayTraces ?? []).forEach((displayTrace) => {
+        result.set(displayTrace.compat?.legacyTraceName ?? displayTrace.id, {
+          fileId: String(file.id),
+          displayTraceId: displayTrace.id,
+        });
+      });
+    });
+    return result;
+  }, [files]);
+  const sourceDatasetsByFileId = useMemo<Record<string, Dataset[]>>(() => {
+    return files.reduce<Record<string, Dataset[]>>((acc, file) => {
+      acc[String(file.id)] = (file.datasets ?? []).filter((dataset) => dataset.kind === 'source');
+      return acc;
+    }, {});
+  }, [files]);
+
+  const resolveTraceColor = useMemo(() => {
+    const rawPalette = colors?.tr ?? [];
+    const derivedPalette = colors?.dr ?? [];
+
+    return (trace: Trace, fallbackIndex: number): string => {
+      const custom = traceColors[trace.name];
+      if (custom) {
+        return custom;
+      }
+
+      const sameKind = allTraces.filter((item) => item.kind === trace.kind);
+      const kindIndex = sameKind.findIndex((item) => item.name === trace.name);
+      const palette = trace.kind === 'derived' ? derivedPalette : rawPalette;
+      const paletteIndex = kindIndex >= 0 ? kindIndex : fallbackIndex;
+      return palette[paletteIndex % (palette.length || 1)] || 'var(--accent)';
+    };
+  }, [allTraces, colors?.dr, colors?.tr, traceColors]);
 
   const buildReimportConfig = (file: RawFileRecord): WizardConfig => {
     const firstTrace = file.traces[0];
@@ -67,17 +183,42 @@ export function Sidebar() {
     };
   };
 
-  const toggleMetadata = (fileId: string) => {
-    setExpandedMetadataByFileId((prev) => ({ ...prev, [fileId]: !prev[fileId] }));
+  // Removed toggleMetadata usage
+
+  const getTraceDataSpan = (trace: Trace | null): number => {
+    if (!trace || trace.data.length < 2) {
+      return 1;
+    }
+    const span = (trace.data[trace.data.length - 1]?.freq ?? 0) - (trace.data[0]?.freq ?? 0);
+    if (Number.isFinite(span) && span > 0) {
+      return span;
+    }
+    const step = Math.abs((trace.data[1]?.freq ?? 0) - (trace.data[0]?.freq ?? 0));
+    return Number.isFinite(step) && step > 0 ? step : 1;
   };
 
-  if (!showSidebar) return null;
+  const getVisibleTraceXSpan = (trace: Trace | null): number => {
+    if (!trace) {
+      return 1;
+    }
+    const paneId = tracePaneMap[trace.name] ?? 'pane-1';
+    const zoom = zoomAll ? sharedZoom : (paneXZooms[paneId] ?? null);
+    if (zoom && Number.isFinite(zoom.left) && Number.isFinite(zoom.right) && zoom.right > zoom.left) {
+      return zoom.right - zoom.left;
+    }
+    return getTraceDataSpan(trace);
+  };
+
+  if (!showSidebar) {
+    return null;
+  }
 
   return (
     <div
       style={{
-        width: '260px',
-        minWidth: 0,
+        width: `${effectiveWidth}px`,
+        minWidth: sidebarMinWidth,
+        maxWidth: sidebarMaxWidth,
         background: 'var(--card)',
         borderRight: '1px solid var(--border)',
         display: 'flex',
@@ -86,21 +227,34 @@ export function Sidebar() {
         flexShrink: 0,
       }}
     >
-      <div style={{ padding: '12px', overflowY: 'auto', flex: 1, minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+      <div
+        style={{
+          padding: sidebarInnerPadding,
+          overflowY: 'auto',
+          flex: 1,
+          minWidth: 0,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: sidebarInnerGap,
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
           <Sec first>Files</Sec>
           <button
             type="button"
             onClick={() => uiDispatch({ type: 'SET', payload: { key: 'showDetailedFiles', value: !showDetailedFiles } })}
-            style={{ ...smallButtonStyle, ...(showDetailedFiles ? activeSmallButtonStyle('#e6b6c8') : null) }}
+            className={showDetailedFiles ? 'btn-active' : 'btn'}
           >
             {showDetailedFiles ? 'Compact' : 'Detailed'}
           </button>
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '16px' }}>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
           {files.map((file) => {
             const fileId = String(file.id);
-            const isExpanded = expandedTouchstoneFileId === fileId;
+            const activeTab = activeTabByFileId[fileId] || null;
+            const isMatrixTab = activeTab === 'matrix';
+            const isMetaTab = activeTab === 'meta';
             const touchstoneState = touchstoneStateByFileId[fileId] ?? makeDefaultTouchstoneState(file);
             const activeFamily = touchstoneState.activeFamily;
             const activeView = touchstoneState.activeViewByFamily[activeFamily];
@@ -108,122 +262,119 @@ export function Sidebar() {
             const visibleViewCount = (file.displayTraces ?? []).filter((displayTrace) => !displayTrace.hidden).length;
             const hiddenViewCount = (file.displayTraces ?? []).filter((displayTrace) => displayTrace.hidden).length;
             const hasMetadata = Object.keys(file.meta ?? {}).length > 0;
-            const isMetadataExpanded = !!expandedMetadataByFileId[fileId];
             const fileTags = getFileTags(file, sourceDatasets);
             const availableViews = MATRIX_VIEWS_BY_FAMILY[activeFamily];
 
             return (
-              <div key={fileId} style={{ border: '1px solid var(--border)', borderRadius: '8px', padding: '8px', background: 'var(--card)', minWidth: 0 }}>
-                <div style={{ display: 'grid', gap: '8px', minWidth: 0 }}>
-                  <div style={{ minWidth: 0 }}>
-                    <div
-                      style={{ fontSize: '12px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-                      title={file.fileName}
-                    >
-                      {file.fileName}
-                    </div>
-                    <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginTop: '4px', flexWrap: 'wrap' }}>
-                      <span style={badgeStyle}>{visibleViewCount} views</span>
-                      <span style={badgeStyle}>{sourceDatasets.length} datasets</span>
-                      {fileTags.map((tag) => (
-                        <span key={tag} style={badgeStyle}>{tag}</span>
-                      ))}
-                    </div>
-                  </div>
+              <div
+                key={fileId}
+                style={{
+                  border: '1px solid color-mix(in srgb, var(--accent) 9%, var(--border))',
+                  borderRadius: fileCardRadius,
+                  padding: fileCardPadding,
+                  background: 'linear-gradient(180deg, color-mix(in srgb, var(--card) 96%, white), var(--card))',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: fileCardGap,
+                  minWidth: 0,
+                }}
+              >
+                <FileTitleRow
+                  fileName={file.fileName}
+                  compact={compactSidebar}
+                  onRemove={() => fileDispatch({ type: 'REMOVE_FILE', payload: { fileId } })}
+                />
 
-                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                      {file.touchstoneNetwork && (
-                        <button
-                          type="button"
-                          onClick={() => setExpandedTouchstoneFileId((prev) => (prev === fileId ? null : fileId))}
-                          style={{
-                            ...smallButtonStyle,
-                            ...(isExpanded ? activeSmallButtonStyle('#cbb8ea') : null),
-                          }}
-                          title="Show network parameter tools"
-                        >
-                          {isExpanded ? 'Hide Matrix' : 'Matrix'}
-                        </button>
-                      )}
-                      {showDetailedFiles && hasMetadata && (
-                        <button
-                          type="button"
-                          onClick={() => toggleMetadata(fileId)}
-                          style={{ ...smallButtonStyle, ...(isMetadataExpanded ? activeSmallButtonStyle('#b7d7ef') : null) }}
-                        >
-                          {isMetadataExpanded ? 'Hide Meta' : 'Meta'}
-                        </button>
-                      )}
-                      {showDetailedFiles && <button
-                        type="button"
-                        onClick={() => fileDispatch({ type: 'RERUN_WIZARD', payload: { fileId, fileName: file.fileName, previousConfig: buildReimportConfig(file) } })}
-                        style={smallButtonStyle}
-                      >
-                        Re-import
-                      </button>}
-                      <button
-                        type="button"
-                        onClick={() => fileDispatch({ type: 'REMOVE_FILE', payload: { fileId } })}
-                        style={{ ...smallButtonStyle, marginLeft: 'auto', color: '#c14f63', borderColor: '#df9dad', background: 'rgba(247, 220, 223, 0.92)', fontWeight: 700 }}
-                        title="Remove file"
-                      >
-                        x
-                      </button>
-                    </div>
-                </div>
-
-                {showDetailedFiles && sourceDatasets.length > 0 && (
-                  <div style={{ marginTop: '8px', display: 'grid', gap: '6px' }}>
-                    <div style={subsectionLabelStyle}>Source datasets</div>
-                    {sourceDatasets.map((dataset) => (
-                      <DatasetRow key={dataset.id} dataset={dataset} />
+                {showDetailedFiles && (
+                  <div style={{ display: 'flex', gap: '4px', alignItems: 'center', flexWrap: 'wrap' }}>
+                    <span style={badgeStyle}>{visibleViewCount} views</span>
+                    <span style={badgeStyle}>{sourceDatasets.length} datasets</span>
+                    {fileTags.map((tag) => (
+                      <span key={tag} style={badgeStyle}>
+                        {tag}
+                      </span>
                     ))}
                   </div>
                 )}
 
-                {showDetailedFiles && hasMetadata && isMetadataExpanded && (
-                  <MetadataPanel meta={file.meta} />
-                )}
-
-                {showDetailedFiles && hiddenViewCount > 0 && (
-                  <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
-                    <span style={{ fontSize: '11px', color: 'var(--dim)' }}>
-                      {hiddenViewCount} hidden {hiddenViewCount === 1 ? 'view' : 'views'}
-                    </span>
+                {showDetailedFiles && (
+                  <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                    {file.touchstoneNetwork && (
+                      <button
+                        type="button"
+                        onClick={() => setActiveTabByFileId((prev) => ({ ...prev, [fileId]: prev[fileId] === 'matrix' ? null : 'matrix' }))}
+                        className={isMatrixTab ? 'btn-active' : 'btn'}
+                        style={{ padding: compactSidebar ? '2px 6px' : '4px 8px', fontSize: 'var(--font-caption)' }}
+                        title="Show network parameter tools"
+                      >
+                        Matrix
+                      </button>
+                    )}
+                    {hasMetadata && (
+                      <button
+                        type="button"
+                        onClick={() => setActiveTabByFileId((prev) => ({ ...prev, [fileId]: prev[fileId] === 'meta' ? null : 'meta' }))}
+                        className={isMetaTab ? 'btn-active' : 'btn'}
+                        style={{ padding: compactSidebar ? '2px 6px' : '4px 8px', fontSize: 'var(--font-caption)' }}
+                      >
+                        Meta
+                      </button>
+                    )}
                     <button
                       type="button"
-                      onClick={() => fileDispatch({ type: 'SHOW_ALL_DISPLAY_TRACES', payload: { fileId } })}
-                      style={smallButtonStyle}
+                      onClick={() =>
+                        fileDispatch({
+                          type: 'RERUN_WIZARD',
+                          payload: {
+                            fileId,
+                            fileName: file.fileName,
+                            previousConfig: buildReimportConfig(file),
+                          },
+                        })
+                      }
+                      className="btn"
+                      style={{ padding: compactSidebar ? '2px 6px' : '4px 8px', fontSize: 'var(--font-caption)' }}
                     >
-                      Restore Views
+                      Re-import
                     </button>
                   </div>
                 )}
 
-                {showDetailedFiles && file.touchstoneNetwork && isExpanded && (
-                  <div style={{ marginTop: '8px', display: 'grid', gap: '8px', padding: '8px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--bg)' }}>
-                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                {showDetailedFiles && isMatrixTab && file.touchstoneNetwork && (
+                  <div
+                    style={{
+                      display: 'grid',
+                      gap: '6px',
+                      padding: '6px',
+                      border: '1px solid var(--border)',
+                      borderRadius: '8px',
+                      background: 'var(--bg)',
+                    }}
+                  >
+                    <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
                       {(['S', 'Y', 'Z'] as const).map((family) => (
                         <button
                           key={family}
                           type="button"
                           onClick={() => setActiveFamily(fileId, family)}
-                          style={toggleButtonStyle(touchstoneState.activeFamily === family)}
+                          className={touchstoneState.activeFamily === family ? 'btn-active' : 'btn'}
+                          style={{ padding: '4px 8px', fontSize: 'var(--font-caption)' }}
                         >
                           {family}
                         </button>
                       ))}
                     </div>
 
-                    <div style={{ display: 'grid', gap: '4px', fontSize: '11px' }}>
-                      <span style={{ color: 'var(--muted)', fontWeight: 700 }}>Append View</span>
-                      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                    <div style={{ display: 'grid', gap: '3px' }}>
+                      <span style={subsectionLabelStyle}>Append view</span>
+                      <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
                         {availableViews.map((view) => (
                           <button
                             key={view}
                             type="button"
                             onClick={() => setActiveView(fileId, activeFamily, view)}
-                            style={toggleButtonStyle(activeView === view)}
+                            className={activeView === view ? 'btn-active' : 'btn'}
+                            style={{ padding: '4px 8px', fontSize: 'var(--font-caption)' }}
                           >
                             {view}
                           </button>
@@ -239,104 +390,214 @@ export function Sidebar() {
                     />
                   </div>
                 )}
+
+                {showDetailedFiles && hasMetadata && isMetaTab && <MetadataPanel meta={file.meta} compact={compactSidebar} />}
+
+                {showDetailedFiles && hiddenViewCount > 0 && (
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'minmax(0, 1fr) auto',
+                      alignItems: 'center',
+                      gap: '6px',
+                      minWidth: 0,
+                    }}
+                  >
+                    <PretextLabel
+                      text={`${hiddenViewCount} hidden ${hiddenViewCount === 1 ? 'view' : 'views'}`}
+                      font="400 var(--font-label) system-ui"
+                      lineHeight="var(--lh-label)"
+                      maxLines={3}
+                      style={{ fontSize: 'var(--font-label)', color: 'var(--dim)', minWidth: 0 }}
+                      lineStyle={{ whiteSpace: 'normal' }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => fileDispatch({ type: 'SHOW_ALL_DISPLAY_TRACES', payload: { fileId } })}
+                      className="btn"
+                      style={{ padding: '2px 8px', fontSize: 'var(--font-caption)' }}
+                    >
+                      Restore
+                    </button>
+                  </div>
+                )}
               </div>
             );
           })}
-          {files.length === 0 && <div style={{ fontSize: '11px', color: 'var(--dim)', padding: '8px 4px' }}>No files loaded.</div>}
+          {files.length === 0 && <SidebarEmpty text="No files loaded." compact={compactSidebar} />}
         </div>
 
-        <Sec>Display Traces</Sec>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', marginBottom: '16px' }}>
-          {allTraces.map((tr, i) => {
-            const isBackedByDisplayTrace = visibleDisplayTraces.some(
-              (displayTrace) => (displayTrace.compat?.legacyTraceName ?? displayTrace.id) === tr.name,
-            );
-            return (
-              <TraceRow
-                key={tr.id || tr.name}
-                trace={tr}
-                index={i}
-                isVisible={!!vis[tr.name]}
-                isSelected={selectedTraceName === tr.name}
-                paneId={tracePaneMap[tr.name]}
-                customColor={traceColors[tr.name] ?? null}
-                onSelect={() => selectTrace(tr.name)}
-                onRemove={() => removeTrace(tr)}
-                onToggle={() => toggleVisibility(tr.name)}
-                onColorChange={(color) => {
-                  const next = { ...traceColors, [tr.name]: color };
-                  uiDispatch({ type: 'SET', payload: { key: 'traceColors', value: next } });
-                }}
-                colors={colors}
-                removeLabel={tr.kind === 'derived' ? 'Delete derived trace' : isBackedByDisplayTrace ? 'Hide view' : 'Delete source file'}
-              />
-            );
-          })}
-          {allTraces.length === 0 && <div style={{ fontSize: '11px', color: 'var(--dim)', padding: '8px 4px' }}>No traces loaded.</div>}
-        </div>
-
-        <Sec>Derived Datasets</Sec>
-        <div style={{ marginBottom: '16px' }}>
-          <button
-            type="button"
-            onClick={() => setShowDerivedDatasets((prev) => !prev)}
-            style={{ ...smallButtonStyle, ...(showDerivedDatasets ? activeSmallButtonStyle('#cbb8ea') : null) }}
-          >
-            {showDerivedDatasets ? 'Hide' : 'Show'} derived datasets ({derivedDatasets.length})
-          </button>
-          {showDerivedDatasets && (
-            <div style={{ display: 'grid', gap: '6px', marginTop: '8px' }}>
-              {derivedDatasets.map((dataset) => (
-                <DatasetRow key={dataset.id} dataset={dataset} />
-              ))}
-              {derivedDatasets.length === 0 && (
-                <div style={{ fontSize: '11px', color: 'var(--dim)', padding: '8px 4px' }}>No derived datasets yet.</div>
-              )}
-            </div>
-          )}
-        </div>
-
-        {showMeta && (() => {
-          const tr = allTraces.find((trace) => trace.name === selectedTraceName);
-          if (!tr) return null;
-          const first = tr.data[0];
-          const last = tr.data[tr.data.length - 1];
-          return (
-            <>
-              <Sec>Metadata</Sec>
-              <div style={{ marginBottom: '16px' }}>
-                <MR label="Domain" value={tr.domain} />
-                <MR label="Points" value={tr.data.length} />
-                {first && <MR label="F start" value={first.freq} />}
-                {last && <MR label="F stop" value={last.freq} />}
-                <MR label="Y unit" value={tr.units.y ?? '-'} />
+        <PanelSection title="Traces" compact={compactSidebar}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'auto auto minmax(0, 1fr) auto auto auto auto', columnGap: '5px', rowGap: '2px' }}>
+            {allTraces.length > 0 && !compactSidebar && effectiveWidth >= 230 && (
+              <div style={{
+                display: 'grid',
+                gridColumn: '1 / -1',
+                gridTemplateColumns: 'subgrid',
+                alignItems: 'center',
+                padding: '0 6px',
+                marginBottom: '1px',
+              }}>
+                <span />
+                <span />
+                <span style={headerCellStyle} title="Display name of the trace">Trace</span>
+                <span style={headerCellStyle} title="Which chart pane this trace is displayed in (P1, P2, …)">Pane</span>
+                <span style={headerCellStyle} title="How marker values are read between data points&#10;Snap — nearest sample&#10;Linear — straight line between samples&#10;Sinc — bandlimited reconstruction (uniform data only)">Interp</span>
+                <span style={headerCellStyle} title="r = Raw — imported directly from a file&#10;d = Derived — computed from one or more raw traces">Kind</span>
+                <span />
               </div>
-            </>
-          );
-        })()}
+            )}
+            {allTraces.map((trace, index) => {
+              const traceColor = resolveTraceColor(trace, index);
+              const isBackedByDisplayTrace = visibleDisplayTraces.some(
+                (displayTrace) => (displayTrace.compat?.legacyTraceName ?? displayTrace.id) === trace.name,
+              );
+              const displayTraceLocation = displayTraceLocationByLegacyName.get(trace.name) ?? null;
+              const effectiveInterpolation = getResolvedInterpolationStrategy(
+                trace.family,
+                trace.interpolation,
+                trace.isUniform ?? false,
+              );
+              const sincDisabledReason = getInterpolationOptionDisabledReason(
+                trace.family,
+                'sinc',
+                trace.isUniform ?? false,
+              );
+
+              return (
+                <TraceRow
+                  key={trace.id || trace.name}
+                  trace={trace}
+                  isVisible={!!vis[trace.name]}
+                  isSelected={selectedTraceName === trace.name}
+                  paneId={tracePaneMap[trace.name]}
+                  traceColor={traceColor}
+                  onSelect={() => selectTrace(trace.name)}
+                  onRemove={() => removeTrace(trace)}
+                  onToggle={() => toggleVisibility(trace.name)}
+                  onColorChange={(color) => {
+                    const next = { ...traceColors, [trace.name]: color };
+                    uiDispatch({ type: 'SET', payload: { key: 'traceColors', value: next } });
+                  }}
+                  interpolation={effectiveInterpolation}
+                  sincDisabledReason={sincDisabledReason}
+                  onInterpolationChange={(interpolation) => {
+                    const nextTrace = { ...trace, interpolation };
+                    markers.forEach((marker, markerIndex) => {
+                      if (marker.trace !== trace.name) {
+                        return;
+                      }
+                      const placement = placeMarker(nextTrace, marker.requestedFreq ?? marker.freq);
+                      markerDispatch({
+                        type: 'UPDATE_MARKER',
+                        payload: {
+                          idx: markerIndex,
+                          updates: {
+                            requestedFreq: placement.requestedFreq,
+                            freq: placement.freq,
+                            amp: placement.amp,
+                            interpolated: placement.interpolated,
+                          },
+                        },
+                      });
+                    });
+
+                    if (trace.kind === 'derived') {
+                      traceDispatch({ type: 'SET_DERIVED_INTERPOLATION', payload: { traceId: trace.id, interpolation } });
+                      return;
+                    }
+                    if (!displayTraceLocation) {
+                      return;
+                    }
+                    fileDispatch({
+                      type: 'SET_DISPLAY_TRACE_INTERPOLATION',
+                      payload: {
+                        fileId: displayTraceLocation.fileId,
+                        displayTraceId: displayTraceLocation.displayTraceId,
+                        interpolation,
+                      },
+                    });
+                  }}
+                  compact={compactSidebar}
+                  removeLabel={
+                    trace.kind === 'derived'
+                      ? 'Delete derived trace'
+                      : isBackedByDisplayTrace
+                        ? 'Hide view'
+                        : 'Delete source file'
+                  }
+                />
+              );
+            })}
+            {allTraces.length === 0 && <SidebarEmpty text="No traces loaded." compact={compactSidebar} />}
+          </div>
+        </PanelSection>
 
         {markers.length > 0 && (
-          <>
-            <Sec>Markers</Sec>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '16px' }}>
-              {markers.map((marker, index) => (
-                <MarkerItem
-                  key={index}
-                  marker={marker}
-                  index={index}
-                  isSelected={selectedMkrIdx === index}
-                  onSelect={() => markerDispatch({ type: 'SET_SELECTED_IDX', payload: index })}
-                  onRemove={() => markerDispatch({ type: 'REMOVE_MARKER', payload: index })}
-                />
-              ))}
+          <PanelSection 
+            title="Markers" 
+            compact={compactSidebar}
+            rightElement={
+              <a 
+                href="#" 
+                onClick={(e) => { e.preventDefault(); markerDispatch({ type: 'CLEAR_ALL' }); }}
+                style={{ fontSize: 'var(--font-caption)', color: 'var(--accent)', textDecoration: 'none' }}
+              >
+                Clear All
+              </a>
+            }
+          >
+            <div style={{ display: 'grid', gap: '4px' }}>
+              {markers.map((marker, index) => {
+                const trace = allTraces.find((item) => item.name === marker.trace) ?? null;
+                const traceIndex = trace ? allTraces.findIndex((item) => item.name === trace.name) : index;
+                const traceColor = trace
+                  ? resolveTraceColor(trace, Math.max(traceIndex, 0))
+                  : (colors?.mn ?? 'var(--accent)');
+                const paneId = tracePaneMap[marker.trace] ?? 'pane-1';
+                const paneNumber = parseInt(paneId.replace('pane-', ''), 10);
+
+                return (
+                  <MarkerItem
+                    key={`${marker.trace}-${index}`}
+                    marker={marker}
+                    index={index}
+                    trace={trace}
+                    traceColor={traceColor}
+                    xSpan={getVisibleTraceXSpan(trace)}
+                    isSelected={selectedMkrIdx === index}
+                    onSelect={() => markerDispatch({ type: 'SET_SELECTED_IDX', payload: index })}
+                    onRemove={() => markerDispatch({ type: 'REMOVE_MARKER', payload: index })}
+                    compact={compactSidebar}
+                    paneNumber={paneNumber}
+                    onUpdateFreq={(freq) => {
+                      if (!trace) {
+                        return;
+                      }
+                      const placement = placeMarker(trace, freq);
+                      markerDispatch({
+                        type: 'UPDATE_MARKER',
+                        payload: {
+                          idx: index,
+                          updates: {
+                            requestedFreq: placement.requestedFreq,
+                            freq: placement.freq,
+                            amp: placement.amp,
+                            interpolated: placement.interpolated,
+                          },
+                        },
+                      });
+                    }}
+                  />
+                );
+              })}
             </div>
-          </>
+          </PanelSection>
         )}
 
         {refLines.length > 0 && (
-          <>
-            <Sec>Reference Lines</Sec>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          <PanelSection title="Reference Lines" compact={compactSidebar}>
+            <div style={{ display: 'grid', gap: '4px' }}>
               {refLines.map((refLine) => (
                 <RefLineItem
                   key={refLine.id}
@@ -344,60 +605,101 @@ export function Sidebar() {
                   isSelected={selectedRefLineId === refLine.id}
                   onSelect={() => refLineDispatch({ type: 'SET_SELECTED', payload: refLine.id })}
                   onRemove={() => refLineDispatch({ type: 'REMOVE_LINE', payload: refLine.id })}
+                  selectedTrace={selectedTraceName ? allTraces.find((trace) => trace.name === selectedTraceName) ?? null : null}
+                  compact={compactSidebar}
+                  colors={colors}
                 />
               ))}
             </div>
-          </>
+          </PanelSection>
         )}
       </div>
     </div>
   );
 }
 
-const badgeStyle: React.CSSProperties = {
-  fontSize: '10px',
-  color: 'var(--dim)',
-  border: '1px solid var(--border)',
-  borderRadius: '999px',
-  padding: '0 6px',
-};
+function FileTitleRow({ fileName, compact = false, onRemove }: { fileName: string; compact?: boolean; onRemove: () => void }) {
+  return (
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: 'minmax(0, 1fr) auto',
+        gap: compact ? '4px' : '6px',
+        alignItems: 'start',
+        minWidth: 0,
+      }}
+    >
+      <PretextLabel
+        text={fileName}
+        font="400 var(--font-body) system-ui"
+        lineHeight="var(--lh-body)"
+        maxLines={compact ? 4 : 5}
+        style={{ fontSize: 'var(--font-body)', color: 'var(--text)', minWidth: 0 }}
+        lineStyle={{ whiteSpace: 'normal' }}
+      />
+      <button
+        type="button"
+        onClick={onRemove}
+        style={{ ...sidebarButtonStyle('#d76482', false, compact), lineHeight: '1.2', flexShrink: 0 }}
+        title="Remove file"
+      >
+        x
+      </button>
+    </div>
+  );
+}
 
-const smallButtonStyle: React.CSSProperties = {
-  background: 'rgba(247, 244, 255, 0.9)',
-  border: '1px solid #d8cde8',
-  borderRadius: '6px',
-  padding: '4px 8px',
-  fontSize: '11px',
-  cursor: 'pointer',
-  color: 'var(--text)',
-};
+function SidebarEmpty({ text, compact = false }: { text: string; compact?: boolean }) {
+  return (
+    <div
+      style={{
+        fontSize: 'var(--font-label)',
+        lineHeight: 'var(--lh-label)',
+        color: 'var(--dim)',
+        padding: compact ? '0.25rem 0.15rem' : '0.32rem 0.15rem',
+      }}
+    >
+      {text}
+    </div>
+  );
+}
 
-function activeSmallButtonStyle(color: string): React.CSSProperties {
+function sidebarButtonStyle(color: string, active = false, compact = false): CSSProperties {
   return {
-    background: `color-mix(in srgb, ${color} 26%, white)`,
-    borderColor: color,
-    color,
+    ...smallButtonBaseStyle,
+    border: `1px solid ${active ? color : `color-mix(in srgb, ${color} 62%, #9b8f7b)`}`,
+    background: active
+      ? `linear-gradient(180deg, color-mix(in srgb, ${color} 18%, white), color-mix(in srgb, ${color} 10%, white))`
+      : `linear-gradient(180deg, rgba(255,255,255,0.98), color-mix(in srgb, ${color} 4%, white))`,
+    color: active ? color : 'var(--text)',
+    boxShadow: active
+      ? `inset 0 1px 0 color-mix(in srgb, white 72%, ${color})`
+      : `inset 0 1px 0 rgba(255,255,255,0.85)`,
+    padding: compact ? '0.18rem 0.5rem' : '0.24rem 0.58rem',
+    fontSize: 'var(--font-label)',
   };
 }
 
-const subsectionLabelStyle: React.CSSProperties = {
-  fontSize: '10px',
-  fontWeight: 700,
-  color: 'var(--muted)',
-  textTransform: 'uppercase',
-  letterSpacing: '0.08em',
-};
-
-function toggleButtonStyle(active: boolean): React.CSSProperties {
-  return {
-    border: active ? '1px solid #cbb8ea' : '1px solid #d8cde8',
-    background: active ? 'rgba(242, 234, 251, 0.95)' : 'rgba(247, 244, 255, 0.9)',
-    color: active ? '#8e6fb0' : 'var(--text)',
-    borderRadius: '6px',
-    padding: '3px 8px',
-    fontSize: '11px',
-    cursor: 'pointer',
-  };
+function PanelSection({ title, compact = false, children, rightElement }: { title: string; compact?: boolean; children: ReactNode; rightElement?: ReactNode }) {
+  return (
+    <div
+      style={{
+        border: '1px solid color-mix(in srgb, var(--accent) 10%, var(--border))',
+        borderRadius: compact ? '8px' : '10px',
+        background: 'linear-gradient(180deg, color-mix(in srgb, var(--card) 96%, white), var(--card))',
+        padding: compact ? '4px 5px 5px' : '5px 6px 6px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: compact ? '3px' : '4px',
+      }}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <Sec>{title}</Sec>
+        {rightElement}
+      </div>
+      {children}
+    </div>
+  );
 }
 
 function getFileTags(file: RawFileRecord, sourceDatasets: readonly Dataset[]): string[] {
@@ -413,145 +715,221 @@ function getFileTags(file: RawFileRecord, sourceDatasets: readonly Dataset[]): s
   return [...tags];
 }
 
-function formatMetadataValue(entry: MetadataEntry): string {
+function normalizeUnit(unit: string | null | undefined): string {
+  return String(unit ?? '').trim().toLowerCase();
+}
+
+function metadataEntryToDisplay(entry: MetadataEntry): string {
   if (typeof entry === 'string') {
     return entry;
   }
-  return `${entry.value} ${entry.unit}`.trim();
+  return formatWithUnit(entry.value, entry.unit);
 }
 
-function MetadataPanel({ meta }: { meta: FileMetadata }) {
+function formatWithUnit(value: number, unit: string | null | undefined): string {
+  if (!Number.isFinite(value)) {
+    return '--';
+  }
+
+  const normalized = normalizeUnit(unit);
+  if (normalized in FREQUENCY_UNIT_SCALE) {
+    const hz = value * FREQUENCY_UNIT_SCALE[normalized as keyof typeof FREQUENCY_UNIT_SCALE]!;
+    return formatEngineeringValue(hz, 'Hz', 3);
+  }
+
+  if (normalized in TIME_UNIT_SCALE) {
+    const seconds = value * TIME_UNIT_SCALE[normalized as keyof typeof TIME_UNIT_SCALE]!;
+    return formatScalarWithUnit(seconds, 's', { digits: 3 });
+  }
+
+  return formatScalarWithUnit(value, unit, { digits: 3 });
+}
+
+function formatTraceXValue(value: number, trace: Trace | null, visibleSpan?: number): string {
+  const hasVisibleSpan = Number.isFinite(visibleSpan) && (visibleSpan ?? 0) > 0;
+  if (!trace) {
+    return hasVisibleSpan
+      ? formatAdaptiveXAxisValue(value, visibleSpan!, { domain: 'frequency', unit: 'Hz' })
+      : formatEngineeringValue(value, 'Hz', 3);
+  }
+  if (!hasVisibleSpan) {
+    if (trace.domain === 'frequency') {
+      return formatEngineeringValue(value, 'Hz', 3);
+    }
+    return formatWithUnit(value, trace.units.x ?? 's');
+  }
+  return formatAdaptiveXAxisValue(value, visibleSpan!, {
+    domain: trace.domain,
+    unit: trace.units.x ?? (trace.domain === 'time' ? 's' : 'Hz'),
+  });
+}
+
+function formatTraceYValue(value: number, trace: Trace | null): string {
+  return formatWithUnit(value, trace?.units.y ?? null);
+}
+
+function formatRefLineValue(refLine: RefLine, selectedTrace: Trace | null): string {
+  if (refLine.type === 'v') {
+    return formatTraceXValue(refLine.value, selectedTrace);
+  }
+  return formatWithUnit(refLine.value, selectedTrace?.units.y ?? null);
+}
+
+function parseEngineeringInput(text: string, trace: Trace | null): number | null {
+  const compact = text.trim().replace(/\s+/g, '').replace(/µ/g, 'u');
+  if (!compact) {
+    return null;
+  }
+
+  const match = compact.match(/^([+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?)([A-Za-z]*)$/);
+  if (!match) {
+    return null;
+  }
+
+  const rawValue = Number(match[1]);
+  const rawSuffix = match[2] ?? '';
+  if (!Number.isFinite(rawValue)) {
+    return null;
+  }
+
+  const suffix = rawSuffix.trim();
+  if (!suffix) {
+    return rawValue;
+  }
+
+  const lower = suffix.toLowerCase();
+  if (lower in FREQUENCY_UNIT_SCALE) {
+    return rawValue * FREQUENCY_UNIT_SCALE[lower as keyof typeof FREQUENCY_UNIT_SCALE]!;
+  }
+  if (lower in TIME_UNIT_SCALE) {
+    return rawValue * TIME_UNIT_SCALE[lower as keyof typeof TIME_UNIT_SCALE]!;
+  }
+
+  if (suffix in PREFIX_SCALE) {
+    return rawValue * PREFIX_SCALE[suffix as keyof typeof PREFIX_SCALE]!;
+  }
+
+  const frequencyKey = lower + 'hz';
+  if (trace?.domain === 'frequency' && frequencyKey in FREQUENCY_UNIT_SCALE) {
+    return rawValue * FREQUENCY_UNIT_SCALE[frequencyKey as keyof typeof FREQUENCY_UNIT_SCALE]!;
+  }
+
+  const timeKey = lower + 's';
+  if (trace?.domain === 'time' && timeKey in TIME_UNIT_SCALE) {
+    return rawValue * TIME_UNIT_SCALE[timeKey as keyof typeof TIME_UNIT_SCALE]!;
+  }
+
+  return null;
+}
+
+function MetadataPanel({ meta, compact = false }: { meta: FileMetadata; compact?: boolean }) {
   const entries = useMemo(() => Object.entries(meta), [meta]);
   if (entries.length === 0) {
     return null;
   }
 
   return (
-    <div style={{ marginTop: '8px', border: '1px solid var(--border)', borderRadius: '8px', padding: '8px', background: 'var(--bg)', display: 'grid', gap: '4px' }}>
+    <div
+      style={{
+        border: '1px solid var(--border)',
+        borderRadius: '8px',
+        padding: compact ? '4px 5px' : '5px 6px',
+        background: 'var(--bg)',
+        display: 'grid',
+        gap: compact ? '3px' : '4px',
+      }}
+    >
       <div style={subsectionLabelStyle}>Metadata</div>
       {entries.map(([key, value]) => (
-        <div key={key} style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 90px) minmax(0, 1fr)', gap: '8px', fontSize: '11px' }}>
-          <span style={{ color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={key}>{key}</span>
-          <span style={{ color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={formatMetadataValue(value)}>
-            {formatMetadataValue(value)}
-          </span>
+        <div
+          key={key}
+          style={{
+            display: 'grid',
+            gridTemplateColumns: compact ? 'minmax(0, 64px) minmax(0, 1fr)' : 'minmax(0, 74px) minmax(0, 1fr)',
+            gap: compact ? '4px' : '5px',
+            alignItems: 'start',
+          }}
+        >
+          <PretextLabel
+            text={key}
+            font="400 var(--font-caption) system-ui"
+            lineHeight="var(--lh-caption)"
+            maxLines={4}
+            style={{ fontSize: 'var(--font-caption)', color: 'var(--muted)' }}
+            lineStyle={{ whiteSpace: 'normal' }}
+          />
+          <PretextLabel
+            text={metadataEntryToDisplay(value)}
+            font="400 var(--font-label) var(--font-mono)"
+            lineHeight="var(--lh-label)"
+            maxLines={4}
+            style={{ fontSize: 'var(--font-label)', color: 'var(--text)' }}
+            lineStyle={{ whiteSpace: 'normal' }}
+          />
         </div>
       ))}
     </div>
   );
 }
-
-function DatasetRow({ dataset }: { dataset: Dataset }) {
-  const badgeLabel = dataset.kind === 'derived' ? `${dataset.family} / derived` : dataset.family;
-  const detail =
-    dataset.family === 'network'
-      ? `${dataset.parameterFamily}, ${dataset.portCount}-port, ${dataset.basis}`
-      : dataset.family === 'waveform'
-        ? 'time domain'
-        : dataset.family === 'spectrum'
-          ? 'frequency domain'
-          : dataset.family;
-
-  return (
-    <div
-      style={{
-        border: '1px solid var(--border)',
-        borderRadius: '6px',
-        padding: '6px 8px',
-        background: 'var(--bg)',
-        display: 'grid',
-        gap: '4px',
-        minWidth: 0,
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', minWidth: 0 }}>
-        <span
-          style={{
-            fontSize: '11px',
-            fontWeight: 700,
-            color: 'var(--text)',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-            minWidth: 0,
-          }}
-          title={dataset.label}
-        >
-          {dataset.label}
-        </span>
-        <span
-          style={{
-            fontSize: '9px',
-            color: 'var(--muted)',
-            border: '1px solid var(--border)',
-            borderRadius: '999px',
-            padding: '0 6px',
-            lineHeight: '1.6',
-            flexShrink: 0,
-          }}
-        >
-          {badgeLabel}
-        </span>
-      </div>
-      <span style={{ fontSize: '10px', color: 'var(--dim)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={detail}>{detail}</span>
-    </div>
-  );
-}
-
-function TraceRow({
-  trace,
-  index,
-  isVisible,
-  isSelected,
-  paneId,
-  customColor,
-  onSelect,
-  onRemove,
-  onToggle,
-  onColorChange,
-  colors,
-  removeLabel,
-}: {
+function TraceRow(props: {
   trace: Trace;
-  index: number;
   isVisible: boolean;
   isSelected: boolean;
   paneId?: string;
-  customColor: string | null;
+  traceColor: string;
   onSelect: () => void;
   onRemove: () => void;
   onToggle: () => void;
   onColorChange: (color: string) => void;
-  colors: { tr: readonly string[] } | null;
+  interpolation: InterpolationStrategy;
+  sincDisabledReason: string;
+  onInterpolationChange: (interpolation: InterpolationStrategy) => void;
+  compact?: boolean;
   removeLabel: string;
 }) {
-  const colorInputRef = useRef<HTMLInputElement>(null);
-  const tracePalette = colors?.tr ?? [];
-  const paletteColor = tracePalette[index % (tracePalette.length || 1)] || '#888888';
-  const traceColor = customColor || paletteColor;
-  const paneBadge = paneId ? `P${paneId.split('-')[1] || '1'}` : null;
+  const {
+    trace,
+    isVisible,
+    isSelected,
+    paneId,
+    traceColor,
+    onSelect,
+    onRemove,
+    onToggle,
+    onColorChange,
+    interpolation,
+    sincDisabledReason,
+    onInterpolationChange,
+    compact = false,
+    removeLabel,
+  } = props;
+  const selectTitle = sincDisabledReason || 'Trace interpolation';
 
   return (
     <div
       draggable
-      onDragStart={(event) => {
-        event.dataTransfer.effectAllowed = 'move';
-        event.dataTransfer.setData('application/x-mergen-trace', trace.name);
-        event.dataTransfer.setData('text/plain', trace.name);
+      onDragStart={(e) => {
+        e.dataTransfer.setData('application/x-mergen-trace', trace.name);
+        e.dataTransfer.setData('text/plain', trace.name);
+        e.dataTransfer.effectAllowed = 'move';
+      }}
+      style={{
+        display: 'grid',
+        gridColumn: '1 / -1',
+        gridTemplateColumns: 'subgrid',
+        alignItems: 'center',
+        minWidth: 0,
+        padding: compact ? '2px 5px' : '3px 6px',
+        borderRadius: compact ? '7px' : '8px',
+        border: `1px solid ${isSelected ? traceColor : 'color-mix(in srgb, var(--accent) 8%, var(--border))'}`,
+        background: isSelected
+          ? `color-mix(in srgb, ${traceColor} 10%, white)`
+          : 'rgba(255,255,255,0.78)',
+        boxShadow: isSelected ? `inset 3px 0 0 ${traceColor}` : 'none',
+        cursor: 'grab',
       }}
       onClick={onSelect}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '6px',
-        padding: '4px 8px',
-        cursor: 'pointer',
-        fontSize: '12px',
-        borderRadius: '4px',
-        background: isSelected ? 'var(--bg-alt, rgba(0,0,0,0.05))' : 'transparent',
-        border: isSelected ? '1px solid var(--border)' : '1px solid transparent',
-        minWidth: 0,
-      }}
+      title={trace.dn}
     >
       <input
         type="checkbox"
@@ -560,76 +938,79 @@ function TraceRow({
           event.stopPropagation();
           onToggle();
         }}
-        onClick={(event) => event.stopPropagation()}
-        style={{ accentColor: traceColor }}
+        title={isVisible ? 'Hide trace' : 'Show trace'}
       />
       <input
-        ref={colorInputRef}
         type="color"
         value={traceColor}
-        onChange={(event) => {
-          event.stopPropagation();
-          onColorChange(event.target.value);
-        }}
         onClick={(event) => event.stopPropagation()}
-        title="Change trace color"
+        onChange={(event) => onColorChange(event.target.value)}
+        title="Trace color"
         style={{
-          width: '16px',
-          height: '16px',
-          padding: 0,
+          width: compact ? '12px' : '14px',
+          height: compact ? '12px' : '14px',
           border: '1px solid var(--border)',
-          borderRadius: '3px',
+          borderRadius: '4px',
+          padding: 0,
+          background: 'transparent',
           cursor: 'pointer',
-          background: 'none',
-          flexShrink: 0,
         }}
       />
-      <span
-        style={{
-          color: traceColor,
-          fontWeight: 600,
-          fontSize: '11px',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap',
-          flex: 1,
-          minWidth: 0,
-        }}
-        title={trace.dn || trace.name}
-      >
-        {trace.dn || trace.name}
-      </span>
-      {paneBadge && (
+      <div style={{ minWidth: 0, overflow: 'hidden', display: 'flex', alignItems: 'center', gap: '4px' }}>
         <span
+          title={trace.dn}
           style={{
-            fontSize: '9px',
-            color: 'var(--dim)',
-            border: '1px solid var(--border)',
-            borderRadius: '999px',
-            padding: '0 5px',
-            lineHeight: '1.4',
-            flexShrink: 0,
+            fontSize: 'var(--font-label)',
+            color: traceColor,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+            minWidth: 0,
+            flex: 1,
           }}
         >
-          {paneBadge}
+          {trace.dn}
         </span>
-      )}
+        {trace.kind === 'derived' && (
+          <span style={{ ...badgeStyle, borderColor: `color-mix(in srgb, ${traceColor} 30%, var(--border))`, color: traceColor, flexShrink: 0 }}>
+            fx
+          </span>
+        )}
+      </div>
+      {paneId && <span style={badgeStyle}>{paneId.replace('pane-', 'P')}</span>}
+      <select
+        value={interpolation}
+        onClick={(event) => event.stopPropagation()}
+        onChange={(event) => onInterpolationChange(event.target.value as InterpolationStrategy)}
+        title={selectTitle}
+        style={{
+          background: 'rgba(255,255,255,0.98)',
+          color: 'var(--text)',
+          border: '1px solid var(--border)',
+          borderRadius: '5px',
+          fontSize: 'var(--font-caption)',
+          lineHeight: 'var(--lh-caption)',
+          padding: compact ? '0.18rem 0.28rem' : '0.22rem 0.34rem',
+          minWidth: compact ? '58px' : '70px',
+        }}
+      >
+        <option value="snap">Snap</option>
+        <option value="linear">Linear</option>
+        <option value="sinc" disabled={!!sincDisabledReason}>
+          Sinc
+        </option>
+      </select>
+      <span style={{ fontSize: 'var(--font-caption)', lineHeight: 'var(--lh-caption)', color: 'var(--dim)' }}>
+        {trace.kind === 'derived' ? 'd' : 'r'}
+      </span>
       <button
+        type="button"
         onClick={(event) => {
           event.stopPropagation();
           onRemove();
         }}
+        style={sidebarButtonStyle('#d76482', false, compact)}
         title={removeLabel}
-        style={{
-          background: 'none',
-          border: 'none',
-          color: '#f55',
-          cursor: 'pointer',
-          fontSize: '14px',
-          padding: '0 2px',
-          opacity: 0.6,
-          flexShrink: 0,
-        }}
       >
         x
       </button>
@@ -637,78 +1018,199 @@ function TraceRow({
   );
 }
 
-function MarkerItem({ marker, index, isSelected, onSelect, onRemove }: {
+function MarkerItem(props: {
   marker: Marker;
   index: number;
+  trace: Trace | null;
+  traceColor: string;
+  xSpan: number;
   isSelected: boolean;
   onSelect: () => void;
   onRemove: () => void;
+  compact?: boolean;
+  onUpdateFreq: (freq: number) => void;
+  paneNumber: number;
 }) {
+  const { marker, index, trace, traceColor, xSpan, isSelected, onSelect, onRemove, compact = false, onUpdateFreq, paneNumber } = props;
+  const roleLabel = marker.label ? ` - ${marker.label}` : '';
+  const [freqText, setFreqText] = useState(() => formatTraceXValue(marker.freq, trace, xSpan));
+
+  useEffect(() => {
+    setFreqText(formatTraceXValue(marker.freq, trace, xSpan));
+  }, [marker.freq, trace, xSpan]);
+
+  const commitFreq = () => {
+    const parsed = parseEngineeringInput(freqText, trace);
+    if (parsed == null) {
+      setFreqText(formatTraceXValue(marker.freq, trace, xSpan));
+      return;
+    }
+    onUpdateFreq(parsed);
+  };
+
   return (
     <div
       onClick={onSelect}
       style={{
-        padding: '6px',
-        background: isSelected ? 'var(--da, rgba(0,0,0,0.02))' : 'var(--card)',
-        border: `1px solid ${isSelected ? 'var(--accent)' : 'var(--border)'}`,
-        borderRadius: '6px',
+        border: `1px solid ${isSelected ? traceColor : `color-mix(in srgb, ${traceColor} 20%, var(--border))`}`,
+        borderRadius: compact ? '7px' : '8px',
+        padding: compact ? '4px 5px' : '5px 6px',
+        background: isSelected
+          ? `color-mix(in srgb, ${traceColor} 14%, white)`
+          : `color-mix(in srgb, ${traceColor} 6%, white)`,
+        boxShadow: `inset 3px 0 0 ${traceColor}`,
+        display: 'grid',
+        gap: compact ? '3px' : '4px',
         cursor: 'pointer',
+        minWidth: 0,
       }}
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-        <span style={{ fontWeight: 700, fontSize: '11px', color: 'var(--accent)' }}>
-          M{index + 1} {marker.label ? `(${marker.label})` : ''}
-        </span>
+      <div style={{ display: 'grid', gridTemplateColumns: 'auto minmax(0, 1fr) auto', gap: compact ? '4px' : '6px', alignItems: 'start', minWidth: 0 }}>
+        <div style={{ display: 'flex', gap: '3px', alignItems: 'center' }}>
+          <span
+            title={`Marker ${index + 1}`}
+            style={{
+              ...badgeStyle,
+              padding: '1px 6px',
+              background: isSelected ? traceColor : 'rgba(255,255,255,0.94)',
+              borderColor: traceColor,
+              color: isSelected ? '#ffffff' : traceColor,
+            }}
+          >
+            M{index + 1}
+          </span>
+          <span
+            title={`Pane ${paneNumber}`}
+            style={{
+              ...badgeStyle,
+              padding: '1px 5px',
+              background: 'transparent',
+              borderColor: 'var(--border)',
+              color: 'var(--muted)',
+            }}
+          >
+            P{paneNumber}
+          </span>
+        </div>
+        <div style={{ minWidth: 0, display: 'grid', gap: '1px' }}>
+          <PretextLabel
+            text={`${trace?.dn ?? marker.trace}${roleLabel}`}
+            font="400 var(--font-label) system-ui"
+            lineHeight="var(--lh-label)"
+            maxLines={compact ? 3 : 4}
+            style={{ fontSize: 'var(--font-label)', color: 'var(--text)', minWidth: 0 }}
+            lineStyle={{ whiteSpace: 'normal' }}
+          />
+        </div>
         <button
+          type="button"
           onClick={(event) => {
             event.stopPropagation();
             onRemove();
           }}
-          style={{ background: 'none', border: 'none', color: '#f55', cursor: 'pointer', padding: 0 }}
+          style={sidebarButtonStyle('#d76482', false, compact)}
+          title="Remove marker"
         >
           x
         </button>
       </div>
-      <MR label="Freq" value={marker.freq} />
-      <MR label="Amp" value={marker.amp} />
+
+      <div style={{ display: 'grid', gridTemplateColumns: compact ? '18px minmax(0, 1fr)' : '24px minmax(0, 1fr)', gap: compact ? '4px' : '6px', alignItems: 'center' }}>
+        <span style={{ fontSize: 'var(--font-caption)', lineHeight: 'var(--lh-caption)', color: 'var(--muted)' }}>X</span>
+        <input
+          value={freqText}
+          onChange={(event) => setFreqText(event.target.value)}
+          onBlur={commitFreq}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') {
+              commitFreq();
+            }
+            if (event.key === 'Escape') {
+              setFreqText(formatTraceXValue(marker.freq, trace, xSpan));
+            }
+          }}
+          onClick={(event) => event.stopPropagation()}
+          style={{
+            width: '100%',
+            background: 'rgba(255,255,255,0.98)',
+            color: 'var(--text)',
+            border: `1px solid color-mix(in srgb, ${traceColor} 25%, var(--border))`,
+            borderRadius: '5px',
+            fontSize: 'var(--font-label)',
+            lineHeight: 'var(--lh-label)',
+            padding: compact ? '0.2rem 0.38rem' : '0.24rem 0.46rem',
+            minWidth: 0,
+          }}
+        />
+      </div>
+
+      <div style={{ display: 'grid', gap: '1px' }}>
+        <MR label="Y" value={formatTraceYValue(marker.amp, trace)} vc={traceColor} />
+      </div>
+
+      <div style={{ fontSize: 'var(--font-caption)', lineHeight: 'var(--lh-caption)', color: 'var(--dim)' }}>
+        {marker.interpolated ? 'interp' : 'snap'}
+      </div>
     </div>
   );
 }
 
-function RefLineItem({ refLine, isSelected, onSelect, onRemove }: {
+function RefLineItem(props: {
   refLine: RefLine;
   isSelected: boolean;
   onSelect: () => void;
   onRemove: () => void;
+  selectedTrace: Trace | null;
+  compact?: boolean;
+  colors?: ThemeColors | null;
 }) {
-  const color = refLine.type === 'h' ? 'var(--refH)' : 'var(--refV)';
+  const { refLine, isSelected, onSelect, onRemove, selectedTrace, compact = false, colors } = props;
+  const accentColor = refLine.type === 'v' ? (colors?.refV ?? '#d48a2b') : (colors?.refH ?? '#2b9ab7');
+  const label = refLine.label?.trim() || `${refLine.type === 'v' ? 'V' : 'H'} line ${refLine.id}`;
 
   return (
     <div
       onClick={onSelect}
       style={{
-        padding: '6px',
-        background: isSelected ? 'var(--da, rgba(0,0,0,0.02))' : 'var(--card)',
-        border: `1px solid ${isSelected ? color : 'var(--border)'}`,
-        borderRadius: '6px',
+        border: `1px solid ${isSelected ? accentColor : `color-mix(in srgb, ${accentColor} 18%, var(--border))`}`,
+        borderRadius: compact ? '7px' : '8px',
+        padding: compact ? '4px 5px' : '5px 6px',
+        background: isSelected
+          ? `color-mix(in srgb, ${accentColor} 12%, white)`
+          : `color-mix(in srgb, ${accentColor} 5%, white)`,
+        boxShadow: `inset 3px 0 0 ${accentColor}`,
+        display: 'grid',
+        gap: compact ? '2px' : '3px',
         cursor: 'pointer',
+        minWidth: 0,
       }}
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-        <span style={{ fontWeight: 700, fontSize: '11px', color }}>
-          {refLine.type === 'h' ? 'H' : 'V'}-Ref
-        </span>
+      <div style={{ display: 'grid', gridTemplateColumns: 'auto minmax(0, 1fr) auto', gap: compact ? '4px' : '6px', alignItems: 'start', minWidth: 0 }}>
+        <span style={{ ...badgeStyle, borderColor: accentColor, color: accentColor }}>{refLine.type.toUpperCase()}</span>
+        <PretextLabel
+          text={label}
+          font="400 var(--font-label) system-ui"
+          lineHeight="var(--lh-label)"
+          maxLines={compact ? 3 : 4}
+          style={{ fontSize: 'var(--font-label)', color: 'var(--text)', minWidth: 0 }}
+          lineStyle={{ whiteSpace: 'normal' }}
+        />
         <button
+          type="button"
           onClick={(event) => {
             event.stopPropagation();
             onRemove();
           }}
-          style={{ background: 'none', border: 'none', color: '#f55', cursor: 'pointer', padding: 0 }}
+          style={sidebarButtonStyle('#d76482', false, compact)}
+          title="Remove reference line"
         >
           x
         </button>
       </div>
-      <MR label="Value" value={refLine.value} />
+      <MR label="Value" value={formatRefLineValue(refLine, selectedTrace)} vc={accentColor} />
     </div>
   );
 }
+
+
+

@@ -36,7 +36,7 @@ export function useWorkspace() {
     const ui: WorkspaceUiState = {
       ...uiState,
       newMarkerArmed: false, // Not persisted in v1 typically
-      markerTrace: markerState.markerTrace,
+      markerTrace: uiState.markerTrace,
       selectedMkrIdx: markerState.selectedMkrIdx,
       dRef: null,
       refMode: refLineState.refMode,
@@ -49,6 +49,7 @@ export function useWorkspace() {
       lockLinesAcrossPanes: false,
       searchDirection: 'left',
       showDT: false,
+      traceInterpolations: uiState.traceInterpolations,
     };
 
     const xZoomState: XZoomState = {

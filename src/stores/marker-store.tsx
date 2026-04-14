@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useReducer } from 'react';
 import type { Marker, MarkerType } from '../types/marker';
-import type { DataPoint } from '../types/trace';
-import { placeMarker } from '../domain/markers';
+import type { Trace } from '../types/trace';
+import { placeMarker, type MagneticSnapOptions } from '../domain/markers';
 
 export interface MarkerState {
   markers: Marker[];
@@ -11,16 +11,16 @@ export interface MarkerState {
 }
 
 export type MarkerAction =
-  | { 
-      type: 'PLACE_MARKER'; 
-      payload: { 
-        traceData: readonly DataPoint[]; 
-        targetFreq: number; 
-        traceName: string; 
-        markerType?: MarkerType; 
-        label?: string | null; 
+  | {
+      type: 'PLACE_MARKER';
+      payload: {
+        trace: Trace;
+        targetFreq: number;
+        markerType?: MarkerType;
+        label?: string | null;
         refIdx?: number | null;
-      } 
+        magneticSnap?: MagneticSnapOptions;
+      }
     }
   | { type: 'REMOVE_MARKER'; payload: number } // remove by idx
   | { type: 'REMOVE_MARKERS_FOR_TRACES'; payload: string[] }
@@ -44,14 +44,15 @@ const MarkerDispatchContext = createContext<React.Dispatch<MarkerAction> | null>
 function markerReducer(state: MarkerState, action: MarkerAction): MarkerState {
   switch (action.type) {
     case 'PLACE_MARKER': {
-      const { targetFreq, traceData, traceName, markerType = 'normal', label = null, refIdx = null } = action.payload;
-      const placement = placeMarker(traceData, targetFreq);
+      const { targetFreq, trace, markerType = 'normal', label = null, refIdx = null, magneticSnap } = action.payload;
+      const placement = placeMarker(trace, targetFreq, magneticSnap);
       
       const newMarker: Marker = {
+        requestedFreq: placement.requestedFreq,
         freq: placement.freq,
         amp: placement.amp,
         interpolated: placement.interpolated,
-        trace: traceName,
+        trace: trace.name,
         type: markerType,
         label,
         refIdx,

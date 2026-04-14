@@ -21,20 +21,21 @@ export function MR({ label, value, hlColor, vc }: MRProps) {
     <div style={{
       display: 'flex',
       justifyContent: 'space-between',
-      padding: '3px 0',
+      gap: '0.75rem',
+      padding: '0.32rem 0',
       borderBottom: '1px solid var(--border)',
       alignItems: 'baseline'
     }}>
       <span style={{ 
         color: hlColor || 'var(--muted)', 
-        fontSize: '12px',
-        fontWeight: hlColor ? 600 : 400
+        fontSize: 'var(--font-label)',
+        fontWeight: 400
       }}>
         {label}
       </span>
       <span style={{ 
         color: vc || 'var(--text)', 
-        fontSize: '11px', 
+        fontSize: 'var(--font-body)', 
         fontFamily: 'var(--font-mono, monospace)',
         textAlign: 'right'
       }}>

@@ -8,8 +8,8 @@ export interface WizardDomainPickerProps {
 export function WizardDomainPicker({ domain, onChangeDomain }: WizardDomainPickerProps) {
 	return (
 		<fieldset style={{ border: '1px solid var(--border)', borderRadius: '6px', padding: '8px' }}>
-			<legend style={{ fontSize: '11px', padding: '0 4px' }}>Domain</legend>
-			<label style={{ display: 'flex', gap: '6px', fontSize: '11px' }}>
+			<legend style={{ fontSize: 'var(--font-label)', padding: '0 4px' }}>Domain</legend>
+			<label style={{ display: 'flex', gap: '6px', fontSize: 'var(--font-label)' }}>
 				<input
 					type="radio"
 					name="wizard-domain"
@@ -18,7 +18,7 @@ export function WizardDomainPicker({ domain, onChangeDomain }: WizardDomainPicke
 				/>
 				Frequency
 			</label>
-			<label style={{ display: 'flex', gap: '6px', fontSize: '11px' }}>
+			<label style={{ display: 'flex', gap: '6px', fontSize: 'var(--font-label)' }}>
 				<input
 					type="radio"
 					name="wizard-domain"

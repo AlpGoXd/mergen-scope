@@ -19,6 +19,14 @@ function makeId(fileName: string) {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${fileName}`;
 }
 
+function clampLeftPanelWidth(width: number, viewportWidth: number) {
+  return Math.max(200, Math.min(width, Math.min(560, viewportWidth * 0.45)));
+}
+
+function clampRightPanelWidth(width: number, viewportWidth: number) {
+  return Math.max(220, Math.min(width, Math.min(600, viewportWidth * 0.45)));
+}
+
 /**
  * Main application shell.
  * Store providers are mounted in main.tsx.
@@ -29,7 +37,13 @@ export function App() {
 
   // Activate theme and color tokens
   useTheme();
-  const { theme, selectedTraceName, paneAssignmentWarning } = useUiState();
+  const {
+    theme,
+    selectedTraceName,
+    paneAssignmentWarning,
+    showSidebar,
+    showRightPanel,
+  } = useUiState();
   const { allTraces, vis } = useTraceState();
   const traceDispatch = useTraceDispatch();
   const uiDispatch = useUiDispatch();
@@ -139,6 +153,9 @@ export function App() {
   }, [activePaneId, allTraces, paneDispatch, panes, traceDispatch, tracePaneMap, uiDispatch]);
 
   const [dragging, setDragging] = useState(false);
+  const [leftPanelWidth, setLeftPanelWidth] = useState(() => clampLeftPanelWidth(300, typeof window === 'undefined' ? 1440 : window.innerWidth));
+  const [rightPanelWidth, setRightPanelWidth] = useState(() => clampRightPanelWidth(280, typeof window === 'undefined' ? 1440 : window.innerWidth));
+  const resizingSideRef = useRef<'left' | 'right' | null>(null);
   const dragCounter = useRef(0);
 
   const resetDragOverlay = useCallback(() => {
@@ -155,6 +172,46 @@ export function App() {
       window.removeEventListener('dragend', clearOverlay);
     };
   }, [resetDragOverlay]);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setLeftPanelWidth((current) => clampLeftPanelWidth(current, window.innerWidth));
+      setRightPanelWidth((current) => clampRightPanelWidth(current, window.innerWidth));
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  useEffect(() => {
+    const handlePointerMove = (event: MouseEvent) => {
+      if (resizingSideRef.current === 'left') {
+        setLeftPanelWidth(clampLeftPanelWidth(event.clientX, window.innerWidth));
+      } else if (resizingSideRef.current === 'right') {
+        setRightPanelWidth(clampRightPanelWidth(window.innerWidth - event.clientX, window.innerWidth));
+      }
+    };
+
+    const handlePointerUp = () => {
+      resizingSideRef.current = null;
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+
+    window.addEventListener('mousemove', handlePointerMove);
+    window.addEventListener('mouseup', handlePointerUp);
+    return () => {
+      window.removeEventListener('mousemove', handlePointerMove);
+      window.removeEventListener('mouseup', handlePointerUp);
+    };
+  }, []);
+
+  const startResize = useCallback((side: 'left' | 'right') => (event: React.MouseEvent) => {
+    event.preventDefault();
+    resizingSideRef.current = side;
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  }, []);
 
   const handleDragEnter = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -235,7 +292,7 @@ export function App() {
           alignItems: 'center',
           justifyContent: 'center',
           fontSize: '1.25rem',
-          fontWeight: 600,
+          fontWeight: 400,
           color: 'var(--accent)',
           pointerEvents: 'none',
           gap: '0.5rem',
@@ -247,10 +304,12 @@ export function App() {
       <TopBar />
       <ToolbarStrip />
 
-      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-        <Sidebar />
+      <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minWidth: 0 }}>
+        {showSidebar && <Sidebar width={leftPanelWidth} />}
+        {showSidebar && <PanelResizeHandle side="left" onMouseDown={startResize('left')} />}
         <ChartWorkspace />
-        <RightPanelStack />
+        {showRightPanel && <PanelResizeHandle side="right" onMouseDown={startResize('right')} />}
+        <RightPanelStack width={rightPanelWidth} />
       </div>
 
       <FooterBar />
@@ -259,3 +318,23 @@ export function App() {
     </div>
   );
 }
+
+function PanelResizeHandle({ side, onMouseDown }: { side: 'left' | 'right'; onMouseDown: (event: React.MouseEvent) => void }) {
+  return (
+    <div
+      onMouseDown={onMouseDown}
+      role="separator"
+      aria-orientation="vertical"
+      aria-label={`Resize ${side} panel`}
+      style={{
+        width: '6px',
+        cursor: 'col-resize',
+        background: 'linear-gradient(180deg, transparent, color-mix(in srgb, var(--accent) 16%, transparent), transparent)',
+        borderLeft: side === 'right' ? '1px solid color-mix(in srgb, var(--accent) 8%, transparent)' : 'none',
+        borderRight: side === 'left' ? '1px solid color-mix(in srgb, var(--accent) 8%, transparent)' : 'none',
+        flexShrink: 0,
+      }}
+    />
+  );
+}
+

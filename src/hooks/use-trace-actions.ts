@@ -2,7 +2,7 @@ import { useCallback } from 'react';
 import { useTraceState, useTraceDispatch } from '../stores/trace-store';
 import { usePaneState, usePaneDispatch } from '../stores/pane-store';
 import { useUiState, useUiDispatch } from '../stores/ui-store';
-import { useMarkerState, useMarkerDispatch } from '../stores/marker-store';
+import { useMarkerDispatch } from '../stores/marker-store';
 import { useFileDispatch, useFileState } from '../stores/file-store';
 import type { Trace } from '../types/trace';
 
@@ -17,7 +17,6 @@ export function useTraceActions() {
   const paneDispatch = usePaneDispatch();
   const uiState = useUiState();
   const uiDispatch = useUiDispatch();
-  const markerState = useMarkerState();
   const markerDispatch = useMarkerDispatch();
   const fileState = useFileState();
   const fileDispatch = useFileDispatch();
@@ -62,10 +61,11 @@ export function useTraceActions() {
       uiDispatch({ type: 'SET', payload: { key: 'selectedTraceName', value: null } });
     }
 
-    if (markerState.markerTrace === trace.name) {
-      markerDispatch({ type: 'SET_TRACE', payload: '' });
+    if (uiState.markerTrace === trace.name) {
+      uiDispatch({ type: 'SET', payload: { key: 'markerTrace', value: '__auto__' } });
     }
-  }, [traceDispatch, fileDispatch, fileState.files, markerDispatch, uiState.selectedTraceName, uiDispatch, markerState.markerTrace]);
+
+  }, [traceDispatch, fileDispatch, fileState.files, markerDispatch, uiState.selectedTraceName, uiState.markerTrace, uiDispatch]);
 
   const toggleVisibility = useCallback((traceName: string) => {
     const nextVis = !traceState.vis[traceName];

@@ -3,6 +3,7 @@ import type { ComplexDisplayPoint, DisplayTrace, ScalarDisplayPoint, ScalarDispl
 import type { TouchstoneNetwork } from '../types/touchstone';
 import type { Trace } from '../types/trace';
 import { makeDatasetCapabilities, makeRootProvenance } from './dataset-capabilities';
+import { isUniformDataPoints, isUniformSpacing } from './interpolation';
 import { computeTwoPortStability, convertSMatrixToYMatrix, convertSMatrixToZMatrix } from './touchstone-math';
 
 function makeDatasetId(prefix: string, suffix: string): string {
@@ -35,6 +36,7 @@ export function buildSeriesDatasetFromTrace(
     label: trace.file ? `${trace.file} ${trace.dn || trace.name}` : (trace.dn || trace.name),
     fileId,
     fileName,
+    isUniform: isUniformDataPoints(trace.data),
     provenance: makeRootProvenance(datasetId),
     capabilities: makeDatasetCapabilities(family),
   };
@@ -64,6 +66,9 @@ export function buildScalarDisplayTraceFromSeriesDataset(dataset: SpectrumDatase
     kind: 'dataset-projection',
     label: series.label,
     datasetId: dataset.id,
+    family: dataset.family,
+    isUniform: dataset.isUniform ?? false,
+    interpolation: trace.interpolation,
     provenance: {
       parentDatasetId: dataset.id,
       parentDisplayTraceIds: [],
@@ -102,6 +107,7 @@ export function buildNetworkDatasetFromTouchstone(network: TouchstoneNetwork, fi
     label: fileName,
     fileId,
     fileName,
+    isUniform: isUniformSpacing(samples.map((sample) => sample.freqHz)),
     provenance: makeRootProvenance(datasetId),
     capabilities: makeDatasetCapabilities('network', { portCount: network.portCount }),
     xDomain: 'frequency',
@@ -180,6 +186,8 @@ export function buildNetworkProjectionDisplayTrace(
     kind: 'dataset-projection' as const,
     label,
     datasetId: dataset.id,
+    family: dataset.family,
+    isUniform: dataset.isUniform ?? false,
     provenance: {
       parentDatasetId: dataset.id,
       parentDisplayTraceIds: [],
@@ -255,6 +263,7 @@ export function convertNetworkDataset(dataset: NetworkDataset, parameterFamily: 
     id: makeDatasetId('network', `${dataset.id}-${parameterFamily.toLowerCase()}`),
     kind: 'derived',
     label: `${dataset.label} ${parameterFamily}`,
+    isUniform: dataset.isUniform ?? false,
     provenance: {
       rootDatasetIds: dataset.provenance.rootDatasetIds,
       transformSteps: [
@@ -334,6 +343,8 @@ export function buildNetworkDerivedScalarTrace(
     kind: 'derived-trace',
     label,
     datasetId: dataset.id,
+    family: dataset.family,
+    isUniform: dataset.isUniform ?? false,
     provenance: {
       parentDatasetId: dataset.id,
       parentDisplayTraceIds: [],

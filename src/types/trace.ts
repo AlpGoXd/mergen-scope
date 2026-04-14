@@ -7,6 +7,8 @@
 
 import type { YUnit, XUnit } from "./units.ts";
 import type { TouchstoneNetwork, NetworkSource } from "./touchstone.ts";
+import type { DatasetFamily } from "./dataset.ts";
+import type { InterpolationStrategy } from "./interpolation.ts";
 
 // ---------------------------------------------------------------------------
 // Data point — the universal shape
@@ -100,6 +102,9 @@ export interface TraceBase {
   /** Detector type (e.g. "RMS", "Peak"). */
   readonly detector: string;
 
+  /** Canonical dataset family from the File -> Dataset -> DisplayTrace pipeline. */
+  readonly family: DatasetFamily;
+
   /** X-axis domain: frequency or time. */
   readonly domain: TraceDomain;
 
@@ -111,6 +116,12 @@ export interface TraceBase {
 
   /** Display name shown in the UI. */
   readonly dn: string;
+
+  /** True when the source x-samples are uniformly spaced within tolerance. */
+  readonly isUniform?: boolean;
+
+  /** Optional per-trace interpolation override. */
+  readonly interpolation?: InterpolationStrategy;
 }
 
 // ---------------------------------------------------------------------------

@@ -47,11 +47,11 @@ export function BandwidthHelperCard() {
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <span style={{ fontSize: '11px', color: 'var(--muted)', minWidth: '40px' }}>Trace:</span>
+          <span style={{ fontSize: 'var(--font-label)', lineHeight: 'var(--lh-label)', color: 'var(--muted)', minWidth: '40px' }}>Trace:</span>
           <select 
             value={sourceTrace} 
             onChange={(e) => setSourceTrace(e.target.value)}
-            style={{ flex: 1, background: 'var(--bg)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: '4px', fontSize: '11px', padding: '3px 6px' }}
+            style={{ flex: 1, background: 'var(--bg)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: '4px', fontSize: 'var(--font-label)', lineHeight: 'var(--lh-label)', padding: '0.24rem 0.45rem' }}
           >
             <option value="">(Select Trace)</option>
             {allTraces.filter((t) => tracePaneMap[t.name] === activePaneId).map((t) => (
@@ -61,11 +61,11 @@ export function BandwidthHelperCard() {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <span style={{ fontSize: '11px', color: 'var(--muted)', minWidth: '40px' }}>Drop:</span>
+          <span style={{ fontSize: 'var(--font-label)', lineHeight: 'var(--lh-label)', color: 'var(--muted)', minWidth: '40px' }}>Drop:</span>
           <select 
             value={dropDb} 
             onChange={(e) => setDropDb(parseFloat(e.target.value))}
-            style={{ flex: 1, background: 'var(--bg)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: '4px', fontSize: '11px', padding: '3px 6px' }}
+            style={{ flex: 1, background: 'var(--bg)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: '4px', fontSize: 'var(--font-label)', lineHeight: 'var(--lh-label)', padding: '0.24rem 0.45rem' }}
           >
             <option value="3">3 dB</option>
             <option value="6">6 dB</option>
@@ -80,25 +80,25 @@ export function BandwidthHelperCard() {
 
         {result && (
           <div style={{ marginTop: '12px', padding: '8px', background: 'var(--bg-soft)', borderRadius: '6px', border: '1px solid var(--border)' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '11px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: 'var(--font-label)', lineHeight: 'var(--lh-label)' }}>
               <div>
-                <div style={{ color: 'var(--dim)', fontSize: '10px' }}>Bandwidth</div>
+                <div style={{ color: 'var(--dim)', fontSize: 'var(--font-caption)' }}>Bandwidth</div>
                 <div style={{ color: 'var(--accent)', fontWeight: 'bold' }}>{fmtF(result.bandwidth)}</div>
               </div>
               <div>
-                <div style={{ color: 'var(--dim)', fontSize: '10px' }}>Center</div>
+                <div style={{ color: 'var(--dim)', fontSize: 'var(--font-caption)' }}>Center</div>
                 <div style={{ color: 'var(--text)' }}>{fmtF((result.left + result.right) / 2)}</div>
               </div>
               <div>
-                <div style={{ color: 'var(--dim)', fontSize: '10px' }}>Left Edge</div>
+                <div style={{ color: 'var(--dim)', fontSize: 'var(--font-caption)' }}>Left Edge</div>
                 <div style={{ color: 'var(--text)' }}>{fmtF(result.left)}</div>
               </div>
               <div>
-                <div style={{ color: 'var(--dim)', fontSize: '10px' }}>Right Edge</div>
+                <div style={{ color: 'var(--dim)', fontSize: 'var(--font-caption)' }}>Right Edge</div>
                 <div style={{ color: 'var(--text)' }}>{fmtF(result.right)}</div>
               </div>
             </div>
-            <div style={{ marginTop: '8px', fontSize: '9px', color: 'var(--muted)', textAlign: 'right' }}>
+            <div style={{ marginTop: '8px', fontSize: 'var(--font-caption)', lineHeight: 'var(--lh-caption)', color: 'var(--muted)', textAlign: 'right' }}>
               Ref: {result.refAmp.toFixed(2)} dB @ {fmtF(result.refFreq)}
             </div>
           </div>

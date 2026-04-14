@@ -19,6 +19,9 @@ export type MarkerType = "peak" | "normal" | "delta";
 
 /** A marker placed on a trace at a specific frequency/amplitude. */
 export interface Marker {
+  /** Requested x-position in Hz before interpolation/snap resolution. */
+  readonly requestedFreq?: number;
+
   /** Frequency in Hz where the marker is placed. */
   readonly freq: number;
 
@@ -54,6 +57,9 @@ export interface Marker {
 
 /** Result of placing a marker on trace data. */
 export interface MarkerPlacement {
+  /** Requested x-position before interpolation/snap resolution. */
+  readonly requestedFreq: number;
+
   /** Frequency of the placed marker (may differ from target if snapped). */
   readonly freq: number;
 

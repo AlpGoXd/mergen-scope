@@ -111,12 +111,12 @@ export function ImportWizardModal() {
 				}}
 			>
 				<div>
-					<h2 style={{ margin: 0, fontSize: '15px' }}>Import Wizard</h2>
-					<div style={{ fontSize: '12px', color: 'var(--dim)' }}>{active.fileName}</div>
+					<h2 style={{ margin: 0, fontSize: 'var(--font-title)', lineHeight: 'var(--lh-title)' }}>Import Wizard</h2>
+					<div style={{ fontSize: 'var(--font-label)', lineHeight: 'var(--lh-label)', color: 'var(--dim)' }}>{active.fileName}</div>
 				</div>
 
 				{compactHighConfidence && (
-					<div style={{ border: '1px solid var(--border)', borderRadius: '8px', padding: '10px', fontSize: '12px' }}>
+					<div style={{ border: '1px solid var(--border)', borderRadius: '8px', padding: '10px', fontSize: 'var(--font-body)', lineHeight: 'var(--lh-body)' }}>
 						High confidence parse detected ({Math.round(config.confidence * 100)}%).
 						Auto-advance is running.
 					</div>
@@ -125,7 +125,7 @@ export function ImportWizardModal() {
 				{!compactHighConfidence && (
 					<>
 						<div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-							<label style={{ display: 'grid', gap: '4px', fontSize: '11px' }}>
+							<label style={{ display: 'grid', gap: '4px', fontSize: 'var(--font-label)' }}>
 								Delimiter
 								<select
 									value={config.delimiter}
@@ -140,7 +140,7 @@ export function ImportWizardModal() {
 									<option value={'\t'}>Tab</option>
 								</select>
 							</label>
-							<label style={{ display: 'grid', gap: '4px', fontSize: '11px' }}>
+							<label style={{ display: 'grid', gap: '4px', fontSize: 'var(--font-label)' }}>
 								Skip rows
 								<input
 									type="number"

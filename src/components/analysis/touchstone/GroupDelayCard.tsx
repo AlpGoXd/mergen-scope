@@ -16,9 +16,9 @@ export function GroupDelayCard() {
 			description="Group delay from unwrapped phase derivative."
 			onClose={() => analysisDispatch({ type: 'TOGGLE_PANEL', payload: { id: 'group-delay', forceValue: false } })}
 		>
-			{!result && <div style={{ fontSize: '11px', color: 'var(--muted)' }}>Not enough Touchstone samples for group delay.</div>}
+			{!result && <div style={{ fontSize: 'var(--font-label)', lineHeight: 'var(--lh-label)', color: 'var(--muted)' }}>Not enough Touchstone samples for group delay.</div>}
 			{result && (
-				<div style={{ display: 'grid', gap: '6px', fontSize: '11px' }}>
+				<div style={{ display: 'grid', gap: '6px', fontSize: 'var(--font-label)', lineHeight: 'var(--lh-label)' }}>
 					<div>Min: <strong>{formatScalarWithUnit(result.min.value, 's')}</strong> @ {fmtF(result.min.freq)}</div>
 					<div>Max: <strong>{formatScalarWithUnit(result.max.value, 's')}</strong> @ {fmtF(result.max.freq)}</div>
 					<div>Average: <strong>{formatScalarWithUnit(result.average, 's')}</strong></div>

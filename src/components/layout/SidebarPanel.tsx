@@ -1,4 +1,4 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 
 export interface SidebarPanelProps {
 	title: string;
@@ -24,12 +24,13 @@ export function SidebarPanel({ title, defaultOpen = true, children }: SidebarPan
 					padding: '6px 8px',
 					cursor: 'pointer',
 					fontSize: '11px',
-					fontWeight: 700,
+					fontWeight: 400,
 				}}
 			>
-				{open ? '▾' : '▸'} {title}
+				{open ? 'â–¾' : 'â–¸'} {title}
 			</button>
 			{open && <div style={{ marginTop: '6px' }}>{children}</div>}
 		</section>
 	);
 }
+

@@ -1,11 +1,10 @@
 // ============================================================================
-// Mergen Scope — Marker Functions
+// Mergen Scope - Marker Functions
 // ============================================================================
-// Ported from: app-modules/marker-helpers.js (106 lines)
-// NEW: placeMarker with interpolation + snap threshold.
+// Ported from: app-modules/marker-helpers.js shapes
 // ============================================================================
 
-import type { DataPoint } from "../types/trace.ts";
+import { getResolvedInterpolationStrategy, resolveValue } from "./interpolation.ts";
 import type {
   Marker,
   MarkerPlacement,
@@ -14,7 +13,7 @@ import type {
   IP3RoleLabel,
   ExtremumKind,
 } from "../types/marker.ts";
-import { interpolatePointAtX } from "./trace-math.ts";
+import type { DataPoint, Trace } from "../types/trace.ts";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -45,96 +44,63 @@ export function nearestIndexByFreq(
   let bestDf = Math.abs(data[0]!.freq - freq);
   for (let i = 1; i < data.length; i++) {
     const df = Math.abs(data[i]!.freq - freq);
-    if (df < bestDf) { bestDf = df; bestIdx = i; }
+    if (df < bestDf) {
+      bestDf = df;
+      bestIdx = i;
+    }
   }
   return bestIdx;
 }
 
-// ---------------------------------------------------------------------------
-// NEW: placeMarker with interpolation + snap threshold
-// ---------------------------------------------------------------------------
-
-/**
- * Place a marker on trace data at the target frequency.
- *
- * Logic:
- * 1. Binary search → find nearest existing point
- * 2. Check snap threshold (0.5 × local spacing)
- * 3. If outside threshold, interpolate between bracketing points
- */
-export function placeMarker(
-  traceData: readonly DataPoint[],
-  targetFreq: number,
-): MarkerPlacement {
-  if (!traceData.length || !Number.isFinite(targetFreq)) {
-    return { freq: targetFreq, amp: 0, interpolated: false };
-  }
-
-  // Binary search for insertion point
+function hasExactSample(traceData: readonly DataPoint[], targetFreq: number): boolean {
   let lo = 0;
   let hi = traceData.length - 1;
-  while (lo < hi) {
+  while (lo <= hi) {
     const mid = (lo + hi) >> 1;
-    if (traceData[mid]!.freq < targetFreq) lo = mid + 1;
-    else hi = mid;
+    const value = traceData[mid]!.freq;
+    if (value === targetFreq) return true;
+    if (value < targetFreq) lo = mid + 1;
+    else hi = mid - 1;
+  }
+  return false;
+}
+
+export interface MagneticSnapOptions {
+  readonly nearestPointPixelDistance?: number;
+  readonly snapThresholdPx?: number;
+}
+
+/** Resolve a marker location using the interpolation strategy associated with a trace. */
+export function placeMarker(
+  trace: Pick<Trace, "data" | "family" | "interpolation" | "isUniform">,
+  targetFreq: number,
+  magneticSnap?: MagneticSnapOptions,
+): MarkerPlacement {
+  const traceData = trace.data ?? [];
+  if (!traceData.length || !Number.isFinite(targetFreq)) {
+    return { requestedFreq: targetFreq, freq: targetFreq, amp: 0, interpolated: false };
   }
 
-  // Find nearest point among lo and neighbors
-  let bestIdx = lo;
-  let bestDist = Math.abs(traceData[lo]!.freq - targetFreq);
+  const isUniform = trace.isUniform ?? false;
+  const strategy = getResolvedInterpolationStrategy(trace.family, trace.interpolation, isUniform);
+  const nearestIndex = nearestIndexByFreq(traceData, targetFreq);
+  const nearestPoint = nearestIndex >= 0 ? traceData[nearestIndex]! : null;
+  const shouldMagnetSnap = strategy === "snap"
+    || (
+      nearestPoint != null
+      && Number.isFinite(magneticSnap?.nearestPointPixelDistance)
+      && (magneticSnap?.nearestPointPixelDistance ?? Infinity) <= (magneticSnap?.snapThresholdPx ?? Infinity)
+    );
+  const requestedFreq = shouldMagnetSnap && nearestPoint ? nearestPoint.freq : targetFreq;
+  const exactHit = hasExactSample(traceData, requestedFreq);
+  const resolved = resolveValue(traceData, requestedFreq, strategy, isUniform);
 
-  if (lo > 0) {
-    const d = Math.abs(traceData[lo - 1]!.freq - targetFreq);
-    if (d < bestDist) { bestDist = d; bestIdx = lo - 1; }
-  }
-  if (lo + 1 < traceData.length) {
-    const d = Math.abs(traceData[lo + 1]!.freq - targetFreq);
-    if (d < bestDist) { bestDist = d; bestIdx = lo + 1; }
-  }
-
-  // Compute local spacing for snap threshold
-  const prev = bestIdx > 0 ? traceData[bestIdx - 1] : null;
-  const next = bestIdx + 1 < traceData.length ? traceData[bestIdx + 1] : null;
-  const best = traceData[bestIdx]!;
-
-  let localStep = Infinity;
-  if (prev) localStep = Math.min(localStep, Math.abs(best.freq - prev.freq));
-  if (next) localStep = Math.min(localStep, Math.abs(next.freq - best.freq));
-
-  if (!Number.isFinite(localStep) || localStep <= 0) {
-    // Fallback: average spacing
-    if (traceData.length > 1) {
-      const span = Math.abs(traceData[traceData.length - 1]!.freq - traceData[0]!.freq);
-      localStep = span / (traceData.length - 1);
-    }
-  }
-
-  // Snap threshold: 0.5 × local spacing
-  const snapThreshold = Number.isFinite(localStep) && localStep > 0 ? localStep * 0.5 : Infinity;
-
-  // If within snap threshold, snap to existing point
-  if (bestDist <= snapThreshold) {
-    return { freq: best.freq, amp: best.amp, interpolated: false };
-  }
-
-  // Otherwise, interpolate between bracketing points
-  // Find bracketing pair
-  let leftIdx = -1;
-  let rightIdx = -1;
-  for (let i = 0; i < traceData.length; i++) {
-    if (traceData[i]!.freq <= targetFreq) leftIdx = i;
-    if (traceData[i]!.freq >= targetFreq && rightIdx === -1) rightIdx = i;
-  }
-
-  if (leftIdx >= 0 && rightIdx >= 0 && leftIdx !== rightIdx) {
-    const ip = interpolatePointAtX(traceData[leftIdx]!, traceData[rightIdx]!, targetFreq);
-    if (ip) {
-      return { freq: ip.freq, amp: ip.amp, interpolated: true };
-    }
-  }
-
-  // Fallback: snap to nearest
-  return { freq: best.freq, amp: best.amp, interpolated: false };
+  return {
+    requestedFreq: targetFreq,
+    freq: resolved.x,
+    amp: resolved.y,
+    interpolated: !exactHit && strategy !== "snap" && resolved.x === targetFreq,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -158,7 +124,10 @@ export function getIP3PointsFromMarkers(
   markers: readonly Marker[],
 ): IP3Points {
   const pts: { f1: IP3Point | null; f2: IP3Point | null; im3l: IP3Point | null; im3u: IP3Point | null } = {
-    f1: null, f2: null, im3l: null, im3u: null,
+    f1: null,
+    f2: null,
+    im3l: null,
+    im3u: null,
   };
 
   for (const [key, label] of Object.entries(IP3_ROLE_LABELS)) {
@@ -186,7 +155,7 @@ export function buildExtrema(
   kind: ExtremumKind,
 ): DataPoint[] {
   const finite = data.filter(
-    (p) => Number.isFinite(p.freq) && Number.isFinite(p.amp),
+    (point) => Number.isFinite(point.freq) && Number.isFinite(point.amp),
   );
   if (!finite.length) return [];
 
@@ -199,22 +168,59 @@ export function buildExtrema(
       if (cur.amp >= prev.amp && cur.amp >= next.amp && (cur.amp > prev.amp || cur.amp > next.amp)) {
         out.push(cur);
       }
-    } else {
-      if (cur.amp <= prev.amp && cur.amp <= next.amp && (cur.amp < prev.amp || cur.amp < next.amp)) {
-        out.push(cur);
-      }
+    } else if (cur.amp <= prev.amp && cur.amp <= next.amp && (cur.amp < prev.amp || cur.amp < next.amp)) {
+      out.push(cur);
     }
   }
 
   if (!out.length) {
     const fallback = finite.reduce((best, point) => {
       if (!best) return point;
-      return kind === "max" ? (point.amp > best.amp ? point : best) : (point.amp < best.amp ? point : best);
+      return kind === "max"
+        ? (point.amp > best.amp ? point : best)
+        : (point.amp < best.amp ? point : best);
     });
     if (fallback) out.push(fallback);
   }
 
   return out;
+}
+
+/** Find the global maximum point in trace data. */
+export function findAbsoluteMax(data: readonly DataPoint[]): DataPoint | null {
+  const finite = data.filter(p => Number.isFinite(p.freq) && Number.isFinite(p.amp));
+  if (!finite.length) return null;
+  return finite.reduce((best, p) => p.amp > best.amp ? p : best);
+}
+
+/** Find the global minimum point in trace data. */
+export function findAbsoluteMin(data: readonly DataPoint[]): DataPoint | null {
+  const finite = data.filter(p => Number.isFinite(p.freq) && Number.isFinite(p.amp));
+  if (!finite.length) return null;
+  return finite.reduce((best, p) => p.amp < best.amp ? p : best);
+}
+
+/**
+ * Find the next local extremum from a given frequency in a direction.
+ * fromFreq=null means start from the edge (leftmost if right, rightmost if left).
+ */
+export function findNextLocalExtremum(
+  data: readonly DataPoint[],
+  fromFreq: number | null,
+  direction: 'left' | 'right',
+  kind: ExtremumKind,
+): DataPoint | null {
+  const extrema = buildExtrema(data, kind); // left-to-right order
+  if (!extrema.length) return null;
+  if (fromFreq === null) {
+    return direction === 'right' ? extrema[0]! : extrema[extrema.length - 1]!;
+  }
+  if (direction === 'right') {
+    return extrema.find(p => p.freq > fromFreq) ?? null;
+  } else {
+    const before = extrema.filter(p => p.freq < fromFreq);
+    return before.length ? before[before.length - 1]! : null;
+  }
 }
 
 /** Check if a data point at the given index is a local extremum. */
@@ -266,7 +272,10 @@ export function findPeakNearFreq(
   for (const point of data) {
     if (!Number.isFinite(point.freq) || !Number.isFinite(point.amp)) continue;
     const df = Math.abs(point.freq - targetHz);
-    if (df < nearDf) { nearDf = df; near = point; }
+    if (df < nearDf) {
+      nearDf = df;
+      near = point;
+    }
     if (df <= windowHz && (!best || point.amp > best.amp)) best = point;
   }
 

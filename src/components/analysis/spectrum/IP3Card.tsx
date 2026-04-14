@@ -1,4 +1,4 @@
-import { useIP3 } from '../../../hooks/use-ip3';
+﻿import { useIP3 } from '../../../hooks/use-ip3';
 import { useAnalysisDispatch } from '../../../stores/analysis-store';
 import { useTraceState } from '../../../stores/trace-store';
 import type { IP3RoleKey } from '../../../types/marker';
@@ -56,9 +56,10 @@ export function IP3Card() {
                 border: '1px solid var(--border)', 
                 borderRadius: '6px',
                 background: point ? 'var(--da)' : 'transparent',
-                fontSize: '11px'
+                fontSize: 'var(--font-label)',
+                lineHeight: 'var(--lh-label)'
               }}>
-                <div style={{ color: r.color, fontWeight: 700, marginBottom: '2px' }}>{r.label}</div>
+                <div style={{ color: r.color, fontWeight: 400, marginBottom: '2px' }}>{r.label}</div>
                 <div style={{ fontFamily: 'monospace', color: point ? 'var(--text)' : 'var(--dim)' }}>
                   {point ? `${(point.freq / 1e6).toFixed(2)} MHz` : '---'}
                 </div>
@@ -68,7 +69,7 @@ export function IP3Card() {
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-          <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--muted)' }}>Power Gain (dB)</label>
+          <label style={{ fontSize: 'var(--font-label)', fontWeight: 400, color: 'var(--muted)' }}>Power Gain (dB)</label>
           <input 
             type="text" 
             value={ip3Gain} 
@@ -81,7 +82,8 @@ export function IP3Card() {
               border: '1px solid var(--border)', 
               borderRadius: '6px', 
               padding: '6px',
-              fontSize: '12px' 
+              fontSize: 'var(--font-body)',
+              lineHeight: 'var(--lh-body)' 
             }}
           />
         </div>
@@ -115,7 +117,7 @@ export function IP3Card() {
                 >
                   &times;
                 </button>
-                <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--ip3C)', marginBottom: '4px' }}>
+                <div style={{ fontSize: 'var(--font-label)', fontWeight: 400, color: 'var(--ip3C)', marginBottom: '4px' }}>
                    {r?.f1 && r?.f2 ? `${(r.f1 / 1e6).toFixed(1)} / ${(r.f2 / 1e6).toFixed(1)} MHz` : id}
                 </div>
                 <MR label="OIP3" value={r ? `${(r.oip3_avg || 0).toFixed(2)} dBm` : '--'} />
@@ -127,3 +129,4 @@ export function IP3Card() {
     </AnalysisFeatureCard>
   );
 }
+

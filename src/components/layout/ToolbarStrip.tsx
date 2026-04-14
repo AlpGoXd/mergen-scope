@@ -1,12 +1,14 @@
 import React from 'react';
 import { useUiState, useUiDispatch } from '../../stores/ui-store';
-import type { UiState } from '../../stores/ui-store';
 import { useMarkerState, useMarkerDispatch } from '../../stores/marker-store';
 import { usePaneState, usePaneDispatch } from '../../stores/pane-store';
 import { useTraceState } from '../../stores/trace-store';
 import { useRefLineState, useRefLineDispatch } from '../../stores/ref-line-store';
-import { buildExtrema, findHighestPeakExcluding } from '../../domain/markers';
+import { findAbsoluteMax, findAbsoluteMin, findNextLocalExtremum } from '../../domain/markers';
 import { makeNiceTicks } from '../../domain/trace-math';
+import { useInteractionMode } from '../../hooks/use-interaction-mode';
+import { useXControls } from '../../hooks/use-x-controls';
+import { useYControls } from '../../hooks/use-y-controls';
 import { Btn } from '../shared/Btn';
 
 /**
@@ -15,86 +17,82 @@ import { Btn } from '../shared/Btn';
  */
 export function ToolbarStrip() {
   const {
-    showMarkerTools,
     showPaneTools,
     showSearchTools,
     showLineTools,
     showViewTools,
+    showMarkerTools,
     searchDirection,
     lockLinesAcrossPanes,
+    markerTrace,
     dRef,
   } = useUiState();
 
-  const { allTraces } = useTraceState();
-  const { mkrMode, markers, selectedMkrIdx } = useMarkerState();
+  const { allTraces, vis } = useTraceState();
+  const { markers, selectedMkrIdx, mkrMode } = useMarkerState();
   const { panes, activePaneId, tracePaneMap, paneActiveTraceMap, zoomAll, sharedZoom, paneXZooms, paneYZooms } = usePaneState();
   const { refMode } = useRefLineState();
 
   const uiDispatch = useUiDispatch();
   const markerDispatch = useMarkerDispatch();
-  const paneDispatch = usePaneDispatch();
   const refLineDispatch = useRefLineDispatch();
+  const paneDispatch = usePaneDispatch();
+  const { toggleRefPlacement, selectNormal, selectDelta } = useInteractionMode();
+  const { clearAllXZooms, setZoom } = useXControls();
+  const { resetYZ } = useYControls();
 
-  // If no traces have data, hide the toolbar
-  if (!allTraces.some(t => t.data && t.data.length > 0)) return null;
+  const paneTraceNames = React.useMemo(() => Object.entries(tracePaneMap)
+    .filter(([, pid]) => pid === activePaneId)
+    .map(([n]) => n), [tracePaneMap, activePaneId]);
+  const visiblePaneTraces = allTraces.filter(t => paneTraceNames.includes(t.name) && vis[t.name] !== false);
 
   // --- Active trace resolution ---
-  const paneTraceNames = Object.entries(tracePaneMap)
-    .filter(([, pid]) => pid === activePaneId)
-    .map(([n]) => n);
   const activeTraceName =
     (activePaneId != null ? paneActiveTraceMap[activePaneId] : null)
     ?? paneTraceNames[0]
     ?? null;
   const activeTr = allTraces.find(t => t.name === activeTraceName) ?? null;
 
+  // If no traces have data, hide the toolbar
+  if (!allTraces.some(t => t.data && t.data.length > 0)) return null;
+
   // --- Peak/Min search handlers ---
-  const xSpanOf = (tr: typeof activeTr) => {
-    if (!tr || tr.data.length < 2) return 0;
-    return (tr.data[tr.data.length - 1]?.freq ?? 0) - (tr.data[0]?.freq ?? 0);
+  const moveOrPlace = (freq: number, amp: number) => {
+    if (selectedMkrIdx >= 0) {
+      markerDispatch({ type: 'UPDATE_MARKER', payload: { idx: selectedMkrIdx, updates: { requestedFreq: freq, freq, amp, interpolated: false } } });
+    } else {
+      markerDispatch({ type: 'PLACE_MARKER', payload: { trace: activeTr!, targetFreq: freq } });
+    }
   };
 
   const handlePeak = () => {
     if (!activeTr || activeTr.data.length === 0) return;
-    const extrema = buildExtrema(activeTr.data, 'max');
-    const best = extrema[0];
+    const best = findAbsoluteMax(activeTr.data);
     if (!best) return;
-    if (selectedMkrIdx >= 0) {
-      markerDispatch({ type: 'UPDATE_MARKER', payload: { idx: selectedMkrIdx, updates: { freq: best.freq, amp: best.amp } } });
-    } else {
-      markerDispatch({ type: 'PLACE_MARKER', payload: { traceData: activeTr.data, targetFreq: best.freq, traceName: activeTr.name } });
-    }
-  };
-
-  const handleNextPeak = () => {
-    if (!activeTr || activeTr.data.length === 0) return;
-    const existingFreqs = markers.filter(m => m.trace === activeTr.name).map(m => m.freq);
-    const exHz = xSpanOf(activeTr) * 0.01;
-    const best = findHighestPeakExcluding(activeTr.data, existingFreqs, exHz);
-    if (!best) return;
-    markerDispatch({ type: 'PLACE_MARKER', payload: { traceData: activeTr.data, targetFreq: best.freq, traceName: activeTr.name } });
+    moveOrPlace(best.freq, best.amp);
   };
 
   const handleMin = () => {
     if (!activeTr || activeTr.data.length === 0) return;
-    const extrema = buildExtrema(activeTr.data, 'min');
-    const best = extrema[0];
+    const best = findAbsoluteMin(activeTr.data);
     if (!best) return;
-    if (selectedMkrIdx >= 0) {
-      markerDispatch({ type: 'UPDATE_MARKER', payload: { idx: selectedMkrIdx, updates: { freq: best.freq, amp: best.amp } } });
-    } else {
-      markerDispatch({ type: 'PLACE_MARKER', payload: { traceData: activeTr.data, targetFreq: best.freq, traceName: activeTr.name } });
-    }
+    moveOrPlace(best.freq, best.amp);
+  };
+
+  const handleNextPeak = () => {
+    if (!activeTr || activeTr.data.length === 0) return;
+    const fromFreq = selectedMkrIdx >= 0 ? (markers[selectedMkrIdx]?.freq ?? null) : null;
+    const best = findNextLocalExtremum(activeTr.data, fromFreq, searchDirection, 'max');
+    if (!best) return;
+    moveOrPlace(best.freq, best.amp);
   };
 
   const handleNextMin = () => {
     if (!activeTr || activeTr.data.length === 0) return;
-    const extrema = buildExtrema(activeTr.data, 'min');
-    const existingFreqs = markers.filter(m => m.trace === activeTr.name).map(m => m.freq);
-    const exHz = xSpanOf(activeTr) * 0.01;
-    const nextMin = extrema.find(p => existingFreqs.every(f => Math.abs(p.freq - f) > exHz));
-    if (!nextMin) return;
-    markerDispatch({ type: 'PLACE_MARKER', payload: { traceData: activeTr.data, targetFreq: nextMin.freq, traceName: activeTr.name } });
+    const fromFreq = selectedMkrIdx >= 0 ? (markers[selectedMkrIdx]?.freq ?? null) : null;
+    const best = findNextLocalExtremum(activeTr.data, fromFreq, searchDirection, 'min');
+    if (!best) return;
+    moveOrPlace(best.freq, best.amp);
   };
 
   // --- X/div and Y/div computation ---
@@ -120,16 +118,17 @@ export function ToolbarStrip() {
 
   const group = (title: string, color: string, children: React.ReactNode) => (
     <div style={{
+      '--group-color': color,
       display: 'flex',
       alignItems: 'center',
       gap: '5px',
-      padding: '4px 8px',
-      border: `1px solid color-mix(in srgb, ${color} 35%, var(--border))`,
-      borderRadius: '8px',
-      background: `color-mix(in srgb, ${color} 10%, var(--card))`,
-      flexWrap: 'wrap'
-    }}>
-      <span style={{ fontSize: '10px', color, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px', marginRight: '4px' }}>
+      padding: '5px 10px',
+      border: `1px solid color-mix(in srgb, ${color} 28%, var(--border))`,
+      borderRadius: '10px',
+      background: `color-mix(in srgb, ${color} 7%, var(--card))`,
+      flexWrap: 'wrap',
+    } as React.CSSProperties}>
+      <span style={{ fontSize: '11px', color, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginRight: '3px' }}>
         {title}
       </span>
       {children}
@@ -139,30 +138,26 @@ export function ToolbarStrip() {
   return (
     <div style={{
       display: 'flex',
-      flexDirection: 'column',
-      gap: '6px',
-      padding: '6px 12px',
+      padding: '7px 12px',
       borderBottom: '1px solid var(--border)',
       flexShrink: 0,
-      background: 'var(--card)'
+      background: 'var(--card)',
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
 
-        {showMarkerTools && group("Marker", "#d7ae63", (
+        {showMarkerTools && group("Marker", "var(--marker-color)", (
           <>
             <Btn
               active={mkrMode === 'normal'}
-              color="#d73f75"
               title="Normal marker mode"
-              onClick={() => markerDispatch({ type: 'SET_MODE', payload: 'normal' })}
+              onClick={selectNormal}
             >
               Normal
             </Btn>
             <Btn
               active={mkrMode === 'delta'}
-              color="#8a7a66"
               title="Delta marker mode"
-              onClick={() => markerDispatch({ type: 'SET_MODE', payload: 'delta' })}
+              onClick={selectDelta}
             >
               Delta
             </Btn>
@@ -171,9 +166,9 @@ export function ToolbarStrip() {
                 value={dRef ?? ''}
                 onChange={e => {
                   const v: number | null = e.target.value === '' ? null : Number(e.target.value);
-                  uiDispatch({ type: 'SET', payload: { key: 'dRef', value: v as UiState[keyof UiState] } });
+                  uiDispatch({ type: 'SET', payload: { key: 'dRef', value: v } });
                 }}
-                style={{ fontSize: '11px', padding: '3px 5px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--text)' }}
+                style={{ fontSize: '13px', padding: '4px 6px', borderRadius: '7px', border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)' }}
               >
                 <option value="">Ref…</option>
                 {markers.map((_, i) => (
@@ -182,15 +177,12 @@ export function ToolbarStrip() {
               </select>
             )}
             <Btn
-              active={false}
-              color="#666"
               title="Place a new marker on next click"
-              onClick={() => uiDispatch({ type: 'SET', payload: { key: 'newMarkerArmed', value: true as UiState[keyof UiState] } })}
+              onClick={() => uiDispatch({ type: 'SET', payload: { key: 'newMarkerArmed', value: true } })}
             >
               New Marker
             </Btn>
             <Btn
-              color="#666"
               title="Deselect active marker and ref line"
               onClick={() => {
                 markerDispatch({ type: 'SET_SELECTED_IDX', payload: -1 });
@@ -199,13 +191,26 @@ export function ToolbarStrip() {
             >
               Unselect
             </Btn>
+            <span style={{ fontSize: '11px', color: 'var(--dim)' }}>Trace:</span>
+            <select
+              value={markerTrace}
+              onChange={(e) => uiDispatch({ type: 'SET', payload: { key: 'markerTrace', value: e.target.value } })}
+              style={{ fontSize: '13px', padding: '4px 6px', borderRadius: '7px', border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', minWidth: '120px' }}
+              title="Choose which trace new markers bind to"
+            >
+              <option value="__auto__">Auto</option>
+              {visiblePaneTraces.map((trace) => (
+                <option key={trace.name} value={trace.name}>
+                  {trace.dn || trace.name}
+                </option>
+              ))}
+            </select>
           </>
         ))}
 
-        {showPaneTools && group("Pane", "#e69473", (
+        {showPaneTools && group("Pane", "var(--pane-color)", (
           <>
             <Btn
-              color="#888"
               onClick={() => paneDispatch({ type: 'SET_PANE_COUNT', payload: Math.min(4, panes.length + 1) })}
               disabled={panes.length >= 4}
               title="Add a pane"
@@ -213,7 +218,6 @@ export function ToolbarStrip() {
               + Pane
             </Btn>
             <Btn
-              color="#888"
               onClick={() => paneDispatch({ type: 'SET_PANE_COUNT', payload: Math.max(1, panes.length - 1) })}
               disabled={panes.length <= 1}
               title="Remove last pane"
@@ -223,107 +227,64 @@ export function ToolbarStrip() {
             {panes.map((p, idx) => (
               <Btn
                 key={p.id}
-                color="#e85d04"
                 active={activePaneId === p.id}
                 onClick={() => paneDispatch({ type: 'SET_ACTIVE_PANE', payload: p.id })}
               >
                 {p.title || `Pane ${idx + 1}`}
               </Btn>
             ))}
-            <Btn
-              color="#888"
-              title="Fit all panes"
-              onClick={() => paneDispatch({ type: 'CLEAR_ALL_ZOOMS' })}
-            >
-              Fit All
-            </Btn>
+            <Btn title="Fit all panes" onClick={clearAllXZooms}>Fit All</Btn>
           </>
         ))}
 
-        {showSearchTools && group("Search", "#7eb2da", (
+        {showSearchTools && group("Search", "var(--search-color)", (
           <>
-            <Btn color="#888" title="Find peak" onClick={handlePeak}>Peak</Btn>
-            <Btn color="#888" title="Find next peak" onClick={handleNextPeak}>Next Peak</Btn>
-            <Btn color="#888" title="Find min" onClick={handleMin}>Min</Btn>
-            <Btn color="#888" title="Find next min" onClick={handleNextMin}>Next Min</Btn>
+            <Btn title="Find peak" onClick={handlePeak}>Peak</Btn>
+            <Btn title="Find next peak" onClick={handleNextPeak}>Next Peak</Btn>
+            <Btn title="Find min" onClick={handleMin}>Min</Btn>
+            <Btn title="Find next min" onClick={handleNextMin}>Next Min</Btn>
             <Btn
-              color="#c05be3"
               active={true}
-              style={{
-                background: 'linear-gradient(135deg, rgba(255, 154, 192, 0.42), rgba(192, 91, 227, 0.34))',
-                border: '1px solid #c05be3',
-                color: '#8b2bb1',
-              }}
-              onClick={() => uiDispatch({ type: 'SET', payload: { key: 'searchDirection', value: (searchDirection === 'right' ? 'left' : 'right') as UiState[keyof UiState] } })}
+              color="#e8579c"
+              onClick={() => uiDispatch({ type: 'SET', payload: { key: 'searchDirection', value: searchDirection === 'right' ? 'left' : 'right' } })}
             >
-              {searchDirection === 'right' ? "Dir: L -> R" : "Dir: L <- R"}
+              {searchDirection === 'right' ? "Dir: L → R" : "Dir: L ← R"}
             </Btn>
           </>
         ))}
 
-        {showLineTools && group("Lines", "#d8ac7a", (
+        {showLineTools && group("Lines", "var(--lines-color)", (
           <>
             <Btn
-              color="#666"
               active={refMode === 'v'}
               title="Toggle V-line placement"
-              onClick={() => refLineDispatch({ type: 'SET_MODE', payload: refMode === 'v' ? null : 'v' })}
+              onClick={() => toggleRefPlacement('v')}
             >
               V-Line
             </Btn>
             <Btn
-              color="#666"
               active={refMode === 'h'}
               title="Toggle H-line placement"
-              onClick={() => refLineDispatch({ type: 'SET_MODE', payload: refMode === 'h' ? null : 'h' })}
+              onClick={() => toggleRefPlacement('h')}
             >
               H-Line
             </Btn>
             <Btn
-              color="#666"
               active={lockLinesAcrossPanes}
-              onClick={() => uiDispatch({ type: 'SET', payload: { key: 'lockLinesAcrossPanes', value: !lockLinesAcrossPanes as UiState[keyof UiState] } })}
+              onClick={() => uiDispatch({ type: 'SET', payload: { key: 'lockLinesAcrossPanes', value: !lockLinesAcrossPanes } })}
             >
               {lockLinesAcrossPanes ? "Lock: All Panes" : "Lock: Active Pane"}
             </Btn>
           </>
         ))}
 
-        {showViewTools && group("View", "#8db7df", (
+        {showViewTools && group("View", "var(--view-color)", (
           <>
-            <Btn
-              color="#1f8fff"
-              title="Zoom to fit all traces"
-              onClick={() => paneDispatch({ type: 'CLEAR_ALL_ZOOMS' })}
-            >
-              Fit All
-            </Btn>
-            <Btn
-              color="#666"
-              title="Reset current pane Y zoom"
-              onClick={() => {
-                if (activePaneId) {
-                  paneDispatch({ type: 'SET_PANE_Y_ZOOM', payload: { paneId: activePaneId, zoom: null } });
-                }
-              }}
-            >
-              Reset Y
-            </Btn>
-            <Btn
-              color="#666"
-              title="Reset X zoom"
-              onClick={() => {
-                if (zoomAll) {
-                  paneDispatch({ type: 'SET_SHARED_ZOOM', payload: null });
-                } else if (activePaneId) {
-                  paneDispatch({ type: 'SET_PANE_ZOOM', payload: { paneId: activePaneId, zoom: null } });
-                }
-              }}
-            >
-              Reset X
-            </Btn>
-            <span style={{ fontSize: '10px', color: 'var(--muted)', fontFamily: 'monospace', padding: '0 4px' }}>X: {xDiv}</span>
-            <span style={{ fontSize: '10px', color: 'var(--muted)', fontFamily: 'monospace', padding: '0 4px' }}>Y: {yDiv}</span>
+            <Btn title="Zoom to fit all traces" onClick={clearAllXZooms}>Fit All</Btn>
+            <Btn title="Reset current pane Y zoom" onClick={() => resetYZ()}>Reset Y</Btn>
+            <Btn title="Reset X zoom" onClick={() => setZoom(null)}>Reset X</Btn>
+            <span className="btn" style={{ fontFamily: 'var(--font-mono)', cursor: 'default' }}>X: {xDiv}</span>
+            <span className="btn" style={{ fontFamily: 'var(--font-mono)', cursor: 'default' }}>Y: {yDiv}</span>
           </>
         ))}
 

@@ -9,6 +9,7 @@ import {
   type InterpolationMethod
 } from '../domain/trace-ops';
 import { makeTraceId } from '../domain/trace-model';
+import { FAMILY_DEFAULTS } from '../domain/interpolation';
 import type { DerivedTrace } from '../types/trace';
 
 /**
@@ -69,6 +70,9 @@ export function useTraceOps() {
       file: src.file,
       mode: src.mode,
       detector: src.detector,
+      family: src.family,
+      isUniform: src.isUniform,
+      interpolation: src.interpolation ?? FAMILY_DEFAULTS[src.family],
     };
 
     traceDispatch({ type: 'ADD_DERIVED', payload: derived });
@@ -98,6 +102,9 @@ export function useTraceOps() {
       file: src.file,
       mode: src.mode,
       detector: src.detector,
+      family: src.family,
+      isUniform: src.isUniform,
+      interpolation: src.interpolation ?? FAMILY_DEFAULTS[src.family],
     };
 
     traceDispatch({ type: 'ADD_DERIVED', payload: derived });
@@ -127,6 +134,9 @@ export function useTraceOps() {
       file: src.file,
       mode: src.mode,
       detector: src.detector,
+      family: src.family,
+      isUniform: src.isUniform,
+      interpolation: src.interpolation ?? FAMILY_DEFAULTS[src.family],
     };
 
     traceDispatch({ type: 'ADD_DERIVED', payload: derived });
@@ -162,6 +172,9 @@ export function useTraceOps() {
       file: srcA.file,
       mode: srcA.mode,
       detector: srcA.detector,
+      family: srcA.family,
+      isUniform: srcA.isUniform,
+      interpolation: srcA.interpolation ?? FAMILY_DEFAULTS[srcA.family],
     };
 
     traceDispatch({ type: 'ADD_DERIVED', payload: derived });

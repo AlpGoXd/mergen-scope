@@ -208,22 +208,119 @@ Detector;RMS
 
 ## Architecture
 
-Built with TypeScript, React 19, Vite, and Recharts. All dependencies are installed via npm — no vendored CDN files.
+### Tech Stack
 
-**Entry points:**
-- `index.html` — static landing page (no React)
-- `app.html` — React application shell, mounts `<div id="root">`
+| Layer | Technology |
+|-------|-----------|
+| Framework | React 19 |
+| Language | TypeScript 6 (strict) |
+| Build | Vite 7 + vite-plugin-singlefile (single-file bundle) |
+| Charts | Recharts 2 |
+| State | Zustand |
+| Deployment | GitHub Pages via GitHub Actions |
 
-**Source layout under `src/`:**
-- `components/` — React UI components (layout, chart, analysis, sidebar, wizard, shared)
-- `domain/` — business logic and calculations (parsers, trace math, analysis math, Touchstone)
-- `hooks/` — React custom hooks
-- `stores/` — Zustand stores (trace, pane, marker, analysis, ui, file, ref-line)
-- `types/` — TypeScript interfaces
+All dependencies are installed via npm — no vendored CDN files.
 
-**State management:** Zustand stores, each owning a distinct slice (traces, panes, markers, analysis results, UI, file metadata, reference lines). `StoreRoot` wraps the app in all providers.
+### Entry Points
 
-**Analysis framework:** Modular analysis cards in `components/analysis/`. Each card reads from the active pane/trace via `use-analysis-target` and calls pure domain functions for computation.
+- `index.html` — static landing page, no React
+- `app.html` — React SPA shell, mounts `<div id="root">`
+
+### Source Layout
+
+```
+src/
+├── components/
+│   ├── layout/         TopBar, Sidebar, ToolbarStrip, RightPanelStack, FooterBar
+│   ├── chart/          ChartWorkspace, ChartPane (Cartesian + Smith)
+│   ├── analysis/
+│   │   ├── spectrum/   NoisePSDCard, IP3Card, PeakTableCard, RangeStatsCard,
+│   │   │               BandwidthHelperCard, RippleCard, ChannelPowerCard,
+│   │   │               OccupiedBandwidthCard
+│   │   ├── touchstone/ VSWRCard, ReturnLossCard, GroupDelayCard,
+│   │   │               ReciprocityIsolationCard, StabilityCard
+│   │   └── shared/     ThresholdCrossingsCard, AnalysisMenuCard, AnalysisFeatureCard
+│   ├── panels/         ImportExportPanel, DataTablePanel
+│   ├── sidebar/        TraceRow, MarkerItem, RefLineItem, TouchstoneMatrixPicker
+│   ├── wizard/         ImportWizardModal, WizardColumnConfig, WizardDomainPicker,
+│   │                   WizardPreviewTable
+│   └── shared/         Btn, Sec, MR, PretextLabel
+│
+├── domain/
+│   ├── parsers/        parse-file.ts (dispatcher), rs-dat.ts, touchstone.ts,
+│   │                   tabular.ts, classifier.ts
+│   ├── analysis/       noise-psd, ip3, bandwidth, range-stats, channel-power,
+│   │                   ripple, threshold, touchstone, registry
+│   ├── trace-model.ts  trace creation and ID management
+│   ├── trace-ops.ts    smoothing and binary trace math
+│   ├── trace-math.ts   interpolation and point math
+│   ├── units.ts        unit normalization and compatibility checks
+│   ├── markers.ts      peak/min search
+│   ├── workspace-serialize.ts + workspace-migrate-v4.ts
+│   └── (smith-coords, complex, export, derived-state, display-trace-adapter …)
+│
+├── hooks/              17 custom hooks — thin bridge between stores and components
+│                       (use-analysis-target, use-chart-nav, use-pane-data,
+│                        use-trace-ops, use-keyboard, use-shared-cursor …)
+│
+├── stores/             8 Zustand slices
+│   ├── StoreRoot.tsx   provider wrapper, declares dependency order
+│   ├── ui-store        theme, sidebar/panel visibility, selected trace
+│   ├── file-store      parsed file records, import wizard queue
+│   ├── trace-store     all traces + visibility map
+│   ├── pane-store      panes, active pane, trace-to-pane assignments
+│   ├── marker-store    marker list, active marker
+│   ├── analysis-store  saved analysis results (Noise PSD, IP3), panel open states
+│   └── ref-line-store  reference line library
+│
+├── types/              TypeScript interfaces only, no runtime code
+└── demo/               preset workspace snapshots
+```
+
+### State Management
+
+Stores are composed in `StoreRoot.tsx` in dependency order:
+
+```
+UiStore → AnalysisStore → MarkerStore → RefLineStore
+       → FileStore → TraceStore → PaneStore → <App />
+```
+
+No global singleton — each store is a React context provider. Components subscribe only to the slices they need.
+
+### Parser Pipeline
+
+```
+file drop / open
+    └─ parse-file.ts   (format detection by filename + content heuristics)
+           ├─ rs-dat.ts         R&S semicolon-delimited .dat
+           ├─ touchstone.ts     .s1p – .sNp (S/Y/Z parameters)
+           └─ tabular.ts        generic columnar CSV
+                  └─ ImportWizardModal  (fallback for ambiguous files)
+```
+
+### Analysis Framework
+
+Each analysis card in `components/analysis/` is self-contained:
+
+1. Reads active pane + trace context from `use-analysis-target`
+2. Calls a pure function in `domain/analysis/`
+3. Optionally caches results in `analysis-store`
+
+The registry in `domain/analysis/registry.ts` defines every available tool, its display name, and which scope it applies to (spectrum / touchstone / shared). `AnalysisPanelStack` maps registry entries to card components via a switch.
+
+### Trace Data Model
+
+Every trace is a flat array of `{ freq: number, amp: number }` points. Two kinds:
+
+- **RawTrace** — imported directly from a file; `kind: "raw"`
+- **DerivedTrace** — computed from one or more source traces; `kind: "derived"`, carries `operationType` (`smooth`, `offset`, `scale`, `add`, `subtract`, `multiply`, `divide`, `noise-psd`) and `parameters`
+
+Panes enforce domain separation: frequency-domain and time-domain traces cannot share a pane.
+
+### Workspace Versioning
+
+Saved sessions are v4 JSON snapshots. `workspace-migrate-v4.ts` auto-upgrades v1–v3 on load. The current format includes all traces, pane layout, zoom state, markers, reference lines, and saved analysis results.
 
 ---
 
