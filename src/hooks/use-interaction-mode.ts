@@ -1,27 +1,43 @@
 import { useCallback, useMemo } from 'react';
 import { useMarkerState, useMarkerDispatch } from '../stores/marker-store';
 import { useRefLineState, useRefLineDispatch } from '../stores/ref-line-store';
+import { useUiDispatch } from '../stores/ui-store';
 
 /**
  * Hook for managing the interaction mode (Marker placement vs. Ref-line placement).
  * Ported from app-modules/app-hooks.js:useInteractionMode.
  */
 export function useInteractionMode() {
-  const { markers, mkrMode } = useMarkerState();
+  const { markers, mkrMode, selectedMkrIdx } = useMarkerState();
   const markerDispatch = useMarkerDispatch();
 
   const { refMode } = useRefLineState();
   const refLineDispatch = useRefLineDispatch();
+  const uiDispatch = useUiDispatch();
 
   const selectNormal = useCallback(() => {
     refLineDispatch({ type: 'SET_MODE', payload: null });
     markerDispatch({ type: 'SET_MODE', payload: 'normal' });
-  }, [refLineDispatch, markerDispatch]);
+    uiDispatch({ type: 'SET', payload: { key: 'dRef', value: null } });
+    // Convert selected marker to normal if one is selected
+    if (selectedMkrIdx >= 0) {
+      markerDispatch({ type: 'UPDATE_MARKER', payload: { idx: selectedMkrIdx, updates: { type: 'normal', refIdx: null } } });
+    }
+  }, [refLineDispatch, markerDispatch, uiDispatch, selectedMkrIdx]);
 
   const selectDelta = useCallback(() => {
     refLineDispatch({ type: 'SET_MODE', payload: null });
     markerDispatch({ type: 'SET_MODE', payload: 'delta' });
-  }, [refLineDispatch, markerDispatch]);
+    // Convert selected marker to delta — auto-pick first valid ref, or null if none
+    if (selectedMkrIdx >= 0) {
+      const autoRef = markers.findIndex((m, i) => i !== selectedMkrIdx && m.type !== 'delta');
+      const refIdx = autoRef >= 0 ? autoRef : null;
+      markerDispatch({ type: 'UPDATE_MARKER', payload: { idx: selectedMkrIdx, updates: { type: 'delta', refIdx } } });
+      if (refIdx !== null) {
+        uiDispatch({ type: 'SET', payload: { key: 'dRef', value: refIdx } });
+      }
+    }
+  }, [refLineDispatch, markerDispatch, uiDispatch, selectedMkrIdx, markers]);
 
   const clearRefPlacement = useCallback(() => {
     refLineDispatch({ type: 'SET_MODE', payload: null });

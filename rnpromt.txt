@@ -1,0 +1,190 @@
+You are not being asked to invent a new UI direction from scratch. You are being asked to study the old UI in `\gits\mergen-scope-main`, compare it against the current UI in `\gits\mergen-scope`, form your own implementation plan, and then iterate until the current UI regains the strong visual qualities of the old one.
+
+Important:
+- The button logic is already mostly correct. Do not waste effort redesigning behavior or interaction flow unless needed.
+- This is mainly a visual/systematic refinement task.
+- I am giving you direction, not a full solution. You should inspect both codebases, identify what made the old UI better, build a plan, implement it, review the result, and iterate.
+
+## Main goal
+
+Make the current UI in `\gits\mergen-scope` feel much closer to the old UI from `\gits\mergen-scope-main`, while still improving it.
+
+The current version has drifted too far into a soft, beige, washed-out look. It lost some of the stronger color identity, button clarity, and toolbar readability of the old UI.
+
+I want:
+- the **visual character** of the old UI back
+- but with cleaner execution, better consistency, and better polish
+
+Do **not** just do a 1:1 copy.
+Do **not** randomly redesign the app.
+Do **not** overfocus on button logic since that is mostly already fine.
+
+---
+
+## What you should do first
+
+Before changing code, inspect both:
+- `\gits\mergen-scope-main` → old visual reference
+- `\gits\mergen-scope` → current target
+
+From the old version, identify:
+- the old color system
+- button styling patterns
+- toolbar grouping rhythm
+- spacing and density
+- how active/selected states were communicated
+- what made the old UI easier to scan
+
+Then create your own refactor plan and execute it.
+
+---
+
+## What needs to come back from the old UI
+
+### 1. Stronger color identity
+The old UI had clearer category separation and more visual energy.
+The current UI feels too muted and too uniformly soft.
+
+Bring back:
+- stronger category colors
+- clearer section identity
+- better contrast
+- more confident accents
+
+But refine them so they feel more deliberate and professional, not messy or dated.
+
+### 2. Better button presence
+The old UI buttons felt clearer and more readable.
+The current ones feel too pale, too soft, and too low-contrast.
+
+Improve:
+- border clarity
+- state visibility
+- text readability
+- contrast between normal / hover / active / disabled
+
+Buttons should feel intentional and tactile.
+A selected button should be instantly obvious.
+
+### 3. Better toolbar grouping
+The old UI had a clearer workbench/tool feel.
+The current top area is more blended together.
+
+Make tool groups feel more structured:
+- better grouping
+- clearer visual boundaries
+- better spacing rhythm
+- better left-to-right scanability
+
+Pane / Marker / Search / View / etc. should read like proper tool groups, not just clusters of similar pills.
+
+### 4. Better hierarchy without making it heavy
+The plot must remain the main focus.
+Toolbars and side panels should support it.
+
+Do not overbuild chrome.
+Do not make the interface bulky.
+Do not let decorative styling overpower the graph.
+
+### 5. Keep the good parts of the current version
+If the current UI has structural improvements, keep them.
+This is not a blind rollback.
+This is a visual/design-system correction.
+
+Think:
+**old UI character + current UI maturity**
+
+---
+
+## How to work
+
+I do not want a one-pass superficial CSS patch.
+I want an iterative refinement process.
+
+### Phase 1 — Analysis
+Inspect both codebases and identify:
+- what the old UI did better
+- what the current UI does worse
+- which styling tokens/components/layout rules changed and caused the regression
+
+### Phase 2 — First refactor pass
+Apply a systematic visual correction:
+- palette/tokens
+- button variants
+- toolbar group styling
+- spacing
+- borders
+- active state styling
+- contrast tuning
+
+### Phase 3 — Self-review
+After the first pass, review your own result critically.
+Ask yourself:
+- Does this actually feel closer to the old UI?
+- Are buttons clearer?
+- Are categories easier to distinguish?
+- Is the layout easier to scan?
+- Is anything still too beige / too soft / too blended together?
+- Did I accidentally make it heavier or noisier?
+
+### Phase 4 — Second refinement pass
+Fix the remaining weak points.
+Tighten inconsistencies.
+Make the final result feel intentional and cohesive.
+
+---
+
+## Design guidance
+
+Target qualities:
+- higher contrast
+- clearer grouping
+- stronger selected states
+- less washed out
+- less generic
+- more workbench-like
+- more confident
+- more readable
+- still clean and controlled
+
+Avoid:
+- overly pastel styling
+- muddy backgrounds
+- weak borders
+- everything looking equally clickable
+- random one-off styling fixes
+- visual drift away from the old UI identity
+
+---
+
+## Implementation guidance
+
+Please compare the actual implementation in the two folders and reuse old patterns where appropriate:
+- colors
+- button treatments
+- grouping structure
+- spacing logic
+- section styling
+- state styling
+
+Do this systematically.
+Prefer improving the design system and shared components rather than scattering hacks.
+
+If there are reusable old tokens or component ideas in `\gits\mergen-scope-main`, bring them back in a cleaner way.
+
+---
+
+## Output expectation
+
+Do the work in an iterative way, not as a single blind edit.
+I expect you to:
+1. inspect old and new
+2. make your own plan
+3. implement
+4. review
+5. refine
+
+Again:
+- button logic is mostly the same already
+- this is mainly a visual/layout/style restoration and polish task
+- use `\gits\mergen-scope-main` as the real reference, not just the screenshots

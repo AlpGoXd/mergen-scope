@@ -148,7 +148,7 @@ export function ToolbarStrip() {
         {showMarkerTools && group("Marker", "var(--marker-color)", (
           <>
             <Btn
-              active={mkrMode === 'normal'}
+              active={mkrMode !== 'delta'}
               title="Normal marker mode"
               onClick={selectNormal}
             >
@@ -171,9 +171,9 @@ export function ToolbarStrip() {
                 style={{ fontSize: '13px', padding: '4px 6px', borderRadius: '7px', border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)' }}
               >
                 <option value="">Ref…</option>
-                {markers.map((_, i) => (
+                {markers.map((m, i) => m.type !== 'delta' ? (
                   <option key={i} value={i}>M{i + 1}</option>
-                ))}
+                ) : null)}
               </select>
             )}
             <Btn

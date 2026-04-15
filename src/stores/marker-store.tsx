@@ -34,7 +34,7 @@ export type MarkerAction =
 const defaultState: MarkerState = {
   markers: [],
   selectedMkrIdx: -1,
-  mkrMode: null,
+  mkrMode: 'normal',
   markerTrace: "",
 };
 
@@ -58,10 +58,18 @@ function markerReducer(state: MarkerState, action: MarkerAction): MarkerState {
         refIdx,
       };
 
+      const newIdx = state.markers.length;
+      const withNew = [...state.markers, newMarker];
+
+      // If new marker is non-delta, auto-assign it as ref for any delta markers with refIdx=null
+      const finalMarkers = markerType !== 'delta'
+        ? withNew.map((m, i) => (i !== newIdx && m.type === 'delta' && m.refIdx === null) ? { ...m, refIdx: newIdx } : m)
+        : withNew;
+
       return {
         ...state,
-        markers: [...state.markers, newMarker],
-        selectedMkrIdx: state.markers.length, // Select the newly added marker
+        markers: finalMarkers,
+        selectedMkrIdx: newIdx,
       };
     }
     case 'REMOVE_MARKER': {
@@ -71,7 +79,7 @@ function markerReducer(state: MarkerState, action: MarkerAction): MarkerState {
       // Adjust refIdx for remaining markers if necessary
       const updatedMarkers = newMarkers.map((m) => {
         if (m.refIdx === null) return m;
-        if (m.refIdx === targetIdx) return { ...m, refIdx: null, type: 'normal' as MarkerType };
+        if (m.refIdx === targetIdx) return { ...m, refIdx: null }; // keep type='delta', ref becomes None
         if (m.refIdx > targetIdx) return { ...m, refIdx: m.refIdx - 1 };
         return m;
       });
@@ -103,7 +111,7 @@ function markerReducer(state: MarkerState, action: MarkerAction): MarkerState {
       // If cross-trace delta markers are allowed, we'd need to clear them just like REMOVE_MARKER.
       const updatedMarkers = newMarkers.map((m) => {
         if (m.refIdx === null) return m;
-        if (indicesToRemove.has(m.refIdx)) return { ...m, refIdx: null, type: 'normal' as MarkerType };
+        if (indicesToRemove.has(m.refIdx)) return { ...m, refIdx: null }; // keep type='delta', ref becomes None
         // Adjust for all deleted indices that came before the refIdx
         let shift = 0;
         for (const r of indicesToRemove) {

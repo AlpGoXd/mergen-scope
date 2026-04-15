@@ -557,6 +557,8 @@ export function Sidebar({ width = 300 }: { width?: number }) {
                 const paneId = tracePaneMap[marker.trace] ?? 'pane-1';
                 const paneNumber = parseInt(paneId.replace('pane-', ''), 10);
 
+                const refMarker = marker.refIdx != null ? (markers[marker.refIdx] ?? null) : null;
+
                 return (
                   <MarkerItem
                     key={`${marker.trace}-${index}`}
@@ -570,6 +572,17 @@ export function Sidebar({ width = 300 }: { width?: number }) {
                     onRemove={() => markerDispatch({ type: 'REMOVE_MARKER', payload: index })}
                     compact={compactSidebar}
                     paneNumber={paneNumber}
+                    refMarker={refMarker}
+                    allMarkers={markers}
+                    onUpdateRefIdx={(refIdx) => {
+                      markerDispatch({
+                        type: 'UPDATE_MARKER',
+                        payload: {
+                          idx: index,
+                          updates: { refIdx, type: refIdx != null ? 'delta' : 'normal' },
+                        },
+                      });
+                    }}
                     onUpdateFreq={(freq) => {
                       if (!trace) {
                         return;
@@ -1030,8 +1043,11 @@ function MarkerItem(props: {
   compact?: boolean;
   onUpdateFreq: (freq: number) => void;
   paneNumber: number;
+  refMarker?: Marker | null;
+  allMarkers?: Marker[];
+  onUpdateRefIdx?: (refIdx: number | null) => void;
 }) {
-  const { marker, index, trace, traceColor, xSpan, isSelected, onSelect, onRemove, compact = false, onUpdateFreq, paneNumber } = props;
+  const { marker, index, trace, traceColor, xSpan, isSelected, onSelect, onRemove, compact = false, onUpdateFreq, paneNumber, refMarker = null, allMarkers = [], onUpdateRefIdx } = props;
   const roleLabel = marker.label ? ` - ${marker.label}` : '';
   const [freqText, setFreqText] = useState(() => formatTraceXValue(marker.freq, trace, xSpan));
 
@@ -1077,7 +1093,7 @@ function MarkerItem(props: {
               color: isSelected ? '#ffffff' : traceColor,
             }}
           >
-            M{index + 1}
+            {marker.type === 'delta' ? `DM${index + 1}` : `M${index + 1}`}
           </span>
           <span
             title={`Pane ${paneNumber}`}
@@ -1147,6 +1163,38 @@ function MarkerItem(props: {
       <div style={{ display: 'grid', gap: '1px' }}>
         <MR label="Y" value={formatTraceYValue(marker.amp, trace)} vc={traceColor} />
       </div>
+
+      {marker.type === 'delta' && (() => {
+        const hasValidRefs = allMarkers.some((m, i) => m.type !== 'delta' && i !== index);
+        return (
+          <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '4px', alignItems: 'start', borderTop: '1px solid color-mix(in srgb, var(--accent) 20%, var(--border))', paddingTop: compact ? '3px' : '4px' }}>
+            {onUpdateRefIdx && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                <span style={{ fontSize: 'var(--font-caption)', color: 'var(--accent)' }}>Ref</span>
+                <select
+                  value={marker.refIdx ?? ''}
+                  onClick={(e) => e.stopPropagation()}
+                  onChange={(e) => {
+                    e.stopPropagation();
+                    const v = e.target.value === '' ? null : Number(e.target.value);
+                    onUpdateRefIdx(v);
+                  }}
+                  style={{ fontSize: 'var(--font-caption)', padding: '2px 4px', borderRadius: '5px', border: '1px solid var(--accent)', background: 'var(--bg)', color: 'var(--accent)' }}
+                >
+                  {!hasValidRefs && <option value="">None</option>}
+                  {allMarkers.map((m, i) => m.type !== 'delta' && i !== index ? (
+                    <option key={i} value={i}>M{i + 1}</option>
+                  ) : null)}
+                </select>
+              </div>
+            )}
+            <div style={{ display: 'grid', gap: '1px' }}>
+              <MR label="ΔF" value={refMarker ? formatTraceXValue(marker.freq - refMarker.freq, trace, xSpan) : '0'} vc="var(--accent)" />
+              <MR label="ΔA" value={refMarker ? formatTraceYValue(marker.amp - refMarker.amp, trace) : '0'} vc="var(--accent)" />
+            </div>
+          </div>
+        );
+      })()}
 
       <div style={{ fontSize: 'var(--font-caption)', lineHeight: 'var(--lh-caption)', color: 'var(--dim)' }}>
         {marker.interpolated ? 'interp' : 'snap'}

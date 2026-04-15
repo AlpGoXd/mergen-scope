@@ -1,7 +1,7 @@
 .DS_Store
 Thumbs.db
 *.log
-*.txt
 node_modules/
 .claude/
+.agents/
 .edge*/

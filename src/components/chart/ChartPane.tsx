@@ -47,11 +47,11 @@ const CHART_MARGIN_RIGHT = 20;
 
 export function ChartPane({ paneId }: ChartPaneProps) {
   const { panes, activePaneId, tracePaneMap, paneActiveTraceMap, zoomAll, sharedZoom, paneXZooms, paneYZooms } = usePaneState();
-  const { markers, selectedMkrIdx } = useMarkerState();
+  const { markers, selectedMkrIdx, mkrMode } = useMarkerState();
   const markerDispatch = useMarkerDispatch();
   const { refLines, refMode, selectedRefLineId } = useRefLineState();
   const refLineDispatch = useRefLineDispatch();
-  const { newMarkerArmed, selectedTraceName, lockLinesAcrossPanes, showDots, traceColors, markerTrace } = useUiState();
+  const { newMarkerArmed, selectedTraceName, lockLinesAcrossPanes, showDots, traceColors, markerTrace, dRef } = useUiState();
   const uiDispatch = useUiDispatch();
   const paneDispatch = usePaneDispatch();
   const fileDispatch = useFileDispatch();
@@ -247,7 +247,7 @@ export function ChartPane({ paneId }: ChartPaneProps) {
     const xSpan = mergedData.length > 1 ? (mergedData[mergedData.length - 1]?.fs ?? 0) - (mergedData[0]?.fs ?? 0) : 0;
     const tol = xSpan * 0.015;
 
-    // Click near an existing marker → select it and start drag
+    // Click near an existing marker → select it and start drag (in all modes)
     const markerHit = paneMarkers.find(({ marker }) => Math.abs(marker.freq - freq) < tol);
     if (markerHit) {
       refLineDispatch({ type: 'SET_SELECTED', payload: null });
@@ -256,11 +256,31 @@ export function ChartPane({ paneId }: ChartPaneProps) {
       return;
     }
 
-    // Drag already-selected marker anywhere on chart
+    // Drag already-selected marker — takes priority over placing new markers in all modes
     const selectedMarker = selectedMkrIdx >= 0 ? markers[selectedMkrIdx] : null;
     if (selectedMarker && traceNamesInPane.includes(selectedMarker.trace)) {
       refLineDispatch({ type: 'SET_SELECTED', payload: null });
       setDraggingMarkerIdx(selectedMkrIdx);
+      return;
+    }
+
+    // Delta mode: place delta marker when clicking empty area with no selected marker
+    if (mkrMode === 'delta') {
+      if (dRef == null || dRef < 0 || dRef >= markers.length) return;
+      const refMarker = markers[dRef];
+      if (!refMarker) return;
+      const deltaTrace = allTraces.find((t) => t.name === refMarker.trace);
+      if (!deltaTrace) return;
+      markerDispatch({
+        type: 'PLACE_MARKER',
+        payload: {
+          trace: deltaTrace,
+          targetFreq: freq,
+          markerType: 'delta',
+          refIdx: dRef,
+          magneticSnap: { nearestPointPixelDistance: computeNearestPixelDist(deltaTrace, freq), snapThresholdPx: 10 },
+        },
+      });
       return;
     }
 
@@ -688,7 +708,8 @@ export function ChartPane({ paneId }: ChartPaneProps) {
                 {paneMarkers.map(({ marker, index }) => {
                   const color = resolveTraceColor(marker.trace || '');
                   const isSelected = index === selectedMkrIdx;
-                  const labelText = `M${index + 1} ${formatAdaptiveXAxisValue(marker.freq, visibleXSpan, {
+                  const labelPrefix = marker.type === 'delta' ? `DM${index + 1}` : `M${index + 1}`;
+                  const labelText = `${labelPrefix} ${formatAdaptiveXAxisValue(marker.freq, visibleXSpan, {
                     domain: activePaneTrace?.domain ?? 'frequency',
                     unit: activePaneTrace?.units.x ?? (activePaneTrace?.domain === 'time' ? 's' : 'Hz'),
                   })}${marker.interpolated ? ' (interp)' : ''}`;
