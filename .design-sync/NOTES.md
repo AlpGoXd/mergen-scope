@@ -50,35 +50,99 @@ TraceRow, WizardColumnConfig, WizardDomainPicker, WizardPreviewTable`.
 implementations; see the unrelated code-review finding from earlier in this
 session about that duplication.)
 
+## Decision: scope narrowed to the 21 context-free components
+
+After the above was written, the user was walked through the tradeoff (option 1:
+sync only the 21 standalone components now, vs. option 2: build a 6-level mock
+provider chain + fake trace/pane/marker data to also cover the 26 app-coupled
+ones). They chose **option 1**, explicitly because the app is headed toward a
+heavily modular architecture (a universal waveform/file viewer) — the 26
+excluded components are coupled to the current monolithic store tree for the
+*same reason* they'd resist becoming modular, so syncing them now (with fake
+mock data papering over that coupling) would just document the pre-refactor
+shape and go stale. Revisit each one as it's pulled apart into a real
+standalone, prop-driven component during that refactor — `componentSrcMap`'s
+`null` entries for it should come out at that point so the next sync picks it
+up automatically.
+
+The 26 are excluded via `cfg.componentSrcMap: {"<Name>": null, ...}` — see
+`config.json`. Excluded names: `AnalysisPanelStack`, `ThresholdCrossingsCard`,
+`BandwidthHelperCard`, `ChannelPowerCard`, `IP3Card`, `NoisePSDCard`,
+`OccupiedBandwidthCard`, `PeakTableCard`, `RangeStatsCard`, `RippleCard`,
+`TraceOpsCard`, `ChartPane`, `ChartWorkspace`, `EmptyChartPane`,
+`PaneSettingsPopover`, `SmithChart`, `SmithGrid`, `FooterBar`,
+`RightPanelStack`, `Sidebar`, `StatusBar`, `ToolbarStrip`, `TopBar`,
+`DataTablePanel`, `ImportExportPanel`, `ImportWizardModal`.
+
+Of the 21 originally-scoped names, `MR` (`src/components/shared/MR.tsx` —
+a simple label/value metric-readout row, genuinely a component) is dropped by
+`lib/dts.mjs`'s `isComponentName` heuristic: `!/^[A-Z][A-Z0-9_]+$/.test(n)`
+treats any all-caps-after-first-letter name as a constant/enum, and "MR"
+matches that pattern. **Tried and reverted**: pinning
+`componentSrcMap.MR = "src/components/shared/MR.tsx"` does NOT work around
+this — a non-null `componentSrcMap` entry switches the whole scan into
+"only build the pinned set" mode (dropped the other 19 down to a 1-component
+build), and even alone in that mode `MR` still failed the same
+`isComponentName` filter (`excluded 1 enum/type/context/hook exports; 0
+components`). Getting `MR` synced would require forking `lib/dts.mjs`
+(`libOverrides`) to special-case this name — not worth it for one component;
+left excluded. If this bugs you, either rename the export to something
+longer (`MetricRow`?) or fork `dts.mjs`.
+20 components shipped, not 21.
+
 ## Styling
 
-`cfg.cssEntry` set to `src/index.css` (CSS custom-property tokens: `--bg`, `--text`,
-`--accent`, etc., used pervasively via `var(--*)`). First build run (before this was
-set) produced `[CSS_RUNTIME]` with an empty self-styling stub — expected, not yet
-re-verified with `cssEntry` wired.
+`cfg.cssEntry` set to `src/index.css` — confirmed correct: build reported
+`css: ... src/index.css (5 KB, copied)` and the compiled `_ds_bundle.css`
+defines every token referenced in `conventions.md` (verified by grep against
+the built output, not just assumed).
 
-## Status at handoff
+## Known render warns
 
-- `npm ci` done.
-- `.ds-sync/` staged, converter deps (`esbuild`, `ts-morph`, `@types/react`)
-  installed.
-- One successful synth-entry build: 46 components discovered under
-  `src/components` (whole-tree scope, as the user chose), 0 docs matched, 0
-  previews authored yet (none of §4 has started).
-- `cssEntry` just added to config; **not yet rebuilt/reverified with it.**
-- No `cfg.provider` chain configured yet — render check has not been run
-  (`package-validate.mjs` not yet invoked), so no confirmed count of components
-  that fail to render.
-- Nothing uploaded. `finalize_plan` never called. No approval prompt shown yet.
+- `[FONT_MISSING]`: "Inter" and "IBM Plex Mono" (`--font-mono`) are referenced
+  by the CSS but never shipped as `@font-face`/webfont anywhere in the repo —
+  confirmed by grep, this is not a design-sync scrape miss. The real app
+  itself relies on the OS having "Inter" installed and falls back to
+  `system-ui`/monospace otherwise. Accepted as-is (matches real app behavior);
+  not wired via `extraFonts`/`runtimeFontPrefixes`. A future re-sync should
+  NOT chase this warn — it's expected.
+
+## Status at handoff (sync complete)
+
+- `npm ci` done; `.ds-sync/` staged with converter deps installed.
+- Chromium installed for the render check (user approved the ~200MB download).
+- Final build: 20 components under the narrowed scope. `cssEntry` verified.
+  Render check: 20/20 clean, 0 bad. 2 components authored
+  (`Sec`: Default/StandaloneLabels; `TouchstoneMatrixPicker`: TwoPort/FourPort),
+  both graded `good` on the absolute rubric and carried-forward-confirmed on
+  re-capture. The other 18 ship as floor cards (unauthored, not failures) —
+  standing offer to author more on any future re-sync.
+- `readmeHeader` set to `.design-sync/conventions.md`; validated every named
+  token/class/component against the actual built artifacts before shipping
+  (`grep`'d `_ds_bundle.css` for all 24 CSS custom properties named, confirmed
+  `Sec`/`TouchstoneMatrixPicker` dirs exist in `ds-bundle/components/`).
+- `report_validate` called with `{total:20, bad:0, thin:0, variantsIdentical:0,
+  iterations:2}`.
+- **Uploaded** via the incremental path: `finalize_plan` approved by the user,
+  sentinel → 88 files (bundle + styles + vendor + previews + all 20 component
+  dirs) → sentinel re-arm → `_ds_sync.json` last. Post-upload `list_files`
+  confirmed exact match, no orphans, nothing to delete.
+- Project: `https://claude.ai/design/p/e32656e0-f5ff-4b04-810e-4af5a3e53112`
 
 ## Re-sync risks
 
 - The `node_modules/mergen-scope` self-symlink is gitignored (`node_modules/`) —
-  it must be recreated on every fresh clone before the converter can run at all.
-  This is unusual enough to call out explicitly in any re-sync instructions.
-- If the user narrows scope to the 21 context-free components, `componentSrcMap`
-  should be used to exclude the other 26 (`{"ChartPane": null, "Sidebar": null,
-  ...}`) rather than leaving them in and fighting the provider chain per-component.
-- `cssEntry` was set from a single guess (`src/index.css`) — confirm it's actually
-  the file that defines the `--*` custom properties referenced everywhere before
-  trusting renders.
+  it must be recreated on every fresh clone before the converter can run at all:
+  `node -e "require('fs').symlinkSync(process.cwd(), 'node_modules/mergen-scope', 'junction')"`
+  (Windows junction; a plain symlink on POSIX). This is unusual enough to call
+  out explicitly — a re-sync that skips it fails at `[NO_DIST] ... no src/ to
+  synthesize from` or an `ENOENT` on `node_modules/mergen-scope/package.json`.
+- No real `dist/` build was ever used — every sync so far has been synth-entry
+  mode from `src/`, which the converter itself flags as weaker `.d.ts`
+  contracts than a real build would give. If this repo ever gains a real
+  library-mode build (vite `build.lib` + `.d.ts` emission) for a components
+  package, prefer pointing `--entry` at that over continuing synth-entry mode.
+- The 26 excluded components are a moving target — as the app modularizes,
+  some will stop reading global context and become syncable. Check
+  `componentSrcMap` against `src/components` on each future sync, not just
+  trust the current exclusion list.
