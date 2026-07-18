@@ -1,0 +1,9 @@
+{
+  "projectId": "e32656e0-f5ff-4b04-810e-4af5a3e53112",
+  "shape": "package",
+  "pkg": "mergen-scope",
+  "globalName": "MergenScope",
+  "srcDir": "src/components",
+  "tsconfig": "tsconfig.json",
+  "cssEntry": "src/index.css"
+}
