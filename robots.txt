@@ -1,3 +1,3 @@
 User-agent: *
 Allow: /
-Sitemap: https://alpgoxd.github.io/mergen-scope/sitemap.xml
+Sitemap: https://mergenscope.com/sitemap.xml

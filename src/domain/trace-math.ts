@@ -233,6 +233,58 @@ export function makeNiceTicks(
 }
 
 // ---------------------------------------------------------------------------
+// Nice-step span snapping (for wheel zoom)
+// ---------------------------------------------------------------------------
+
+/** Shared tick count for grid, axes, and toolbar Div readouts (6 divisions). */
+export const NICE_TICK_COUNT = 7;
+
+/** Nice step value at integer index. Series 1, 2, 5 per decade. */
+export function niceStepAtIndex(i: number): number {
+  const base = [1, 2, 5] as const;
+  const mod = ((i % 3) + 3) % 3;
+  const power = Math.floor(i / 3);
+  return base[mod]! * Math.pow(10, power);
+}
+
+/** Integer index of nice step closest to the given step (log-scale). */
+export function nearestNiceStepIndex(step: number): number {
+  if (!Number.isFinite(step) || step <= 0) return 0;
+  const approx = Math.round(Math.log10(step) * 3);
+  let best = approx;
+  let bestDiff = Infinity;
+  for (let di = -3; di <= 3; di++) {
+    const i = approx + di;
+    const diff = Math.abs(Math.log(niceStepAtIndex(i) / step));
+    if (diff < bestDiff) { bestDiff = diff; best = i; }
+  }
+  return best;
+}
+
+/** Step the span by one discrete nice level in the given direction.
+ *  direction +1 = zoom out (bigger step), -1 = zoom in (smaller step). */
+export function steppedSpan(
+  currentSpan: number,
+  direction: -1 | 1,
+  tickCount: number = NICE_TICK_COUNT,
+): number {
+  if (!Number.isFinite(currentSpan) || currentSpan <= 0) return currentSpan;
+  const divs = Math.max(1, tickCount - 1);
+  const currentStep = currentSpan / divs;
+  const i = nearestNiceStepIndex(currentStep);
+  // If current step does not match the nice value at i, first snap to nearest
+  // nice level in the requested direction instead of stepping past it.
+  const currentNice = niceStepAtIndex(i);
+  let targetIndex: number;
+  if (direction > 0) {
+    targetIndex = currentNice > currentStep * 1.001 ? i : i + 1;
+  } else {
+    targetIndex = currentNice < currentStep * 0.999 ? i : i - 1;
+  }
+  return niceStepAtIndex(targetIndex) * divs;
+}
+
+// ---------------------------------------------------------------------------
 // Horizontal crossings
 // ---------------------------------------------------------------------------
 

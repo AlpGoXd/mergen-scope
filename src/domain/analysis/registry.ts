@@ -386,10 +386,7 @@ export function isAnalysisItemVisible(
   }
 
   if (scope === "network") {
-    if (!isTouchstoneTarget(target)) return false;
-    if (item.id === "vswr" || item.id === "return-loss") return isTouchstoneReflectionTarget(target);
-    if (item.id === "reciprocity-isolation") return isTouchstoneTransmissionTarget(target);
-    return true;
+    return isTouchstoneTarget(target);
   }
 
   if (scope === "spectrum") return family === 'spectrum';

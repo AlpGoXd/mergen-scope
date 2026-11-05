@@ -31,7 +31,7 @@ export type MarkerAction =
   | { type: 'SET_TRACE'; payload: string }
   | { type: 'RESTORE'; payload: MarkerState };
 
-const defaultState: MarkerState = {
+export const defaultMarkerState: MarkerState = {
   markers: [],
   selectedMkrIdx: -1,
   mkrMode: 'normal',
@@ -41,7 +41,7 @@ const defaultState: MarkerState = {
 const MarkerStateContext = createContext<MarkerState | null>(null);
 const MarkerDispatchContext = createContext<React.Dispatch<MarkerAction> | null>(null);
 
-function markerReducer(state: MarkerState, action: MarkerAction): MarkerState {
+export function markerReducer(state: MarkerState, action: MarkerAction): MarkerState {
   switch (action.type) {
     case 'PLACE_MARKER': {
       const { targetFreq, trace, markerType = 'normal', label = null, refIdx = null, magneticSnap } = action.payload;
@@ -156,7 +156,7 @@ function markerReducer(state: MarkerState, action: MarkerAction): MarkerState {
 }
 
 export function MarkerStoreProvider({ children }: { children: React.ReactNode }) {
-  const [state, dispatch] = useReducer(markerReducer, defaultState);
+  const [state, dispatch] = useReducer(markerReducer, defaultMarkerState);
 
   return (
     <MarkerDispatchContext.Provider value={dispatch}>

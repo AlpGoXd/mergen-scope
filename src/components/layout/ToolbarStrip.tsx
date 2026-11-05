@@ -5,10 +5,7 @@ import { usePaneState, usePaneDispatch } from '../../stores/pane-store';
 import { useTraceState } from '../../stores/trace-store';
 import { useRefLineState, useRefLineDispatch } from '../../stores/ref-line-store';
 import { findAbsoluteMax, findAbsoluteMin, findNextLocalExtremum } from '../../domain/markers';
-import { makeNiceTicks } from '../../domain/trace-math';
 import { useInteractionMode } from '../../hooks/use-interaction-mode';
-import { useXControls } from '../../hooks/use-x-controls';
-import { useYControls } from '../../hooks/use-y-controls';
 import { Btn } from '../shared/Btn';
 
 /**
@@ -20,17 +17,16 @@ export function ToolbarStrip() {
     showPaneTools,
     showSearchTools,
     showLineTools,
-    showViewTools,
     showMarkerTools,
     searchDirection,
-    lockLinesAcrossPanes,
     markerTrace,
+    newMarkerArmed,
     dRef,
   } = useUiState();
 
   const { allTraces, vis } = useTraceState();
   const { markers, selectedMkrIdx, mkrMode } = useMarkerState();
-  const { panes, activePaneId, tracePaneMap, paneActiveTraceMap, zoomAll, sharedZoom, paneXZooms, paneYZooms } = usePaneState();
+  const { panes, activePaneId, tracePaneMap, paneActiveTraceMap } = usePaneState();
   const { refMode } = useRefLineState();
 
   const uiDispatch = useUiDispatch();
@@ -38,8 +34,6 @@ export function ToolbarStrip() {
   const refLineDispatch = useRefLineDispatch();
   const paneDispatch = usePaneDispatch();
   const { toggleRefPlacement, selectNormal, selectDelta } = useInteractionMode();
-  const { clearAllXZooms, setZoom } = useXControls();
-  const { resetYZ } = useYControls();
 
   const paneTraceNames = React.useMemo(() => Object.entries(tracePaneMap)
     .filter(([, pid]) => pid === activePaneId)
@@ -94,27 +88,6 @@ export function ToolbarStrip() {
     if (!best) return;
     moveOrPlace(best.freq, best.amp);
   };
-
-  // --- X/div and Y/div computation ---
-  const xZoom = zoomAll ? sharedZoom : (activePaneId ? paneXZooms[activePaneId] ?? null : null);
-  const xDiv = (() => {
-    const dom = xZoom ? { min: xZoom.left, max: xZoom.right } : null;
-    const ticks = makeNiceTicks(dom);
-    if (!ticks || ticks.length < 2) return '—';
-    const step = ticks[1]! - ticks[0]!;
-    return step >= 1e9 ? `${(step / 1e9).toFixed(1)}G/div`
-      : step >= 1e6 ? `${(step / 1e6).toFixed(1)}M/div`
-      : step >= 1e3 ? `${(step / 1e3).toFixed(1)}k/div`
-      : `${step.toFixed(2)}/div`;
-  })();
-
-  const yZoom = activePaneId ? paneYZooms[activePaneId] ?? null : null;
-  const yDiv = (() => {
-    const ticks = makeNiceTicks(yZoom);
-    if (!ticks || ticks.length < 2) return '—';
-    const step = ticks[1]! - ticks[0]!;
-    return `${step.toFixed(2)}/div`;
-  })();
 
   const group = (title: string, color: string, children: React.ReactNode) => (
     <div style={{
@@ -177,33 +150,38 @@ export function ToolbarStrip() {
               </select>
             )}
             <Btn
-              title="Place a new marker on next click"
-              onClick={() => uiDispatch({ type: 'SET', payload: { key: 'newMarkerArmed', value: true } })}
-            >
-              New Marker
-            </Btn>
-            <Btn
-              title="Deselect active marker and ref line"
+              active={selectedMkrIdx < 0 && newMarkerArmed}
+              title={selectedMkrIdx >= 0 ? "Deselect active marker" : "Arm for new marker placement on next click"}
               onClick={() => {
-                markerDispatch({ type: 'SET_SELECTED_IDX', payload: -1 });
-                refLineDispatch({ type: 'SET_SELECTED', payload: null });
+                if (selectedMkrIdx >= 0) {
+                  markerDispatch({ type: 'SET_SELECTED_IDX', payload: -1 });
+                  refLineDispatch({ type: 'SET_SELECTED', payload: null });
+                  uiDispatch({ type: 'SET', payload: { key: 'newMarkerArmed', value: false } });
+                } else {
+                  uiDispatch({ type: 'SET', payload: { key: 'newMarkerArmed', value: true } });
+                }
               }}
             >
-              Unselect
+              {selectedMkrIdx >= 0 ? 'Unselect' : 'New Marker'}
             </Btn>
-            <span style={{ fontSize: '11px', color: 'var(--dim)' }}>Trace:</span>
             <select
               value={markerTrace}
               onChange={(e) => uiDispatch({ type: 'SET', payload: { key: 'markerTrace', value: e.target.value } })}
-              style={{ fontSize: '13px', padding: '4px 6px', borderRadius: '7px', border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', minWidth: '120px' }}
-              title="Choose which trace new markers bind to"
+              style={{ fontSize: '13px', padding: '4px 6px', borderRadius: '7px', border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', minWidth: '80px' }}
+              title="Marker trace (Auto = pick nearest)"
             >
               <option value="__auto__">Auto</option>
-              {visiblePaneTraces.map((trace) => (
-                <option key={trace.name} value={trace.name}>
-                  {trace.dn || trace.name}
-                </option>
-              ))}
+              {visiblePaneTraces.map((trace) => {
+                const label = trace.dn || trace.name;
+                const display = label.length > 25
+                  ? label.slice(0, 5) + '...' + label.slice(-12)
+                  : label;
+                return (
+                  <option key={trace.name} value={trace.name} title={label}>
+                    {display}
+                  </option>
+                );
+              })}
             </select>
           </>
         ))}
@@ -224,16 +202,6 @@ export function ToolbarStrip() {
             >
               - Pane
             </Btn>
-            {panes.map((p, idx) => (
-              <Btn
-                key={p.id}
-                active={activePaneId === p.id}
-                onClick={() => paneDispatch({ type: 'SET_ACTIVE_PANE', payload: p.id })}
-              >
-                {p.title || `Pane ${idx + 1}`}
-              </Btn>
-            ))}
-            <Btn title="Fit all panes" onClick={clearAllXZooms}>Fit All</Btn>
           </>
         ))}
 
@@ -269,24 +237,9 @@ export function ToolbarStrip() {
             >
               H-Line
             </Btn>
-            <Btn
-              active={lockLinesAcrossPanes}
-              onClick={() => uiDispatch({ type: 'SET', payload: { key: 'lockLinesAcrossPanes', value: !lockLinesAcrossPanes } })}
-            >
-              {lockLinesAcrossPanes ? "Lock: All Panes" : "Lock: Active Pane"}
-            </Btn>
           </>
         ))}
 
-        {showViewTools && group("View", "var(--view-color)", (
-          <>
-            <Btn title="Zoom to fit all traces" onClick={clearAllXZooms}>Fit All</Btn>
-            <Btn title="Reset current pane Y zoom" onClick={() => resetYZ()}>Reset Y</Btn>
-            <Btn title="Reset X zoom" onClick={() => setZoom(null)}>Reset X</Btn>
-            <span className="btn" style={{ fontFamily: 'var(--font-mono)', cursor: 'default' }}>X: {xDiv}</span>
-            <span className="btn" style={{ fontFamily: 'var(--font-mono)', cursor: 'default' }}>Y: {yDiv}</span>
-          </>
-        ))}
 
       </div>
     </div>

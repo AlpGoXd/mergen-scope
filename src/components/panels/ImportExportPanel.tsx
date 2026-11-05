@@ -82,6 +82,7 @@ export function ImportExportPanel() {
 			onClose={() => uiDispatch({ type: 'SET', payload: { key: 'showImportExportPanel', value: false } })}
 		>
 			<input
+				data-testid="import-export-data-input"
 				ref={importRef}
 				type="file"
 				multiple
@@ -90,6 +91,7 @@ export function ImportExportPanel() {
 				onChange={onImportFiles}
 			/>
 			<input
+				data-testid="import-export-workspace-input"
 				ref={workspaceRef}
 				type="file"
 				accept=".json"

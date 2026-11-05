@@ -139,6 +139,7 @@ export function TopBar() {
       <div style={{ marginLeft: 'auto', display: 'flex', gap: '6px', ...groupStyle }}>
         <span style={groupLabelStyle}>Workspace</span>
         <input
+          data-testid="topbar-workspace-input"
           type="file"
           ref={fileInputRef}
           style={{ display: 'none' }}

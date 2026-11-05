@@ -16,9 +16,6 @@ export const FAMILY_DEFAULTS: Record<DatasetFamily, InterpolationStrategy> = {
 const DEFAULT_UNIFORMITY_TOLERANCE = 0.001;
 const LANCZOS_A = 6;
 
-function clampIndex(index: number, length: number): number {
-  return Math.max(0, Math.min(length - 1, index));
-}
 
 function findLowerBound<T extends { freq: number }>(
   points: readonly T[],
@@ -106,7 +103,8 @@ function resolveSincScalar(points: readonly DataPoint[], targetX: number): { x: 
   let weightSum = 0;
 
   for (let offset = -LANCZOS_A; offset <= LANCZOS_A; offset += 1) {
-    const sampleIndex = clampIndex(center + offset, points.length);
+    const sampleIndex = center + offset;
+    if (sampleIndex < 0 || sampleIndex >= points.length) continue;
     const sample = points[sampleIndex]!;
     const samplePosition = (sample.freq - points[0]!.freq) / dx;
     const weight = lanczosKernel(baseIndex - samplePosition);
@@ -135,7 +133,8 @@ function resolveSincComplex(points: readonly ComplexDisplayPoint[], targetX: num
   let weightSum = 0;
 
   for (let offset = -LANCZOS_A; offset <= LANCZOS_A; offset += 1) {
-    const sampleIndex = clampIndex(center + offset, points.length);
+    const sampleIndex = center + offset;
+    if (sampleIndex < 0 || sampleIndex >= points.length) continue;
     const sample = points[sampleIndex]!;
     const samplePosition = (sample.x - points[0]!.x) / dx;
     const weight = lanczosKernel(baseIndex - samplePosition);

@@ -1,5 +1,7 @@
-import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
+import React, { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import { formatAdaptiveXAxisValue, formatEngineeringValue, formatScalarWithUnit } from '../../domain/format';
+import { computeVerticalIntersections, computeHorizontalIntersections } from '../../domain/ref-lines';
+import type { LineIntersection } from '../../domain/ref-lines';
 import { getInterpolationOptionDisabledReason, getResolvedInterpolationStrategy } from '../../domain/interpolation';
 import { placeMarker } from '../../domain/markers';
 import { makeDefaultTouchstoneState } from '../../domain/touchstone/selections';
@@ -108,7 +110,7 @@ export function Sidebar({ width = 300 }: { width?: number }) {
   const { markers, selectedMkrIdx } = useMarkerState();
   const { refLines, selectedRefLineId } = useRefLineState();
   const { selectedTraceName, showSidebar, showDetailedFiles, traceColors } = useUiState();
-  const { tracePaneMap, zoomAll, sharedZoom, paneXZooms } = usePaneState();
+  const { panes, tracePaneMap, zoomAll, sharedZoom, paneXZooms } = usePaneState();
 
   const fileDispatch = useFileDispatch();
   const markerDispatch = useMarkerDispatch();
@@ -195,6 +197,20 @@ export function Sidebar({ width = 300 }: { width?: number }) {
     }
     const step = Math.abs((trace.data[1]?.freq ?? 0) - (trace.data[0]?.freq ?? 0));
     return Number.isFinite(step) && step > 0 ? step : 1;
+  };
+
+  const getVisibleXSpanForPaneId = (paneId: string | null): number => {
+    const pid = paneId ?? 'pane-1';
+    const zoom = zoomAll ? sharedZoom : (paneXZooms[pid] ?? null);
+    if (zoom && Number.isFinite(zoom.left) && Number.isFinite(zoom.right) && zoom.right > zoom.left) {
+      return zoom.right - zoom.left;
+    }
+    const tracesInPane = allTraces.filter((t) => tracePaneMap[t.name] === pid);
+    for (const trace of tracesInPane) {
+      const span = getTraceDataSpan(trace);
+      if (span > 1) return span;
+    }
+    return 1;
   };
 
   const getVisibleTraceXSpan = (trace: Trace | null): number => {
@@ -386,6 +402,18 @@ export function Sidebar({ width = 300 }: { width?: number }) {
                       portCount={file.touchstoneNetwork.portCount}
                       family={activeFamily}
                       view={activeView}
+                      cellColors={(() => {
+                        const cellPattern = `${activeFamily}`;
+                        const map: Record<string, string> = {};
+                        allTraces.forEach((trace, index) => {
+                          if (displayTraceLocationByLegacyName.get(trace.name)?.fileId !== fileId) return;
+                          const match = trace.name.match(new RegExp(`_${cellPattern}(\\d+)(\\d+)_`));
+                          if (!match) return;
+                          const key = `${match[1]}:${match[2]}`;
+                          if (!map[key]) map[key] = resolveTraceColor(trace, index);
+                        });
+                        return map;
+                      })()}
                       onToggle={(row, col, view) => appendCell(fileId, activeFamily, row + 1, col + 1, view)}
                     />
                   </div>
@@ -611,18 +639,80 @@ export function Sidebar({ width = 300 }: { width?: number }) {
         {refLines.length > 0 && (
           <PanelSection title="Reference Lines" compact={compactSidebar}>
             <div style={{ display: 'grid', gap: '4px' }}>
-              {refLines.map((refLine) => (
-                <RefLineItem
-                  key={refLine.id}
-                  refLine={refLine}
-                  isSelected={selectedRefLineId === refLine.id}
-                  onSelect={() => refLineDispatch({ type: 'SET_SELECTED', payload: refLine.id })}
-                  onRemove={() => refLineDispatch({ type: 'REMOVE_LINE', payload: refLine.id })}
-                  selectedTrace={selectedTraceName ? allTraces.find((trace) => trace.name === selectedTraceName) ?? null : null}
-                  compact={compactSidebar}
-                  colors={colors}
-                />
-              ))}
+              {(() => {
+                const selectedTrace = selectedTraceName ? allTraces.find((t) => t.name === selectedTraceName) ?? null : null;
+                // Deduplicate locked groups: show only one entry per groupId (the selected one or first)
+                const seenGroups = new Set<string>();
+                return refLines
+                  .filter((refLine) => {
+                    if (!refLine.groupId) return true;
+                    if (seenGroups.has(refLine.groupId)) return false;
+                    seenGroups.add(refLine.groupId);
+                    return true;
+                  })
+                  .map((refLine) => {
+                    // Collect traces for this line's pane
+                    const paneTraces = allTraces.filter((t) => tracePaneMap[t.name] === refLine.paneId);
+                    // For locked lines, also collect intersections from all panes in the group
+                    let intersections: LineIntersection[];
+                    if (refLine.groupId) {
+                      const groupLines = refLines.filter((l) => l.groupId === refLine.groupId);
+                      intersections = groupLines.flatMap((gl) => {
+                        const gTraces = allTraces.filter((t) => tracePaneMap[t.name] === gl.paneId);
+                        return gl.type === 'v'
+                          ? computeVerticalIntersections(gl.value, gTraces, gl.paneId ?? 'pane-1')
+                          : computeHorizontalIntersections(gl.value, gTraces, gl.paneId ?? 'pane-1');
+                      });
+                    } else {
+                      intersections = refLine.type === 'v'
+                        ? computeVerticalIntersections(refLine.value, paneTraces, refLine.paneId ?? 'pane-1')
+                        : computeHorizontalIntersections(refLine.value, paneTraces, refLine.paneId ?? 'pane-1');
+                    }
+                    return (
+                      <RefLineItem
+                        key={refLine.id}
+                        refLine={refLine}
+                        isSelected={selectedRefLineId === refLine.id ||
+                          (refLine.groupId != null && refLines.some((l) => l.groupId === refLine.groupId && l.id === selectedRefLineId))}
+                        intersections={intersections}
+                        allPanes={panes}
+                        onSelect={() => {
+                          refLineDispatch({ type: 'SET_SELECTED', payload: refLine.id });
+                          markerDispatch({ type: 'SET_SELECTED_IDX', payload: -1 });
+                        }}
+                        onRemove={() => {
+                          if (refLine.groupId) {
+                            // Remove all lines in the group
+                            refLines
+                              .filter((l) => l.groupId === refLine.groupId)
+                              .forEach((l) => refLineDispatch({ type: 'REMOVE_LINE', payload: l.id }));
+                          } else {
+                            refLineDispatch({ type: 'REMOVE_LINE', payload: refLine.id });
+                          }
+                        }}
+                        onLock={() => refLineDispatch({ type: 'LOCK_LINE', payload: { lineId: refLine.id, allPaneIds: panes.map((p) => p.id) } })}
+                        onUnlock={() => refLineDispatch({ type: 'UNLOCK_LINE', payload: { lineId: refLine.id } })}
+                        onUpdateValue={(value) => {
+                          if (refLine.groupId) {
+                            refLineDispatch({ type: 'MOVE_GROUP', payload: { groupId: refLine.groupId, value } });
+                          } else {
+                            refLineDispatch({ type: 'UPDATE_LINE', payload: { id: refLine.id, updates: { value } } });
+                          }
+                        }}
+                        siblingLines={refLines.filter(l => l.type === refLine.type && l.paneId === refLine.paneId && l.id !== refLine.id)}
+                        onUpdateDeltaPartner={(partnerId) => refLineDispatch({ type: 'UPDATE_LINE', payload: { id: refLine.id, updates: { deltaPartnerId: partnerId } } })}
+                        selectedTrace={selectedTrace}
+                        xSpan={getVisibleXSpanForPaneId(refLine.paneId)}
+                        compact={compactSidebar}
+                        colors={colors}
+                        resolveTraceColor={(name) => {
+                          const t = allTraces.find((tr) => tr.name === name);
+                          return t ? resolveTraceColor(t, allTraces.indexOf(t)) : 'var(--accent)';
+                        }}
+                      />
+                    );
+                  });
+              })()}
             </div>
           </PanelSection>
         )}
@@ -781,9 +871,9 @@ function formatTraceYValue(value: number, trace: Trace | null): string {
   return formatWithUnit(value, trace?.units.y ?? null);
 }
 
-function formatRefLineValue(refLine: RefLine, selectedTrace: Trace | null): string {
+function formatRefLineValue(refLine: RefLine, selectedTrace: Trace | null, visibleSpan?: number): string {
   if (refLine.type === 'v') {
-    return formatTraceXValue(refLine.value, selectedTrace);
+    return formatTraceXValue(refLine.value, selectedTrace, visibleSpan);
   }
   return formatWithUnit(refLine.value, selectedTrace?.units.y ?? null);
 }
@@ -920,6 +1010,7 @@ function TraceRow(props: {
 
   return (
     <div
+      data-testid={`trace-row-${trace.name}`}
       draggable
       onDragStart={(e) => {
         e.dataTransfer.setData('application/x-mergen-trace', trace.name);
@@ -934,10 +1025,10 @@ function TraceRow(props: {
         minWidth: 0,
         padding: compact ? '2px 5px' : '3px 6px',
         borderRadius: compact ? '7px' : '8px',
-        border: `1px solid ${isSelected ? traceColor : 'color-mix(in srgb, var(--accent) 8%, var(--border))'}`,
+        border: `1px solid ${isSelected ? 'var(--text)' : 'var(--border)'}`,
         background: isSelected
-          ? `color-mix(in srgb, ${traceColor} 10%, white)`
-          : 'rgba(255,255,255,0.78)',
+          ? `color-mix(in srgb, ${traceColor} 10%, var(--card))`
+          : 'var(--card)',
         boxShadow: isSelected ? `inset 3px 0 0 ${traceColor}` : 'none',
         cursor: 'grab',
       }}
@@ -962,7 +1053,7 @@ function TraceRow(props: {
         style={{
           width: compact ? '12px' : '14px',
           height: compact ? '12px' : '14px',
-          border: '1px solid var(--border)',
+          border: trace.kind === 'derived' ? '1px dashed var(--muted)' : '1px solid var(--border)',
           borderRadius: '4px',
           padding: 0,
           background: 'transparent',
@@ -1049,13 +1140,15 @@ function MarkerItem(props: {
 }) {
   const { marker, index, trace, traceColor, xSpan, isSelected, onSelect, onRemove, compact = false, onUpdateFreq, paneNumber, refMarker = null, allMarkers = [], onUpdateRefIdx } = props;
   const roleLabel = marker.label ? ` - ${marker.label}` : '';
+  const [freqFocused, setFreqFocused] = useState(false);
   const [freqText, setFreqText] = useState(() => formatTraceXValue(marker.freq, trace, xSpan));
 
   useEffect(() => {
-    setFreqText(formatTraceXValue(marker.freq, trace, xSpan));
-  }, [marker.freq, trace, xSpan]);
+    if (!freqFocused) setFreqText(formatTraceXValue(marker.freq, trace, xSpan));
+  }, [marker.freq, trace, xSpan, freqFocused]);
 
   const commitFreq = () => {
+    setFreqFocused(false);
     const parsed = parseEngineeringInput(freqText, trace);
     if (parsed == null) {
       setFreqText(formatTraceXValue(marker.freq, trace, xSpan));
@@ -1066,6 +1159,7 @@ function MarkerItem(props: {
 
   return (
     <div
+      data-testid={`marker-row-${index + 1}`}
       onClick={onSelect}
       style={{
         border: `1px solid ${isSelected ? traceColor : `color-mix(in srgb, ${traceColor} 20%, var(--border))`}`,
@@ -1136,26 +1230,27 @@ function MarkerItem(props: {
         <input
           value={freqText}
           onChange={(event) => setFreqText(event.target.value)}
+          onFocus={(event) => { setFreqFocused(true); setFreqText(String(marker.freq)); event.currentTarget.select(); }}
           onBlur={commitFreq}
           onKeyDown={(event) => {
-            if (event.key === 'Enter') {
-              commitFreq();
-            }
-            if (event.key === 'Escape') {
-              setFreqText(formatTraceXValue(marker.freq, trace, xSpan));
-            }
+            if (event.key === 'Enter') { event.currentTarget.blur(); }
+            if (event.key === 'Escape') { setFreqFocused(false); setFreqText(formatTraceXValue(marker.freq, trace, xSpan)); event.currentTarget.blur(); }
           }}
           onClick={(event) => event.stopPropagation()}
           style={{
             width: '100%',
-            background: 'rgba(255,255,255,0.98)',
+            background: freqFocused ? 'var(--bg)' : 'transparent',
             color: 'var(--text)',
-            border: `1px solid color-mix(in srgb, ${traceColor} 25%, var(--border))`,
+            border: freqFocused
+              ? `1px solid ${traceColor}`
+              : `1px solid color-mix(in srgb, ${traceColor} 30%, var(--border))`,
             borderRadius: '5px',
             fontSize: 'var(--font-label)',
             lineHeight: 'var(--lh-label)',
             padding: compact ? '0.2rem 0.38rem' : '0.24rem 0.46rem',
             minWidth: 0,
+            outline: 'none',
+            cursor: 'text',
           }}
         />
       </div>
@@ -1206,18 +1301,51 @@ function MarkerItem(props: {
 function RefLineItem(props: {
   refLine: RefLine;
   isSelected: boolean;
+  intersections: LineIntersection[];
+  allPanes: readonly { id: string; title: string }[];
+  siblingLines: RefLine[];
   onSelect: () => void;
   onRemove: () => void;
+  onLock: () => void;
+  onUnlock: () => void;
+  onUpdateValue: (value: number) => void;
+  onUpdateDeltaPartner: (partnerId: number | null) => void;
   selectedTrace: Trace | null;
+  xSpan: number;
   compact?: boolean;
   colors?: ThemeColors | null;
+  resolveTraceColor: (traceName: string) => string;
 }) {
-  const { refLine, isSelected, onSelect, onRemove, selectedTrace, compact = false, colors } = props;
+  const { refLine, isSelected, intersections, allPanes, siblingLines, onSelect, onRemove, onLock, onUnlock, onUpdateValue, onUpdateDeltaPartner, selectedTrace, xSpan, compact = false, colors, resolveTraceColor } = props;
   const accentColor = refLine.type === 'v' ? (colors?.refV ?? '#d48a2b') : (colors?.refH ?? '#2b9ab7');
-  const label = refLine.label?.trim() || `${refLine.type === 'v' ? 'V' : 'H'} line ${refLine.id}`;
+  const isLocked = refLine.groupId != null;
+
+  const [focused, setFocused] = React.useState(false);
+  const [editText, setEditText] = React.useState('');
+
+  // Sync display text when not focused
+  React.useEffect(() => {
+    if (!focused) setEditText(formatRefLineValue(refLine, selectedTrace, xSpan));
+  }, [refLine.value, focused, selectedTrace, xSpan]);
+
+  const commitEdit = () => {
+    setFocused(false);
+    const parsed = parseEngineeringInput(editText, selectedTrace);
+    if (parsed != null && Number.isFinite(parsed)) onUpdateValue(parsed);
+    else setEditText(formatRefLineValue(refLine, selectedTrace, xSpan)); // revert bad input
+  };
+
+  // Group intersections by pane
+  const byPane: Record<string, LineIntersection[]> = {};
+  for (const ix of intersections) {
+    (byPane[ix.paneId] ??= []).push(ix);
+  }
+
+  const lineLabel = refLine.label ?? (refLine.type === 'v' ? 'V' : 'H');
 
   return (
     <div
+      data-testid={`ref-line-row-${refLine.label ?? refLine.id}`}
       onClick={onSelect}
       style={{
         border: `1px solid ${isSelected ? accentColor : `color-mix(in srgb, ${accentColor} 18%, var(--border))`}`,
@@ -1233,32 +1361,125 @@ function RefLineItem(props: {
         minWidth: 0,
       }}
     >
-      <div style={{ display: 'grid', gridTemplateColumns: 'auto minmax(0, 1fr) auto', gap: compact ? '4px' : '6px', alignItems: 'start', minWidth: 0 }}>
-        <span style={{ ...badgeStyle, borderColor: accentColor, color: accentColor }}>{refLine.type.toUpperCase()}</span>
-        <PretextLabel
-          text={label}
-          font="400 var(--font-label) system-ui"
-          lineHeight="var(--lh-label)"
-          maxLines={compact ? 3 : 4}
-          style={{ fontSize: 'var(--font-label)', color: 'var(--text)', minWidth: 0 }}
-          lineStyle={{ whiteSpace: 'normal' }}
+      {/* Row 1: name badge + value input + lock icon + remove */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'auto minmax(0, 1fr) auto auto', gap: compact ? '4px' : '6px', alignItems: 'center', minWidth: 0 }}>
+        <span style={{
+          ...badgeStyle,
+          borderColor: accentColor,
+          background: isSelected ? accentColor : 'transparent',
+          color: isSelected ? '#fff' : accentColor,
+          fontFamily: 'var(--font-mono)',
+          fontWeight: 700,
+          padding: '1px 6px',
+        }}>{lineLabel}</span>
+        <input
+          value={editText}
+          onChange={(e) => setEditText(e.target.value)}
+          onFocus={(e) => {
+            setFocused(true);
+            setEditText(String(refLine.value));
+            e.currentTarget.select();
+          }}
+          onBlur={commitEdit}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') e.currentTarget.blur();
+            if (e.key === 'Escape') { setFocused(false); setEditText(formatRefLineValue(refLine, selectedTrace, xSpan)); e.currentTarget.blur(); }
+          }}
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            fontFamily: 'var(--font-mono)',
+            fontSize: 'var(--font-caption)',
+            background: focused ? 'var(--bg)' : 'transparent',
+            border: focused ? `1px solid ${accentColor}` : `1px solid color-mix(in srgb, ${accentColor} 30%, var(--border))`,
+            borderRadius: '4px',
+            padding: '2px 6px',
+            color: 'var(--text)',
+            minWidth: 0,
+            width: '100%',
+            cursor: 'text',
+            outline: 'none',
+          }}
         />
+        {isLocked && (
+          <span style={{ fontSize: '10px', color: 'var(--dim)', userSelect: 'none' }} title="Locked across panes">🔒</span>
+        )}
         <button
           type="button"
-          onClick={(event) => {
-            event.stopPropagation();
-            onRemove();
-          }}
+          onClick={(event) => { event.stopPropagation(); onRemove(); }}
           style={sidebarButtonStyle('#d76482', false, compact)}
           title="Remove reference line"
         >
           x
         </button>
       </div>
-      <MR label="Value" value={formatRefLineValue(refLine, selectedTrace)} vc={accentColor} />
+
+      {/* Row 2: lock/unlock controls + delta toggle when selected */}
+      {isSelected && (
+        <div style={{ display: 'flex', gap: '4px', marginTop: '1px', alignItems: 'center' }}>
+          {allPanes.length > 1 && (!isLocked ? (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onLock(); }}
+              style={{ ...sidebarButtonStyle(accentColor, false, compact), fontSize: '10px' }}
+            >
+              Lock All Panes
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onUnlock(); }}
+              style={{ ...sidebarButtonStyle(accentColor, false, compact), fontSize: '10px' }}
+            >
+              Unlock
+            </button>
+          ))}
+          {siblingLines.length > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '10px', color: 'var(--muted)', marginLeft: 'auto' }} onClick={e => e.stopPropagation()}>
+              <span>Δ</span>
+              <select
+                value={refLine.deltaPartnerId ?? ''}
+                onChange={e => onUpdateDeltaPartner(e.target.value ? Number(e.target.value) : null)}
+                style={{ fontSize: '10px', padding: '1px 3px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', cursor: 'pointer' }}
+              >
+                <option value="">none</option>
+                {siblingLines.map(sl => (
+                  <option key={sl.id} value={sl.id}>{sl.label ?? sl.id}</option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Intersections */}
+      {intersections.length > 0 && (
+        <div style={{ display: 'grid', gap: '1px', marginTop: '2px' }}>
+          {Object.entries(byPane).map(([pid, ixs]) => (
+            <div key={pid}>
+              {allPanes.length > 1 && (
+                <div style={{ fontSize: '9px', color: 'var(--dim)', textTransform: 'uppercase', marginBottom: '1px', paddingLeft: '2px' }}>
+                  {pid.replace('pane-', 'P')}
+                </div>
+              )}
+              {ixs.map((ix, i) => (
+                <div key={i} style={{ display: 'grid', gridTemplateColumns: 'auto minmax(0,1fr) auto', gap: '5px', alignItems: 'center', paddingLeft: allPanes.length > 1 ? '8px' : '0', minWidth: 0 }}>
+                  <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: resolveTraceColor(ix.traceName), flexShrink: 0, border: '1px solid rgba(255,255,255,0.25)' }} />
+                  <span style={{ fontSize: 'var(--font-caption)', color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {ix.traceName}
+                  </span>
+                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--font-caption)', color: 'var(--text)', whiteSpace: 'nowrap' }}>
+                    {refLine.type === 'v'
+                      ? formatWithUnit(ix.amp, selectedTrace?.units.y ?? null)
+                      : formatTraceXValue(ix.freq, selectedTrace, xSpan)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
-
 
 

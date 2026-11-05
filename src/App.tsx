@@ -10,7 +10,7 @@ import { useKeyboard } from './hooks/use-keyboard';
 import { useTheme } from './hooks/use-theme';
 import { useUiState } from './stores/ui-store';
 import { useUiDispatch } from './stores/ui-store';
-import { useFileDispatch } from './stores/file-store';
+import { useFileDispatch, useFileState } from './stores/file-store';
 import { useTraceDispatch, useTraceState } from './stores/trace-store';
 import { usePaneDispatch, usePaneState } from './stores/pane-store';
 import { canAssignTraceToPane } from './domain/pane-math';
@@ -48,6 +48,7 @@ export function App() {
   const traceDispatch = useTraceDispatch();
   const uiDispatch = useUiDispatch();
   const fileDispatch = useFileDispatch();
+  const { files } = useFileState();
   const paneDispatch = usePaneDispatch();
   const { panes, activePaneId, tracePaneMap } = usePaneState();
 
@@ -95,10 +96,15 @@ export function App() {
       }
     });
 
+    const traceTargetPane: Record<string, string> = {};
+    files.forEach(f => {
+      if (f.targetPaneId) f.traces.forEach(t => { traceTargetPane[t.name] = f.targetPaneId!; });
+    });
+
     for (const trace of newTraces) {
       traceDispatch({ type: 'SET_VISIBILITY', name: trace.name, visible: true });
 
-      let targetPaneId = activePaneId ?? 'pane-1';
+      let targetPaneId = traceTargetPane[trace.name] ?? activePaneId ?? 'pane-1';
       let validation = canAssignTraceToPane(trace, targetPaneId, allTraces, tracePaneMap);
 
       if (!validation.allowed) {
@@ -150,7 +156,7 @@ export function App() {
     }
 
     knownTraceNamesRef.current = nextKnown;
-  }, [activePaneId, allTraces, paneDispatch, panes, traceDispatch, tracePaneMap, uiDispatch]);
+  }, [activePaneId, allTraces, files, paneDispatch, panes, traceDispatch, tracePaneMap, uiDispatch]);
 
   const [dragging, setDragging] = useState(false);
   const [leftPanelWidth, setLeftPanelWidth] = useState(() => clampLeftPanelWidth(300, typeof window === 'undefined' ? 1440 : window.innerWidth));
@@ -262,6 +268,7 @@ export function App() {
 
   return (
     <div
+      data-testid="app-root"
       className={`app-root theme-${theme}`}
       style={{
         position: 'relative',
@@ -337,4 +344,3 @@ function PanelResizeHandle({ side, onMouseDown }: { side: 'left' | 'right'; onMo
     />
   );
 }
-

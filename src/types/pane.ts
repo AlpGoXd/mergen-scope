@@ -12,6 +12,44 @@
 export type PaneRenderMode = "cartesian" | "smith" | "smith-inverted";
 
 // ---------------------------------------------------------------------------
+// Pane settings
+// ---------------------------------------------------------------------------
+
+/** Per-pane display and grid settings. */
+export interface PaneSettings {
+  // Grid
+  gridMajor: boolean;
+  gridMinor: boolean;          // state preserved; minor grid not supported by Recharts
+  gridMajorThickness: number;  // px, clamped [0.5, 5]
+  gridMinorThickness: number;  // px, clamped [0.5, 5]
+  gridMajorOpacity: number;    // [0, 1]
+  gridMinorOpacity: number;    // [0, 1]
+  gridDashStyle: string;       // strokeDasharray value, e.g. "3 3" or "solid"
+
+  // Display toggles
+  showMarkers: boolean;
+  showReferenceLines: boolean;
+  showLineLabels: boolean;
+  showMarkerLabels: boolean;
+}
+
+export function defaultPaneSettings(): PaneSettings {
+  return {
+    gridMajor: true,
+    gridMinor: false,
+    gridMajorThickness: 1,
+    gridMinorThickness: 0.5,
+    gridMajorOpacity: 0.25,
+    gridMinorOpacity: 0.15,
+    gridDashStyle: '3 3',
+    showMarkers: true,
+    showReferenceLines: true,
+    showLineLabels: true,
+    showMarkerLabels: true,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Pane
 // ---------------------------------------------------------------------------
 
@@ -25,6 +63,9 @@ export interface Pane {
 
   /** Rendering mode for this pane. */
   readonly renderMode: PaneRenderMode;
+
+  /** Per-pane display and grid settings. */
+  readonly settings: PaneSettings;
 }
 
 // ---------------------------------------------------------------------------

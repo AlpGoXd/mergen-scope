@@ -12,6 +12,7 @@ export interface WizardEntry {
   rawText: string;
   previewLines: readonly string[];
   suggestedConfig?: WizardConfig;
+  targetPaneId?: string;
 }
 
 export interface FileState {
@@ -22,7 +23,7 @@ export interface FileState {
 }
 
 export type FileAction =
-  | { type: 'QUEUE_WIZARD'; payload: { fileName: string; rawText: string; id: string } }
+  | { type: 'QUEUE_WIZARD'; payload: { fileName: string; rawText: string; id: string; targetPaneId?: string } }
   | { type: 'RESOLVE_WIZARD'; payload: { id: string; config: WizardConfig } }
   | { type: 'RERUN_WIZARD'; payload: { fileId: string; fileName: string; previousConfig: WizardConfig } }
   | { type: 'SKIP_WIZARD'; payload: { id: string } }
@@ -34,7 +35,7 @@ export type FileAction =
   | { type: 'RESTORE_FILES'; payload: FileState }
   | { type: 'ADD_PARSED_FILE'; payload: { id: string; fileName: string; parsed: ParsedFile; text: string } };
 
-const defaultState: FileState = {
+export const defaultFileState: FileState = {
   files: [],
   rawFileData: {},
   vis: {},
@@ -44,11 +45,11 @@ const defaultState: FileState = {
 const FileStateContext = createContext<FileState | null>(null);
 const FileDispatchContext = createContext<React.Dispatch<FileAction> | null>(null);
 
-function fileReducer(state: FileState, action: FileAction): FileState {
+export function fileReducer(state: FileState, action: FileAction): FileState {
   switch (action.type) {
     case 'QUEUE_WIZARD': {
-      const { id, fileName, rawText } = action.payload;
-      
+      const { id, fileName, rawText, targetPaneId } = action.payload;
+
       const profile = classify(rawText, fileName);
       const parsed = parseMeasurementFile(rawText, fileName, profile);
 
@@ -59,6 +60,7 @@ function fileReducer(state: FileState, action: FileAction): FileState {
           rawText,
           previewLines: parsed.previewLines ?? [],
           suggestedConfig: parsed.suggestedConfig,
+          targetPaneId,
         };
         return {
           ...state,
@@ -75,6 +77,7 @@ function fileReducer(state: FileState, action: FileAction): FileState {
           displayTraces: parsed.displayTraces,
           format: parsed.format,
           touchstoneNetwork: parsed.touchstoneNetwork,
+          targetPaneId,
         };
         const newVis = { ...state.vis };
         parsed.traces.forEach(t => { newVis[t.name] = true; });
@@ -104,6 +107,7 @@ function fileReducer(state: FileState, action: FileAction): FileState {
         displayTraces: parsed.displayTraces,
         format: parsed.format,
         touchstoneNetwork: undefined, // Tabular doesn't have it
+        targetPaneId: entry.targetPaneId,
       };
 
       const newVis = { ...state.vis };
@@ -288,7 +292,7 @@ function fileReducer(state: FileState, action: FileAction): FileState {
 }
 
 export function FileStoreProvider({ children }: { children: React.ReactNode }) {
-  const [state, dispatch] = useReducer(fileReducer, defaultState);
+  const [state, dispatch] = useReducer(fileReducer, defaultFileState);
 
   return (
     <FileDispatchContext.Provider value={dispatch}>

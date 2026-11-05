@@ -2,11 +2,11 @@ import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import { viteSingleFile } from "vite-plugin-singlefile";
 import { resolve } from "path";
-import { copyFileSync, existsSync } from "fs";
+import { copyFileSync, cpSync, existsSync } from "fs";
 
-// Copies the static landing page and its assets into dist/ after the build.
+// Copies the static pages and runtime assets into dist/ after the build.
 // Only needed in production since dev serves everything from the root.
-function copyLandingAssets(): Plugin {
+function copyRuntimeAssets(): Plugin {
   const staticFiles = [
     "index.html",
     "mergen-scope-icon.svg",
@@ -15,14 +15,23 @@ function copyLandingAssets(): Plugin {
     "robots.txt",
     "sitemap.xml",
   ];
+  const staticDirs = [
+    "demo-assets",
+  ];
   return {
-    name: "copy-landing-assets",
+    name: "copy-runtime-assets",
     apply: "build",
     closeBundle() {
       for (const file of staticFiles) {
         const src = resolve(__dirname, file);
         if (existsSync(src)) {
           copyFileSync(src, resolve(__dirname, "dist", file));
+        }
+      }
+      for (const dir of staticDirs) {
+        const src = resolve(__dirname, dir);
+        if (existsSync(src)) {
+          cpSync(src, resolve(__dirname, "dist", dir), { recursive: true });
         }
       }
     },
@@ -32,7 +41,7 @@ function copyLandingAssets(): Plugin {
 export default defineConfig(({ mode }) => ({
   plugins: [
     react(),
-    ...(mode === "production" ? [viteSingleFile(), copyLandingAssets()] : []),
+    ...(mode === "production" ? [viteSingleFile(), copyRuntimeAssets()] : []),
   ],
   base: mode === "production" ? "./" : "/",
   build: {

@@ -81,57 +81,65 @@ export function useTouchstoneState() {
     const file = files.find(f => String(f.id) === String(fileId));
     if (!file || !file.touchstoneNetwork) return;
 
-    setTouchstoneStateByFileId(prev => {
-      const currentState = prev[fileId] || makeDefaultTouchstoneState(file);
-      const nextState = updater(cloneTouchstoneSelectionState(currentState));
-      
-      // Reconcile traces in-memory; file-store update action can be wired later.
-      const reconciled = reconcileTouchstoneFileSelections(file, nextState);
-      fileDispatch({
-        type: 'RESTORE_FILES',
-        payload: {
-          files: fileState.files.map((current) => (String(current.id) === String(fileId) ? reconciled : current)),
-          rawFileData: fileState.rawFileData,
-          vis: fileState.vis,
-          wizardQueue: fileState.wizardQueue,
-        },
-      });
+    const currentState = touchstoneStateByFileId[fileId] || makeDefaultTouchstoneState(file);
+    const nextState = updater(cloneTouchstoneSelectionState(currentState));
+    const reconciled = reconcileTouchstoneFileSelections(file, nextState);
 
-      return { ...prev, [fileId]: nextState };
+    // Two independent stores: dispatch each directly rather than nesting one
+    // inside the other's setState updater (that trips React's "cannot update
+    // a component while rendering a different component" and can drop the update).
+    setTouchstoneStateByFileId(prev => ({ ...prev, [fileId]: nextState }));
+    fileDispatch({
+      type: 'RESTORE_FILES',
+      payload: {
+        files: fileState.files.map((current) => (String(current.id) === String(fileId) ? reconciled : current)),
+        rawFileData: fileState.rawFileData,
+        vis: fileState.vis,
+        wizardQueue: fileState.wizardQueue,
+      },
     });
-  }, [fileDispatch, fileState.files, fileState.rawFileData, fileState.vis, fileState.wizardQueue]);
+  }, [fileDispatch, fileState.files, fileState.rawFileData, fileState.vis, fileState.wizardQueue, files, touchstoneStateByFileId]);
 
   /** Append a new trace from the active family/view and cell. */
   const appendCell = useCallback((fileId: string, family: TouchstoneFamily, row: number, col: number, view: TouchstoneView) => {
     const file = files.find((entry) => String(entry.id) === String(fileId));
     if (!file || !file.touchstoneNetwork) return;
 
-    setTouchstoneStateByFileId((prev) => {
-      const currentState = prev[fileId] || makeDefaultTouchstoneState(file);
-      const nextState = cloneTouchstoneSelectionState(currentState);
-      const updatedState: TouchstoneSelectionState = {
-        ...nextState,
-        activeFamily: family,
-        activeViewByFamily: {
-          ...nextState.activeViewByFamily,
-          [family]: sanitizeView(family, view),
+    const safeView = sanitizeView(family, view);
+    const cellKey = `${row}:${col}`;
+    const currentState = touchstoneStateByFileId[fileId] || makeDefaultTouchstoneState(file);
+    const nextState = cloneTouchstoneSelectionState(currentState);
+    const existingViews = nextState.selectedCellsByFamily[family][cellKey] || [];
+    const updatedState: TouchstoneSelectionState = {
+      ...nextState,
+      activeFamily: family,
+      activeViewByFamily: {
+        ...nextState.activeViewByFamily,
+        [family]: safeView,
+      },
+      selectedCellsByFamily: {
+        ...nextState.selectedCellsByFamily,
+        [family]: {
+          ...nextState.selectedCellsByFamily[family],
+          // Track the cell in the declarative selection state too, so a later
+          // family/view switch (which reconciles from this state) doesn't drop it.
+          [cellKey]: existingViews.includes(safeView) ? existingViews : [...existingViews, safeView],
         },
-      };
-      const reconciled = appendTouchstoneDisplayTrace(file, updatedState, family, row, col, sanitizeView(family, view));
+      },
+    };
+    const reconciled = appendTouchstoneDisplayTrace(file, updatedState, family, row, col, safeView);
 
-      fileDispatch({
-        type: 'RESTORE_FILES',
-        payload: {
-          files: fileState.files.map((current) => (String(current.id) === String(fileId) ? reconciled : current)),
-          rawFileData: fileState.rawFileData,
-          vis: fileState.vis,
-          wizardQueue: fileState.wizardQueue,
-        },
-      });
-
-      return { ...prev, [fileId]: updatedState };
+    setTouchstoneStateByFileId((prev) => ({ ...prev, [fileId]: updatedState }));
+    fileDispatch({
+      type: 'RESTORE_FILES',
+      payload: {
+        files: fileState.files.map((current) => (String(current.id) === String(fileId) ? reconciled : current)),
+        rawFileData: fileState.rawFileData,
+        vis: fileState.vis,
+        wizardQueue: fileState.wizardQueue,
+      },
     });
-  }, [fileDispatch, fileState.files, fileState.rawFileData, fileState.vis, fileState.wizardQueue, files]);
+  }, [fileDispatch, fileState.files, fileState.rawFileData, fileState.vis, fileState.wizardQueue, files, touchstoneStateByFileId]);
 
   /** Helper to change active family. */
   const setActiveFamily = useCallback((fileId: string, family: TouchstoneFamily) => {

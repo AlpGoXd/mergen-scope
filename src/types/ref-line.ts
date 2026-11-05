@@ -26,4 +26,7 @@ export interface RefLine {
 
   /** Optional user label. */
   readonly label: string | null;
+
+  /** ID of the partner line to form a delta pair with, or null for none. */
+  readonly deltaPartnerId?: number | null;
 }

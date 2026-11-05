@@ -122,6 +122,9 @@ export interface RawFileRecord {
 
   /** Touchstone network data (only for Touchstone files). */
   readonly touchstoneNetwork?: TouchstoneNetwork;
+
+  /** Pane ID this file was dropped onto, if any. */
+  readonly targetPaneId?: string;
 }
 
 // ---------------------------------------------------------------------------

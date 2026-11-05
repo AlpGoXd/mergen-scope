@@ -23,9 +23,12 @@ export function AnalysisFeatureCard({
   children,
   first 
 }: AnalysisFeatureCardProps) {
+  const testId = `analysis-card-${title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}`;
+
   return (
     <div 
       className="animate-fade-in"
+      data-testid={testId}
       style={{
         background: `linear-gradient(180deg, color-mix(in srgb, ${color} 12%, var(--bg)), var(--card))`,
         border: `1px solid color-mix(in srgb, ${color} 32%, var(--border))`,

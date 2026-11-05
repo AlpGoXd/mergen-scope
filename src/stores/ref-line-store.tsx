@@ -14,9 +14,12 @@ export type RefLineAction =
   | { type: 'SET_MODE'; payload: "h" | "v" | null }
   | { type: 'SET_SELECTED'; payload: number | null }
   | { type: 'CLEANUP_ORPHANED_LINES'; payload: { paneIds: string[] } }
+  | { type: 'LOCK_LINE'; payload: { lineId: number; allPaneIds: string[] } }
+  | { type: 'UNLOCK_LINE'; payload: { lineId: number } }
+  | { type: 'MOVE_GROUP'; payload: { groupId: string; value: number } }
   | { type: 'RESTORE'; payload: RefLineState };
 
-const defaultState: RefLineState = {
+export const defaultRefLineState: RefLineState = {
   refLines: [],
   refMode: null,
   selectedRefLineId: null,
@@ -25,7 +28,7 @@ const defaultState: RefLineState = {
 const RefLineStateContext = createContext<RefLineState | null>(null);
 const RefLineDispatchContext = createContext<React.Dispatch<RefLineAction> | null>(null);
 
-function refLineReducer(state: RefLineState, action: RefLineAction): RefLineState {
+export function refLineReducer(state: RefLineState, action: RefLineAction): RefLineState {
   switch (action.type) {
     case 'ADD_LINE': {
       return { ...state, refLines: [...state.refLines, action.payload] };
@@ -53,18 +56,64 @@ function refLineReducer(state: RefLineState, action: RefLineAction): RefLineStat
     }
     case 'CLEANUP_ORPHANED_LINES': {
       const activePanes = new Set(action.payload.paneIds);
-      const validLines = state.refLines.filter(line => 
+      const validLines = state.refLines.filter(line =>
         line.paneId === null || activePanes.has(line.paneId)
       );
-      
-      const newSelected = (state.selectedRefLineId !== null && !validLines.some(l => l.id === state.selectedRefLineId)) 
-          ? null 
+
+      const newSelected = (state.selectedRefLineId !== null && !validLines.some(l => l.id === state.selectedRefLineId))
+          ? null
           : state.selectedRefLineId;
 
       return {
         ...state,
         refLines: validLines,
         selectedRefLineId: newSelected
+      };
+    }
+    case 'LOCK_LINE': {
+      const { lineId, allPaneIds } = action.payload;
+      const line = state.refLines.find(l => l.id === lineId);
+      if (!line) return state;
+      // If already locked, no-op
+      if (line.groupId) return state;
+      const now = Date.now();
+      const groupId = String(now);
+      const updatedLines = state.refLines.map(l =>
+        l.id === lineId ? { ...l, groupId } : l
+      );
+      // Create mirror lines in all other panes
+      const linePaneId = line.paneId ?? allPaneIds[0];
+      const mirrorLines: RefLine[] = allPaneIds
+        .filter(pid => pid !== linePaneId)
+        .map((pid, i) => ({
+          id: now + i + 1,
+          type: line.type,
+          value: line.value,
+          paneId: pid,
+          groupId,
+          label: line.label,
+        }));
+      return { ...state, refLines: [...updatedLines, ...mirrorLines] };
+    }
+    case 'UNLOCK_LINE': {
+      const { lineId } = action.payload;
+      const line = state.refLines.find(l => l.id === lineId);
+      if (!line?.groupId) return state;
+      const gid = line.groupId;
+      return {
+        ...state,
+        refLines: state.refLines.map(l =>
+          l.groupId === gid ? { ...l, groupId: null } : l
+        ),
+      };
+    }
+    case 'MOVE_GROUP': {
+      const { groupId, value } = action.payload;
+      return {
+        ...state,
+        refLines: state.refLines.map(l =>
+          l.groupId === groupId ? { ...l, value } : l
+        ),
       };
     }
     case 'RESTORE': {
@@ -76,7 +125,7 @@ function refLineReducer(state: RefLineState, action: RefLineAction): RefLineStat
 }
 
 export function RefLineStoreProvider({ children }: { children: React.ReactNode }) {
-  const [state, dispatch] = useReducer(refLineReducer, defaultState);
+  const [state, dispatch] = useReducer(refLineReducer, defaultRefLineState);
 
   return (
     <RefLineDispatchContext.Provider value={dispatch}>

@@ -25,18 +25,81 @@ export function usePaneData(traceNames: string[], xRange?: { left: number; right
     // Optimization: if frequencies match exactly, we can use a more efficient merge.
     const freqMap = new Map<number, MergedPaneRow>();
 
+    const upsertRow = (freq: number, traceName: string, amp: number) => {
+      let row = freqMap.get(freq);
+      if (!row) {
+        row = { freq, fs: freq };
+      }
+      freqMap.set(freq, { ...row, [traceName]: amp });
+    };
+
     paneTraces.forEach(tr => {
       tr.data.forEach(pt => {
         if (xRange && (pt.freq < xRange.left || pt.freq > xRange.right)) return;
-        
-        let row = freqMap.get(pt.freq);
-        if (!row) {
-          row = { freq: pt.freq, fs: pt.freq };
-          freqMap.set(pt.freq, row);
-        }
-        row = { ...row, [tr.name]: pt.amp };
-        freqMap.set(pt.freq, row);
+
+        upsertRow(pt.freq, tr.name, pt.amp);
       });
+
+      if (!xRange || tr.data.length < 2) return;
+
+      let leftBefore: typeof tr.data[number] | null = null;
+      let leftAfter: typeof tr.data[number] | null = null;
+      let rightBefore: typeof tr.data[number] | null = null;
+      let rightAfter: typeof tr.data[number] | null = null;
+
+      for (let i = 0; i < tr.data.length; i += 1) {
+        const pt = tr.data[i];
+        if (!pt) continue;
+        if (pt.freq < xRange.left) {
+          leftBefore = pt;
+          continue;
+        }
+        leftAfter = pt;
+        break;
+      }
+
+      for (let i = 0; i < tr.data.length; i += 1) {
+        const pt = tr.data[i];
+        if (!pt) continue;
+        if (pt.freq <= xRange.right) {
+          rightBefore = pt;
+          continue;
+        }
+        rightAfter = pt;
+        break;
+      }
+
+      const interpolateAmp = (
+        start: typeof tr.data[number],
+        end: typeof tr.data[number],
+        targetFreq: number,
+      ) => {
+        const span = end.freq - start.freq;
+        if (!Number.isFinite(span) || span === 0) return null;
+        const ratio = (targetFreq - start.freq) / span;
+        const amp = start.amp + (end.amp - start.amp) * ratio;
+        return Number.isFinite(amp) ? amp : null;
+      };
+
+      if (
+        leftBefore &&
+        leftAfter &&
+        leftBefore.freq < xRange.left &&
+        leftAfter.freq > xRange.left
+      ) {
+        const amp = interpolateAmp(leftBefore, leftAfter, xRange.left);
+        if (amp != null) upsertRow(xRange.left, tr.name, amp);
+      }
+
+      if (
+        rightBefore &&
+        rightAfter &&
+        rightBefore.freq < xRange.right &&
+        rightAfter.freq > xRange.right
+      ) {
+        const amp = interpolateAmp(rightBefore, rightAfter, xRange.right);
+        if (amp != null) upsertRow(xRange.right, tr.name, amp);
+      }
     });
 
     return Array.from(freqMap.values()).sort((a, b) => a.freq - b.freq);

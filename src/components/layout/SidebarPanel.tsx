@@ -27,7 +27,7 @@ export function SidebarPanel({ title, defaultOpen = true, children }: SidebarPan
 					fontWeight: 400,
 				}}
 			>
-				{open ? 'â–¾' : 'â–¸'} {title}
+				{open ? '▾' : '▸'} {title}
 			</button>
 			{open && <div style={{ marginTop: '6px' }}>{children}</div>}
 		</section>

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useReducer, useEffect } from 'react';
-import type { Pane, PaneRenderMode, YDomain } from '../types/pane';
+import type { Pane, PaneRenderMode, PaneSettings, YDomain } from '../types/pane';
 import type { Trace } from '../types/trace';
 import type { ZoomWindow } from '../types/marker';
 import { 
@@ -35,10 +35,11 @@ export type PaneAction =
   | { type: 'SET_PANE_ZOOM'; payload: { paneId: string; zoom: ZoomWindow | null | ((prev: ZoomWindow | null) => ZoomWindow | null) } }
   | { type: 'SET_PANE_Y_ZOOM'; payload: { paneId: string; zoom: YDomain | null } }
   | { type: 'CLEAR_ALL_ZOOMS' }
+  | { type: 'SET_PANE_SETTINGS'; payload: { paneId: string; patch: Partial<PaneSettings> } }
   | { type: 'RECONCILE'; payload: Trace[] }
   | { type: 'RESTORE'; payload: PaneState };
 
-const defaultState: PaneState = {
+export const defaultPaneState: PaneState = {
   panes: buildPanes(1),
   tracePaneMap: {},
   paneActiveTraceMap: { 'pane-1': null },
@@ -52,7 +53,7 @@ const defaultState: PaneState = {
 const PaneStateContext = createContext<PaneState | null>(null);
 const PaneDispatchContext = createContext<React.Dispatch<PaneAction> | null>(null);
 
-function paneReducer(state: PaneState, action: PaneAction): PaneState {
+export function paneReducer(state: PaneState, action: PaneAction): PaneState {
   switch (action.type) {
     case 'SET_PANE_COUNT': {
       const mode = action.payload;
@@ -160,6 +161,15 @@ function paneReducer(state: PaneState, action: PaneAction): PaneState {
     case 'CLEAR_ALL_ZOOMS': {
       return { ...state, sharedZoom: null, paneXZooms: {}, paneYZooms: {} };
     }
+    case 'SET_PANE_SETTINGS': {
+      const { paneId, patch } = action.payload;
+      return {
+        ...state,
+        panes: state.panes.map(p =>
+          p.id === paneId ? { ...p, settings: { ...p.settings, ...patch } } : p
+        ),
+      };
+    }
     case 'RECONCILE': {
       const allTraces = action.payload;
       const nextTracePaneMap = normalizeTracePaneMap(allTraces, state.tracePaneMap, state.panes);
@@ -179,7 +189,7 @@ function paneReducer(state: PaneState, action: PaneAction): PaneState {
 }
 
 export function PaneStoreProvider({ children }: { children: React.ReactNode }) {
-  const [state, dispatch] = useReducer(paneReducer, defaultState);
+  const [state, dispatch] = useReducer(paneReducer, defaultPaneState);
 
   // Consume from TraceStore
   const traceState = useTraceState();

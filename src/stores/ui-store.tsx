@@ -39,7 +39,7 @@ const defaultState: UiState = {
   showMarkerTools: true,
   showPaneTools: true,
   showSearchTools: true,
-  showLineTools: false,
+  showLineTools: true,
   showViewTools: true,
   showDT: false,
   theme: 'dark',

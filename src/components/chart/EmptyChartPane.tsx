@@ -61,6 +61,7 @@ export function EmptyChartPane({ mode = 'files' }: EmptyChartPaneProps) {
   return (
     <>
       <input
+        data-testid="empty-chart-file-input"
         type="file"
         ref={fileInputRef}
         style={{ display: 'none' }}
@@ -68,6 +69,7 @@ export function EmptyChartPane({ mode = 'files' }: EmptyChartPaneProps) {
         onChange={handleFileInput}
       />
       <div
+        data-testid={isTraceMode ? 'empty-trace-pane-dropzone' : 'empty-chart-dropzone'}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}

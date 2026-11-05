@@ -4,25 +4,25 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>Mergen Scope - Free Online RF and Signal File Viewer</title>
+<title>Mergen Scope - Browser-Based Waveform, RF, CSV, and Touchstone Analyzer</title>
 
-<meta name="description" content="Mergen Scope is a free browser-based RF and signal file viewer for DAT, CSV, and Touchstone files. View spectrum analyzer exports, waveform-style data, and S-parameters online with markers, trace math, RF analysis tools, and multi-pane comparison. No installation required.">
-<meta name="keywords" content="RF file viewer, signal file viewer, spectrum viewer, spectrum analyzer viewer, Touchstone viewer, S-parameter viewer, s1p viewer, s2p viewer, csv file viewer, dat file viewer, online RF viewer, online spectrum viewer, RF analysis tool, trace math, multi-pane comparison, frequency response viewer, Mergen Scope">
+<meta name="description" content="Mergen Scope is a browser-based waveform and measurement analysis workspace for RF measurement files, DAT, CSV, TXT, and Touchstone data. Inspect traces online with markers, reference lines, trace math, RF tools, saved sessions, and multi-pane comparison.">
+<meta name="keywords" content="waveform analyzer, waveform analysis, RF measurement files, RF file viewer, signal analysis workspace, spectrum viewer, spectrum analyzer viewer, Touchstone analyzer, S-parameter viewer, s1p viewer, s2p viewer, csv analyzer, dat viewer, online RF analyzer, trace math, reference lines, multi-pane comparison, Mergen Scope">
 <meta name="author" content="Alp Gokalp">
 <meta name="robots" content="index, follow">
 
 <meta property="og:type" content="website">
-<meta property="og:url" content="https://alpgoxd.github.io/mergen-scope/">
-<meta property="og:title" content="Mergen Scope - Free Online RF and Signal File Viewer">
-<meta property="og:description" content="Free browser-based RF and signal file viewer with markers, trace math, RF analysis tools, and multi-pane comparison. Open DAT, CSV, and Touchstone files online.">
-<meta property="og:image" content="https://alpgoxd.github.io/mergen-scope/mergen-scope-preview.png">
+<meta property="og:url" content="https://mergenscope.com/">
+<meta property="og:title" content="Mergen Scope - Browser-Based Waveform, RF, CSV, and Touchstone Analyzer">
+<meta property="og:description" content="Browser-based waveform analysis for RF measurement files. Open DAT, CSV, TXT, and Touchstone data with markers, reference lines, trace math, RF tools, saved sessions, and multi-pane comparison.">
+<meta property="og:image" content="https://mergenscope.com/mergen-scope-preview.png">
 
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Mergen Scope - Free Online RF and Signal File Viewer">
-<meta name="twitter:description" content="Open DAT, CSV, and Touchstone files online with markers, trace math, RF analysis, and multi-pane comparison.">
+<meta name="twitter:title" content="Mergen Scope - Browser-Based Waveform, RF, CSV, and Touchstone Analyzer">
+<meta name="twitter:description" content="Browser-based waveform analysis for RF measurement files. Open DAT, CSV, TXT, and Touchstone data with markers, reference lines, trace math, RF tools, saved sessions, and multi-pane comparison.">
 
-<link rel="canonical" href="https://alpgoxd.github.io/mergen-scope/">
-<link rel="sitemap" href="https://alpgoxd.github.io/mergen-scope/sitemap.xml">
+<link rel="canonical" href="https://mergenscope.com/">
+<link rel="sitemap" href="https://mergenscope.com/sitemap.xml">
 <link rel="icon" type="image/svg+xml" href="mergen-scope-icon.svg?v=2">
 <link rel="icon" type="image/png" sizes="48x48" href="mergen-scope-icon.png?v=1">
 <link rel="shortcut icon" href="mergen-scope-icon.png?v=1">
@@ -32,8 +32,10 @@
   <style>
     :root {
       color-scheme: light dark;
-      --mx: 0;
-      --my: 0;
+      --wave-x: 0px;
+      --wave-y: 0px;
+      --grid-x: 0px;
+      --grid-y: 0px;
       --bg: #ffffff;
       --surface: #f6f8fa;
       --border: #d1d9e0;
@@ -90,23 +92,19 @@
       width: 100%;
       height: 100%;
       display: block;
-      opacity: 0.9;
+      opacity: 0.86;
     }
-    .bg-parallax-1,
-    .bg-parallax-2,
-    .bg-parallax-3 {
+    .bg-grid,
+    .bg-wave-field {
       transform-box: fill-box;
       transform-origin: center;
       will-change: transform;
     }
-    .bg-parallax-1 {
-      transform: translate(calc(var(--mx) * 10px), calc(var(--my) * 10px));
+    .bg-grid {
+      transform: translate(var(--grid-x), var(--grid-y));
     }
-    .bg-parallax-2 {
-      transform: translate(calc(var(--mx) * -14px), calc(var(--my) * 12px));
-    }
-    .bg-parallax-3 {
-      transform: translate(calc(var(--mx) * 18px), calc(var(--my) * -16px));
+    .bg-wave-field {
+      transform: translate(var(--wave-x), var(--wave-y));
     }
     .bg-grid-line {
       stroke: color-mix(in srgb, var(--border) 55%, transparent);
@@ -122,13 +120,13 @@
       fill: none;
       stroke-linecap: round;
       stroke-linejoin: round;
-      stroke-width: 2.4;
+      stroke-width: 2.25;
     }
-    .bg-wave-1 { stroke: color-mix(in srgb, var(--accent) 72%, white); opacity: 0.82; }
-    .bg-wave-2 { stroke: color-mix(in srgb, #ff7a59 72%, white); opacity: 0.78; }
-    .bg-wave-3 { stroke: color-mix(in srgb, var(--accent2) 72%, white); opacity: 0.72; }
-    .bg-wave-4 { stroke: color-mix(in srgb, #9b6dff 70%, white); opacity: 0.66; }
-    .bg-wave-5 { stroke: color-mix(in srgb, #00a6a6 68%, white); opacity: 0.58; }
+    .bg-wave-1 { stroke: color-mix(in srgb, var(--accent) 74%, white); opacity: 0.86; }
+    .bg-wave-2 { stroke: color-mix(in srgb, #ff7a59 72%, white); opacity: 0.76; }
+    .bg-wave-3 { stroke: color-mix(in srgb, var(--accent2) 70%, white); opacity: 0.7; }
+    .bg-wave-4 { stroke: color-mix(in srgb, #9b6dff 70%, white); opacity: 0.62; }
+    .bg-wave-5 { stroke: color-mix(in srgb, #00a6a6 68%, white); opacity: 0.56; }
     .bg-wave-slow {
       animation: driftSlow 18s ease-in-out infinite alternate;
     }
@@ -136,7 +134,7 @@
       animation: driftMid 14s ease-in-out infinite alternate;
     }
     .bg-wave-fast {
-      animation: driftFast 11s ease-in-out infinite alternate;
+      animation: driftFast 22s ease-in-out infinite alternate;
     }
     @keyframes driftSlow {
       from { transform: translate3d(-10px, 6px, 0) scale(1.01); }
@@ -156,9 +154,8 @@
       .bg-wave-fast {
         animation: none;
       }
-      .bg-parallax-1,
-      .bg-parallax-2,
-      .bg-parallax-3 {
+      .bg-grid,
+      .bg-wave-field {
         transform: none;
       }
     }
@@ -171,12 +168,11 @@
       padding: 4rem 2rem 3rem;
       border: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
       border-radius: 30px;
-      background-color: color-mix(in srgb, var(--bg) 46%, transparent);
-      background-image: linear-gradient(180deg, color-mix(in srgb, var(--surface) 30%, transparent), color-mix(in srgb, var(--bg) 50%, transparent));
+      background-color: color-mix(in srgb, var(--bg) 84%, transparent);
+      background-image: linear-gradient(180deg, color-mix(in srgb, var(--surface) 42%, transparent), color-mix(in srgb, var(--bg) 78%, transparent));
       box-shadow:
-        0 28px 80px color-mix(in srgb, var(--text) 10%, transparent),
+        0 18px 46px color-mix(in srgb, var(--text) 7%, transparent),
         inset 0 1px 0 color-mix(in srgb, #ffffff 18%, transparent);
-      backdrop-filter: blur(14px) saturate(1.06);
     }
     /* Hero */
     .hero {
@@ -217,8 +213,7 @@
       border-radius: 16px;
       border: 1px solid color-mix(in srgb, var(--border) 76%, transparent);
       background: var(--github-surface);
-      box-shadow: 0 14px 34px color-mix(in srgb, var(--text) 10%, transparent);
-      backdrop-filter: blur(12px);
+      box-shadow: 0 10px 24px color-mix(in srgb, var(--text) 8%, transparent);
       display: grid;
       place-items: center;
       color: var(--github-mark);
@@ -229,17 +224,24 @@
       display: block;
     }
     .hero h1 {
-      font-size: 3rem;
+      font-size: 3.25rem;
       font-weight: 700;
       letter-spacing: -0.02em;
       color: var(--text);
       line-height: 1.1;
-      margin-bottom: 1rem;
+      margin-bottom: 0.65rem;
+    }
+    .hero-tagline {
+      font-size: 1.45rem;
+      font-weight: 700;
+      line-height: 1.25;
+      color: var(--accent);
+      margin: 0 auto 1rem;
     }
     .hero p {
       font-size: 1.15rem;
       color: var(--muted);
-      max-width: 620px;
+      max-width: 720px;
       margin: 0 auto 1.75rem;
     }
     .hero-actions {
@@ -396,6 +398,12 @@
       color: var(--muted);
       line-height: 1.5;
     }
+    .feature-note {
+      margin-top: 0.75rem;
+      font-size: 0.78rem;
+      color: var(--muted);
+      line-height: 1.45;
+    }
 
     /* Formats table */
     .formats {
@@ -488,7 +496,7 @@
   <div class="page-bg" aria-hidden="true">
     <svg viewBox="0 0 1600 1100" preserveAspectRatio="xMidYMid slice" role="presentation">
       <g transform="rotate(-12 800 550)">
-        <g class="bg-parallax-1" opacity="0.9">
+        <g class="bg-grid" opacity="0.82">
           <line class="bg-grid-line" x1="0" y1="180" x2="1600" y2="180"></line>
           <line class="bg-grid-line" x1="0" y1="360" x2="1600" y2="360"></line>
           <line class="bg-grid-line" x1="0" y1="540" x2="1600" y2="540"></line>
@@ -500,11 +508,9 @@
           <line class="bg-grid-line" x1="1080" y1="0" x2="1080" y2="1100"></line>
           <line class="bg-grid-line" x1="1380" y1="0" x2="1380" y2="1100"></line>
         </g>
-        <g class="bg-parallax-2">
+        <g class="bg-wave-field">
           <path class="bg-wave-5 bg-wave-slow" d="M-120,820 C-20,760 70,760 150,820 C240,888 320,888 400,820 C486,752 564,752 648,820 C730,888 812,888 892,820 C976,750 1060,750 1144,820 C1228,888 1312,888 1396,820 C1478,754 1560,754 1720,820"></path>
           <path class="bg-wave-4 bg-wave-mid" d="M-120,690 C-36,614 52,614 138,690 C224,764 308,764 394,690 C478,616 562,616 646,690 C730,764 812,764 896,690 C982,614 1068,614 1154,690 C1240,766 1328,766 1414,690 C1498,616 1582,616 1720,690"></path>
-        </g>
-        <g class="bg-parallax-3">
           <path class="bg-wave-3 bg-wave-fast" d="M-120,560 C-40,456 42,456 124,560 C204,664 286,664 368,560 C448,454 530,454 612,560 C692,666 776,666 858,560 C938,454 1020,454 1102,560 C1182,666 1266,666 1348,560 C1430,456 1514,456 1720,560"></path>
           <path class="bg-wave-2 bg-wave-mid" d="M-120,430 C-32,294 54,294 140,430 C224,564 308,564 392,430 C474,292 558,292 642,430 C726,566 812,566 896,430 C980,294 1066,294 1152,430 C1236,566 1322,566 1408,430 C1492,294 1578,294 1720,430"></path>
           <path class="bg-wave-1 bg-wave-slow" d="M-120,320 C-26,136 62,136 150,320 C234,500 320,500 404,320 C488,138 576,138 664,320 C750,502 838,502 924,320 C1010,138 1098,138 1186,320 C1270,500 1358,500 1442,320 C1526,138 1616,138 1720,320"></path>
@@ -516,7 +522,7 @@
     <div class="hero">
       <div class="hero-grid">
         <div class="hero-copy">
-          <p class="hero-label">Open Source / Browser-Based</p>
+          <p class="hero-label">Browser-Based Waveform Workspace</p>
           <div class="hero-brand" aria-hidden="true">
             <div class="hero-brand-mark">
               <svg class="hero-brand-svg" viewBox="0 0 24 24" fill="none" role="presentation" aria-hidden="true">
@@ -525,13 +531,14 @@
               </svg>
             </div>
           </div>
-  <h1>Mergen Scope - Free Online RF and Signal File Viewer</h1>
-  <p>Open DAT files online in a free browser-based viewer with markers, trace math, RF analysis tools, and multi-pane comparison.</p>
+  <h1>Mergen Scope</h1>
+  <div class="hero-tagline">Open Any Waveform. Analyze Everything.</div>
+  <p>Mergen Scope is a browser-based waveform and measurement analysis workspace. Open DAT, CSV, TXT, and Touchstone files today, then inspect traces with markers, reference lines, trace math, RF tools, saved sessions, and multi-pane comparison.</p>
           <div class="hero-actions">
-            <a href="app.html?v=20260402" class="btn-primary">Open Viewer</a>
+            <a href="app.html?v=20260520" class="btn-primary">Open Viewer</a>
           </div>
           <div class="hero-actions-bottom">
-            <a href="app.html?demo=default&v=20260402" class="btn-demo">Load Demo</a>
+            <a href="app.html?demo=default&v=20260520" class="btn-demo">Load Demo</a>
             <a href="https://github.com/alpgoxd/mergen-scope" class="btn-secondary">
               <svg class="btn-icon" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" role="presentation">
                 <path d="M8 0C3.58 0 0 3.58 0 8a8 8 0 0 0 5.47 7.59c.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.5-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.5 7.5 0 0 1 4 0c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.19 0 .21.15.46.55.38A8 8 0 0 0 16 8c0-4.42-3.58-8-8-8Z"></path>
@@ -544,10 +551,11 @@
             </a>
           </div>
           <div class="hero-badges">
-            <span class="hero-badge">Markers</span>
-            <span class="hero-badge">Trace Ops</span>
-            <span class="hero-badge">Multi-pane</span>
-            <span class="hero-badge">RF Analysis</span>
+            <span class="hero-badge">DAT</span>
+            <span class="hero-badge">CSV</span>
+            <span class="hero-badge">TXT</span>
+            <span class="hero-badge">Touchstone</span>
+            <span class="hero-badge">RF Tools</span>
           </div>
         </div>
       </div>
@@ -557,30 +565,31 @@
       <h2>Features</h2>
       <div class="features">
         <div class="feature">
-          <div class="feature-name">Multi-trace</div>
-          <div class="feature-desc">Load and overlay multiple measurement files for direct comparison.</div>
+          <div class="feature-name">Open Most Waveforms*</div>
+          <div class="feature-desc">Load DAT, CSV, TXT, and Touchstone measurement data today, with broader waveform support as the goal.</div>
         </div>
         <div class="feature">
-          <div class="feature-name">Markers</div>
-          <div class="feature-desc">Place markers, search for peaks and minima, create delta markers between points.</div>
+          <div class="feature-name">Plot Traces</div>
+          <div class="feature-desc">Inspect waveform, spectrum, and S-parameter traces with responsive plotting controls.</div>
         </div>
         <div class="feature">
-          <div class="feature-name">Trace Ops</div>
-          <div class="feature-desc">Create derived traces with offset, scale, smoothing, and A/B trace math.</div>
+          <div class="feature-name">Analyze Signals</div>
+          <div class="feature-desc">Use markers, reference lines, trace math, RF helpers, and derived traces.</div>
         </div>
         <div class="feature">
-          <div class="feature-name">Multi-pane</div>
+          <div class="feature-name">Compare Panes</div>
           <div class="feature-desc">Compare traces in stacked panes with shared X navigation and independent Y scaling.</div>
         </div>
         <div class="feature">
-          <div class="feature-name">RF Analysis</div>
-          <div class="feature-desc">Run Noise PSD, IP3, peak tables, range statistics, threshold crossings, and bandwidth helpers.</div>
+          <div class="feature-name">Export Results</div>
+          <div class="feature-desc">Export visible traces as CSV and capture chart views as PNG or SVG.</div>
         </div>
         <div class="feature">
-          <div class="feature-name">No Online Dependencies</div>
-          <div class="feature-desc">All libraries are vendored locally. Works with direct file-open and GitHub Pages, with no CDN runtime calls.</div>
+          <div class="feature-name">Save Workspaces</div>
+          <div class="feature-desc">Save and reload complete sessions with files, panes, markers, lines, and analysis state.</div>
         </div>
       </div>
+      <p class="feature-note">*Mergen Scope is being built toward broader waveform format support. Current supported formats are DAT, CSV, TXT, and Touchstone.</p>
     </section>
 
     <section>
@@ -591,16 +600,20 @@
           <span>Notes</span>
         </div>
         <div class="format-row">
-          <span class="format-name">R&amp;S .dat</span>
-          <span class="format-note">Rohde &amp; Schwarz spectrum analyzer exports, tested primary target</span>
+          <span class="format-name">DAT</span>
+          <span class="format-note">Rohde &amp; Schwarz spectrum analyzer exports and supported tabular DAT files</span>
         </div>
         <div class="format-row">
-          <span class="format-name">Amplitude-only .dat</span>
-          <span class="format-note">Frequency axis reconstructed from Start/Stop metadata</span>
+          <span class="format-name">CSV</span>
+          <span class="format-note">Wizard-assisted comma-delimited time or frequency data</span>
         </div>
         <div class="format-row">
-          <span class="format-name">Touchstone .s1p–.sNp</span>
-          <span class="format-note">S/Y/Z trace workflows and Smith chart view</span>
+          <span class="format-name">TXT</span>
+          <span class="format-note">Wizard-assisted text tables with comma, semicolon, or tab delimiters</span>
+        </div>
+        <div class="format-row">
+          <span class="format-name">Touchstone</span>
+          <span class="format-note">.s1p-.sNp network data with S/Y/Z traces, Smith chart view, and RF analysis</span>
         </div>
       </div>
     </section>
@@ -612,6 +625,9 @@
         <span class="tag">React 19</span>
         <span class="tag">Recharts</span>
         <span class="tag">Vite</span>
+        <span class="tag">Vitest</span>
+        <span class="tag">Playwright</span>
+        <span class="tag">Cloudflare</span>
         <span class="tag">GitHub Pages</span>
         <span class="tag">Apache-2.0</span>
       </div>
@@ -620,12 +636,12 @@
 <section>
   <h2>Why I Built This</h2>
   <p style="font-size:0.975rem; color:var(--muted); line-height:1.75; max-width:640px;">
-    I'm an electrical engineer, not a web developer. I wanted a simple way to inspect spectrum analyzer exports
-    and other waveform files directly in the browser, but I couldn't find a tool that was lightweight, practical,
-    and easy to use. So I built this.<br><br>
-    At the moment, it has only been tested with Rohde &amp; Schwarz FSVA3044
-    <code style="font-size:0.9em; background:var(--surface); border:1px solid var(--border); border-radius:3px; padding:0.1em 0.4em;">.dat</code> files,
-    but the goal is to support more instrument export formats over time, with no installation required.
+    I'm an electrical engineer, not a web developer. I wanted a practical way to inspect spectrum analyzer exports,
+    Touchstone files, and simple instrument tables directly in the browser. The first version was a small viewer;
+    the current app is closer to a lightweight RF and signal analysis workspace.<br><br>
+    Rohde &amp; Schwarz
+    <code style="font-size:0.9em; background:var(--surface); border:1px solid var(--border); border-radius:3px; padding:0.1em 0.4em;">.dat</code>
+    exports are still the best-tested path, and support has expanded to generic tabular files and Touchstone network data.
     If you find bugs, have suggestions, or want to contribute, feel free to open an issue.
   </p>
 </section>
@@ -645,6 +661,7 @@
   <script>
     (function () {
       if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
       var root = document.documentElement;
       var targetX = 0;
       var targetY = 0;
@@ -653,11 +670,14 @@
       var rafId = null;
 
       function tick() {
-        currentX += (targetX - currentX) * 0.08;
-        currentY += (targetY - currentY) * 0.08;
-        root.style.setProperty("--mx", currentX.toFixed(4));
-        root.style.setProperty("--my", currentY.toFixed(4));
-        if (Math.abs(targetX - currentX) > 0.001 || Math.abs(targetY - currentY) > 0.001) {
+        currentX += (targetX - currentX) * 0.12;
+        currentY += (targetY - currentY) * 0.12;
+        root.style.setProperty("--wave-x", currentX.toFixed(2) + "px");
+        root.style.setProperty("--wave-y", currentY.toFixed(2) + "px");
+        root.style.setProperty("--grid-x", (-currentX * 0.45).toFixed(2) + "px");
+        root.style.setProperty("--grid-y", (-currentY * 0.35).toFixed(2) + "px");
+
+        if (Math.abs(targetX - currentX) > 0.05 || Math.abs(targetY - currentY) > 0.05) {
           rafId = requestAnimationFrame(tick);
         } else {
           rafId = null;
@@ -669,18 +689,16 @@
       }
 
       window.addEventListener("pointermove", function (event) {
-        var x = (event.clientX / Math.max(window.innerWidth, 1)) * 2 - 1;
-        var y = (event.clientY / Math.max(window.innerHeight, 1)) * 2 - 1;
-        targetX = x;
-        targetY = y;
+        targetX = ((event.clientX / Math.max(window.innerWidth, 1)) - 0.5) * 22;
+        targetY = ((event.clientY / Math.max(window.innerHeight, 1)) - 0.5) * 16;
         queueTick();
-      });
+      }, { passive: true });
 
       window.addEventListener("pointerleave", function () {
         targetX = 0;
         targetY = 0;
         queueTick();
-      });
+      }, { passive: true });
     })();
   </script>
 </body>

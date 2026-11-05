@@ -6,6 +6,7 @@
 // ============================================================================
 
 import type { Pane, PaneRenderMode, PaneAssignmentResult } from "../types/pane.ts";
+import { defaultPaneSettings } from "../types/pane.ts";
 import type { Trace } from "../types/trace.ts";
 
 // ---------------------------------------------------------------------------
@@ -49,12 +50,17 @@ export function normalizePaneRenderMode(
 // ---------------------------------------------------------------------------
 
 /** Clone a pane object with normalized render mode. */
-export function clonePane(pane: Pane | null | undefined, index: number): Pane | null {
+export function clonePane(pane: Pane | null | undefined, _index: number): Pane | null {
   if (!pane?.id) return null;
   return {
     id: pane.id,
-    title: pane.title || `Pane ${index + 1}`,
+    title: pane.title || '',
     renderMode: normalizePaneRenderMode(pane.renderMode),
+    settings: {
+      ...defaultPaneSettings(),
+      ...(pane.settings ?? {}),
+      gridMajor: pane.settings?.gridMajor ?? (pane as any)?.showGrid ?? true,
+    },
   };
 }
 
@@ -80,8 +86,14 @@ export function buildPanes(
     const prev = prevById[id] ?? null;
     panes.push({
       id,
-      title: prev?.title ?? `Pane ${i}`,
+      title: prev?.title ?? '',
       renderMode: normalizePaneRenderMode(prev?.renderMode),
+      settings: {
+        ...defaultPaneSettings(),
+        ...(prev?.settings ?? {}),
+        // migrate legacy showGrid field from Phase 2
+        gridMajor: prev?.settings?.gridMajor ?? (prev as any)?.showGrid ?? true,
+      },
     });
   }
 
@@ -116,6 +128,11 @@ export function normalizePanes(
       id: pane.id,
       title: prev?.title ?? pane.title,
       renderMode: normalizePaneRenderMode(prev?.renderMode ?? pane.renderMode),
+      settings: {
+        ...defaultPaneSettings(),
+        ...(prev?.settings ?? pane.settings ?? {}),
+        gridMajor: prev?.settings?.gridMajor ?? (prev as any)?.showGrid ?? pane.settings?.gridMajor ?? true,
+      },
     };
   });
 }
