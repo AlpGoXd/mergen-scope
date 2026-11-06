@@ -10,6 +10,7 @@ import {
   canAssignTraceToPane
 } from '../domain/pane-math';
 import { useTraceState } from './trace-store';
+import { useRefLineDispatch } from './ref-line-store';
 
 export interface PaneState {
   panes: Pane[];
@@ -59,24 +60,17 @@ export function paneReducer(state: PaneState, action: PaneAction): PaneState {
       const mode = action.payload;
       const nextPanes = normalizePanes(state.panes, mode);
       
-      // If we shrunk the panes, we might need to evacuate traces
+      // Traces of removed panes keep their stale pane id here; the provider's RECONCILE
+      // (it has allTraces) moves them to a pane of the same domain and rebuilds the active-trace map.
       const validPaneIds = new Set(nextPanes.map(p => p.id));
-      const nextTracePaneMap = { ...state.tracePaneMap };
-      
-      for (const [traceName, pid] of Object.entries(nextTracePaneMap)) {
-        if (!validPaneIds.has(pid)) {
-          nextTracePaneMap[traceName] = 'pane-1';
-        }
-      }
-
-      // We won't have allTraces here to tightly clean up paneActiveTraceMap,
-      // so we rely on the provider's useEffect to RECONCILE shortly after layout changes if allTraces changes,
-      // but if allTraces is constant, we just drop invalid active traces.
       const nextActiveMap = { ...state.paneActiveTraceMap };
       for (const pid of Object.keys(nextActiveMap)) {
         if (!validPaneIds.has(pid)) delete nextActiveMap[pid];
       }
-      
+      // Pane ids are reused (pane-1..pane-N), so a re-added pane must not inherit an old zoom.
+      const keepValid = <T,>(zooms: Record<string, T>) =>
+        Object.fromEntries(Object.entries(zooms).filter(([pid]) => validPaneIds.has(pid)));
+
       let nextActivePaneId = state.activePaneId;
       if (nextActivePaneId && !validPaneIds.has(nextActivePaneId)) {
         nextActivePaneId = 'pane-1';
@@ -85,9 +79,10 @@ export function paneReducer(state: PaneState, action: PaneAction): PaneState {
       return {
         ...state,
         panes: nextPanes,
-        tracePaneMap: nextTracePaneMap,
         paneActiveTraceMap: nextActiveMap,
         activePaneId: nextActivePaneId,
+        paneXZooms: keepValid(state.paneXZooms),
+        paneYZooms: keepValid(state.paneYZooms),
       };
     }
     case 'ASSIGN_TRACE_TO_PANE': {
@@ -195,10 +190,21 @@ export function PaneStoreProvider({ children }: { children: React.ReactNode }) {
   const traceState = useTraceState();
   const allTraces = traceState.allTraces;
 
-  // Reconcile whenever the global trace list changes (files added/removed, traces derived)
+  const refLineDispatch = useRefLineDispatch();
+  const paneCount = state.panes.length;
+
+  // Reconcile whenever the global trace list or the pane count changes
   useEffect(() => {
     dispatch({ type: 'RECONCILE', payload: allTraces });
-  }, [allTraces]);
+  }, [allTraces, paneCount]);
+
+  // Reference lines of removed panes would otherwise reappear when the pane id is reused.
+  useEffect(() => {
+    refLineDispatch({
+      type: 'CLEANUP_ORPHANED_LINES',
+      payload: { paneIds: Array.from({ length: paneCount }, (_, i) => `pane-${i + 1}`) },
+    });
+  }, [paneCount, refLineDispatch]);
 
   return (
     <PaneDispatchContext.Provider value={dispatch}>

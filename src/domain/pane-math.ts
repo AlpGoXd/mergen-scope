@@ -151,9 +151,16 @@ export function normalizeTracePaneMap(
   const paneIds = panes.map((p) => p.id);
   const traceNames = allTr.map((tr) => tr.name);
 
-  for (const name of traceNames) {
-    const paneId = next[name];
-    next[name] = paneId && paneIds.includes(paneId) ? paneId : "pane-1";
+  // Traces without a valid pane (new, or their pane was removed) go to the first pane whose
+  // domain matches; traces that still have a valid pane are placed first so they define the domains.
+  const homeless = allTr.filter((tr) => {
+    const paneId = next[tr.name];
+    if (paneId && paneIds.includes(paneId)) return false;
+    delete next[tr.name];
+    return true;
+  });
+  for (const trace of homeless) {
+    next[trace.name] = paneIds.find((id) => canAssignTraceToPane(trace, id, allTr, next).allowed) ?? paneIds[0] ?? "pane-1";
   }
 
   // Remove traces that no longer exist

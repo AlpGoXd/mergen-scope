@@ -91,13 +91,20 @@ export function buildSnapshot(args: BuildSnapshotArgs): WorkspaceSnapshot {
 // ---------------------------------------------------------------------------
 
 /** Restore a workspace snapshot from JSON, with version migration. */
+function looksLikeWorkspace(value: unknown): value is Partial<WorkspaceSnapshot> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const candidate = value as Record<string, unknown>;
+  // A version number alone (e.g. {"version":1}) is not enough: every snapshot we write has files/datasets arrays.
+  return Array.isArray(candidate["files"]) || Array.isArray(candidate["datasets"]);
+}
+
 export function restoreSnapshot(json: string): WorkspaceSnapshot | null {
   try {
     const raw = JSON.parse(json) as Partial<WorkspaceSnapshot> & { readonly kind?: string; readonly snapshot?: Partial<WorkspaceSnapshot> | null };
-    if (raw && raw.kind === "mergen-scope-workspace" && raw.snapshot) {
-      return normalizeSnapshot(raw.snapshot);
-    }
-    return normalizeSnapshot(raw);
+    const body = raw && raw.kind === "mergen-scope-workspace" && raw.snapshot ? raw.snapshot : raw;
+    // Arbitrary JSON (null, arrays, unrelated objects) must not replace the open workspace with an empty one.
+    if (!looksLikeWorkspace(body)) return null;
+    return normalizeSnapshot(body);
   } catch {
     return null;
   }

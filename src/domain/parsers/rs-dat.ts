@@ -33,6 +33,7 @@ export function parseRSDat(text: string, fileName: string): ParsedFile {
   const meta: Record<string, MetadataEntry> = {};
   const traces: RawTrace[] = [];
   let cur: { trace: RawTrace; data: DataPoint[] } | null = null;
+  const blocks: { trace: RawTrace; data: DataPoint[] }[] = [];
   let inData = false;
   let hadTraceDecl = false;
 
@@ -58,6 +59,7 @@ export function parseRSDat(text: string, fileName: string): ParsedFile {
       hadTraceDecl = true;
       const trace = makeTrace(prefix, fileName, `Tr${parts[1]}`, _fc);
       cur = { trace, data: [] };
+      blocks.push(cur);
       traces.push(trace);
       continue;
     }
@@ -74,6 +76,7 @@ export function parseRSDat(text: string, fileName: string): ParsedFile {
       if (!cur) {
         const trace = makeTrace(prefix, fileName, `Tr${traces.length + 1}`, _fc);
         cur = { trace, data: [] };
+      blocks.push(cur);
         traces.push(trace);
       }
       continue;
@@ -102,14 +105,9 @@ export function parseRSDat(text: string, fileName: string): ParsedFile {
     }
   }
 
-  // Copy data to traces + fill missing frequencies
-  for (let i = 0; i < traces.length; i++) {
-    const traceEntry = traces[i]!;
-    // Find matching cur entry
-    const curEntry = cur && traces.indexOf(traceEntry) === traces.length - 1 ? cur : null;
-    if (curEntry && curEntry.trace === traceEntry) {
-      (traceEntry as unknown as { data: DataPoint[] }).data = curEntry.data;
-    }
+  // Copy each block's data to its own trace (multi-trace files have one block per "Trace;N")
+  for (const block of blocks) {
+    (block.trace as unknown as { data: DataPoint[] }).data = block.data;
   }
 
   const sf = (meta["Start"] && typeof meta["Start"] === "object" && "value" in meta["Start"]) ? meta["Start"].value : 0;

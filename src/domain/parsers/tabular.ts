@@ -12,6 +12,35 @@ import { incrementFileCounter } from "./rs-dat.ts";
 import { normalizeTraceData } from "./helpers.ts";
 
 // ---------------------------------------------------------------------------
+// Wizard preview summary
+// ---------------------------------------------------------------------------
+
+export interface TabularPreviewSummary {
+  /** Rows (after the start row) whose X value parses as a number. */
+  readonly dataRows: number;
+  readonly xMin: number | null;
+  readonly xMax: number | null;
+}
+
+/** What the wizard's current settings would read from the preview lines (same row rules as parseTabularFile). */
+export function summarizeTabularPreview(lines: readonly string[], config: Pick<WizardConfig, "delimiter" | "skipRows" | "xCol">): TabularPreviewSummary {
+  const start = Math.max(0, Math.floor(Number.isFinite(config.skipRows) ? config.skipRows : 0));
+  let dataRows = 0;
+  let xMin = Infinity;
+  let xMax = -Infinity;
+  for (let i = start; i < lines.length; i++) {
+    const cell = lines[i]?.split(config.delimiter)[config.xCol];
+    if (cell === undefined || cell.trim() === "") continue;
+    const x = Number(cell);
+    if (!Number.isFinite(x)) continue;
+    dataRows += 1;
+    if (x < xMin) xMin = x;
+    if (x > xMax) xMax = x;
+  }
+  return { dataRows, xMin: dataRows ? xMin : null, xMax: dataRows ? xMax : null };
+}
+
+// ---------------------------------------------------------------------------
 // Tabular parser
 // ---------------------------------------------------------------------------
 
@@ -148,7 +177,9 @@ export function parseTabularFile(
     traces.push(trace);
   }
 
-  for (let i = config.skipRows; i < lines.length; i++) {
+  // skipRows comes from user input (wizard): only whole, non-negative row counts are valid indices.
+  const firstDataRow = Math.max(0, Math.floor(Number.isFinite(config.skipRows) ? config.skipRows : 0));
+  for (let i = firstDataRow; i < lines.length; i++) {
     const row = lines[i]!.split(config.delimiter);
     if (row.length <= config.xCol) continue;
     const xVal = Number(row[config.xCol]) * (config.xMult || 1);

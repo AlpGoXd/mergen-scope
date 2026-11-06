@@ -15,24 +15,35 @@ export interface WizardEntry {
   targetPaneId?: string;
 }
 
+export interface ImportError {
+  id: string;
+  fileName: string;
+  message: string;
+}
+
 export interface FileState {
   files: RawFileRecord[];
   rawFileData: Record<string, string>;
   vis: Record<string, boolean>; // trace name -> visible boolean
   wizardQueue: WizardEntry[];
+  importErrors: ImportError[];
 }
 
 export type FileAction =
   | { type: 'QUEUE_WIZARD'; payload: { fileName: string; rawText: string; id: string; targetPaneId?: string } }
   | { type: 'RESOLVE_WIZARD'; payload: { id: string; config: WizardConfig } }
-  | { type: 'RERUN_WIZARD'; payload: { fileId: string; fileName: string; previousConfig: WizardConfig } }
+  | { type: 'RERUN_WIZARD'; payload: { fileId: string; fileName: string } }
   | { type: 'SKIP_WIZARD'; payload: { id: string } }
+  | { type: 'SKIP_ALL_WIZARD' }
+  | { type: 'REPORT_IMPORT_ERROR'; payload: { fileName: string; message: string } }
+  | { type: 'DISMISS_IMPORT_ERROR'; payload: { id: string } }
   | { type: 'REMOVE_FILE'; payload: { fileId: string } }
   | { type: 'SET_DISPLAY_TRACE_HIDDEN'; payload: { fileId: string; displayTraceId: string; hidden: boolean } }
   | { type: 'SET_DISPLAY_TRACE_INTERPOLATION'; payload: { fileId: string; displayTraceId: string; interpolation: InterpolationStrategy } }
   | { type: 'SHOW_ALL_DISPLAY_TRACES'; payload: { fileId: string } }
   | { type: 'SET_VISIBILITY'; payload: { traceName: string; visible: boolean } }
-  | { type: 'RESTORE_FILES'; payload: FileState }
+  // importErrors are UI feedback, not file data: restores keep the current ones.
+  | { type: 'RESTORE_FILES'; payload: Omit<FileState, 'importErrors'> }
   | { type: 'ADD_PARSED_FILE'; payload: { id: string; fileName: string; parsed: ParsedFile; text: string } };
 
 export const defaultFileState: FileState = {
@@ -40,7 +51,31 @@ export const defaultFileState: FileState = {
   rawFileData: {},
   vis: {},
   wizardQueue: [],
+  importErrors: [],
 };
+
+let importErrorCounter = 0;
+
+function withImportError(state: FileState, fileName: string, message: string): FileState {
+  importErrorCounter += 1;
+  return {
+    ...state,
+    importErrors: [...state.importErrors, { id: `import-error-${importErrorCounter}`, fileName, message }],
+  };
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error && error.message ? error.message : String(error);
+}
+
+// Touchstone files get their traces later (selection reconcile), so a network alone counts as data.
+function hasImportedData(parsed: ParsedFile): boolean {
+  return parsed.traces.length > 0 || (parsed.displayTraces?.length ?? 0) > 0 || Boolean(parsed.touchstoneNetwork);
+}
+
+function nonEmptyPreviewLines(text: string): string[] {
+  return text.split(/\r?\n/).filter((line) => line.trim().length > 0).slice(0, 100);
+}
 
 const FileStateContext = createContext<FileState | null>(null);
 const FileDispatchContext = createContext<React.Dispatch<FileAction> | null>(null);
@@ -50,8 +85,12 @@ export function fileReducer(state: FileState, action: FileAction): FileState {
     case 'QUEUE_WIZARD': {
       const { id, fileName, rawText, targetPaneId } = action.payload;
 
-      const profile = classify(rawText, fileName);
-      const parsed = parseMeasurementFile(rawText, fileName, profile);
+      let parsed: ParsedFile;
+      try {
+        parsed = parseMeasurementFile(rawText, fileName, classify(rawText, fileName));
+      } catch (error) {
+        return withImportError(state, fileName, errorMessage(error));
+      }
 
       if (parsed.format === 'needs-import-wizard') {
         const wizardEntry: WizardEntry = {
@@ -67,7 +106,9 @@ export function fileReducer(state: FileState, action: FileAction): FileState {
           wizardQueue: [...state.wizardQueue, wizardEntry],
         };
       } else {
-        // It parsed smoothly right away
+        if (!hasImportedData(parsed)) {
+          return withImportError(state, fileName, 'No data found in this file.');
+        }
         const newRecord: RawFileRecord = {
           id,
           fileName,
@@ -96,7 +137,28 @@ export function fileReducer(state: FileState, action: FileAction): FileState {
       if (entryIdx === -1) return state;
 
       const entry = state.wizardQueue[entryIdx]!;
-      const parsed = parseTabularFile(entry.rawText, entry.fileName, config);
+      const newQueue = [...state.wizardQueue];
+      newQueue.splice(entryIdx, 1);
+
+      let parsed: ParsedFile;
+      try {
+        parsed = parseTabularFile(entry.rawText, entry.fileName, config);
+      } catch (error) {
+        return withImportError({ ...state, wizardQueue: newQueue }, entry.fileName, errorMessage(error));
+      }
+      if (!hasImportedData(parsed)) {
+        return withImportError(
+          { ...state, wizardQueue: newQueue },
+          entry.fileName,
+          'No data rows matched these settings. Check the delimiter, start row and columns.',
+        );
+      }
+
+      // A re-import reuses the file id: replace the old record only now, so Skip keeps it.
+      const previous = state.files.find((file) => String(file.id) === String(id));
+      const newVis = { ...state.vis };
+      previous?.traces.forEach((t) => { delete newVis[t.name]; });
+      parsed.traces.forEach(t => { newVis[t.name] = true; });
 
       const newRecord: RawFileRecord = {
         id,
@@ -110,42 +172,41 @@ export function fileReducer(state: FileState, action: FileAction): FileState {
         targetPaneId: entry.targetPaneId,
       };
 
-      const newVis = { ...state.vis };
-      parsed.traces.forEach(t => { newVis[t.name] = true; });
-
-      const newQueue = [...state.wizardQueue];
-      newQueue.splice(entryIdx, 1);
-
       return {
         ...state,
-        files: [...state.files, newRecord],
+        files: previous
+          ? state.files.map((file) => (file === previous ? newRecord : file))
+          : [...state.files, newRecord],
         rawFileData: { ...state.rawFileData, [id]: entry.rawText },
         wizardQueue: newQueue,
         vis: newVis,
       };
     }
     case 'RERUN_WIZARD': {
-      const { fileId, fileName, previousConfig } = action.payload;
+      const { fileId, fileName } = action.payload;
       const text = state.rawFileData[fileId];
       if (!text) return state; // can't rerun without text
+      if (state.wizardQueue.some((entry) => entry.id === fileId)) return state;
 
-      const profile = classify(text, fileName);
-      const testParse = parseMeasurementFile(text, fileName, profile);
-      
+      let suggestedConfig: WizardConfig | undefined;
+      try {
+        // Seed from the parser's own guess; the file stays in place until the wizard is confirmed.
+        suggestedConfig = parseTabularFile(text, fileName, null).suggestedConfig;
+      } catch {
+        suggestedConfig = undefined;
+      }
+
       const newEntry: WizardEntry = {
         id: fileId,
         fileName,
         rawText: text,
-        previewLines: testParse.previewLines ?? [],
-        suggestedConfig: previousConfig || testParse.suggestedConfig,
+        previewLines: nonEmptyPreviewLines(text),
+        suggestedConfig,
+        targetPaneId: state.files.find((file) => String(file.id) === fileId)?.targetPaneId,
       };
-
-      // Also remove it from existing files
-      const newFiles = state.files.filter(f => f.id !== fileId);
 
       return {
         ...state,
-        files: newFiles,
         wizardQueue: [...state.wizardQueue, newEntry]
       };
     }
@@ -153,6 +214,12 @@ export function fileReducer(state: FileState, action: FileAction): FileState {
       const newQueue = state.wizardQueue.filter(e => e.id !== action.payload.id);
       return { ...state, wizardQueue: newQueue };
     }
+    case 'SKIP_ALL_WIZARD':
+      return { ...state, wizardQueue: [] };
+    case 'REPORT_IMPORT_ERROR':
+      return withImportError(state, action.payload.fileName, action.payload.message);
+    case 'DISMISS_IMPORT_ERROR':
+      return { ...state, importErrors: state.importErrors.filter((error) => error.id !== action.payload.id) };
     case 'REMOVE_FILE': {
       const fileId = action.payload.fileId;
       const newFiles = state.files.filter(f => String(f.id) !== String(fileId));
@@ -284,7 +351,7 @@ export function fileReducer(state: FileState, action: FileAction): FileState {
       };
     }
     case 'RESTORE_FILES': {
-      return action.payload;
+      return { ...action.payload, importErrors: state.importErrors };
     }
     default:
       return state;

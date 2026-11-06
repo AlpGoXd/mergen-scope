@@ -1,16 +1,19 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useFileDispatch, useFileState } from '../../stores/file-store';
 import type { WizardConfig } from '../../types/file';
+import { summarizeTabularPreview } from '../../domain/parsers/tabular';
 import { WizardPreviewTable } from './WizardPreviewTable';
 import { WizardColumnConfig } from './WizardColumnConfig';
 import { WizardDomainPicker } from './WizardDomainPicker';
 
+/** Header names come from the row just above the data; with no such row, columns are numbered. */
 function buildHeaders(lines: readonly string[], delimiter: string, skipRows: number): string[] {
-	const headerLine = skipRows > 0 ? lines[skipRows - 1] : lines[0];
-	if (!headerLine) {
-		return [];
+	const headerLine = skipRows > 0 ? lines[skipRows - 1] : undefined;
+	if (headerLine !== undefined) {
+		return headerLine.split(delimiter).map((part) => part.trim());
 	}
-	return headerLine.split(delimiter).map((part) => part.trim());
+	const columnCount = lines[0]?.split(delimiter).length ?? 0;
+	return Array.from({ length: columnCount }, (_, idx) => `Column ${idx + 1}`);
 }
 
 function createFallbackConfig(lines: readonly string[]): WizardConfig {
@@ -30,11 +33,14 @@ function createFallbackConfig(lines: readonly string[]): WizardConfig {
 	};
 }
 
+function formatRangeValue(value: number): string {
+	return Math.abs(value) >= 1e4 || (value !== 0 && Math.abs(value) < 1e-3) ? value.toExponential(3) : String(Number(value.toPrecision(6)));
+}
+
 export function ImportWizardModal() {
 	const { wizardQueue } = useFileState();
 	const fileDispatch = useFileDispatch();
 	const active = wizardQueue[0];
-	const [showFullWizard, setShowFullWizard] = useState(false);
 
 	const initialConfig = useMemo<WizardConfig>(() => {
 		if (!active) {
@@ -42,12 +48,7 @@ export function ImportWizardModal() {
 		}
 		const suggested = active.suggestedConfig;
 		if (suggested) {
-			return {
-				...suggested,
-				headers: suggested.headers?.length
-					? [...suggested.headers]
-					: buildHeaders(active.previewLines, suggested.delimiter, suggested.skipRows),
-			};
+			return { ...suggested, headers: buildHeaders(active.previewLines, suggested.delimiter, suggested.skipRows) };
 		}
 		return createFallbackConfig(active.previewLines);
 	}, [active]);
@@ -56,33 +57,36 @@ export function ImportWizardModal() {
 
 	useEffect(() => {
 		setConfig(initialConfig);
-		setShowFullWizard(false);
 	}, [initialConfig]);
 
+	const skip = () => {
+		if (active) fileDispatch({ type: 'SKIP_WIZARD', payload: { id: active.id } });
+	};
+
 	useEffect(() => {
-		if (!active) {
-			return;
-		}
-		if (showFullWizard || config.confidence < 0.9) {
-			return;
-		}
+		if (!active) return;
+		const onKeyDown = (event: KeyboardEvent) => {
+			if (event.key === 'Escape') fileDispatch({ type: 'SKIP_WIZARD', payload: { id: active.id } });
+		};
+		window.addEventListener('keydown', onKeyDown);
+		return () => window.removeEventListener('keydown', onKeyDown);
+	}, [active, fileDispatch]);
 
-		const timer = window.setTimeout(() => {
-			fileDispatch({ type: 'RESOLVE_WIZARD', payload: { id: active.id, config } });
-		}, 1500);
-
-		return () => window.clearTimeout(timer);
-	}, [active, config, fileDispatch, showFullWizard]);
+	const summary = useMemo(
+		() => (active ? summarizeTabularPreview(active.previewLines, config) : null),
+		[active, config],
+	);
 
 	if (!active) {
 		return null;
 	}
 
-	const headers = config.headers?.length
-		? [...config.headers]
-		: buildHeaders(active.previewLines, config.delimiter, config.skipRows);
-
-	const compactHighConfidence = config.confidence >= 0.9 && !showFullWizard;
+	const headers = config.headers;
+	const updateLayout = (delimiter: string, skipRows: number) => {
+		setConfig((prev) => ({ ...prev, delimiter, skipRows, headers: buildHeaders(active.previewLines, delimiter, skipRows) }));
+	};
+	const previewIsPartial = active.previewLines.length >= 100;
+	const headerSource = config.skipRows > 0 ? `row ${config.skipRows}` : 'none (columns are numbered)';
 
 	return (
 		<div
@@ -97,8 +101,12 @@ export function ImportWizardModal() {
 			}}
 		>
 			<div
+				role="dialog"
+				aria-modal="true"
+				aria-labelledby="import-wizard-title"
+				data-testid="import-wizard"
 				style={{
-					width: compactHighConfidence ? '420px' : 'min(980px, 95vw)',
+					width: 'min(980px, 95vw)',
 					maxHeight: '90vh',
 					overflow: 'auto',
 					borderRadius: '12px',
@@ -110,86 +118,91 @@ export function ImportWizardModal() {
 					gap: '10px',
 				}}
 			>
-				<div>
-					<h2 style={{ margin: 0, fontSize: 'var(--font-title)', lineHeight: 'var(--lh-title)' }}>Import Wizard</h2>
-					<div style={{ fontSize: 'var(--font-label)', lineHeight: 'var(--lh-label)', color: 'var(--dim)' }}>{active.fileName}</div>
+				<div style={{ display: 'flex', alignItems: 'baseline', gap: '10px' }}>
+					<div style={{ flex: 1, minWidth: 0 }}>
+						<h2 id="import-wizard-title" style={{ margin: 0, fontSize: 'var(--font-title)', lineHeight: 'var(--lh-title)' }}>Import table</h2>
+						<div style={{ fontSize: 'var(--font-label)', lineHeight: 'var(--lh-label)', color: 'var(--dim)' }}>
+							{active.fileName}: choose which rows and columns hold the data. The preview below updates as you change settings.
+						</div>
+					</div>
+					{wizardQueue.length > 1 && (
+						<span data-testid="import-wizard-queue" style={{ fontSize: 'var(--font-label)', color: 'var(--muted)', whiteSpace: 'nowrap' }}>
+							File 1 of {wizardQueue.length}
+						</span>
+					)}
 				</div>
 
-				{compactHighConfidence && (
-					<div style={{ border: '1px solid var(--border)', borderRadius: '8px', padding: '10px', fontSize: 'var(--font-body)', lineHeight: 'var(--lh-body)' }}>
-						High confidence parse detected ({Math.round(config.confidence * 100)}%).
-						Auto-advance is running.
-					</div>
-				)}
-
-				{!compactHighConfidence && (
-					<>
-						<div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-							<label style={{ display: 'grid', gap: '4px', fontSize: 'var(--font-label)' }}>
-								Delimiter
-								<select
-									value={config.delimiter}
-									onChange={(event) => {
-										const delimiter = event.target.value;
-										const nextHeaders = buildHeaders(active.previewLines, delimiter, config.skipRows);
-										setConfig((prev) => ({ ...prev, delimiter, headers: nextHeaders }));
-									}}
-								>
-									<option value=",">Comma</option>
-									<option value=";">Semicolon</option>
-									<option value={'\t'}>Tab</option>
-								</select>
-							</label>
-							<label style={{ display: 'grid', gap: '4px', fontSize: 'var(--font-label)' }}>
-								Skip rows
-								<input
-									type="number"
-									min={0}
-									value={config.skipRows}
-									onChange={(event) => {
-										const skipRows = Number(event.target.value);
-										const nextHeaders = buildHeaders(active.previewLines, config.delimiter, skipRows);
-										setConfig((prev) => ({ ...prev, skipRows, headers: nextHeaders }));
-									}}
-								/>
-							</label>
-						</div>
-
-						<WizardDomainPicker
-							domain={config.domain}
-							onChangeDomain={(domain) => setConfig((prev) => ({ ...prev, domain }))}
+				<div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+					<label style={{ display: 'grid', gap: '4px', fontSize: 'var(--font-label)' }}>
+						Delimiter
+						<select value={config.delimiter} onChange={(event) => updateLayout(event.target.value, config.skipRows)}>
+							<option value=",">Comma</option>
+							<option value=";">Semicolon</option>
+							<option value={'\t'}>Tab</option>
+						</select>
+					</label>
+					<label style={{ display: 'grid', gap: '4px', fontSize: 'var(--font-label)' }}>
+						Data starts at row
+						<input
+							type="number"
+							min={1}
+							step={1}
+							value={config.skipRows + 1}
+							onChange={(event) => {
+								const row = Math.floor(Number(event.target.value));
+								updateLayout(config.delimiter, Number.isFinite(row) ? Math.max(0, row - 1) : 0);
+							}}
 						/>
+						<span style={{ color: 'var(--dim)' }}>Column names from: {headerSource}</span>
+					</label>
+				</div>
 
-						<WizardColumnConfig
-							headers={headers}
-							xCol={config.xCol}
-							yCols={config.yCols}
-							onChangeXCol={(xCol) => setConfig((prev) => ({ ...prev, xCol }))}
-							onChangeYCols={(yCols) => setConfig((prev) => ({ ...prev, yCols }))}
-						/>
+				<WizardDomainPicker
+					domain={config.domain}
+					onChangeDomain={(domain) => setConfig((prev) => ({ ...prev, domain }))}
+				/>
 
-						<WizardPreviewTable lines={active.previewLines} delimiter={config.delimiter} />
-					</>
-				)}
+				<WizardColumnConfig
+					headers={headers}
+					xCol={config.xCol}
+					yCols={config.yCols}
+					onChangeXCol={(xCol) => setConfig((prev) => ({ ...prev, xCol, yCols: prev.yCols.filter((col) => col !== xCol) }))}
+					onChangeYCols={(yCols) => setConfig((prev) => ({ ...prev, yCols }))}
+				/>
+
+				<WizardPreviewTable
+					lines={active.previewLines}
+					delimiter={config.delimiter}
+					skipRows={config.skipRows}
+					headers={headers}
+					xCol={config.xCol}
+					yCols={config.yCols}
+				/>
+
+				<div data-testid="import-wizard-summary" style={{ fontSize: 'var(--font-label)', color: summary && summary.dataRows > 1 && config.yCols.length > 0 ? 'var(--text)' : 'var(--dim)' }}>
+					{summary && summary.dataRows > 1 && config.yCols.length > 0
+						? `Will import ${config.yCols.length} trace${config.yCols.length === 1 ? '' : 's'} · ${summary.dataRows}${previewIsPartial ? '+' : ''} rows · X ${formatRangeValue(summary.xMin ?? 0)} to ${formatRangeValue(summary.xMax ?? 0)}`
+						: config.yCols.length === 0
+							? 'Pick at least one Y column.'
+							: 'No numeric data rows with these settings. Check the delimiter and start row.'}
+				</div>
 
 				<div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
-					{compactHighConfidence && (
-						<button type="button" onClick={() => setShowFullWizard(true)}>
-							Edit
+					{wizardQueue.length > 1 && (
+						<button type="button" onClick={() => fileDispatch({ type: 'SKIP_ALL_WIZARD' })}>
+							Skip all
 						</button>
 					)}
-					<button type="button" onClick={() => fileDispatch({ type: 'SKIP_WIZARD', payload: { id: active.id } })}>
+					<button type="button" onClick={skip} title="Skip this file (Esc)">
 						Skip
 					</button>
-					{!compactHighConfidence && (
-						<button
-							type="button"
-							onClick={() => fileDispatch({ type: 'RESOLVE_WIZARD', payload: { id: active.id, config } })}
-							disabled={config.yCols.length === 0}
-						>
-							Confirm
-						</button>
-					)}
+					<button
+						type="button"
+						onClick={() => fileDispatch({ type: 'RESOLVE_WIZARD', payload: { id: active.id, config } })}
+						disabled={config.yCols.length === 0}
+					>
+						Confirm
+					</button>
 				</div>
 			</div>
 		</div>

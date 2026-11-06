@@ -16,7 +16,7 @@ import { useTraceDispatch, useTraceState } from '../../stores/trace-store';
 import { useUiDispatch, useUiState } from '../../stores/ui-store';
 import type { InterpolationStrategy } from '../../types/interpolation';
 import type { Dataset } from '../../types/dataset';
-import type { RawFileRecord, WizardConfig, FileMetadata, MetadataEntry } from '../../types/file';
+import type { RawFileRecord, FileMetadata, MetadataEntry } from '../../types/file';
 import type { Marker } from '../../types/marker';
 import type { RefLine } from '../../types/ref-line';
 import type { ThemeColors } from '../../types/theme';
@@ -170,21 +170,6 @@ export function Sidebar({ width = 300 }: { width?: number }) {
     };
   }, [allTraces, colors?.dr, colors?.tr, traceColors]);
 
-  const buildReimportConfig = (file: RawFileRecord): WizardConfig => {
-    const firstTrace = file.traces[0];
-    return {
-      delimiter: ',',
-      skipRows: 1,
-      xCol: 0,
-      yCols: [1],
-      xMult: 1,
-      yMult: 1,
-      domain: firstTrace?.domain ?? 'frequency',
-      confidence: 0,
-      headers: [],
-    };
-  };
-
   // Removed toggleMetadata usage
 
   const getTraceDataSpan = (trace: Trace | null): number => {
@@ -336,23 +321,17 @@ export function Sidebar({ width = 300 }: { width?: number }) {
                         Meta
                       </button>
                     )}
-                    <button
-                      type="button"
-                      onClick={() =>
-                        fileDispatch({
-                          type: 'RERUN_WIZARD',
-                          payload: {
-                            fileId,
-                            fileName: file.fileName,
-                            previousConfig: buildReimportConfig(file),
-                          },
-                        })
-                      }
-                      className="btn"
-                      style={{ padding: compactSidebar ? '2px 6px' : '4px 8px', fontSize: 'var(--font-caption)' }}
-                    >
-                      Re-import
-                    </button>
+                    {file.format === 'tabular' && (
+                      <button
+                        type="button"
+                        onClick={() => fileDispatch({ type: 'RERUN_WIZARD', payload: { fileId, fileName: file.fileName } })}
+                        className="btn"
+                        style={{ padding: compactSidebar ? '2px 6px' : '4px 8px', fontSize: 'var(--font-caption)' }}
+                        title="Open the import wizard again for this table"
+                      >
+                        Re-import
+                      </button>
+                    )}
                   </div>
                 )}
 

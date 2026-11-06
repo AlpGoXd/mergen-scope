@@ -10,14 +10,12 @@ import { useKeyboard } from './hooks/use-keyboard';
 import { useTheme } from './hooks/use-theme';
 import { useUiState } from './stores/ui-store';
 import { useUiDispatch } from './stores/ui-store';
-import { useFileDispatch, useFileState } from './stores/file-store';
+import { useFileState } from './stores/file-store';
+import { useFileImport } from './hooks/use-file-import';
 import { useTraceDispatch, useTraceState } from './stores/trace-store';
 import { usePaneDispatch, usePaneState } from './stores/pane-store';
 import { canAssignTraceToPane } from './domain/pane-math';
 
-function makeId(fileName: string) {
-  return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${fileName}`;
-}
 
 function clampLeftPanelWidth(width: number, viewportWidth: number) {
   return Math.max(200, Math.min(width, Math.min(560, viewportWidth * 0.45)));
@@ -47,7 +45,7 @@ export function App() {
   const { allTraces, vis } = useTraceState();
   const traceDispatch = useTraceDispatch();
   const uiDispatch = useUiDispatch();
-  const fileDispatch = useFileDispatch();
+  const importFiles = useFileImport();
   const { files } = useFileState();
   const paneDispatch = usePaneDispatch();
   const { panes, activePaneId, tracePaneMap } = usePaneState();
@@ -101,17 +99,26 @@ export function App() {
       if (f.targetPaneId) f.traces.forEach(t => { traceTargetPane[t.name] = f.targetPaneId!; });
     });
 
+    let conflictWarning: { message: string; paneId: string; traceName: string } | null = null;
+
     for (const trace of newTraces) {
+      // Already placed (e.g. restored from a workspace): keep the saved pane and visibility.
+      if (tracePaneMap[trace.name]) {
+        continue;
+      }
       traceDispatch({ type: 'SET_VISIBILITY', name: trace.name, visible: true });
 
       let targetPaneId = traceTargetPane[trace.name] ?? activePaneId ?? 'pane-1';
-      let validation = canAssignTraceToPane(trace, targetPaneId, allTraces, tracePaneMap);
+      let validation = provisionalPaneDomains.has(targetPaneId)
+        ? { allowed: provisionalPaneDomains.get(targetPaneId) === trace.domain }
+        : canAssignTraceToPane(trace, targetPaneId, allTraces, tracePaneMap);
 
       if (!validation.allowed) {
-        const compatiblePane = panes.find((pane) => provisionalPaneDomains.get(pane.id) === trace.domain)
-          ?? panes.find((pane) => canAssignTraceToPane(trace, pane.id, allTraces, tracePaneMap).allowed);
-        if (compatiblePane) {
-          targetPaneId = compatiblePane.id;
+        // provisionalPaneDomains also holds panes created earlier in this loop (not yet in `panes`).
+        const compatiblePaneId = Array.from(provisionalPaneDomains).find(([, domain]) => domain === trace.domain)?.[0]
+          ?? panes.find((pane) => !provisionalPaneDomains.has(pane.id) && canAssignTraceToPane(trace, pane.id, allTraces, tracePaneMap).allowed)?.id;
+        if (compatiblePaneId) {
+          targetPaneId = compatiblePaneId;
           validation = { allowed: true };
         } else if (paneCount < 4) {
           paneCount += 1;
@@ -120,27 +127,19 @@ export function App() {
           provisionalPaneDomains.set(targetPaneId, trace.domain);
           validation = { allowed: true };
         } else {
-          const conflictMessage = trace.domain === 'time'
-            ? 'Cannot place time-domain traces on a frequency-domain pane'
-            : 'Cannot place frequency-domain traces on a time-domain pane';
-          uiDispatch({
-            type: 'SET',
-            payload: {
-              key: 'paneAssignmentWarning',
-              value: {
-                message: conflictMessage,
-                paneId: targetPaneId,
-                traceName: trace.name,
-              },
-            },
-          });
+          conflictWarning = {
+            message: trace.domain === 'time'
+              ? 'Cannot place time-domain traces on a frequency-domain pane'
+              : 'Cannot place frequency-domain traces on a time-domain pane',
+            paneId: targetPaneId,
+            traceName: trace.name,
+          };
           continue;
         }
       }
 
       if (validation.allowed) {
         provisionalPaneDomains.set(targetPaneId, trace.domain);
-        uiDispatch({ type: 'SET', payload: { key: 'paneAssignmentWarning', value: null } });
         paneDispatch({
           type: 'ASSIGN_TRACE_TO_PANE',
           payload: { trace, targetPaneId, allTraces },
@@ -153,6 +152,10 @@ export function App() {
 
     if (firstAssignedTraceName) {
       uiDispatch({ type: 'SET', payload: { key: 'selectedTraceName', value: firstAssignedTraceName } });
+    }
+    // One message per batch: a later successful trace must not erase an earlier conflict.
+    if (conflictWarning || firstAssignedTraceName) {
+      uiDispatch({ type: 'SET', payload: { key: 'paneAssignmentWarning', value: conflictWarning } });
     }
 
     knownTraceNamesRef.current = nextKnown;
@@ -244,21 +247,13 @@ export function App() {
     }
   }, [dragging, resetDragOverlay]);
 
-  const handleDrop = useCallback(async (e: React.DragEvent) => {
+  const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     resetDragOverlay();
-    const files = Array.from(e.dataTransfer.files);
-    if (files.length === 0) {
-      return;
+    if (e.dataTransfer.files.length > 0) {
+      void importFiles(e.dataTransfer.files);
     }
-    for (const file of files) {
-      const rawText = await file.text();
-      fileDispatch({
-        type: 'QUEUE_WIZARD',
-        payload: { id: makeId(file.name), fileName: file.name, rawText },
-      });
-    }
-  }, [fileDispatch, resetDragOverlay]);
+  }, [importFiles, resetDragOverlay]);
 
   const handleDropCapture = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -312,7 +307,8 @@ export function App() {
       <ToolbarStrip />
 
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minWidth: 0 }}>
-        {showSidebar && <Sidebar width={leftPanelWidth} />}
+        {/* Always mounted (renders nothing when hidden): it owns the Touchstone trace reconciliation. */}
+        <Sidebar width={leftPanelWidth} />
         {showSidebar && <PanelResizeHandle side="left" onMouseDown={startResize('left')} />}
         <ChartWorkspace />
         {showRightPanel && <PanelResizeHandle side="right" onMouseDown={startResize('right')} />}

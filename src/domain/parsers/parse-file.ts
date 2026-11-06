@@ -34,8 +34,15 @@ function looksLikeTouchstoneText(text: string): boolean {
   if (!first) return false;
   if (/^\[Version\]/i.test(first)) return true;
   if (/^\[(Number of Ports|Reference|Network Data|Matrix Format|End)\]/i.test(first)) return true;
-  if (/^#/i.test(first)) return true;
+  if (/^#/.test(first)) return isTouchstoneOptionLine(first);
   return false;
+}
+
+// A bare "#" is a valid default option line; other "#..." lines (instrument comments) are not Touchstone.
+const TOUCHSTONE_OPTION_TOKEN = /^(hz|khz|mhz|ghz|s|y|z|h|g|db|ma|ri|r|[+-]?\d+(\.\d*)?(e[+-]?\d+)?)$/i;
+function isTouchstoneOptionLine(line: string): boolean {
+  const tokens = line.slice(1).replace(/!.*$/, "").trim().split(/\s+/).filter(Boolean);
+  return tokens.every((token) => TOUCHSTONE_OPTION_TOKEN.test(token));
 }
 
 function detectImportedFileFormat(text: string, fileName: string): string {

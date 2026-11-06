@@ -2,16 +2,12 @@ import { useMemo, useRef } from 'react';
 import type { ChangeEvent } from 'react';
 import { Btn } from '../shared/Btn';
 import { AnalysisFeatureCard } from '../analysis/AnalysisFeatureCard';
-import { useFileDispatch, useFileState } from '../../stores/file-store';
+import { useFileState } from '../../stores/file-store';
 import { useTraceState } from '../../stores/trace-store';
 import { useUiDispatch } from '../../stores/ui-store';
 import { useWorkspace } from '../../hooks/use-workspace';
+import { DATA_FILE_ACCEPT, useFileImport } from '../../hooks/use-file-import';
 import { tracesToCSV } from '../../domain/export';
-
-function makeId(fileName: string) {
-	const seed = Math.random().toString(36).slice(2, 8);
-	return `${Date.now()}-${seed}-${fileName}`;
-}
 
 function downloadTextFile(fileName: string, text: string, mimeType: string) {
 	const blob = new Blob([text], { type: mimeType });
@@ -29,7 +25,7 @@ function downloadTextFile(fileName: string, text: string, mimeType: string) {
 export function ImportExportPanel() {
 	const { files } = useFileState();
 	const { allTraces, vis } = useTraceState();
-	const fileDispatch = useFileDispatch();
+	const importFiles = useFileImport();
 	const uiDispatch = useUiDispatch();
 	const { downloadWorkspace, loadFromFile } = useWorkspace();
 
@@ -43,23 +39,10 @@ export function ImportExportPanel() {
 
 	const importCountLabel = `${files.length} file${files.length === 1 ? '' : 's'} loaded`;
 
-	const onImportFiles = async (evt: ChangeEvent<HTMLInputElement>) => {
-		const selected = evt.target.files;
-		if (!selected || selected.length === 0) return;
-
-		for (const file of Array.from(selected)) {
-			const rawText = await file.text();
-			fileDispatch({
-				type: 'QUEUE_WIZARD',
-				payload: {
-					id: makeId(file.name),
-					fileName: file.name,
-					rawText,
-				},
-			});
-		}
-
-		evt.target.value = '';
+	const onImportFiles = (evt: ChangeEvent<HTMLInputElement>) => {
+		const selected = Array.from(evt.target.files ?? []);
+		evt.target.value = ''; // reset first so picking the same file again still fires onChange
+		void importFiles(selected);
 	};
 
 	const onLoadWorkspace = (evt: ChangeEvent<HTMLInputElement>) => {
@@ -86,7 +69,7 @@ export function ImportExportPanel() {
 				ref={importRef}
 				type="file"
 				multiple
-				accept=".csv,.txt,.dat,.s1p,.s2p,.s3p,.s4p"
+				accept={DATA_FILE_ACCEPT}
 				style={{ display: 'none' }}
 				onChange={onImportFiles}
 			/>

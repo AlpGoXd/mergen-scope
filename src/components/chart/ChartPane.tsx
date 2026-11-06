@@ -15,13 +15,13 @@ import { usePaneState, usePaneDispatch } from '../../stores/pane-store';
 import { useMarkerState, useMarkerDispatch } from '../../stores/marker-store';
 import { useRefLineState, useRefLineDispatch } from '../../stores/ref-line-store';
 import { useUiState, useUiDispatch } from '../../stores/ui-store';
-import { useFileDispatch } from '../../stores/file-store';
 import { useTraceState } from '../../stores/trace-store';
 import { useTheme } from '../../hooks/use-theme';
 import { usePaneData } from '../../hooks/use-pane-data';
+import { useFileImport } from '../../hooks/use-file-import';
 import { deriveAxisInfo } from '../../domain/units';
 import { canAssignTraceToPane } from '../../domain/pane-math';
-import { formatAdaptiveXAxisTickLabels, formatAdaptiveXAxisValue, formatScalarWithUnit } from '../../domain/format';
+import { formatAdaptiveXAxisTickLabels, formatAdaptiveXAxisValue, formatPerDivision, formatScalarWithUnit, makeYAxisTickFormatter } from '../../domain/format';
 import { getResolvedInterpolationStrategy } from '../../domain/interpolation';
 import { placeMarker, nearestIndexByFreq } from '../../domain/markers';
 import { computeVerticalIntersections, computeHorizontalIntersections } from '../../domain/ref-lines';
@@ -45,7 +45,7 @@ function markerGlyphPolygonPoints(type: 'normal' | 'delta' | 'peak', cx: number,
   return null;
 }
 
-/** Next label for a new line (V1, V2, … / H1, H2, …).
+/** Next label for a new line (V1, V2, â€¦ / H1, H2, â€¦).
  *  Deduplicates locked mirrors by groupId so locking doesn't skip numbers. */
 function nextLineLabel(type: 'v' | 'h', lines: readonly RefLine[]): string {
   const prefix = type === 'v' ? 'V' : 'H';
@@ -79,7 +79,6 @@ interface ChartMouseEvent {
   readonly yAxisMap?: Record<string, unknown>;
 }
 
-const CHART_Y_AXIS_WIDTH = 50;
 const CHART_MARGIN_RIGHT = 20;
 const CHART_MARGIN_TOP = 10;
 const CHART_X_AXIS_HEIGHT = 35; // approximate height for x-axis ticks + label
@@ -93,7 +92,7 @@ export function ChartPane({ paneId }: ChartPaneProps) {
   const { newMarkerArmed, selectedTraceName, showDots, traceColors, markerTrace, dRef } = useUiState();
   const uiDispatch = useUiDispatch();
   const paneDispatch = usePaneDispatch();
-  const fileDispatch = useFileDispatch();
+  const importFiles = useFileImport();
   const { allTraces, vis } = useTraceState();
   const { colors } = useTheme();
 
@@ -136,12 +135,10 @@ export function ChartPane({ paneId }: ChartPaneProps) {
     const defaultXDomain = Number.isFinite(lo) && Number.isFinite(hi) && hi > lo ? { min: lo, max: hi } : null;
     const dom = currentXZoom ? { min: currentXZoom.left, max: currentXZoom.right } : defaultXDomain;
     const ticks = makeNiceTicks(dom, NICE_TICK_COUNT);
-    if (!ticks || ticks.length < 2) return '—';
-    const step = ticks[1]! - ticks[0]!;
-    return step >= 1e9 ? `${(step / 1e9).toFixed(1)}G/div`
-      : step >= 1e6 ? `${(step / 1e6).toFixed(1)}M/div`
-      : step >= 1e3 ? `${(step / 1e3).toFixed(1)}k/div`
-      : `${step.toFixed(2)}/div`;
+    if (!ticks || ticks.length < 2) return 'â€”';
+    const first = ticks[0], second = ticks[1];
+    if (first === undefined || second === undefined) return 'â€”';
+    return formatPerDivision(second - first);
   }, [paneTraces, currentXZoom]);
 
   const yDiv = useMemo(() => {
@@ -156,9 +153,10 @@ export function ChartPane({ paneId }: ChartPaneProps) {
       : null;
     const dom = currentYZoom ?? defaultYDomain;
     const ticks = makeNiceTicks(dom, NICE_TICK_COUNT);
-    if (!ticks || ticks.length < 2) return '—';
-    const step = ticks[1]! - ticks[0]!;
-    return `${step.toFixed(2)}/div`;
+    if (!ticks || ticks.length < 2) return 'â€”';
+    const first = ticks[0], second = ticks[1];
+    if (first === undefined || second === undefined) return 'â€”';
+    return formatPerDivision(second - first, paneTraces[0]?.units.y);
   }, [paneTraces, currentYZoom]);
 
   const axisInfo = useMemo(() => {
@@ -295,6 +293,62 @@ export function ChartPane({ paneId }: ChartPaneProps) {
     return zoom;
   }, [paneDataBounds]);
 
+  const activePaneTrace = useMemo(() => {
+    const activeTraceName = paneActiveTraceMap[paneId];
+    return paneTraces.find((trace) => trace.name === activeTraceName)
+      ?? paneTraces.find((trace) => trace.name === selectedTraceName)
+      ?? paneTraces[0]
+      ?? null;
+  }, [paneActiveTraceMap, paneId, paneTraces, selectedTraceName]);
+
+  // Visible Y range: the zoom window, or the data extremes when Recharts auto-scales.
+  const yValueRange = useMemo((): { min: number; max: number } | null => {
+    if (Array.isArray(yDomain) && yDomain[0] !== 'auto') {
+      return { min: yDomain[0], max: yDomain[1] };
+    }
+    let lo = Infinity, hi = -Infinity;
+    for (const row of mergedData) {
+      for (const tr of paneTraces) {
+        const v = row[tr.name] as number | undefined;
+        if (v != null && Number.isFinite(v)) { if (v < lo) lo = v; if (v > hi) hi = v; }
+      }
+    }
+    return Number.isFinite(lo) && Number.isFinite(hi) ? { min: lo, max: hi } : null;
+  }, [mergedData, paneTraces, yDomain]);
+
+  const formatYTick = useMemo(
+    () => makeYAxisTickFormatter(yValueRange, activePaneTrace?.units.y),
+    [activePaneTrace?.units.y, yValueRange],
+  );
+
+  const yAxisWidthRef = useRef<{ key: string; width: number } | null>(null);
+  // A grow-only width stops the plot from shifting during pan/zoom.
+  // Y axis width follows the longest tick label so ticks never run into the rotated axis title.
+  // The pointer math below must use the same width, or clicks/zoom/markers land off by the difference.
+  const yAxisWidth = useMemo(() => {
+    const niceTicks = makeNiceTicks(yValueRange, NICE_TICK_COUNT) ?? [];
+    const autoDomainTicks: number[] = [];
+    if (niceTicks.length >= 2) {
+      const first = niceTicks[0];
+      const second = niceTicks[1];
+      const last = niceTicks[niceTicks.length - 1];
+      if (first !== undefined && second !== undefined && last !== undefined) {
+        const step = second - first;
+        // Recharts' auto domain rounds out to these values, so measure them too.
+        autoDomainTicks.push(first - step, last + step);
+      }
+    }
+    // Raw range edges are not drawn as labels.
+    const ticks = niceTicks.length > 0 ? [...niceTicks, ...autoDomainTicks] : yValueRange ? [yValueRange.min, yValueRange.max] : [];
+    const maxChars = Math.max(0, ...ticks.map((tick) => formatYTick(tick).length));
+    // shortcut: ~7px per character at --font-label; measure text with a canvas if the font becomes user-scalable
+    const measuredWidth = Math.min(110, Math.max(56, 26 + maxChars * 7));
+    const key = `${traceNamesInPane.join('|')}|${activePaneTrace?.units.y ?? ''}`;
+    const previous = yAxisWidthRef.current;
+    const width = previous?.key === key ? Math.max(previous.width, measuredWidth) : measuredWidth;
+    yAxisWidthRef.current = { key, width };
+    return width;
+  }, [activePaneTrace?.units.y, formatYTick, traceNamesInPane, yValueRange]);
   const resolveClientFreq = (
     clientX: number,
     domainOverride?: { left: number; right: number } | null,
@@ -304,7 +358,7 @@ export function ChartPane({ paneId }: ChartPaneProps) {
     const domainRight = domainOverride?.right ?? currentXZoom?.right ?? mergedData[mergedData.length - 1]?.fs ?? null;
     if (!chartEl || domainLeft == null || domainRight == null || domainRight <= domainLeft) return null;
     const rect = chartEl.getBoundingClientRect();
-    const plotLeft = CHART_Y_AXIS_WIDTH;
+    const plotLeft = yAxisWidth;
     const plotWidth = rect.width - plotLeft - CHART_MARGIN_RIGHT;
     if (plotWidth <= 0) return null;
     const x = Math.max(0, Math.min(plotWidth, clientX - rect.left - plotLeft));
@@ -325,7 +379,7 @@ export function ChartPane({ paneId }: ChartPaneProps) {
   const computeMarkerHitTolerance = React.useCallback((): number => {
     const chartEl = chartAreaRef.current;
     const plotWidth = chartEl
-      ? chartEl.getBoundingClientRect().width - CHART_Y_AXIS_WIDTH - CHART_MARGIN_RIGHT
+      ? chartEl.getBoundingClientRect().width - yAxisWidth - CHART_MARGIN_RIGHT
       : 0;
     if (plotWidth <= 0 || !Number.isFinite(plotWidth)) {
       return visibleXSpan * 0.006;
@@ -335,7 +389,7 @@ export function ChartPane({ paneId }: ChartPaneProps) {
     const zoomRatio = fullSpan > 0 ? Math.max(0, Math.min(1, visibleXSpan / fullSpan)) : 1;
     const hitRadiusPx = 3 + zoomRatio * 4;
     return Math.max((visibleXSpan / plotWidth) * hitRadiusPx, visibleXSpan * 1e-6);
-  }, [paneDataBounds, visibleXSpan]);
+  }, [paneDataBounds, visibleXSpan, yAxisWidth]);
 
   const resolveBaseYDomain = React.useCallback((): { min: number; max: number } | null => {
     if (Array.isArray(yDomain) && yDomain[0] !== 'auto') {
@@ -379,7 +433,7 @@ export function ChartPane({ paneId }: ChartPaneProps) {
     const clientY = e.nativeEvent?.clientY ?? lastPointerClientYRef.current;
     if (clientY == null) return null;
 
-    // Explicit yDomain (manual zoom): resolveClientAmp is exact — use it directly.
+    // Explicit yDomain (manual zoom): resolveClientAmp is exact â€” use it directly.
     if (Array.isArray(yDomain) && yDomain[0] !== 'auto') {
       return resolveClientAmp(clientY);
     }
@@ -485,7 +539,7 @@ export function ChartPane({ paneId }: ChartPaneProps) {
 
     const tol = computeMarkerHitTolerance();
 
-    // Click near an existing marker → select it and start drag (in all modes)
+    // Click near an existing marker â†’ select it and start drag (in all modes)
     const markerHit = paneMarkers.find(({ marker }) => Math.abs(marker.freq - freq) < tol);
     if (markerHit) {
       refLineDispatch({ type: 'SET_SELECTED', payload: null });
@@ -494,7 +548,7 @@ export function ChartPane({ paneId }: ChartPaneProps) {
       return;
     }
 
-    // Drag already-selected marker — takes priority over placing new markers in all modes
+    // Drag already-selected marker â€” takes priority over placing new markers in all modes
     const selectedMarker = selectedMkrIdx >= 0 ? markers[selectedMkrIdx] : null;
     if (selectedMarker && traceNamesInPane.includes(selectedMarker.trace)) {
       refLineDispatch({ type: 'SET_SELECTED', payload: null });
@@ -502,7 +556,7 @@ export function ChartPane({ paneId }: ChartPaneProps) {
       return;
     }
 
-    // Drag already-selected line — takes priority over placing markers.
+    // Drag already-selected line â€” takes priority over placing markers.
     // For locked lines, also allows dragging from any pane in the group.
     if (selectedRefLineId !== null) {
       const selLine = refLines.find(l => l.id === selectedRefLineId);
@@ -685,14 +739,6 @@ export function ChartPane({ paneId }: ChartPaneProps) {
     e.preventDefault();
   };
 
-  const activePaneTrace = useMemo(() => {
-    const activeTraceName = paneActiveTraceMap[paneId];
-    return paneTraces.find((trace) => trace.name === activeTraceName)
-      ?? paneTraces.find((trace) => trace.name === selectedTraceName)
-      ?? paneTraces[0]
-      ?? null;
-  }, [paneActiveTraceMap, paneId, paneTraces, selectedTraceName]);
-
   const xAxisLabelText = useMemo(() => {
     if (!activePaneTrace) return axisInfo.xLabel;
     const xUnit = activePaneTrace.units.x ? String(activePaneTrace.units.x) : (activePaneTrace.domain === 'time' ? 's' : 'Hz');
@@ -763,7 +809,7 @@ export function ChartPane({ paneId }: ChartPaneProps) {
   }, [hoverFreq, paneTraces, resolveTraceColor]);
 
   const resolvePlacementTrace = React.useCallback((targetFreq?: number, pointerClientY?: number | null) => {
-    // Specific trace selected from toolbar dropdown — always honour it
+    // Specific trace selected from toolbar dropdown â€” always honour it
     if (markerTrace && markerTrace !== '__auto__') {
       const explicitTrace = paneTraces.find((trace) => trace.name === markerTrace) ?? null;
       if (explicitTrace) return explicitTrace;
@@ -777,7 +823,7 @@ export function ChartPane({ paneId }: ChartPaneProps) {
       if (clientY != null && el) {
         // Read actual rendered y-axis tick elements to get both their data values
         // AND their pixel positions. This gives an exact linear mapping from
-        // screen pixel → data amplitude, matching exactly what Recharts renders.
+        // screen pixel â†’ data amplitude, matching exactly what Recharts renders.
         const tickNodes = Array.from(
           el.querySelectorAll('.recharts-yAxis .recharts-cartesian-axis-tick')
         );
@@ -871,35 +917,36 @@ export function ChartPane({ paneId }: ChartPaneProps) {
     const domainLeft = currentXZoom?.left ?? mergedData[0]?.fs ?? 0;
     const domainRight = currentXZoom?.right ?? mergedData[mergedData.length - 1]?.fs ?? 1;
     if (domainRight <= domainLeft) return Infinity;
-    const plotWidth = el.getBoundingClientRect().width - CHART_Y_AXIS_WIDTH - CHART_MARGIN_RIGHT;
+    const plotWidth = el.getBoundingClientRect().width - yAxisWidth - CHART_MARGIN_RIGHT;
     if (plotWidth <= 0) return Infinity;
     const pxPerUnit = plotWidth / (domainRight - domainLeft);
     // Count how many of this trace's points fall inside the visible x-range
     const pointsInView = trace.data.filter(p => p.freq >= domainLeft && p.freq <= domainRight).length;
     // Only engage pixel-distance snap when data points are sparse enough on screen.
     // If the average spacing between adjacent points is < 20px, points are too dense
-    // for the 10px threshold to be meaningful — clicking between two points would always
+    // for the 10px threshold to be meaningful â€” clicking between two points would always
     // be within 10px of one of them, making true interpolation impossible.
     const avgSpacingPx = pointsInView > 1 ? plotWidth / (pointsInView - 1) : Infinity;
-    if (avgSpacingPx < 20) return Infinity; // data too dense — let interpolation strategy decide
+    if (avgSpacingPx < 20) return Infinity; // data too dense â€” let interpolation strategy decide
     return Math.abs(nearest.freq - targetFreq) * pxPerUnit;
-  }, [currentXZoom, mergedData]);
+  }, [currentXZoom, mergedData, yAxisWidth]);
 
   const handlePaneDragOver = (e: React.DragEvent<HTMLDivElement>) => {
-    if (e.dataTransfer.types.includes('application/x-mergen-trace') || e.dataTransfer.types.includes('text/plain') || e.dataTransfer.files.length > 0) {
+    // dataTransfer.files is always empty during dragover; only `types` is readable then.
+    if (e.dataTransfer.types.includes('application/x-mergen-trace') || e.dataTransfer.types.includes('text/plain') || e.dataTransfer.types.includes('Files')) {
       e.preventDefault();
       e.stopPropagation();
       e.dataTransfer.dropEffect = e.dataTransfer.types.includes('application/x-mergen-trace') ? 'move' : 'copy';
     }
   };
 
-  const handlePaneDrop = async (e: React.DragEvent<HTMLDivElement>) => {
+  const handlePaneDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
     const traceName = e.dataTransfer.getData('application/x-mergen-trace') || e.dataTransfer.getData('text/plain');
-    if (traceName) {
-      const trace = allTraces.find((item) => item.name === traceName);
-      if (!trace) return;
+    // Only a known trace name is a trace move; file drags can carry unrelated text/plain too.
+    const trace = traceName ? allTraces.find((item) => item.name === traceName) : undefined;
+    if (trace) {
       const validation = canAssignTraceToPane(trace, paneId, allTraces, tracePaneMap);
       if (!validation.allowed) return;
       paneDispatch({ type: 'ASSIGN_TRACE_TO_PANE', payload: { trace, targetPaneId: paneId, allTraces } });
@@ -908,10 +955,7 @@ export function ChartPane({ paneId }: ChartPaneProps) {
       return;
     }
     if (e.dataTransfer.files.length > 0) {
-      for (const file of Array.from(e.dataTransfer.files)) {
-        const rawText = await file.text();
-        fileDispatch({ type: 'QUEUE_WIZARD', payload: { id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${file.name}`, fileName: file.name, rawText, targetPaneId: paneId } });
-      }
+      void importFiles(e.dataTransfer.files, paneId);
     }
   };
 
@@ -998,14 +1042,14 @@ export function ChartPane({ paneId }: ChartPaneProps) {
   return (
     <div
       data-testid={`chart-pane-${paneId}`}
-      style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: '220px', borderTop: firstPaneId && paneId !== firstPaneId ? '1px solid var(--border)' : 'none', background: 'linear-gradient(180deg, color-mix(in srgb, var(--bg) 97%, white), var(--bg))', userSelect: 'none' }}
+      style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: '120px', borderTop: firstPaneId && paneId !== firstPaneId ? '1px solid var(--border)' : 'none', background: 'linear-gradient(180deg, color-mix(in srgb, var(--bg) 97%, white), var(--bg))', userSelect: 'none' }}
       onDragEnter={handlePaneDragOver}
       onDragOver={handlePaneDragOver}
       onDrop={handlePaneDrop}
     >
       <div data-testid={`chart-pane-header-${paneId}`} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 10px', background: isActive ? `color-mix(in srgb, ${colors?.accent || 'var(--accent)'} 8%, white)` : 'color-mix(in srgb, var(--card) 96%, white)', borderBottom: '1px solid var(--border)', borderLeft: isActive ? `3px solid ${colors?.accent || 'var(--accent)'}` : '3px solid transparent', cursor: isActive ? 'default' : 'pointer' }} onClick={() => !isActive && paneDispatch({ type: 'SET_ACTIVE_PANE', payload: paneId })}>
         <span style={{ fontSize: 'var(--font-label)', fontWeight: 500, color: isActive ? colors?.accent : 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-          {pane.title || `Pane ${paneId.split('-')[1]}`}{isActive && <span style={{ fontWeight: 400, opacity: 0.8 }}> · Target</span>}
+          {pane.title || `Pane ${paneId.split('-')[1]}`}{isActive && <span style={{ fontWeight: 400, opacity: 0.8 }}> Â· Target</span>}
         </span>
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '4px' }}>
           {/* X/div and Y/div displays */}
@@ -1023,7 +1067,7 @@ export function ChartPane({ paneId }: ChartPaneProps) {
               else paneDispatch({ type: 'SET_PANE_ZOOM', payload: { paneId, zoom: null } });
               paneDispatch({ type: 'SET_PANE_Y_ZOOM', payload: { paneId, zoom: null } });
             }}>Fit</Btn>
-            <Btn soft style={{ padding: '0.2rem 0.3rem', fontSize: 'var(--font-caption)', minHeight: 'auto', borderRadius: '0 6px 6px 0', borderLeft: '1px solid color-mix(in srgb, var(--border) 60%, transparent)' }} title="More fit options" onClick={(e) => { e.stopPropagation(); setFitOpen(v => !v); }}>▾</Btn>
+            <Btn soft style={{ padding: '0.2rem 0.3rem', fontSize: 'var(--font-caption)', minHeight: 'auto', borderRadius: '0 6px 6px 0', borderLeft: '1px solid color-mix(in srgb, var(--border) 60%, transparent)' }} title="More fit options" onClick={(e) => { e.stopPropagation(); setFitOpen(v => !v); }}>â–¾</Btn>
             {fitOpen && (
               <div style={{ position: 'absolute', top: 'calc(100% + 2px)', left: 0, zIndex: 200, background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 6, padding: '3px 0', minWidth: 90, boxShadow: '0 4px 12px rgba(0,0,0,0.25)' }} onClick={e => e.stopPropagation()}>
                 {([['Fit All', () => {
@@ -1065,11 +1109,12 @@ export function ChartPane({ paneId }: ChartPaneProps) {
         </div>
       </div>
 
-      <div style={{ flex: 1, position: 'relative', minHeight: 0 }}>
+      {/* overflow hidden: pane content must never paint over (and steal clicks from) the next pane's header */}
+      <div style={{ flex: 1, position: 'relative', minHeight: 0, overflow: 'hidden' }}>
         {isSmith ? (
           <SmithPane paneId={paneId} traces={paneTraces} renderMode={pane.renderMode as 'smith' | 'smith-inverted'} />
         ) : traceNamesInPane.length === 0 ? (
-          <EmptyChartPane mode={allTraces.length > 0 ? 'traces' : 'files'} />
+          <EmptyChartPane mode={allTraces.length > 0 ? 'traces' : 'files'} paneId={paneId} compact={panes.length > 2} />
         ) : mergedData.length === 0 ? (
           <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--dim)', fontSize: 'var(--font-title)' }}>No visible traces in this pane.</div>
         ) : (
@@ -1106,19 +1151,9 @@ export function ChartPane({ paneId }: ChartPaneProps) {
                   ticks={yTickValues}
                   stroke="var(--muted)"
                   fontSize={'var(--font-label)'}
-                  width={56}
-                  tickFormatter={(value) => {
-                    const n = Number(value);
-                    if (!Number.isFinite(n)) return '';
-                    const unit = activePaneTrace?.units.y ?? '';
-                    const unitStr = String(unit ?? '').toLowerCase();
-                    // For dB-family units, just show the numeric value (unit is on the axis label)
-                    if (unitStr.startsWith('db') || unitStr === 'db') return n.toFixed(1);
-                    // For large linear values (e.g. impedance, raw counts), use engineering notation
-                    const absN = Math.abs(n);
-                    if (absN >= 1e6 || (absN > 0 && absN < 0.01)) return formatScalarWithUnit(n, unit as string, { digits: 2 });
-                    return n.toFixed(2);
-                  }}
+                  width={yAxisWidth}
+                  tickFormatter={formatYTick}
+
                   label={{ value: yAxisLabelText, angle: -90, position: 'insideLeft', offset: 10, style: { fontSize: 'var(--font-label)', fill: 'var(--muted)' } }}
                 />
                 <Tooltip isAnimationActive={false} cursor={false} content={() => null} />
@@ -1170,7 +1205,7 @@ export function ChartPane({ paneId }: ChartPaneProps) {
                                 opacity={0.85}
                               />
                             )}
-                            {/* Bullseye glyph: colored fill → white ring → black outline.
+                            {/* Bullseye glyph: colored fill â†’ white ring â†’ black outline.
                                 Shape encodes marker type (circle/diamond/triangle) as a non-color cue. */}
                             {(() => {
                               const fillPts = markerGlyphPolygonPoints(marker.type, roundedCx, roundedCy, 5);
@@ -1233,8 +1268,8 @@ export function ChartPane({ paneId }: ChartPaneProps) {
                       ? formatAdaptiveXAxisValue(line.value, visibleXSpan, { domain: axisInfo.axisDomain, unit: axisInfo.axisDomain === 'time' ? 's' : 'Hz' })
                       : formatScalarWithUnit(line.value, axisInfo.yUnit, { digits: 4 });
                     const labelText = line.label
-                      ? `${line.label}  ${formattedValue}${isLocked ? ' 🔒' : ''}`
-                      : `${formattedValue}${isLocked ? ' 🔒' : ''}`;
+                      ? `${line.label}  ${formattedValue}${isLocked ? ' ðŸ”’' : ''}`
+                      : `${formattedValue}${isLocked ? ' ðŸ”’' : ''}`;
                     const yOff = line.type === 'v' ? (vLabelYOffset[line.id] ?? 0) : 0;
 
                     const labelEl = settings.showLineLabels ? (props: { viewBox?: { x: number; y: number; width: number; height: number } }) => {
@@ -1269,12 +1304,12 @@ export function ChartPane({ paneId }: ChartPaneProps) {
                     );
                   });
                 })()}
-                {/* ΔX between V-line delta pairs */}
+                {/* Î”X between V-line delta pairs */}
                 {settings.showReferenceLines && vDeltaPairs.map(([a, b]) => {
                   const lo = Math.min(a.value, b.value);
                   const hi = Math.max(a.value, b.value);
                   const delta = hi - lo;
-                  const deltaText = `ΔX = ${formatAdaptiveXAxisValue(delta, delta, { domain: axisInfo.axisDomain, unit: axisInfo.axisDomain === 'time' ? 's' : 'Hz' })}`;
+                  const deltaText = `Î”X = ${formatAdaptiveXAxisValue(delta, delta, { domain: axisInfo.axisDomain, unit: axisInfo.axisDomain === 'time' ? 's' : 'Hz' })}`;
                   const dColor = colors?.refV ?? '#d48a2b';
                   return (
                     <ReferenceArea key={`vd-${a.id}-${b.id}`} x1={lo} x2={hi} fill={dColor} fillOpacity={0.06} strokeOpacity={0}
@@ -1297,12 +1332,12 @@ export function ChartPane({ paneId }: ChartPaneProps) {
                       }} />
                   );
                 })}
-                {/* ΔY between H-line delta pairs */}
+                {/* Î”Y between H-line delta pairs */}
                 {settings.showReferenceLines && hDeltaPairs.map(([a, b]) => {
                   const lo = Math.min(a.value, b.value);
                   const hi = Math.max(a.value, b.value);
                   const delta = hi - lo;
-                  const deltaText = `ΔY = ${formatScalarWithUnit(delta, axisInfo.yUnit, { digits: 3 })}`;
+                  const deltaText = `Î”Y = ${formatScalarWithUnit(delta, axisInfo.yUnit, { digits: 3 })}`;
                   const dColor = colors?.refH ?? '#2b9ab7';
                   return (
                     <ReferenceArea key={`hd-${a.id}-${b.id}`} y1={lo} y2={hi} fill={dColor} fillOpacity={0.06} strokeOpacity={0}

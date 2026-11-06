@@ -103,7 +103,17 @@ function formatFixedEngineeringValue(
   suffix: string,
 ): string {
   const scaled = value / factor;
-  return `${scaled.toFixed(digits)}${suffix}`;
+  const rawText = trimFixedNumber(scaled.toFixed(digits));
+  const text = rawText === "-0" ? "0" : rawText;
+  return `${text}${suffix}`;
+}
+
+export function formatPerDivision(step: number, unit?: string | null): string {
+  if (!Number.isFinite(step)) return "—";
+  const db = String(unit ?? "").trim().toLowerCase().startsWith("db");
+  const choice = db || step === 0 ? { factor: 1, prefix: "" } : choosePrefixEntry(step);
+  const text = trimFixedNumber((step / choice.factor).toFixed(9));
+  return `${text === "-0" ? "0" : text}${choice.prefix}/div`;
 }
 
 function hasAdjacentDuplicateLabels(labels: readonly string[]): boolean {
@@ -238,6 +248,29 @@ export function formatAdaptiveXAxisValue(
   }
 
   return formatScalarWithUnit(value, unit, { digits: 3 });
+}
+
+/**
+ * Y-axis tick formatter for a visible value range: one SI prefix for the whole axis
+ * (1423 → "1.423k", 0.005 → "5m"); the unit itself stays on the axis title.
+ * dB-family units are logarithmic, so they keep plain numbers.
+ */
+export function makeYAxisTickFormatter(
+  range: { readonly min: number; readonly max: number } | null,
+  unit: string | null | undefined,
+): (value: number) => string {
+  if (String(unit ?? "").trim().toLowerCase().startsWith("db")) {
+    return (value) => (Number.isFinite(value) ? value.toFixed(1) : "");
+  }
+  const reference = range ? Math.max(Math.abs(range.min), Math.abs(range.max)) : 0;
+  const choice = reference > 0 ? choosePrefixEntry(reference) : { factor: 1, prefix: "" };
+  const span = range ? range.max - range.min : 0;
+  const digits = getAdaptiveDecimalsForSpan(span, choice.factor);
+  return (value) => {
+    if (!Number.isFinite(value)) return "";
+    const text = trimFixedNumber((value / choice.factor).toFixed(digits));
+    return `${text === "-0" ? "0" : text}${choice.prefix}`;
+  };
 }
 
 export function formatAdaptiveXAxisTickLabels(

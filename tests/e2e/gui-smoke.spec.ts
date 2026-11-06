@@ -54,7 +54,38 @@ test("routes ambiguous CSV imports through the import wizard", async ({ page }) 
     buffer: Buffer.from("1,2\n2,3\n"),
   });
 
-  await expect(page.getByRole("heading", { name: "Import Wizard" })).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "Import table" })).toBeVisible();
   await page.getByRole("button", { name: "Confirm" }).click();
   await expect(page.getByText("ambiguous.csv", { exact: true })).toBeVisible();
+});
+
+test("import wizard shows which rows and columns its settings select", async ({ page }) => {
+  await page.goto("/app.html");
+  const csv = "exported by scope\nidx,a,b,c\n1,2,3,4\n2,3,4,5\n3,4,5,6\n";
+  await page.getByTestId("empty-chart-file-input").setInputFiles([
+    { name: "first.csv", mimeType: "text/csv", buffer: Buffer.from(csv) },
+    { name: "second.csv", mimeType: "text/csv", buffer: Buffer.from(csv) },
+  ]);
+
+  const wizard = page.getByRole("dialog", { name: "Import table" });
+  await expect(wizard).toBeVisible();
+  await expect(page.getByTestId("import-wizard-queue")).toHaveText("File 1 of 2");
+
+  // Data starts at row 3, so row 2 supplies the column names.
+  await wizard.getByLabel("Data starts at row").fill("3");
+  await expect(page.getByTestId("wizard-col-1")).toContainText("a");
+  await expect(page.getByTestId("wizard-col-0")).toContainText("X");
+  await expect(page.getByTestId("import-wizard-summary")).toContainText("3 rows");
+
+  // Choosing a Y column as X removes it from the Y set.
+  await expect(page.getByTestId("wizard-col-1")).toContainText("Y");
+  await wizard.getByLabel("X column").selectOption({ label: "2: a" });
+  await expect(page.getByTestId("wizard-col-1")).toContainText("X");
+  await expect(page.getByTestId("wizard-col-1")).not.toContainText("Y");
+
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("import-wizard-queue")).toHaveCount(0);
+  await expect(wizard).toBeVisible();
+  await wizard.getByRole("button", { name: "Skip" }).click();
+  await expect(wizard).toHaveCount(0);
 });

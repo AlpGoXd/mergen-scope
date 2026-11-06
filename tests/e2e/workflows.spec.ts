@@ -154,3 +154,85 @@ test("Touchstone import exposes matrix controls and analysis cards without crash
   await page.getByRole("button", { name: "Touchstone Stability" }).click();
   await expect(page.getByTestId("analysis-card-touchstone-stability")).toBeVisible();
 });
+
+test("four empty panes fit without covering each other's headers", async ({ page }) => {
+  await importFromEmptyPane(page, datFixture);
+  await expect(page.getByText("cascade_ip3_-12dBm.DAT")).toBeVisible();
+  await page.keyboard.press("4");
+  await expect(page.getByTestId("chart-pane-pane-4")).toBeVisible();
+  await expect(page.getByTestId("empty-trace-pane-dropzone")).toHaveCount(3);
+
+  // Before the fix, each pane's drop box spilled over the next header and intercepted these clicks.
+  for (const paneId of ["pane-2", "pane-3", "pane-4"]) {
+    const header = page.getByTestId(`chart-pane-header-${paneId}`);
+    await header.getByRole("button", { name: "Set Target" }).click({ timeout: 5000 });
+    await expect(header).toContainText("Target");
+  }
+});
+
+test("a multi-channel time CSV fills one new pane instead of one pane per channel", async ({ page }) => {
+  await importFromEmptyPane(page, datFixture);
+  await expect(page.getByText("cascade_ip3_-12dBm.DAT")).toBeVisible();
+
+  const rows = ["Time (s),CH1 (V),CH2 (V),CH3 (V),CH4 (V)"];
+  for (let i = 0; i < 20; i++) rows.push([i * 1e-6, Math.sin(i), Math.cos(i), i, -i].join(","));
+  await openRightPanelSection(page, "Import/Export");
+  await page.getByTestId("import-export-data-input").setInputFiles({
+    name: "four_channels.csv",
+    mimeType: "text/csv",
+    buffer: Buffer.from(rows.join("\n")),
+  });
+
+  await expect(page.getByTestId("chart-pane-pane-2")).toBeVisible();
+  await expect(page.getByTestId("chart-pane-pane-3")).toHaveCount(0);
+  const channelRows = page.locator('[data-testid^="trace-row-"]').filter({ hasText: "four_channels" });
+  await expect(channelRows).toHaveCount(4);
+  for (const row of await channelRows.all()) {
+    await expect(row).toContainText("P2");
+  }
+});
+
+test("Touchstone traces load while the sidebar is hidden", async ({ page }) => {
+  await importFromEmptyPane(page, datFixture);
+  await expect(page.getByText("cascade_ip3_-12dBm.DAT")).toBeVisible();
+  await page.getByRole("button", { name: "Left" }).click();
+  await expect(page.getByText("cascade_ip3_-12dBm.DAT")).toHaveCount(0);
+
+  await openRightPanelSection(page, "Import/Export");
+  await page.getByTestId("import-export-data-input").setInputFiles(touchstoneFixture);
+
+  // 1 spectrum line + the default S11/S21 views; without the fix only the spectrum line is drawn.
+  await expect(page.getByTestId("chart-plot-pane-1").locator(".recharts-line")).toHaveCount(3);
+});
+
+test("a broken file shows an import error instead of crashing the app", async ({ page }) => {
+  await page.goto("/app.html");
+  await page.getByTestId("empty-chart-file-input").setInputFiles({
+    name: "broken.s2p",
+    mimeType: "text/plain",
+    buffer: Buffer.from("this is not a network file"),
+  });
+
+  await expect(page.getByTestId("import-error")).toContainText("broken.s2p");
+  await expect(page.getByTestId("empty-chart-dropzone")).toBeVisible();
+  await page.getByTestId("import-error").getByRole("button", { name: "Dismiss" }).click();
+  await expect(page.getByTestId("import-error")).toHaveCount(0);
+});
+test("loading a workspace keeps traces in their saved pane even when another pane is the target", async ({ page }) => {
+  await importFromEmptyPane(page, datFixture);
+  await expect(page.getByText("cascade_ip3_-12dBm.DAT")).toBeVisible();
+  await page.getByRole("button", { name: "+ Pane" }).click();
+
+  await firstTraceRow(page).click();
+  await page.getByTestId("chart-pane-header-pane-2").getByRole("button", { name: "Move Here" }).click();
+  await expect(firstTraceRow(page)).toContainText("P2");
+  await page.getByTestId("chart-pane-header-pane-1").getByRole("button", { name: "Set Target" }).click();
+
+  const downloadPromise = page.waitForEvent("download");
+  await page.getByTitle("Save Workspace JSON").click();
+  const workspacePath = await (await downloadPromise).path();
+
+  await page.getByRole("button", { name: "Clear All" }).click();
+  await page.getByTestId("topbar-workspace-input").setInputFiles(workspacePath!);
+  await expect(firstTraceRow(page)).toContainText("P2");
+});

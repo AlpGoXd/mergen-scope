@@ -9,6 +9,8 @@ import { useUiState, useUiDispatch } from '../stores/ui-store';
 import { buildSnapshot, restoreSnapshot, buildExportPackage } from '../domain/workspace-serialize';
 import type { WorkspaceSnapshot, WorkspaceUiState, WorkspaceDatasetRecord, WorkspaceDisplayTraceRecord, XZoomState, YZoomState } from '../types/workspace';
 import type { RawFileRecord } from '../types/file';
+import { syncParserFileCounter } from '../domain/parsers/rs-dat';
+import { syncTraceIdCounter } from '../domain/trace-model';
 
 /**
  * Hook for managing workspace save/restore operations.
@@ -87,6 +89,14 @@ export function useWorkspace() {
   }, [fileState, traceState, paneState, markerState, refLineState, analysisState, uiState]);
 
   const restore = useCallback((snapshot: WorkspaceSnapshot) => {
+    // 0. Keep new imports from reusing restored trace names (`..._N`) and ids (`trace-N`).
+    const restoredTraces = [...snapshot.files.flatMap((file) => file.traces), ...snapshot.derivedTraces];
+    syncTraceIdCounter(restoredTraces);
+    syncParserFileCounter(restoredTraces.reduce((max, trace) => {
+      const suffix = Number(/_(\d+)$/.exec(trace.name)?.[1]);
+      return Number.isFinite(suffix) ? Math.max(max, suffix) : max;
+    }, 0));
+
     // 1. Files
     fileDispatch({
       type: 'RESTORE_FILES',
@@ -170,14 +180,16 @@ export function useWorkspace() {
 
   const loadFromFile = useCallback((file: File) => {
     const reader = new FileReader();
+    const fail = (message: string) => fileDispatch({ type: 'REPORT_IMPORT_ERROR', payload: { fileName: file.name, message } });
     reader.onload = (e) => {
-      const text = e.target?.result as string;
-      if (!text) return;
-      const snapshot = restoreSnapshot(text);
+      const text = typeof e.target?.result === 'string' ? e.target.result : '';
+      const snapshot = text ? restoreSnapshot(text) : null;
       if (snapshot) restore(snapshot);
+      else fail('Not a Mergen Scope workspace file. The current workspace was left unchanged.');
     };
+    reader.onerror = () => fail('Could not read this file.');
     reader.readAsText(file);
-  }, [restore]);
+  }, [fileDispatch, restore]);
 
   return {
     getSnapshot,
