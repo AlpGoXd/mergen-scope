@@ -73,10 +73,37 @@ describe("workspace serialization", () => {
     const restored = restoreSnapshot(JSON.stringify(pkg));
 
     expect(pkg.kind).toBe("mergen-scope-workspace");
-    expect(restored?.files).toHaveLength(1);
+    expect(restored?.files).toEqual(snapshot.files);
+    expect(restored?.files[0]?.traces).toEqual(snapshot.files[0]?.traces);
+    expect(restored?.datasets).toEqual(snapshot.datasets);
+    expect(restored?.displayTraces).toEqual(snapshot.displayTraces);
     expect(restored?.markers).toHaveLength(1);
     expect(restored?.refLines).toHaveLength(1);
     expect(restored?.traceAssignments[trace.name]).toBe("pane-1");
+  });
+
+  it("restores duplicated v4 data and writes a substantially smaller snapshot", () => {
+    const trace = { ...makeTestTrace(), data: Array.from({ length: 500 }, (_, i) => ({ freq: i * 1000, amp: i / 7 })) };
+    const legacy = restoreSnapshot(JSON.stringify({ files: [{ id: "file-1", fileName: "sample.dat", meta: {}, traces: [trace] }] }));
+    expect(legacy).not.toBeNull();
+    if (!legacy) return;
+    const file = legacy.files[0];
+    expect(file).toBeDefined();
+    if (!file) return;
+    const duplicatedFile = { ...file, datasets: legacy.datasets, displayTraces: legacy.displayTraces };
+    const duplicated = { ...legacy, files: [duplicatedFile] };
+    const oldJson = JSON.stringify({ kind: "mergen-scope-workspace", snapshot: duplicated }, null, 2);
+    const oldRestored = restoreSnapshot(oldJson);
+    expect(oldRestored?.files).toEqual(duplicated.files);
+    expect(oldRestored?.datasets).toEqual(duplicated.datasets);
+    expect(oldRestored?.displayTraces).toEqual(duplicated.displayTraces);
+
+    const json = JSON.stringify(buildExportPackage(duplicated, "test"));
+    const restored = restoreSnapshot(json);
+    expect(restored?.files).toEqual(duplicated.files);
+    expect(restored?.datasets).toEqual(duplicated.datasets);
+    expect(restored?.displayTraces).toEqual(duplicated.displayTraces);
+    expect(json.length).toBeLessThan(oldJson.length / 2);
   });
 
   it("returns null for invalid workspace JSON instead of throwing", () => {

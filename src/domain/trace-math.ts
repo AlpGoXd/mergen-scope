@@ -50,6 +50,68 @@ export function interpolatePointAtX(
   return { freq: x, amp: a.amp + (b.amp - a.amp) * t };
 }
 
+/** Index of the first point at or beyond x (or strictly beyond when upper is true). */
+export function traceBound(data: readonly DataPoint[], x: number, upper = false): number {
+  let lo = 0;
+  let hi = data.length;
+  while (lo < hi) {
+    const mid = lo + Math.floor((hi - lo) / 2);
+    const point = data[mid];
+    if (point && (point.freq < x || (upper && point.freq === x))) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+}
+
+/** Preserve extrema in equal-width frequency buckets, including neighboring points. */
+export function decimateMinMax(
+  data: readonly DataPoint[], left: number, right: number, buckets: number,
+): DataPoint[] {
+  if (!data.length || !Number.isFinite(left) || !Number.isFinite(right) || right < left) return [];
+  const count = Number.isFinite(buckets) ? Math.max(1, Math.floor(buckets)) : 1;
+  const start = traceBound(data, left);
+  const end = traceBound(data, right, true);
+  const from = Math.max(0, start - 1);
+  const to = Math.min(data.length, end + 1);
+  if (end - start <= 2 * count) return data.slice(from, to);
+
+  const indices = new Set<number>();
+  if (start > 0) indices.add(start - 1);
+  if (end < data.length) indices.add(end);
+  indices.add(start);
+  indices.add(end - 1);
+  let bucket = -1;
+  let minIndex = start;
+  let maxIndex = start;
+  const flush = () => {
+    if (bucket >= 0) {
+      indices.add(minIndex);
+      indices.add(maxIndex);
+    }
+  };
+  for (let i = start; i < end; i += 1) {
+    const point = data[i];
+    if (!point) continue;
+    const nextBucket = right === left ? 0 : Math.min(count - 1, Math.floor(((point.freq - left) / (right - left)) * count));
+    if (nextBucket !== bucket) {
+      flush();
+      bucket = nextBucket;
+      minIndex = i;
+      maxIndex = i;
+    } else {
+      const min = data[minIndex];
+      const max = data[maxIndex];
+      if (min && point.amp < min.amp) minIndex = i;
+      if (max && point.amp > max.amp) maxIndex = i;
+    }
+  }
+  flush();
+  return Array.from(indices).sort((a, b) => a - b).flatMap(i => {
+    const point = data[i];
+    return point ? [point] : [];
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Visible trace data (with zoom clipping + edge interpolation)
 // ---------------------------------------------------------------------------

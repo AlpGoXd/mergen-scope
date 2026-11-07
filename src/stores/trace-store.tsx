@@ -3,7 +3,7 @@ import type { Trace } from '../types/trace';
 import type { Dataset } from '../types/dataset';
 import type { DisplayTrace } from '../types/display';
 import type { InterpolationStrategy } from '../types/interpolation';
-import { reconcileDerivedTraceGraph } from '../domain/derived-state';
+import { reconcileDerivedTraceGraph, recomputeDerivedTraces } from '../domain/derived-state';
 import { adaptDisplayTracesToLegacyTraces } from '../domain/display-trace-adapter';
 import { useFileState } from './file-store';
 
@@ -62,9 +62,9 @@ function traceReducer(state: TraceState, action: TraceAction): TraceState {
     case 'RECONCILE': {
       const rawTraces = action.payload;
       const result = reconcileDerivedTraceGraph(rawTraces, state.derivedTraces, []);
-      // If none were removed because of bad dependencies, we can avoid state update
-      if (result.removed.length === 0) return state;
-      return { ...state, derivedTraces: [...result.kept] };
+      const derivedTraces = recomputeDerivedTraces(rawTraces, result.kept);
+      if (result.removed.length === 0 && derivedTraces.every((trace, index) => trace === state.derivedTraces[index])) return state;
+      return { ...state, derivedTraces };
     }
     case 'SET_DERIVED_INTERPOLATION': {
       const { traceId, interpolation } = action.payload;

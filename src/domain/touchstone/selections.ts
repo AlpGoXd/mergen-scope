@@ -72,7 +72,7 @@ function makeTouchstoneTraceLabel(file: RawFileRecord, family: TouchstoneFamily,
 }
 
 function makeTouchstoneTraceBaseName(file: RawFileRecord, family: TouchstoneFamily, row: number, col: number, view: TouchstoneView): string {
-  return `${file.fileName.replace(/\.[^.]+$/, '')}_${family}${row}${col}_${view}`;
+  return `${file.fileName.replace(/\.[^.]+$/, '')}_${family}${row}${col}_${view}__${file.id}`;
 }
 
 function makeUniqueInstanceKey(file: RawFileRecord, family: TouchstoneFamily, row: number, col: number, view: TouchstoneView): string {

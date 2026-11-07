@@ -458,7 +458,26 @@ export function migrateWorkspaceSnapshot(raw: unknown): WorkspaceSnapshot {
     traces: asArray<Trace>(file.traces),
     datasets: asArray<WorkspaceDatasetRecord>(file.datasets),
     displayTraces: asArray<WorkspaceDisplayTraceRecord>(file.displayTraces),
-  }));
+  })).map((file) => {
+    const tracesById = new Map(file.traces.map((trace) => [trace.id, trace]));
+    const pointsFor = (id: string) => tracesById.get(id)?.data?.map((point) => ({ x: point.freq, y: point.amp }));
+    return {
+      ...file,
+      datasets: file.datasets.map((dataset) => {
+        if (dataset.family === 'network' && !Array.isArray(dataset.samples) && file.touchstoneNetwork && Array.isArray(file.touchstoneNetwork.samples)) {
+          return { ...dataset, samples: file.touchstoneNetwork.samples.map((sample) => ({ freqHz: sample.freq, matrix: sample.sMatrix })) };
+        }
+        if (dataset.family !== 'spectrum' && dataset.family !== 'waveform') return dataset;
+        return { ...dataset, series: asArray<typeof dataset.series[number]>(dataset.series).map((series) => ({
+          ...series,
+          samples: Array.isArray(series.samples) ? series.samples : pointsFor(series.id) ?? [],
+        })) };
+      }),
+      displayTraces: file.displayTraces.map((display) => display.valueType === 'scalar' && !Array.isArray(display.points)
+        ? { ...display, points: pointsFor(display.id) ?? [] }
+        : display),
+    };
+  });
   const rawDerivedTraces = asArray<DerivedTrace>(input?.derivedTraces);
   const rawDatasets = asArray<WorkspaceDatasetRecord>(input?.datasets);
   const rawDisplayTraces = asArray<WorkspaceDisplayTraceRecord>(input?.displayTraces);

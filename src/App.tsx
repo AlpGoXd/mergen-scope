@@ -95,8 +95,9 @@ export function App() {
     });
 
     const traceTargetPane: Record<string, string> = {};
+    const traceFileName: Record<string, string> = {};
     files.forEach(f => {
-      if (f.targetPaneId) f.traces.forEach(t => { traceTargetPane[t.name] = f.targetPaneId!; });
+      if (f.targetPaneId) f.traces.forEach(t => { traceTargetPane[t.name] = f.targetPaneId ?? ''; traceFileName[t.name] = f.fileName ?? t.name; });
     });
 
     let conflictWarning: { message: string; paneId: string; traceName: string } | null = null;
@@ -114,6 +115,8 @@ export function App() {
         : canAssignTraceToPane(trace, targetPaneId, allTraces, tracePaneMap);
 
       if (!validation.allowed) {
+        const originalPaneId = targetPaneId;
+        const originalDomain = provisionalPaneDomains.get(originalPaneId) ?? (trace.domain === 'time' ? 'frequency' : 'time');
         // provisionalPaneDomains also holds panes created earlier in this loop (not yet in `panes`).
         const compatiblePaneId = Array.from(provisionalPaneDomains).find(([, domain]) => domain === trace.domain)?.[0]
           ?? panes.find((pane) => !provisionalPaneDomains.has(pane.id) && canAssignTraceToPane(trace, pane.id, allTraces, tracePaneMap).allowed)?.id;
@@ -127,7 +130,7 @@ export function App() {
           provisionalPaneDomains.set(targetPaneId, trace.domain);
           validation = { allowed: true };
         } else {
-          conflictWarning = {
+          conflictWarning ??= {
             message: trace.domain === 'time'
               ? 'Cannot place time-domain traces on a frequency-domain pane'
               : 'Cannot place frequency-domain traces on a time-domain pane',
@@ -135,6 +138,13 @@ export function App() {
             traceName: trace.name,
           };
           continue;
+        }
+        if (traceTargetPane[trace.name]) {
+          conflictWarning ??= {
+            message: `${traceFileName[trace.name] ?? trace.name} was placed on Pane ${targetPaneId.split('-')[1]}: Pane ${originalPaneId.split('-')[1]} holds ${originalDomain}-domain traces.`,
+            paneId: originalPaneId,
+            traceName: trace.name,
+          };
         }
       }
 
@@ -145,6 +155,7 @@ export function App() {
           payload: { trace, targetPaneId, allTraces },
         });
         paneDispatch({ type: 'SET_PANE_ACTIVE_TRACE', payload: { paneId: targetPaneId, traceName: trace.name } });
+        lastActivePaneIdRef.current = targetPaneId;
         paneDispatch({ type: 'SET_ACTIVE_PANE', payload: targetPaneId });
         firstAssignedTraceName ??= trace.name;
       }
@@ -222,13 +233,14 @@ export function App() {
     document.body.style.userSelect = 'none';
   }, []);
 
+  // Counting in the capture phase sees every enter/leave even when panes stop propagation.
   const handleDragEnter = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     if (!e.dataTransfer.types.includes('Files')) {
       return;
     }
-    dragCounter.current++;
-    if (e.dataTransfer.items.length > 0) setDragging(true);
+    dragCounter.current += 1;
+    setDragging(true);
   }, []);
 
   const handleDragLeave = useCallback((e: React.DragEvent) => {
@@ -236,8 +248,11 @@ export function App() {
     if (!e.dataTransfer.types.includes('Files')) {
       return;
     }
-    dragCounter.current--;
-    if (dragCounter.current === 0) setDragging(false);
+    dragCounter.current -= 1;
+    if (dragCounter.current <= 0) {
+      dragCounter.current = 0;
+      setDragging(false);
+    }
   }, []);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -276,8 +291,8 @@ export function App() {
         color: 'var(--text)',
         fontFamily: 'system-ui, -apple-system, sans-serif'
       }}
-      onDragEnter={handleDragEnter}
-      onDragLeave={handleDragLeave}
+      onDragEnterCapture={handleDragEnter}
+      onDragLeaveCapture={handleDragLeave}
       onDragOver={handleDragOver}
       onDropCapture={handleDropCapture}
       onDrop={handleDrop}
@@ -285,13 +300,12 @@ export function App() {
       {dragging && (
         <div style={{
           position: 'absolute',
-          inset: 0,
-          background: 'rgba(0,0,0,0.55)',
+          inset: 4,
           border: '2px dashed var(--accent)',
           borderRadius: 4,
           zIndex: 9999,
           display: 'flex',
-          alignItems: 'center',
+          alignItems: 'flex-start',
           justifyContent: 'center',
           fontSize: '1.25rem',
           fontWeight: 400,
@@ -299,7 +313,7 @@ export function App() {
           pointerEvents: 'none',
           gap: '0.5rem',
         }}>
-          Drop files to load
+          <span style={{ background: 'var(--bg)', border: '1px solid var(--border)', padding: '4px 8px' }}>Drop files to load</span>
         </div>
       )}
 

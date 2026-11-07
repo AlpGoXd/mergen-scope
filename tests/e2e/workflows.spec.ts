@@ -41,6 +41,45 @@ function firstTraceRow(page: Page): Locator {
   return page.locator('[data-testid^="trace-row-"]').first();
 }
 
+const timeCsv = "Time (s),CH1 (V)\n0,1\n0.5,2\n1,3\n";
+const frequencyCsv = "Frequency (Hz),Magnitude (dBm)\n100,1\n200,2\n300,3\n";
+
+async function dropCsv(page: Page, paneId: string, name: string, text: string) {
+  await page.getByTestId(`chart-pane-${paneId}`).evaluate((target, file) => {
+    const dataTransfer = new DataTransfer();
+    dataTransfer.items.add(new File([file.text], file.name, { type: "text/csv" }));
+    for (const type of ["dragenter", "dragover", "drop"]) {
+      target.dispatchEvent(new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer }));
+    }
+  }, { name, text });
+}
+
+test("rejecting a trace drop onto another domain shows a warning", async ({ page }) => {
+  await page.goto("/app.html");
+  await page.getByTestId("empty-chart-file-input").setInputFiles({ name: "time.csv", mimeType: "text/csv", buffer: Buffer.from(timeCsv) });
+  const timeRow = page.locator('[data-testid^="trace-row-"]').filter({ hasText: "time.csv" }).first();
+  await expect(timeRow).toContainText("P1");
+  await page.keyboard.press("2");
+  await dropCsv(page, "pane-2", "frequency.csv", frequencyCsv);
+  await expect(page.getByTestId("chart-plot-pane-2")).toBeVisible();
+
+  await timeRow.dragTo(page.getByTestId("chart-pane-pane-2"));
+  await expect(page.getByRole("alert")).toContainText("frequency-domain");
+  await expect(timeRow).toContainText("P1");
+});
+
+test("a file dropped onto an incompatible pane reports its new pane", async ({ page }) => {
+  await importFromEmptyPane(page, datFixture);
+  await expect(firstTraceRow(page)).toContainText("P1");
+  await page.keyboard.press("2");
+  await dropCsv(page, "pane-2", "frequency.csv", frequencyCsv);
+  await expect(page.getByTestId("chart-plot-pane-2")).toBeVisible();
+
+  await dropCsv(page, "pane-2", "time.csv", timeCsv);
+  await expect(page.getByRole("alert")).toContainText("time.csv was placed on Pane 3: Pane 2 holds frequency-domain traces");
+  await expect(page.locator('[data-testid^="trace-row-"]').filter({ hasText: "time.csv" }).first()).toContainText("P3");
+});
+
 test("multi-pane assignment survives workspace save and reload", async ({ page }) => {
   await importFromEmptyPane(page, datFixture);
   await expect(page.getByText("cascade_ip3_-12dBm.DAT")).toBeVisible();

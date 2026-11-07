@@ -6,7 +6,6 @@
 
 import type {
   WorkspaceSnapshot,
-  WorkspaceExportPackage,
   XZoomState,
   YZoomState,
   WorkspaceUiState,
@@ -118,13 +117,51 @@ export function restoreSnapshot(json: string): WorkspaceSnapshot | null {
 export function buildExportPackage(
   snapshot: WorkspaceSnapshot,
   appVersion?: string,
-): WorkspaceExportPackage {
+) {
   const allTr: Trace[] = [];
   for (const file of snapshot.files ?? []) {
     if (Array.isArray(file.traces)) allTr.push(...file.traces);
   }
   const rawTraceCount = allTr.length;
   const derivedTraceCount = (snapshot.derivedTraces ?? []).length;
+
+  const files = snapshot.files.map((file) => {
+    const tracesById = new Map(file.traces.map((trace) => [trace.id, trace]));
+    const matches = (points: readonly { readonly x: number; readonly y: number }[], trace: Trace | undefined) =>
+      trace !== undefined && points.length === trace.data.length && points.every((point, index) => {
+        const sample = trace.data[index];
+        return sample !== undefined && point.x === sample.freq && point.y === sample.amp;
+      });
+    return {
+      ...file,
+      datasets: file.datasets?.map((dataset) => {
+        if (dataset.family === 'network' && file.touchstoneNetwork &&
+          JSON.stringify(dataset.samples) === JSON.stringify(file.touchstoneNetwork.samples.map((sample) => ({ freqHz: sample.freq, matrix: sample.sMatrix })))) {
+          const { samples: _samples, ...rest } = dataset;
+          return rest;
+        }
+        if (dataset.family !== 'spectrum' && dataset.family !== 'waveform') return dataset;
+        return { ...dataset, series: dataset.series.map((series) => {
+          if (!matches(series.samples, tracesById.get(series.id))) return series;
+          const { samples: _samples, ...rest } = series;
+          return rest;
+        }) };
+      }),
+      displayTraces: file.displayTraces?.map((display) => {
+        if (display.valueType !== 'scalar' || !matches(display.points, tracesById.get(display.id))) return display;
+        const { points: _points, ...rest } = display;
+        return rest;
+      }),
+    };
+  });
+  const rebuilt = normalizeSnapshot({ ...snapshot, datasets: [], displayTraces: [] });
+  const { datasets, displayTraces, ...rest } = snapshot;
+  const compactSnapshot = {
+    ...rest,
+    files,
+    ...(JSON.stringify(datasets) === JSON.stringify(rebuilt.datasets) ? {} : { datasets }),
+    ...(JSON.stringify(displayTraces) === JSON.stringify(rebuilt.displayTraces) ? {} : { displayTraces }),
+  };
 
   return {
     kind: "mergen-scope-workspace",
@@ -136,6 +173,6 @@ export function buildExportPackage(
       rawTraceCount,
       derivedTraceCount,
     },
-    snapshot,
+    snapshot: compactSnapshot,
   };
 }

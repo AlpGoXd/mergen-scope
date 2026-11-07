@@ -168,7 +168,7 @@ export function useWorkspace() {
   const downloadWorkspace = useCallback((name?: string) => {
     const snapshot = getSnapshot();
     const pkg = buildExportPackage(snapshot);
-    const json = JSON.stringify(pkg, null, 2);
+    const json = JSON.stringify(pkg);
     const blob = new Blob([json], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');

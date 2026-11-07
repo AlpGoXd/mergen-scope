@@ -5,6 +5,7 @@ import { parseMeasurementFile } from '../domain/parsers/parse-file';
 import { classify } from '../domain/parsers/classifier';
 import { parseTabularFile } from '../domain/parsers/tabular';
 import { adaptDisplayTracesToLegacyTraces } from '../domain/display-trace-adapter';
+import { buildScalarDisplayTraceFromSeriesDataset, buildSeriesDatasetFromTrace } from '../domain/dataset-builders';
 
 export interface WizardEntry {
   id: string;
@@ -156,19 +157,44 @@ export function fileReducer(state: FileState, action: FileAction): FileState {
 
       // A re-import reuses the file id: replace the old record only now, so Skip keeps it.
       const previous = state.files.find((file) => String(file.id) === String(id));
+      // Display traces remain available when a series is hidden, while file.traces
+      // may have been rebuilt from only the visible projections.
+      const previousTraces = previous?.datasets && previous.displayTraces
+        ? adaptDisplayTracesToLegacyTraces(previous.datasets, previous.displayTraces, previous).map((trace) => {
+            const original = previous.traces.find((item) => item.name === trace.name);
+            const id = trace.id.startsWith('display-') ? trace.id.slice('display-'.length) : (original?.id ?? trace.id);
+            return { ...trace, id };
+          })
+        : [...(previous?.traces ?? [])];
+      const remaining = [...previousTraces];
+      const traces = parsed.traces.map((trace) => {
+        const index = remaining.findIndex((old) => old.dn === trace.dn);
+        if (index < 0) return trace;
+        const old = remaining.splice(index, 1)[0];
+        return old ? { ...trace, id: old.id, name: old.name, sourceTraceIds: [old.id] } : trace;
+      });
+      const datasets = traces.map((trace) => buildSeriesDatasetFromTrace(trace, config.domain === 'time' ? 'waveform' : 'spectrum'));
+      const displayTraces = datasets.flatMap((dataset, index) => {
+        const trace = traces[index];
+        const series = dataset.series[0];
+        if (!trace || !series) return [];
+        const display = buildScalarDisplayTraceFromSeriesDataset(dataset, series, trace);
+        const old = previous?.displayTraces?.find((item) => item.id === display.id);
+        return [{ ...display, hidden: old?.hidden, interpolation: old?.interpolation }];
+      });
       const newVis = { ...state.vis };
-      previous?.traces.forEach((t) => { delete newVis[t.name]; });
-      parsed.traces.forEach(t => { newVis[t.name] = true; });
+      remaining.forEach((trace) => { delete newVis[trace.name]; });
+      traces.forEach((trace) => { if (newVis[trace.name] === undefined) newVis[trace.name] = true; });
 
       const newRecord: RawFileRecord = {
         id,
         fileName: entry.fileName,
         meta: parsed.meta,
-        traces: parsed.traces,
-        datasets: parsed.datasets,
-        displayTraces: parsed.displayTraces,
+        traces,
+        datasets,
+        displayTraces,
         format: parsed.format,
-        touchstoneNetwork: undefined, // Tabular doesn't have it
+        touchstoneNetwork: undefined,
         targetPaneId: entry.targetPaneId,
       };
 
