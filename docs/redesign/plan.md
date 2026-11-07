@@ -4,7 +4,7 @@ Planning date: 2026-11-08. Repository: `ts_refactor`, HEAD `31724ef` (`before re
 
 Source of product requirements: [spec-v2.md](spec-v2.md), copied verbatim from the user's 7 Nov orchestrator prompt. This plan decomposes that specification; it does not replace its visual details. Landing page, logo, Polar/IQ work and command palette remain out of scope.
 
-Status: Phase 0 baseline reviewed and accepted; see baseline.md. Implementation has not started. The phase checkpoint remains before Phase 1.
+Status: Phase 1 complete at an uncommitted checkpoint. Independent main verification passed all five gates; see [phase1.md](phase1.md) and the [verification log](phase1-verification-artifacts/independent-main-gates-2026-11-08.md). Phase 0 baseline evidence and its checksums remain pinned to c030; this plan status update changes only the plan document.
 
 ## Decisions and working rules
 

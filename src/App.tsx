@@ -289,7 +289,7 @@ export function App() {
         overflow: 'hidden',
         background: 'var(--bg)',
         color: 'var(--text)',
-        fontFamily: 'system-ui, -apple-system, sans-serif'
+        fontFamily: 'var(--font-sans)'
       }}
       onDragEnterCapture={handleDragEnter}
       onDragLeaveCapture={handleDragLeave}

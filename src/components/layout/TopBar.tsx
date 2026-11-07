@@ -66,7 +66,7 @@ export function TopBar() {
     padding: '6px 8px',
     border: '1px solid color-mix(in srgb, var(--accent) 10%, var(--border))',
     borderRadius: '12px',
-    background: 'linear-gradient(180deg, color-mix(in srgb, var(--card) 82%, white), color-mix(in srgb, var(--card) 96%, transparent))',
+    background: 'var(--panel)',
   };
 
   const groupLabelStyle: React.CSSProperties = {
@@ -103,7 +103,7 @@ export function TopBar() {
           height={20}
           style={{ display: 'block', flexShrink: 0 }}
         />
-        <span style={{ fontWeight: 400, fontSize: 'var(--font-title)', letterSpacing: '-0.2px', color: 'var(--tr0)' }}>
+        <span style={{ fontWeight: 400, fontSize: 'var(--font-title)', letterSpacing: '-0.2px', color: 'var(--text)' }}>
           Mergen <span style={{ color: 'var(--accent)' }}>Scope</span>
         </span>
         <span style={{ fontSize: 'var(--font-caption)', color: 'var(--dim)', background: 'var(--bg)', padding: '0.1rem 0.4rem', borderRadius: '4px', fontWeight: 400 }}>
@@ -115,8 +115,8 @@ export function TopBar() {
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', flex: '1 1 820px', minWidth: 0 }}>
           <div style={groupStyle}>
             <span style={groupLabelStyle}>Panels</span>
-            <Btn active={showSidebar} soft color="#6f8fd6" title="Toggle sidebar" onClick={() => handleToggle('showSidebar', showSidebar)}>Left</Btn>
-            <Btn active={showRightPanel} soft color="#d78a73" title="Toggle right panel" onClick={() => handleToggle('showRightPanel', showRightPanel)}>Right</Btn>
+            <Btn active={showSidebar} soft color="var(--left-color)" title="Toggle sidebar" onClick={() => handleToggle('showSidebar', showSidebar)}>Left</Btn>
+            <Btn active={showRightPanel} soft color="var(--analysis-color)" title="Toggle right panel" onClick={() => handleToggle('showRightPanel', showRightPanel)}>Right</Btn>
           </div>
 
           <div style={groupStyle}>

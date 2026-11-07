@@ -12,7 +12,7 @@ export interface SmithGridProps {
  */
 export function SmithGrid({ mode, clipId }: SmithGridProps) {
   const { theme } = useTheme();
-  const isDark = theme === 'dark' || theme === 'glass';
+  const isDark = theme === 'dark';
   
   const stroke = isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)';
   const major = isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.25)';

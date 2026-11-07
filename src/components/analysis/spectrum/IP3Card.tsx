@@ -60,7 +60,7 @@ export function IP3Card() {
                 lineHeight: 'var(--lh-label)'
               }}>
                 <div style={{ color: r.color, fontWeight: 400, marginBottom: '2px' }}>{r.label}</div>
-                <div style={{ fontFamily: 'monospace', color: point ? 'var(--text)' : 'var(--dim)' }}>
+                <div style={{ fontFamily: 'var(--font-mono)', color: point ? 'var(--text)' : 'var(--dim)' }}>
                   {point ? `${(point.freq / 1e6).toFixed(2)} MHz` : '---'}
                 </div>
               </div>

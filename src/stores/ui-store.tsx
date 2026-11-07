@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useReducer } from 'react';
+import React, { createContext, useContext, useReducer, useEffect, useLayoutEffect, useState, useCallback } from 'react';
 import type { WorkspaceUiState } from '../types/workspace';
 
 export interface UiState extends WorkspaceUiState {
@@ -69,15 +69,20 @@ const defaultState: UiState = {
   activeWizard: null,
 };
 
+export type ThemePreference = 'system' | 'light' | 'dark';
+const THEME_KEY = 'mergen-theme-preference';
+const ThemeContext = createContext<{ preference: ThemePreference; setPreference: (value: ThemePreference) => void } | null>(null);
+
 const UiStateContext = createContext<UiState | null>(null);
 const UiDispatchContext = createContext<React.Dispatch<UiAction> | null>(null);
 
-function getInitialUiState(): UiState {
-  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
-    return defaultState;
-  }
-  const theme: UiState['theme'] = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-  return { ...defaultState, theme };
+function readThemePreference(): ThemePreference {
+  try { const value = localStorage.getItem(THEME_KEY); return value === 'light' || value === 'dark' ? value : 'system'; } catch { return 'system'; }
+}
+
+function getInitialUiState(preference: ThemePreference): UiState {
+  const systemDark = typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  return { ...defaultState, theme: preference === 'system' ? (systemDark ? 'dark' : 'light') : preference };
 }
 
 function uiReducer(state: UiState, action: UiAction): UiState {
@@ -96,7 +101,7 @@ function uiReducer(state: UiState, action: UiAction): UiState {
       return { ...state, vis: action.payload };
     }
     case 'RESTORE': {
-      return { ...defaultState, ...action.payload };
+      return { ...defaultState, ...action.payload, theme: state.theme };
     }
     default:
       return state;
@@ -104,14 +109,33 @@ function uiReducer(state: UiState, action: UiAction): UiState {
 }
 
 export function UiStoreProvider({ children }: { children: React.ReactNode }) {
-  const [state, dispatch] = useReducer(uiReducer, undefined, getInitialUiState);
+  const [preference, setPreferenceState] = useState<ThemePreference>(readThemePreference);
+  const [state, dispatch] = useReducer(uiReducer, preference, getInitialUiState);
+  const setPreference = useCallback((value: ThemePreference) => {
+    setPreferenceState(value);
+    try { if (value === 'system') localStorage.removeItem(THEME_KEY); else localStorage.setItem(THEME_KEY, value); } catch { /* storage may be unavailable */ }
+  }, []);
+  useEffect(() => {
+    const media = typeof window.matchMedia === 'function' ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+    const sync = () => dispatch({ type: 'SET', payload: { key: 'theme', value: preference === 'system' ? (media?.matches ? 'dark' : 'light') : preference } });
+    sync();
+    if (preference !== 'system' || !media) return;
+    if (typeof media.addEventListener === 'function') { media.addEventListener('change', sync); return () => media.removeEventListener('change', sync); }
+    media.addListener(sync); return () => media.removeListener(sync);
+  }, [preference]);
+  useLayoutEffect(() => {
+    document.documentElement.classList.remove('theme-dark', 'theme-light', 'theme-glass');
+    document.documentElement.classList.add(`theme-${state.theme === 'glass' ? 'dark' : state.theme}`);
+  }, [state.theme]);
 
   return (
+    <ThemeContext.Provider value={{ preference, setPreference }}>
     <UiDispatchContext.Provider value={dispatch}>
       <UiStateContext.Provider value={state}>
         {children}
       </UiStateContext.Provider>
     </UiDispatchContext.Provider>
+    </ThemeContext.Provider>
   );
 }
 
@@ -128,5 +152,11 @@ export function useUiDispatch(): React.Dispatch<UiAction> {
   if (!context) {
     throw new Error('useUiDispatch must be used within a UiStoreProvider');
   }
+  return context;
+}
+
+export function useThemePreference() {
+  const context = useContext(ThemeContext);
+  if (!context) throw new Error('useThemePreference must be used within a UiStoreProvider');
   return context;
 }
