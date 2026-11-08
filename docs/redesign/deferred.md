@@ -71,3 +71,11 @@ The candidate comparison is in [phase7b-evidence/comparison.html](phase7b-eviden
 | Connect sidebar Open, Drop, Load demo, Replace, Edit columns, Rename and Threshold crossings callbacks to their shared workflows; verify the empty sidebar and file replacement end to end. | Phase 7E | Typed callbacks exist; App wiring remains open. |
 | Complete large-port plotted chips across views, grid popover dismissal/focus, and verify all-panes/unplaced and marker/line states against board 42-L1. Replace heuristic raw-header extraction with retained parsed header boundaries. | Phase 7E / final visual audit | Current chips cover the selected view in the target pane; additional states and exact header fidelity remain open. |
 | Finish trace row naming, interpolation choices, nesting and visual sizing; verify Undo for all individual edits and failure paths. | Phase 4 continuation / Phase 8 audit | Partial implementation and focused tests exist; board fidelity and complete action coverage remain open. |
+
+
+## Sidebar completion comparison follow-up
+
+| Remaining work | Target phase | Status and evidence |
+| --- | --- | --- |
+| Match compact control, cell and trace-row sizing and trace naming against board 42-L1; capture and compare the narrow 220 px sidebar and populated marker/line states in both themes. | Phase 8 visual audit | The 1440 px light/dark comparison in [sidebar completion evidence](sidebar-completion-evidence/comparison.md) fixes the file summary and matrix alignment, but those states and sizing remain open. |
+| Provide matrix cell tooltips describing the target-pane add/remove action and existing placements. | Phase 8 | The current tooltip identifies the parameter and view but does not describe the action or pane placement. |

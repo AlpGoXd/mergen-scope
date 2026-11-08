@@ -45,8 +45,7 @@ const subsectionLabelStyle: CSSProperties = {
   fontSize: 'var(--font-caption)',
   fontWeight: 500,
   color: 'var(--muted)',
-  textTransform: 'uppercase',
-  letterSpacing: '0.08em',
+  whiteSpace: 'nowrap',
 };
 
 export interface SidebarProps {
@@ -250,6 +249,9 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
               >
                 <FileTitleRow
                   fileName={file.fileName}
+                  summary={file.touchstoneNetwork ? `${file.touchstoneNetwork.portCount} ports \u00b7 ${file.touchstoneNetwork.samples.length} pts${file.touchstoneNetwork.samples.length ? ` \u00b7 ${formatWithUnit((file.touchstoneNetwork.samples[0]?.freq ?? 0), "Hz")} - ${formatWithUnit((file.touchstoneNetwork.samples[file.touchstoneNetwork.samples.length - 1]?.freq ?? 0), "Hz")}` : ""}` : `${file.traces.length} ${file.traces.length === 1 ? "trace" : "traces"}`}
+                  matrixOpen={file.touchstoneNetwork ? isMatrixTab : undefined}
+                  onMatrix={file.touchstoneNetwork ? () => fileDispatch({ type: 'SET_MATRIX_OPEN', payload: { fileId, open: !isMatrixTab } }) : undefined}
                   onReplace={onReplaceFile ? () => onReplaceFile(fileId) : undefined}
                   onRename={onRenameFile ? () => onRenameFile(fileId) : undefined}
                   onEdit={file.format === 'tabular' ? () => onEditColumns ? onEditColumns(fileId) : fileDispatch({ type: 'RERUN_WIZARD', payload: { fileId, fileName: file.fileName } }) : undefined}
@@ -267,56 +269,16 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
 
                 {file.error && <div role="alert" title={file.error}>{file.error}</div>}
 
-                {(
-                  <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-                    {file.touchstoneNetwork && (
-                      <button
-                        type="button"
-                        onClick={() => fileDispatch({ type: 'SET_MATRIX_OPEN', payload: { fileId, open: !isMatrixTab } })}
-                        className={isMatrixTab ? 'btn-active' : 'btn'}
-                        style={{ padding: compactSidebar ? '2px 6px' : '4px 8px', fontSize: 'var(--font-caption)' }}
-                        aria-expanded={isMatrixTab}
-                        title={isMatrixTab ? 'Hide network parameter tools' : 'Show network parameter tools'}
-                      >
-                        Matrix
-                      </button>
-                    )}
-                    {(
-                      <button
-                        type="button"
-                        onClick={() => setExpandedByFileId((prev) => ({ ...prev, [fileId]: { ...prev[fileId], meta: !prev[fileId]?.meta } }))}
-                        className={isMetaTab ? 'btn-active' : 'btn'}
-                        style={{ padding: compactSidebar ? '2px 6px' : '4px 8px', fontSize: 'var(--font-caption)' }}
-                      >
-                        Info
-                      </button>
-                    )}
-                    {file.format === 'tabular' && (
-                      <button
-                        type="button"
-                        onClick={() => onEditColumns ? onEditColumns(fileId) : fileDispatch({ type: 'RERUN_WIZARD', payload: { fileId, fileName: file.fileName } })}
-                        className="btn"
-                        style={{ padding: compactSidebar ? '2px 6px' : '4px 8px', fontSize: 'var(--font-caption)' }}
-                        title="Edit columns for this table"
-                      >
-                        Edit columns…
-                      </button>
-                    )}
-                  </div>
-                )}
-
                 {isMatrixTab && file.touchstoneNetwork && (
                   <div
                     style={{
                       display: 'grid',
                       gap: '6px',
-                      padding: '6px',
-                      border: '1px solid var(--border)',
-                      borderRadius: '8px',
-                      background: 'var(--bg)',
+                      padding: '2px 0',
                     }}
                   >
-                    <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', gap: '2px', alignItems: 'center' }}>
+                      <span style={{ ...subsectionLabelStyle, width: 44, flexShrink: 0 }}>Family</span>
                       {(['S', 'Y', 'Z', 'ABCD'] as const).map((family) => (
                         <button
                           key={family}
@@ -325,28 +287,28 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
                           title={family === 'ABCD' && file.touchstoneNetwork?.portCount !== 2 ? '2-port only' : family}
                           onClick={() => setActiveFamily(fileId, family)}
                           className={touchstoneState.activeFamily === family ? 'btn-active' : 'btn'}
-                          style={{ padding: '4px 8px', fontSize: 'var(--font-caption)' }}
+                          style={{ padding: '1px 4px', fontSize: 'var(--font-caption)', minWidth: 0 }}
                         >
                           {family}
                         </button>
                       ))}
                     </div>
 
-                    <div style={{ display: 'grid', gap: '3px' }}>
-                      <span style={subsectionLabelStyle}>Plot as</span>
-                      <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', gap: '2px', alignItems: 'center', minWidth: 0 }}>
+                      <span style={{ ...subsectionLabelStyle, width: 44, flexShrink: 0 }}>Plot as</span>
+                      <div style={{ display: 'flex', gap: '2px', alignItems: 'center', minWidth: 0 }}>
                         {availableViews.map((view) => (
                           <button
                             key={view}
                             type="button"
                             onClick={() => setActiveView(fileId, activeFamily, view)}
                             className={activeView === view ? 'btn-active' : 'btn'}
-                            style={{ padding: '4px 8px', fontSize: 'var(--font-caption)' }}
+                            style={{ padding: '1px 4px', fontSize: 'var(--font-caption)', minWidth: 0 }}
                           >
-                            {view}
+                            {view === 'Real' ? 'Re' : view === 'Imag' ? 'Im' : view}
                           </button>
                         ))}
-                        <select aria-label="More network views" value={['VSWR', 'Return loss', 'Group delay'].includes(activeView) ? activeView : ''} onChange={event => { if (event.target.value) setActiveView(fileId, activeFamily, event.target.value as TouchstoneView); }}><option value="">More…</option><option value="VSWR" disabled={activeFamily !== 'S'}>VSWR</option><option value="Return loss" disabled={activeFamily !== 'S'}>Return loss</option><option value="Group delay">Group delay</option></select>
+                        <select style={{ minWidth: 0, width: 54, padding: '1px 0', fontSize: 'var(--font-caption)' }} aria-label="More network views" value={['VSWR', 'Return loss', 'Group delay'].includes(activeView) ? activeView : ''} onChange={event => { if (event.target.value) setActiveView(fileId, activeFamily, event.target.value as TouchstoneView); }}><option value="">More…</option><option value="VSWR" disabled={activeFamily !== 'S'}>VSWR</option><option value="Return loss" disabled={activeFamily !== 'S'}>Return loss</option><option value="Group delay">Group delay</option></select>
                       </div>
                     </div>
 
@@ -695,19 +657,20 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
   );
 }
 
-function FileTitleRow({ fileName, compact = false, onRemove, onInfo, onReplace, onRename, onEdit, onVisibility }: { fileName: string; compact?: boolean; onRemove: () => void; onInfo: () => void; onReplace?: () => void; onRename?: () => void; onEdit?: () => void; onVisibility: (visible: boolean) => void }) {
+function FileTitleRow({ fileName, summary, matrixOpen, onMatrix, compact = false, onRemove, onInfo, onReplace, onRename, onEdit, onVisibility }: { fileName: string; summary: string; matrixOpen?: boolean; onMatrix?: () => void; compact?: boolean; onRemove: () => void; onInfo: () => void; onReplace?: () => void; onRename?: () => void; onEdit?: () => void; onVisibility: (visible: boolean) => void }) {
   return (
     <div
       style={{
         display: 'grid',
-        gridTemplateColumns: 'auto minmax(0, 1fr) auto auto',
+        gridTemplateColumns: 'auto minmax(0, 1fr) auto auto auto',
         gap: compact ? '4px' : '6px',
         alignItems: 'start',
         minWidth: 0,
       }}
     >
       <span style={{ ...badgeStyle, borderRadius: 4, fontFamily: 'var(--font-mono)', minWidth: 30, textAlign: 'center', padding: '1px 2px' }}>{fileName.split('.').pop()?.toUpperCase().slice(0, 4) ?? 'FILE'}</span>
-      <span title={fileName} style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{fileName.length > 28 ? `${fileName.slice(0, 14)}…${fileName.slice(-11)}` : fileName}</span>
+      <span title={`${fileName} ? ${summary}`} style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{fileName.length > 28 ? `${fileName.slice(0, 14)}…${fileName.slice(-11)}` : fileName}</span>
+      {onMatrix ? <button type="button" aria-label="Matrix" aria-expanded={matrixOpen} onClick={onMatrix} className={matrixOpen ? 'btn-active' : 'btn'} style={{ padding: '1px 3px', fontSize: 'var(--font-caption)', whiteSpace: 'nowrap' }}>Matrix {matrixOpen ? '\u25b4' : '\u25be'}</button> : <span />}
       <ActionMenu label={`Actions for ${fileName}`} actions={[{ label: 'Info', run: onInfo }, { label: 'Replace file…', disabled: !onReplace, run: () => onReplace?.() }, ...(onEdit ? [{ label: 'Edit columns…', run: onEdit }] : []), { label: 'Rename', disabled: !onRename, run: () => onRename?.() }, { label: 'Show all', run: () => onVisibility(true) }, { label: 'Hide all', run: () => onVisibility(false) }, { label: 'Remove file…', run: onRemove }]} />
       <button
         type="button"
@@ -717,6 +680,7 @@ function FileTitleRow({ fileName, compact = false, onRemove, onInfo, onReplace, 
       >
         x
       </button>
+      <span style={{ gridColumn: '1 / -1', color: 'var(--dim)', fontSize: 'var(--font-caption)', fontFamily: 'var(--font-mono)' }}>{summary}</span>
     </div>
   );
 }
