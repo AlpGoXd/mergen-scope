@@ -1,5 +1,7 @@
 # Phase 2 report
 
+Checkpoint update, 8 November: the user committed Phase 2 as `517fb4c`. The retrospective [reference comparison](phase1-2-reference-comparison.md) and [side-by-side images](phase1-2-reference-comparison.html) distinguish correct foundation tokens from remaining consumer differences. The original report below describes the earlier verification checkpoint. Phase 3 has not started.
+
 Phase 2 shared controls, transient feedback, engineering formatter/parser and Sidebar parser extraction are verified at an uncommitted checkpoint. Phase 3 has not started. See [UI implementation and evidence](phase2-ui.md), [units report](phase2-units.md), [independent main verification](phase2-main-verification.md), and [deferred work](deferred.md).
 
 The UI implementation ran as native `gpt-6.1-terra`; `gpt-6-luna` implemented the domain work and independently verified main. CLI review requested `gpt-6.1-terra`, but its exact runtime variant was not exposed. Review rejected and fixed modal focus containment, nested Escape, sequential menu focus, popup positioning/viewport clipping, disabled hover and tooltip dismissal, and engineering precision/parsing cases. UI and dialog screenshots in light/dark and loaded baseline-demo app screenshots are `phase2-{controls,dialog,app}-{light,dark}.png`.

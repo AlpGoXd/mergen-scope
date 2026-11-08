@@ -53,6 +53,7 @@ export function parseTabularFile(
   const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
 
   let config = explicitConfig;
+  let sourceHeaders: string[] | undefined;
   const ext = String(fileName ?? "").split(".").pop()?.toLowerCase() ?? "";
   const isDat = ext === "dat";
 
@@ -109,7 +110,12 @@ export function parseTabularFile(
     }
 
     const headerLine = skipRows > 0 ? lines[skipRows - 1] : null;
-    const headers = headerLine ? splitRow(headerLine, bestDelimiter).map((s) => s.toLowerCase()) : [];
+    // Keep the source spelling for ColumnIdentity and unit inference. Heuristics
+    // remain case-insensitive, and the user-facing trace name stays lowercase
+    // for compatibility with older CSV imports.
+    const headers = headerLine ? splitRow(headerLine, bestDelimiter) : [];
+    const heuristicHeaders = headers.map((s) => s.toLowerCase());
+    sourceHeaders = headers;
 
     let xCol = 0;
     let hasExplicitXCol = false;
@@ -117,8 +123,8 @@ export function parseTabularFile(
     let domain: TraceDomain = isDat ? "frequency" : "time";
     let confidence = isDat ? 0.8 : 0.5;
 
-    for (let idx = 0; idx < headers.length; idx++) {
-      const h = headers[idx]!;
+    for (let idx = 0; idx < heuristicHeaders.length; idx++) {
+      const h = heuristicHeaders[idx]!;
       const isFrequencyXHeader = h.indexOf("freq") !== -1 || h === "hz" || h === "f" || h.startsWith("frequency ");
       const isTimeXHeader = h.indexOf("time") !== -1 || h === "s" || h === "t" || h.startsWith("time ");
       if (!hasExplicitXCol && isFrequencyXHeader) { domain = "frequency"; xCol = idx; hasExplicitXCol = true; confidence += 0.25; }
@@ -142,7 +148,7 @@ export function parseTabularFile(
       yMult: 1,
       domain,
       confidence,
-      headers,
+      headers: heuristicHeaders,
     } satisfies WizardConfig;
 
     if (confidence < 0.8) {
@@ -160,16 +166,16 @@ export function parseTabularFile(
 
   const traces: RawTrace[] = [];
   const datasetFamily = config.domain === 'time' ? 'waveform' : 'spectrum';
-  const xHeader = config.headers?.[config.xCol] ?? "";
+  const xHeader = sourceHeaders?.[config.xCol] ?? config.headers?.[config.xCol] ?? "";
   const xUnit = inferUnit(xHeader, "x") ?? (config.domain === "time" ? "s" : "Hz");
 
   for (let yIdx = 0; yIdx < config.yCols.length; yIdx++) {
     const yColIdx = config.yCols[yIdx]!;
-    const name = config.headers?.[yColIdx] ?? `CH${yIdx + 1}`;
+    const name = sourceHeaders?.[yColIdx] ?? config.headers?.[yColIdx] ?? `CH${yIdx + 1}`;
     const trace = makeTrace(`${fileName} `, fileName, String(name), incrementFileCounter());
     (trace as { domain: TraceDomain }).domain = config.domain;
     (trace as { family: "spectrum" | "waveform" }).family = datasetFamily;
-    (trace as { dn: string }).dn = `${fileName} ${name}`;
+    (trace as { dn: string }).dn = `${fileName} ${name.toLowerCase()}`;
     (trace as { units: { x: string | null; y: string | null } }).units = {
       x: xUnit,
       y: inferUnit(String(name), "y"),
