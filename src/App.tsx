@@ -10,7 +10,7 @@ import { useKeyboard } from './hooks/use-keyboard';
 import { useTheme } from './hooks/use-theme';
 import { useUiState } from './stores/ui-store';
 import { useUiDispatch } from './stores/ui-store';
-import { useFileImport } from './hooks/use-file-import';
+import { DATA_FILE_ACCEPT, useFileImport } from './hooks/use-file-import';
 import { usePaneState } from './stores/pane-store';
 
 
@@ -40,6 +40,7 @@ export function App() {
   } = useUiState();
   const uiDispatch = useUiDispatch();
   const importFiles = useFileImport();
+  const sidebarFileInput = useRef<HTMLInputElement>(null);
   const { activePaneId } = usePaneState();
 
   const lastActivePaneIdRef = useRef(activePaneId);
@@ -201,7 +202,8 @@ export function App() {
 
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minWidth: 0 }}>
         {/* Always mounted (renders nothing when hidden): it owns the Touchstone trace reconciliation. */}
-        <Sidebar width={leftPanelWidth} />
+        <input ref={sidebarFileInput} type="file" accept={DATA_FILE_ACCEPT} multiple hidden onChange={event => { if (event.target.files?.length) void importFiles(event.target.files); event.target.value = ''; }} />
+        <Sidebar width={leftPanelWidth} onOpenFiles={() => sidebarFileInput.current?.click()} />
         {showSidebar && <PanelResizeHandle side="left" onMouseDown={startResize('left')} />}
         <ChartWorkspace />
         {showRightPanel && <PanelResizeHandle side="right" onMouseDown={startResize('right')} />}
