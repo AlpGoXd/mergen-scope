@@ -53,6 +53,7 @@ export function parseTabularFile(
   const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
 
   let config = explicitConfig;
+  let sourceHeaders: string[] | undefined;
   const ext = String(fileName ?? "").split(".").pop()?.toLowerCase() ?? "";
   const isDat = ext === "dat";
 
@@ -109,7 +110,12 @@ export function parseTabularFile(
     }
 
     const headerLine = skipRows > 0 ? lines[skipRows - 1] : null;
-    const headers = headerLine ? splitRow(headerLine, bestDelimiter).map((s) => s.toLowerCase()) : [];
+    // Keep the source spelling for ColumnIdentity and unit inference. Heuristics
+    // remain case-insensitive, and the user-facing trace name stays lowercase
+    // for compatibility with older CSV imports.
+    const headers = headerLine ? splitRow(headerLine, bestDelimiter) : [];
+    const heuristicHeaders = headers.map((s) => s.toLowerCase());
+    sourceHeaders = headers;
 
     let xCol = 0;
     let hasExplicitXCol = false;
@@ -117,8 +123,8 @@ export function parseTabularFile(
     let domain: TraceDomain = isDat ? "frequency" : "time";
     let confidence = isDat ? 0.8 : 0.5;
 
-    for (let idx = 0; idx < headers.length; idx++) {
-      const h = headers[idx]!;
+    for (let idx = 0; idx < heuristicHeaders.length; idx++) {
+      const h = heuristicHeaders[idx]!;
       const isFrequencyXHeader = h.indexOf("freq") !== -1 || h === "hz" || h === "f" || h.startsWith("frequency ");
       const isTimeXHeader = h.indexOf("time") !== -1 || h === "s" || h === "t" || h.startsWith("time ");
       if (!hasExplicitXCol && isFrequencyXHeader) { domain = "frequency"; xCol = idx; hasExplicitXCol = true; confidence += 0.25; }
@@ -142,7 +148,7 @@ export function parseTabularFile(
       yMult: 1,
       domain,
       confidence,
-      headers,
+      headers: heuristicHeaders,
     } satisfies WizardConfig;
 
     if (confidence < 0.8) {
@@ -161,7 +167,8 @@ export function parseTabularFile(
   // Use the physical source header rather than possibly stale wizard labels.
   const firstDataRow = Math.max(0, Math.floor(Number.isFinite(config.skipRows) ? config.skipRows : 0));
   const headerRow = firstDataRow > 0 ? lines[firstDataRow - 1]?.split(config.delimiter).map(cell => cell.trim()) : undefined;
-  const sourceHeaders = headerRow?.some(cell => cell !== '' && !Number.isFinite(Number(cell))) ? headerRow : undefined;
+  const physicalHeaders = headerRow?.some(cell => cell !== '' && !Number.isFinite(Number(cell))) ? headerRow : undefined;
+  if (physicalHeaders) sourceHeaders = physicalHeaders;
   const traces: RawTrace[] = [];
   const datasetFamily = config.domain === 'time' ? 'waveform' : 'spectrum';
   const xHeader = sourceHeaders?.[config.xCol] ?? config.headers?.[config.xCol] ?? "";
@@ -173,7 +180,7 @@ export function parseTabularFile(
     const trace = makeTrace(`${fileName} `, fileName, String(name), incrementFileCounter());
     (trace as { domain: TraceDomain }).domain = config.domain;
     (trace as { family: "spectrum" | "waveform" }).family = datasetFamily;
-    (trace as { dn: string }).dn = `${fileName} ${name}`.toLowerCase();
+    (trace as { dn: string }).dn = `${fileName} ${name.toLowerCase()}`;
     (trace as { units: { x: string | null; y: string | null } }).units = {
       x: xUnit,
       y: inferUnit(String(name), "y"),
