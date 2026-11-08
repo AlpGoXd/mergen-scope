@@ -193,7 +193,7 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
           if (aggregate) aggregate.historyDispatch({ type: 'change', toastMessage: `Closed ${files.length} files`, command: { slice: 'transaction', actions } });
           else actions.forEach(item => fileDispatch(item.action));
         } }]} rightElement={
-          <button type="button" className="btn" onClick={onOpenFiles} disabled={!onOpenFiles} title={onOpenFiles ? 'Open files' : 'Open files is available from the top bar'}>Open…</button>
+          <button type="button" className="btn" onClick={onOpenFiles} disabled={!onOpenFiles} title={onOpenFiles ? 'Open files' : 'Open files is available from the top bar'} style={{ gap: 4, color: "var(--text)", background: "var(--raised)" }}><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="M8 1v9m-3-3 3 3 3-3M2 11v3h12v-3" /></svg>{"Open\u2026"}</button>
         }>
           {files.map((file) => {
             const fileId = String(file.id);
@@ -250,7 +250,7 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
                 <FileTitleRow
                   fileName={file.fileName}
                   error={file.error}
-                  summary={file.touchstoneNetwork ? `${file.touchstoneNetwork.portCount} ports \u00b7 ${file.touchstoneNetwork.samples.length} pts${file.touchstoneNetwork.samples.length ? ` \u00b7 ${formatWithUnit((file.touchstoneNetwork.samples[0]?.freq ?? 0), "Hz")} - ${formatWithUnit((file.touchstoneNetwork.samples[file.touchstoneNetwork.samples.length - 1]?.freq ?? 0), "Hz")}` : ""}` : `${file.traces.length} ${file.traces.length === 1 ? "trace" : "traces"}`}
+                  summary={file.touchstoneNetwork ? `${file.touchstoneNetwork.portCount} ports \u00b7 ${file.touchstoneNetwork.samples.length} pts${file.touchstoneNetwork.samples.length ? ` \u00b7 ${formatWithUnit((file.touchstoneNetwork.samples[0]?.freq ?? 0), "Hz")}\u2013${formatWithUnit((file.touchstoneNetwork.samples[file.touchstoneNetwork.samples.length - 1]?.freq ?? 0), "Hz")}` : ""} \u00b7 ${file.displayTraces?.length ?? file.traces.length}\u00a0${(file.displayTraces?.length ?? file.traces.length) === 1 ? "trace" : "traces"}` : `${file.traces.length} ${file.traces.length === 1 ? "trace" : "traces"}`}
                   matrixOpen={file.touchstoneNetwork ? isMatrixTab : undefined}
                   onMatrix={file.touchstoneNetwork ? () => fileDispatch({ type: 'SET_MATRIX_OPEN', payload: { fileId, open: !isMatrixTab } }) : undefined}
                   onReplace={onReplaceFile ? () => onReplaceFile(fileId) : undefined}
@@ -284,7 +284,7 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
                     }}
                   >
                     <div style={{ display: 'flex', gap: 0, alignItems: 'center' }}>
-                      <span style={{ ...subsectionLabelStyle, width: 44, flexShrink: 0 }}>Family</span>
+                      <span style={{ ...subsectionLabelStyle, width: 50, flexShrink: 0 }}>Family</span>
                       {(['S', 'Y', 'Z', 'ABCD'] as const).map((family) => (
                         <button
                           key={family}
@@ -293,15 +293,15 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
                           title={family === 'ABCD' && file.touchstoneNetwork?.portCount !== 2 ? '2-port only' : family}
                           onClick={() => setActiveFamily(fileId, family)}
                           className={touchstoneState.activeFamily === family ? 'btn-active' : 'btn'}
-                          style={{ padding: '0 5px', minHeight: 18, borderRadius: 3, fontSize: 'var(--font-caption)', lineHeight: '16px', minWidth: 0 }}
+                          style={{ padding: '0 5px', minHeight: 20, borderRadius: 0, fontSize: 'var(--font-caption)', lineHeight: '16px', minWidth: 0, marginRight: -1 }}
                         >
                           {family}
                         </button>
                       ))}
                     </div>
 
-                    <div style={{ display: 'flex', gap: '2px', alignItems: 'center', minWidth: 0 }}>
-                      <span style={{ ...subsectionLabelStyle, width: 44, flexShrink: 0 }}>Plot as</span>
+                    <div style={{ display: 'flex', gap: 0, alignItems: 'center', minWidth: 0 }}>
+                      <span style={{ ...subsectionLabelStyle, width: 50, flexShrink: 0 }}>Plot as</span>
                       <div style={{ display: 'flex', gap: 0, alignItems: 'center', minWidth: 0 }}>
                         {availableViews.map((view) => (
                           <button
@@ -309,12 +309,12 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
                             type="button"
                             onClick={() => setActiveView(fileId, activeFamily, view)}
                             className={activeView === view ? 'btn-active' : 'btn'}
-                            style={{ padding: '0 5px', minHeight: 18, borderRadius: 3, fontSize: 'var(--font-caption)', lineHeight: '16px', minWidth: 0 }}
+                            style={{ padding: '0 5px', minHeight: 20, borderRadius: 0, fontSize: 'var(--font-caption)', lineHeight: '16px', minWidth: 0, marginRight: -1 }}
                           >
                             {view === 'Real' ? 'Re' : view === 'Imag' ? 'Im' : view}
                           </button>
                         ))}
-                        <select style={{ minWidth: 0, width: 54, height: 18, marginLeft: 4, padding: '0', fontSize: 'var(--font-caption)' }} aria-label="More network views" value={['VSWR', 'Return loss', 'Group delay'].includes(activeView) ? activeView : ''} onChange={event => { if (event.target.value) setActiveView(fileId, activeFamily, event.target.value as TouchstoneView); }}><option value="">More…</option><option value="VSWR" disabled={activeFamily !== 'S'}>VSWR</option><option value="Return loss" disabled={activeFamily !== 'S'}>Return loss</option><option value="Group delay">Group delay</option></select>
+                        <span style={{ position: 'relative', display: 'inline-flex', marginLeft: 4 }}><select style={{ appearance: 'none', minWidth: 0, width: 54, height: 20, padding: '0 16px 0 5px', fontSize: 'var(--font-body)', background: 'var(--raised)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: 4 }} aria-label="More network views" value={['VSWR', 'Return loss', 'Group delay'].includes(activeView) ? activeView : ''} onChange={event => { if (event.target.value) setActiveView(fileId, activeFamily, event.target.value as TouchstoneView); }}><option value="">More</option><option value="VSWR" disabled={activeFamily !== 'S'}>VSWR</option><option value="Return loss" disabled={activeFamily !== 'S'}>Return loss</option><option value="Group delay">Group delay</option></select><span aria-hidden="true" style={{ position: 'absolute', right: 5, top: 1, pointerEvents: 'none', color: 'var(--text)' }}>{'\u25be'}</span></span>
                       </div>
                     </div>
 
@@ -358,7 +358,7 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
                         if (actions.length) aggregate.historyDispatch({ type: 'change', toastMessage: `${pick} matrix views`, command: { slice: 'transaction', actions } });
                       }} disabled={!aggregate} title={!aggregate ? 'Batch actions require workspace history' : pick}>{pick === 'Lower' ? 'Lower \u25e3' : pick}</button>)}
                     </div>}
-                    <TouchstoneMatrixPicker
+                    <div style={{ marginLeft: file.touchstoneNetwork.portCount <= 2 ? 51 : 0, maxWidth: file.touchstoneNetwork.portCount <= 2 ? 168 : undefined }}><TouchstoneMatrixPicker
                       portCount={file.touchstoneNetwork.portCount}
                       family={activeFamily}
                       view={activeView}
@@ -389,7 +389,7 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
                       })()}
                       disabledReason={(row, col) => (activeView === 'VSWR' || activeView === 'Return loss') && row !== col ? 'Reflection parameters only' : undefined}
                       onToggle={toggleMatrix}
-                    />
+                    /></div>
                   </div>
                 )}
 
@@ -651,18 +651,18 @@ function FileTitleRow({ fileName, error, summary, matrixOpen, onMatrix, compact 
       }}
     >
       <span style={{ ...badgeStyle, borderRadius: 4, fontFamily: 'var(--font-mono)', minWidth: 30, textAlign: 'center', padding: '1px 2px' }}>{fileName.split('.').pop()?.toUpperCase().slice(0, 4) ?? 'FILE'}</span>
-      <span title={error ?? `${fileName} \u00b7 ${summary}`} style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{fileName.length > 28 ? `${fileName.slice(0, 14)}…${fileName.slice(-11)}` : fileName}</span>
+      <span title={error ?? `${fileName} \u00b7 ${summary}`} style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: matrixOpen ? 600 : 400 }}>{fileName.length > 28 ? `${fileName.slice(0, 14)}…${fileName.slice(-11)}` : fileName}</span>
       {error ? <button type="button" onClick={onEdit ?? onReplace} disabled={!onEdit && !onReplace} title={error} style={{ border: 0, background: 'transparent', color: 'var(--danger-ink)', textDecoration: 'underline', cursor: 'pointer', padding: 0 }}>{'Fix\u2026'}</button> : onMatrix ? <button type="button" aria-label="Matrix" aria-expanded={matrixOpen} onClick={onMatrix} className={matrixOpen ? 'btn-active' : 'btn'} style={{ padding: '1px 3px', fontSize: 'var(--font-caption)', whiteSpace: 'nowrap' }}>Matrix {matrixOpen ? '\u25b4' : '\u25be'}</button> : onColumns ? <button type="button" aria-label="Columns" aria-expanded={columnsOpen} onClick={onColumns} className={columnsOpen ? 'btn-active' : 'btn'} style={{ padding: '1px 3px', fontSize: 'var(--font-caption)', whiteSpace: 'nowrap' }}>Columns {columnsOpen ? '\u25b4' : '\u25be'}</button> : onPlot ? <button type="button" className="btn" onClick={onPlot} style={{ padding: '1px 3px', fontSize: 'var(--font-caption)' }}>Plot</button> : <span />}
-      <ActionMenu label={`Actions for ${fileName}`} actions={[{ label: 'Info', run: onInfo }, { label: 'Replace file…', disabled: !onReplace, run: () => onReplace?.() }, ...(onEdit ? [{ label: 'Edit columns…', run: onEdit }] : []), { label: 'Rename', disabled: !onRename, run: () => onRename?.() }, ...(multiTrace ? [{ label: 'Show all', run: () => onVisibility(true) }, { label: 'Hide all', run: () => onVisibility(false) }] : []), { label: 'Remove file…', run: onRemove }]} />
+      <ActionMenu label={`Actions for ${fileName}`} actions={[{ label: 'Info', run: onInfo }, { label: 'Replace file…', disabled: !onReplace, run: () => onReplace?.() }, ...(onEdit ? [{ label: 'Edit columns\u2026', note: 'CSV only', run: onEdit }] : []), { label: 'Rename', disabled: !onRename, run: () => onRename?.() }, ...(multiTrace ? [{ label: 'Show all', run: () => onVisibility(true) }, { label: 'Hide all', run: () => onVisibility(false) }] : []), { label: 'Remove file\u2026', danger: true, run: onRemove }]} />
       <button
         type="button"
         onClick={onRemove}
         style={{ border: 0, background: 'transparent', color: 'var(--text-muted)', padding: '0 2px', cursor: 'pointer', lineHeight: '1.2', flexShrink: 0 }}
         title="Remove file"
       >
-        x
+        {'\u00d7'}
       </button>
-      {showSummary && <span style={{ gridColumn: '1 / -1', color: 'var(--dim)', fontSize: 'var(--font-caption)', fontFamily: 'var(--font-mono)', paddingBottom: 2 }}>{summary}</span>}
+      {showSummary && <span style={{ gridColumn: '1 / -1', color: 'var(--dim)', fontSize: 11, fontFamily: 'var(--font-mono)', paddingBottom: 2, overflowWrap: 'anywhere' }}>{summary}</span>}
     </div>
   );
 }
@@ -682,9 +682,9 @@ function SidebarEmpty({ text, compact = false }: { text: string; compact?: boole
   );
 }
 
-type SidebarAction = { label: string; run: () => void; disabled?: boolean };
+type SidebarAction = { label: string; run: () => void; disabled?: boolean; note?: string; danger?: boolean };
 function ActionMenu({ label, actions }: { label: string; actions: SidebarAction[] }) {
-  return <details style={{ position: 'relative' }}><summary aria-label={label} title={label} style={{ cursor: 'pointer', listStyle: 'none', padding: '0 5px' }}>⋯</summary><div style={{ position: 'absolute', zIndex: 10, right: 0, minWidth: 140, padding: 4, background: 'var(--raised)', border: '1px solid var(--border)', borderRadius: 6, boxShadow: '0 4px 12px oklch(0 0 0 / .15)' }}>{actions.map(action => <button key={action.label} type="button" disabled={action.disabled} title={action.disabled ? 'Unavailable until the required data or integration is present' : action.label} onClick={event => { action.run(); event.currentTarget.closest('details')?.removeAttribute('open'); }} style={{ display: 'block', width: '100%', textAlign: 'left', whiteSpace: 'nowrap' }}>{action.label}</button>)}</div></details>;
+  return <details style={{ position: 'relative' }}><summary aria-label={label} title={label} style={{ cursor: 'pointer', listStyle: 'none', padding: '0 2px', color: 'var(--text-muted)', fontSize: 16, lineHeight: '20px' }}>{'\u22ef'}</summary><div style={{ position: 'absolute', zIndex: 10, right: 0, minWidth: 190, padding: 4, background: 'var(--raised)', border: '1px solid var(--border)', borderRadius: 8, boxShadow: '0 4px 12px oklch(0 0 0 / .15)' }}>{actions.map(action => <div key={action.label} style={action.danger ? { borderTop: '1px solid var(--border)', marginTop: 4, paddingTop: 4 } : undefined}><button type="button" disabled={action.disabled} title={action.disabled ? 'Unavailable until the required data or integration is present' : action.label} onClick={event => { action.run(); event.currentTarget.closest('details')?.removeAttribute('open'); }} style={{ display: 'block', width: '100%', textAlign: 'left', whiteSpace: 'nowrap', padding: '5px 8px', border: 0, background: 'transparent', color: action.danger ? 'var(--danger-ink)' : 'var(--text)', fontSize: 'var(--font-body)', cursor: action.disabled ? 'not-allowed' : 'pointer', opacity: action.disabled ? .5 : 1 }}>{action.label}{action.note && <span style={{ color: 'var(--text-muted)', fontSize: 'var(--font-caption)' }}> ({action.note})</span>}</button></div>)}</div></details>;
 }
 function PanelSection({ title, count, children, rightElement, actions = [] }: { title: string; count: number; children: ReactNode; rightElement?: ReactNode; actions?: SidebarAction[] }) {
   const key = `mergen.sidebar.collapsed.${title.toLowerCase()}`;

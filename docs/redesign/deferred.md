@@ -90,3 +90,10 @@ The candidate comparison is in [phase7b-evidence/comparison.html](phase7b-eviden
 | Finish the greater-than-eight-port picker: compare its row/column selectors, removable plotted chips and full-grid popover against board 23-C04, and complete cross-view chips plus popover focus and dismissal. | Phase 7E; visual audit in Phase 8 | Partial: the list picker and grid exist; the visual treatment and cross-view/focus behavior remain incomplete. |
 
 Light and dark populated network, CSV and error captures and comparisons are in [file-card visual evidence](file-card-visual-evidence/README.md). The native More selector and cell sizing also need final comparison against boards 00, 01 and 42 in the Phase 8 visual audit.
+
+## File-card 2x follow-up
+
+| Remaining work | Target phase | Status |
+| --- | --- | --- |
+| Wire Replace and Rename to their real workflows and verify their data preservation and undo behavior. | Phase 7D / 7E | Disabled with explanations; no placeholder behavior. |
+| Compare menu and card proportions in both themes against complete dark closeups; adjust as needed. | Phase 8 | 2x comparisons and current dark screenshots are in [file-card evidence](file-card-2x-evidence/comparison.md); the supplied 42b crop has no dark matrix. |
