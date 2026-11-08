@@ -39,3 +39,15 @@ See [Phase 1–2 comparison](phase1-2-reference-comparison.md) and [side-by-side
 Phase 1 implemented the base tokens, offline fonts, type foundation, focus and reduced-motion styles, retained existing Recharts animation-off settings, and provider-owned theme preference API. The light/dark theme API was verified, but the user-facing Settings UI is still Phase 7 work. The base fixes for findings 01, 03, 05, 07 and 11 do not close the later component work listed above.
 
 Keep the Phase 8 gate open until every applicable ledger item is closed and verified. Phase 8 must also complete the specified screen/state review and contrast checks (including text contrast of at least 4.5:1), confirm no component hex colors or emoji remain where prohibited, and use repository searches to prove compatibility aliases and legacy theme handling have no remaining consumers before removal. Record any item that is still open; do not report the redesign as complete while this ledger has open work.
+
+## Phase 7B footer and app settings follow-up
+
+The candidate comparison is in [phase7b-evidence/comparison.html](phase7b-evidence/comparison.html), with light and dark screenshots of the empty footer, help and settings sheets. Screenshots were captured at 1440 × 900 on the 7B worktree before integration; they do not establish integrated behavior.
+
+| Remaining work | Target phase | Status and evidence |
+| --- | --- | --- |
+| Connect density, palette, line-style and export-theme preferences to their consumers, with live updates and persistence checks. Theme and the experimental pane limit use existing providers; the remaining preferences have an exported contract but do not yet affect the app. | 7E | Deferred; no end-to-end test covers these preference consumers. |
+| Supply target pane type, free cursor coordinates in axis units (Smith Z and Γ), exact armed sentence and active trace/file short name to the footer; verify responsive hiding and context-sensitive hints. | 7E | Partial footer implementation; empty-state captures only. No integrated nonempty, armed or Smith state evidence yet. |
+| Capture and compare the feedback menu and nonempty, armed and Smith footer states in light and dark against 41-F1. Verify the two issue links contain only the intended template, app version and browser/OS. | 7E | Deferred; help and empty footer are captured, but these states and privacy behavior lack dedicated evidence. |
+| Refine settings label/control alignment, switch and icon shapes and spacing against 44-S1; verify token colors against reference values. Verify help keycap treatment and footer link wording against 41-F1. | 7E | Palette swatches and themed controls are present; reference color measurements and remaining visual differences are documented in the comparison. |
+| Verify keyboard guards, sheet focus and Escape behavior, preference reset, and the experimental switch including an existing workspace with more than four panes. Remove unused StatusBar when the integration owner can safely update its file. | 7E | Deferred; existing suite does not specifically cover these behaviors. |
