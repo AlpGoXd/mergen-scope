@@ -1,9 +1,9 @@
 import React from 'react';
 import { useUiState, useUiDispatch } from '../../stores/ui-store';
 import { useMarkerState, useMarkerDispatch } from '../../stores/marker-store';
-import { usePaneState, usePaneDispatch } from '../../stores/pane-store';
+import { usePaneState, usePaneDispatch, usePaneLimit } from '../../stores/pane-store';
 import { useTraceState } from '../../stores/trace-store';
-import { useRefLineState } from '../../stores/ref-line-store';
+import { useRefLineState, useRefLineDispatch } from '../../stores/ref-line-store';
 import { findAbsoluteMax, findAbsoluteMin, findNextLocalExtremum } from '../../domain/markers';
 import { useInteractionMode } from '../../hooks/use-interaction-mode';
 import { Btn } from '../shared/Btn';
@@ -25,12 +25,14 @@ export function ToolbarStrip() {
   const { allTraces, vis } = useTraceState();
   const { markers, selectedMkrIdx, armed } = useMarkerState();
   const { panes, activePaneId, tracePaneMap, paneActiveTraceMap } = usePaneState();
-  const { refMode } = useRefLineState();
+  const { refMode, refLines, selectedRefLineId } = useRefLineState();
+  const refDispatch = useRefLineDispatch();
+  const { limit } = usePaneLimit();
 
   const uiDispatch = useUiDispatch();
   const markerDispatch = useMarkerDispatch();
   const paneDispatch = usePaneDispatch();
-  const { toggleRefPlacement, selectNormal, selectDelta } = useInteractionMode();
+  const { toggleRefPlacement, selectNormal, hint } = useInteractionMode();
 
   const paneTraceNames = React.useMemo(() => Object.entries(tracePaneMap)
     .filter(([, pid]) => pid.includes(activePaneId ?? ''))
@@ -44,8 +46,7 @@ export function ToolbarStrip() {
     ?? null;
   const activeTr = allTraces.find(t => t.name === activeTraceName) ?? null;
 
-  // If no traces have data, hide the toolbar
-  if (!allTraces.some(t => t.data && t.data.length > 0)) return null;
+  if (!showMarkerTools && !showSearchTools && !showLineTools && !showPaneTools) return null;
 
   // --- Peak/Min search handlers ---
   const moveOrPlace = (freq: number, amp: number) => {
@@ -86,117 +87,50 @@ export function ToolbarStrip() {
     moveOrPlace(best.freq, best.amp);
   };
 
-  const group = (title: string, color: string, children: React.ReactNode) => (
-    <div style={{
-      '--group-color': color,
-      display: 'flex',
-      alignItems: 'center',
-      gap: '5px',
-      padding: '5px 10px',
-      border: `1px solid color-mix(in srgb, ${color} 28%, var(--border))`,
-      borderRadius: '10px',
-      background: `color-mix(in srgb, ${color} 7%, var(--card))`,
-      flexWrap: 'wrap',
-    } as React.CSSProperties}>
-      <span style={{ fontSize: '11px', color, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginRight: '3px' }}>
-        {title}
-      </span>
-      {children}
+  const group = (title: string, tone: string, children: React.ReactNode) => (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 8px', minHeight: 32, background: `var(--${tone}-tint)`, flex: '0 0 auto', whiteSpace: 'nowrap' }}>
+      <span style={{ color: `var(--${tone}-ink)`, fontWeight: 700, marginRight: 4 }}>{title}</span>{children}
     </div>
   );
-
-  return (
-    <div style={{
-      display: 'flex',
-      padding: '7px 12px',
-      borderBottom: '1px solid var(--border)',
-      flexShrink: 0,
-      background: 'var(--card)',
-    }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-
-        {showMarkerTools && group("Marker", "var(--marker-color)", (
-          <>
-            <Btn variant="slate" active={armed?.kind === 'normal'} title="Arm a new marker" onClick={selectNormal}>New Marker</Btn>
-            <Btn variant="slate" active={armed?.kind === 'delta'} disabled={!markers.some(marker=>marker.type !== 'delta')} title="Arm a delta from the selected marker" onClick={selectDelta}>New Delta</Btn>
-            <select
-              value={markerTrace}
-              onChange={(e) => uiDispatch({ type: 'SET', payload: { key: 'markerTrace', value: e.target.value } })}
-              style={{ fontSize: '13px', padding: '4px 6px', borderRadius: '7px', border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', minWidth: '80px' }}
-              title="Marker trace (Auto = pick nearest)"
-            >
-              <option value="__auto__">Auto</option>
-              {visiblePaneTraces.map((trace) => {
-                const label = trace.dn || trace.name;
-                const display = label.length > 25
-                  ? label.slice(0, 5) + '...' + label.slice(-12)
-                  : label;
-                return (
-                  <option key={trace.name} value={trace.name} title={label}>
-                    {display}
-                  </option>
-                );
-              })}
-            </select>
-          </>
-        ))}
-
-        {showPaneTools && group("Pane", "var(--pane-color)", (
-          <>
-            <Btn
-              onClick={() => paneDispatch({ type: 'SET_PANE_COUNT', payload: Math.min(4, panes.length + 1) })}
-              disabled={panes.length >= 4}
-              title="Add a pane"
-            >
-              + Pane
-            </Btn>
-            <Btn
-              onClick={() => paneDispatch({ type: 'SET_PANE_COUNT', payload: Math.max(1, panes.length - 1) })}
-              disabled={panes.length <= 1}
-              title="Remove last pane"
-            >
-              - Pane
-            </Btn>
-          </>
-        ))}
-
-        {showSearchTools && group("Search", "var(--search-color)", (
-          <>
-            <Btn title="Find peak" onClick={handlePeak}>Peak</Btn>
-            <Btn title="Find next peak" onClick={handleNextPeak}>Next Peak</Btn>
-            <Btn title="Find min" onClick={handleMin}>Min</Btn>
-            <Btn title="Find next min" onClick={handleNextMin}>Next Min</Btn>
-            <Btn
-              active={true}
-              color="#e8579c"
-              onClick={() => uiDispatch({ type: 'SET', payload: { key: 'searchDirection', value: searchDirection === 'right' ? 'left' : 'right' } })}
-            >
-              {searchDirection === 'right' ? "Dir: L → R" : "Dir: L ← R"}
-            </Btn>
-          </>
-        ))}
-
-        {showLineTools && group("Lines", "var(--lines-color)", (
-          <>
-            <Btn
-              active={refMode === 'v'}
-              title="Toggle V-line placement"
-              onClick={() => toggleRefPlacement('v')}
-            >
-              V-Line
-            </Btn>
-            <Btn
-              active={refMode === 'h'}
-              title="Toggle H-line placement"
-              onClick={() => toggleRefPlacement('h')}
-            >
-              H-Line
-            </Btn>
-          </>
-        ))}
-
-
-      </div>
-    </div>
-  );
+  const normalMarkers = markers.filter(marker => marker.type !== 'delta');
+  const selected = markers[selectedMkrIdx];
+  const selectedLine = refLines.find(line => line.id === selectedRefLineId);
+  const armDelta = (refId: string) => {
+    refDispatch({ type: 'SET_MODE', payload: null });
+    markerDispatch({ type: 'ARM', payload: { kind: 'delta', refId } });
+  };
+  const canSearch = !!activeTr?.data.length;
+  return <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'stretch', borderBottom: '1px solid var(--border)', background: 'var(--panel)', flexShrink: 0 }}>
+    {showMarkerTools && group('Markers', 'marker', <>
+      <label>Trace: <select className="ui-select" style={{ minHeight: 20, height: 20, padding: '0 4px' }} value={markerTrace} onChange={e => uiDispatch({ type: 'SET', payload: { key: 'markerTrace', value: e.target.value } })} title="Auto picks the trace nearest the click">
+        <option value="__auto__">Auto</option>{visiblePaneTraces.map(trace => <option key={trace.name} value={trace.name}>{trace.dn || trace.name}</option>)}
+      </select></label>
+      <Btn small variant="slate" active={!!armed} aria-pressed={!!armed} title="Place a marker (N)" onClick={selectNormal}>+ New</Btn>
+      <details style={{ position: 'relative' }}><summary aria-label="Choose a delta marker reference" title="Choose a delta marker reference" style={{ cursor: 'pointer', listStyle: 'none', padding: '0 4px', border: '1px solid var(--border)', borderRadius: 4 }}>▾</summary>
+        <div style={{ position: 'absolute', zIndex: 20, top: '100%', left: 0, minWidth: 170, background: 'var(--raised)', border: '1px solid var(--border)', padding: 4 }}>
+          {normalMarkers.map((marker, i) => <Btn key={marker.id} small onClick={e => { armDelta(marker.id); e.currentTarget.closest('details')?.removeAttribute('open'); }}>+ Δ from {marker.label || `M${i + 1}`}</Btn>)}
+          <Btn small disabled={!selected || selected.type === 'delta'} title={!selected || selected.type === 'delta' ? 'Select a normal marker first' : 'Place delta from selected marker (Shift+N)'} onClick={e => { if (selected) armDelta(selected.id); e.currentTarget.closest('details')?.removeAttribute('open'); }}>+ Δ from selected</Btn>
+        </div>
+      </details>
+      <span aria-live="polite" style={{ width: 210, color: 'var(--text-muted)' }}>{armed ? hint : ''}</span>
+    </>)}
+    {showSearchTools && group('Search', 'search', <>
+      <Btn small disabled={!canSearch} title={canSearch ? 'Find peak' : 'Select a trace with data'} onClick={handlePeak}>Peak</Btn>
+      <Btn small disabled={!canSearch} title={canSearch ? 'Find next peak' : 'Select a trace with data'} onClick={handleNextPeak}>Next peak</Btn>
+      <Btn small disabled={!canSearch} title={canSearch ? 'Find minimum' : 'Select a trace with data'} onClick={handleMin}>Min</Btn>
+      <Btn small disabled={!canSearch} title={canSearch ? 'Find next minimum' : 'Select a trace with data'} onClick={handleNextMin}>Next min</Btn>
+      <Btn small style={{ borderStyle: 'dashed' }} title="Change search direction" onClick={() => uiDispatch({ type: 'SET', payload: { key: 'searchDirection', value: searchDirection === 'right' ? 'left' : 'right' } })}>{searchDirection === 'right' ? 'Dir L → R' : 'Dir L ← R'}</Btn>
+    </>)}
+    {showLineTools && group('Lines', 'lines', <>
+      <Btn small variant="slate" active={refMode === 'v'} aria-pressed={refMode === 'v'} aria-label="V-Line" title="Place vertical line" onClick={() => toggleRefPlacement('v')}>V line</Btn>
+      <Btn small variant="slate" active={refMode === 'h'} aria-pressed={refMode === 'h'} aria-label="H-Line" title="Place horizontal line" onClick={() => toggleRefPlacement('h')}>H line</Btn>
+      <Btn small variant="chip" tone="lines" active={!!selectedLine?.groupId} disabled={!selectedLine || selectedLine.type !== 'v'} title={!selectedLine ? 'Select a vertical line first' : selectedLine.type !== 'v' ? 'Only vertical lines can be linked' : 'Link selected line across panes'} onClick={() => { if (!selectedLine) return; refDispatch(selectedLine.groupId ? { type: 'UNLOCK_LINE', payload: { lineId: selectedLine.id } } : { type: 'LOCK_LINE', payload: { lineId: selectedLine.id, allPaneIds: panes.map(pane => pane.id) } }); }}>Link</Btn>
+      <span aria-live="polite" style={{ width: 150, color: 'var(--text-muted)' }}>{refMode ? hint : ''}</span>
+    </>)}
+    {showPaneTools && group('Pane', 'pane', <>
+      <Btn small disabled title="Layout presets will be available after integration">Layout: Rows ▾</Btn>
+      <Btn small disabled={panes.length >= limit} title={panes.length >= limit ? `Maximum ${limit} panes` : 'Add a pane'} onClick={() => paneDispatch({ type: 'SET_PANE_COUNT', payload: panes.length + 1, limit })}>+ Pane</Btn>
+      <Btn small title="Fit all panes" onClick={() => paneDispatch({ type: 'CLEAR_ALL_ZOOMS' })}>Fit all</Btn>
+    </>)}
+  </div>;
 }
