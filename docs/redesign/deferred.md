@@ -96,4 +96,4 @@ Light and dark populated network, CSV and error captures and comparisons are in 
 | Remaining work | Target phase | Status |
 | --- | --- | --- |
 | Wire Replace and Rename to their real workflows and verify their data preservation and undo behavior. | Phase 7D / 7E | Disabled with explanations; no placeholder behavior. |
-| Compare menu and card proportions in both themes against complete dark closeups; adjust as needed. | Phase 8 | 2x comparisons and current dark screenshots are in [file-card evidence](file-card-2x-evidence/comparison.md); the supplied 42b crop has no dark matrix. |
+| Compare menu and card proportions in both themes against complete dark closeups; adjust as needed. | Phase 8 | Card and menu evidence remains in [file-card evidence](file-card-2x-evidence/comparison.md). The dark Matrix comparison is complete in [Matrix 2x evidence](dark-matrix-2x-evidence/comparison.md). |

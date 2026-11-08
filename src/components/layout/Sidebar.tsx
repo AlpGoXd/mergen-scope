@@ -277,9 +277,10 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
 
                 {isMatrixTab && file.touchstoneNetwork && (
                   <div
+                    data-testid="matrix-controls"
                     style={{
                       display: 'grid',
-                      gap: '3px',
+                      gap: '4px',
                       padding: '2px 0 5px',
                     }}
                   >
@@ -293,7 +294,7 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
                           title={family === 'ABCD' && file.touchstoneNetwork?.portCount !== 2 ? '2-port only' : family}
                           onClick={() => setActiveFamily(fileId, family)}
                           className={touchstoneState.activeFamily === family ? 'btn-active' : 'btn'}
-                          style={{ padding: '0 5px', minHeight: 20, borderRadius: 0, fontSize: 'var(--font-caption)', lineHeight: '16px', minWidth: 0, marginRight: -1 }}
+                          style={{ padding: '0 5px', minHeight: 20, borderRadius: 0, fontSize: 'var(--font-caption)', lineHeight: '16px', minWidth: 0, marginRight: -1, ...(theme === 'dark' && touchstoneState.activeFamily === family ? { background: 'color-mix(in srgb, var(--accent) 20%, var(--panel))', borderColor: 'var(--border)' } : {}) }}
                         >
                           {family}
                         </button>
@@ -302,14 +303,14 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
 
                     <div style={{ display: 'flex', gap: 0, alignItems: 'center', minWidth: 0 }}>
                       <span style={{ ...subsectionLabelStyle, width: 50, flexShrink: 0 }}>Plot as</span>
-                      <div style={{ display: 'flex', gap: 0, alignItems: 'center', minWidth: 0 }}>
+                      <div style={{ display: 'flex', columnGap: 0, rowGap: 4, flexWrap: 'wrap', alignItems: 'center', minWidth: 0 }}>
                         {availableViews.map((view) => (
                           <button
                             key={view}
                             type="button"
                             onClick={() => setActiveView(fileId, activeFamily, view)}
                             className={activeView === view ? 'btn-active' : 'btn'}
-                            style={{ padding: '0 5px', minHeight: 20, borderRadius: 0, fontSize: 'var(--font-caption)', lineHeight: '16px', minWidth: 0, marginRight: -1 }}
+                            style={{ padding: '0 5px', minHeight: 20, borderRadius: 0, fontSize: 'var(--font-caption)', lineHeight: '16px', minWidth: 0, marginRight: -1, ...(theme === 'dark' && activeView === view ? { background: 'color-mix(in srgb, var(--accent) 20%, var(--panel))', borderColor: 'var(--border)' } : {}) }}
                           >
                             {view === 'Real' ? 'Re' : view === 'Imag' ? 'Im' : view}
                           </button>
@@ -375,15 +376,19 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
                         }
                         return map;
                       })()}
+                      dark={theme === 'dark'}
                       otherCells={(() => {
-                        const cells = new Set<string>();
+                        const cells: Record<string, string> = {};
                         const component = ({ dB: 'magnitude-db', Mag: 'magnitude-linear', Phase: 'phase', Real: 'real', Imag: 'imag', VSWR: 'vswr', 'Return loss': 'return-loss', 'Group delay': 'group-delay' } as const)[activeView];
                         for (const display of file.displayTraces ?? []) {
                           const source = display.source;
                           if (display.hidden || source.sourceType !== 'network-parameter' || source.parameterFamily !== activeFamily) continue;
                           const name = display.compat?.legacyTraceName ?? display.id;
                           const memberships = tracePaneMap[name] ?? [];
-                          if (memberships.some(id => id !== activePaneId) || (memberships.length && source.component !== component)) cells.add(`${source.row + 1}:${source.col + 1}`);
+                          if (memberships.some(id => id !== activePaneId) || (memberships.length && source.component !== component)) {
+                            const trace = allTraces.find(item => item.name === name);
+                            if (trace) cells[`${source.row + 1}:${source.col + 1}`] = resolveTraceColor(trace, allTraces.indexOf(trace));
+                          }
                         }
                         return cells;
                       })()}
