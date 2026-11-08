@@ -17,7 +17,7 @@ export function TouchstoneMatrixPicker({ portCount, family, onToggle, view, cell
   const [col, setCol] = useState(1);
   const [showGrid, setShowGrid] = useState(false);
   const label = (r: number, c: number) => `${family}${r}${portCount >= 10 ? ',' : ''}${c}`;
-  const grid = <div data-matrix style={{ display: 'grid', gap: 4, minWidth: portCount > 8 ? portCount * 35 : undefined }}>
+  const grid = <div data-matrix style={{ display: 'grid', gap: 4, marginLeft: portCount <= 8 ? 46 : 0, minWidth: portCount > 8 ? portCount * 35 : undefined }}>
     {Array.from({ length: portCount }, (_, r) => <div key={r} style={{ display: 'grid', gridTemplateColumns: `repeat(${portCount}, minmax(0, 1fr))`, gap: 4 }}>
       {Array.from({ length: portCount }, (_, c) => {
         const key = `${r + 1}:${c + 1}`;
@@ -26,7 +26,7 @@ export function TouchstoneMatrixPicker({ portCount, family, onToggle, view, cell
         return <button data-testid={`touchstone-cell-${family}${r + 1}${c + 1}`} key={key} type="button" onClick={() => onToggle(r, c, view)} aria-pressed={!!color} disabled={!!reason}
           title={reason ?? `${label(r + 1, c + 1)} - ${view}`}
           onKeyDown={event => { const delta = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : event.key === 'ArrowDown' ? portCount : event.key === 'ArrowUp' ? -portCount : 0; if (!delta) return; event.preventDefault(); const buttons = Array.from(event.currentTarget.closest('[data-matrix]')?.querySelectorAll<HTMLButtonElement>('button[data-testid]') ?? []); buttons[Math.max(0, Math.min(buttons.length - 1, r * portCount + c + delta))]?.focus(); }}
-          style={{ border: selectedCell === key ? '2px solid var(--accent)' : `1px solid ${color ? `color-mix(in srgb, ${color} 45%, var(--border))` : 'var(--border)'}`, background: color ? `color-mix(in srgb, ${color} 12%, var(--bg))` : 'transparent', color: color ?? 'var(--text)', fontSize: 'var(--font-label)', borderRadius: 6, padding: '4px 2px', cursor: reason ? 'not-allowed' : 'pointer', position: 'relative', fontWeight: color ? 700 : 400 }}>
+          style={{ border: selectedCell === key ? '2px solid var(--accent)' : `1px solid ${color ? `color-mix(in srgb, ${color} 45%, var(--border))` : 'var(--border)'}`, background: color ? `color-mix(in srgb, ${color} 12%, var(--bg))` : 'transparent', color: color ?? 'var(--text)', fontSize: `${Math.max(9, 12 - Math.max(0, portCount - 2) * 0.5)}px`, borderRadius: 6, padding: '4px 2px', cursor: reason ? 'not-allowed' : 'pointer', position: 'relative', fontWeight: color ? 700 : 400 }}>
           {otherCells.has(key) && <span aria-label="Also plotted elsewhere or in another view" style={{ position: 'absolute', right: 3, top: 3, width: 5, height: 5, borderRadius: '50%', background: 'var(--accent)' }} />}
           {label(r + 1, c + 1)}
         </button>;
