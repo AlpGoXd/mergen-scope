@@ -97,7 +97,7 @@ function initializeNetworkFile(file: RawFileRecord): RawFileRecord {
   const identified = {...file,datasets:[source]};
   const selection = makeDefaultTouchstoneState(identified);
   const initialized = reconcileTouchstoneFileSelections(identified, selection);
-  return {...initialized, matrixOpen:file.touchstoneNetwork.portCount >= 3, touchstoneControls:{activeFamily:selection.activeFamily,activeViewByFamily:selection.activeViewByFamily}};
+  return {...initialized, matrixOpen:true, touchstoneControls:{activeFamily:selection.activeFamily,activeViewByFamily:selection.activeViewByFamily}};
 }
 
 export const FileStateContext = createContext<FileState | null>(null);

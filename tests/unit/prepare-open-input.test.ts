@@ -21,9 +21,15 @@ describe('prepareOpenInput', () => {
       const result = prepare(ports); expect(result.ok).toBe(true); if (!result.ok) continue;
       expect(result.selection.kind).toBe('network');
       expect(result.file.traces).toHaveLength(ports === 3 ? 0 : ports);
-      expect(result.file.matrixOpen).toBe(ports === 3);
+      expect(result.file.matrixOpen).toBe(true);
       expect(result.file.datasets?.[0]?.fileId).toBe(`new-${ports}`);
     }
+  });
+  it('preserves a closed matrix when replacing a network file', () => {
+    const first = prepare(2); if (!first.ok) throw Error(first.reason);
+    const next = prepare(2, { ...first.file, matrixOpen: false });
+    if (!next.ok) throw Error(next.reason);
+    expect(next.file.matrixOpen).toBe(false);
   });
   it('regenerates nondefault hidden and unplaced views, preserving identities after rename', () => {
     const first = prepare(2); if (!first.ok) throw Error(first.reason);

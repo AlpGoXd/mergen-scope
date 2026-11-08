@@ -275,7 +275,8 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
                         onClick={() => fileDispatch({ type: 'SET_MATRIX_OPEN', payload: { fileId, open: !isMatrixTab } })}
                         className={isMatrixTab ? 'btn-active' : 'btn'}
                         style={{ padding: compactSidebar ? '2px 6px' : '4px 8px', fontSize: 'var(--font-caption)' }}
-                        title="Show network parameter tools"
+                        aria-expanded={isMatrixTab}
+                        title={isMatrixTab ? 'Hide network parameter tools' : 'Show network parameter tools'}
                       >
                         Matrix
                       </button>
@@ -426,7 +427,7 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
 
                 {isMetaTab && <MetadataPanel meta={file.meta} raw={rawFileData[fileId] ?? ''} compact={compactSidebar} />}
 
-                {hiddenViewCount > 0 && (
+                {!file.touchstoneNetwork && hiddenViewCount > 0 && (
                   <div
                     style={{
                       display: 'grid',

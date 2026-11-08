@@ -161,7 +161,7 @@ export function prepareOpenInput(input: PrepareOpenInput): PreparedOpenInput {
       if (!fresh || !add(key, fresh)) return fail(`Network projection ${label} cannot be regenerated.`);
     }
     selection = { kind: 'network', ports: source.portCount, s11: refs.get(networkKey(s11)), s21: refs.get(networkKey(s21)) };
-    file = { ...file, datasets, displayTraces: displays, traces, matrixOpen: prior?.matrixOpen ?? source.portCount >= 3 };
+    file = { ...file, datasets, displayTraces: displays, traces, matrixOpen: prior?.matrixOpen ?? true };
     return { ok: true, file, rawText: input.rawText, selection, replacementMatches: [...oldByKey.keys()].flatMap(key => refs.get(key) ? [refs.get(key) as OpenTrace] : []), removedKeys };
   }
   if (oldDisplays.some(d => d.source.sourceType === 'network-parameter')) return fail('Prior and new source types do not match.');

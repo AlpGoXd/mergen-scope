@@ -42,7 +42,6 @@ test('matrix creates a new view in the target pane and marks other views', async
   await page.getByTestId('empty-chart-file-input').setInputFiles(resolve(process.cwd(), 'test files/cascaded chain.s2p'));
   await page.getByRole('button', { name: '+ Pane', exact: true }).click();
   await page.getByTestId('chart-pane-pane-2').getByRole('button', { name: 'Set Target' }).click();
-  await page.getByRole('button', { name: 'Matrix', exact: true }).click();
   await page.getByTestId('touchstone-cell-S12').click();
   const row = page.locator('[data-testid^="trace-row-"]').filter({ hasText: 'S12' });
   await expect(row).toContainText('P2');
@@ -54,7 +53,6 @@ test('matrix creates a new view in the target pane and marks other views', async
 test('matrix offers ABCD and reflection-only network views', async ({ page }) => {
   await page.goto('/app.html');
   await page.getByTestId('empty-chart-file-input').setInputFiles(resolve(process.cwd(), 'test files/cascaded chain.s2p'));
-  await page.getByRole('button', { name: 'Matrix', exact: true }).click();
   await page.getByRole('button', { name: 'ABCD', exact: true }).click();
   await page.getByTestId('touchstone-cell-ABCD11').click();
   await expect(page.locator('[data-testid^="trace-row-"]').filter({ hasText: 'ABCD11' })).toBeVisible();
