@@ -1,0 +1,310 @@
+{
+  "version": 4,
+  "files": [
+    {
+      "id": "file-rf",
+      "fileName": "rf-sweep.csv",
+      "meta": {
+        "Instrument": "synthetic fixture"
+      },
+      "traces": [
+        {
+          "id": "trace-rf-main",
+          "kind": "raw",
+          "sourceTraceIds": [
+            "trace-rf-main"
+          ],
+          "operationType": null,
+          "parameters": null,
+          "units": {
+            "x": "Hz",
+            "y": "dBm"
+          },
+          "paneId": null,
+          "name": "RF_Main_1",
+          "mode": "",
+          "detector": "",
+          "family": "spectrum",
+          "domain": "frequency",
+          "data": [
+            {
+              "freq": 1000000000,
+              "amp": -80
+            },
+            {
+              "freq": 1500000000,
+              "amp": -45
+            },
+            {
+              "freq": 2000000000,
+              "amp": -78
+            }
+          ],
+          "file": "rf-sweep.csv",
+          "dn": "Main spectrum",
+          "fileId": "file-rf",
+          "fileName": "rf-sweep.csv"
+        },
+        {
+          "id": "trace-rf-spur",
+          "kind": "raw",
+          "sourceTraceIds": [
+            "trace-rf-spur"
+          ],
+          "operationType": null,
+          "parameters": null,
+          "units": {
+            "x": "Hz",
+            "y": "dBm"
+          },
+          "paneId": null,
+          "name": "RF_Spur_1",
+          "mode": "",
+          "detector": "",
+          "family": "spectrum",
+          "domain": "frequency",
+          "data": [
+            {
+              "freq": 1000000000,
+              "amp": -90
+            },
+            {
+              "freq": 1500000000,
+              "amp": -70
+            },
+            {
+              "freq": 2000000000,
+              "amp": -91
+            }
+          ],
+          "file": "rf-sweep.csv",
+          "dn": "Spur",
+          "fileId": "file-rf",
+          "fileName": "rf-sweep.csv"
+        }
+      ],
+      "format": "tabular"
+    },
+    {
+      "id": "file-time",
+      "fileName": "scope.csv",
+      "meta": {
+        "Instrument": "synthetic fixture"
+      },
+      "traces": [
+        {
+          "id": "trace-time-ch1",
+          "kind": "raw",
+          "sourceTraceIds": [
+            "trace-time-ch1"
+          ],
+          "operationType": null,
+          "parameters": null,
+          "units": {
+            "x": "s",
+            "y": "V"
+          },
+          "paneId": null,
+          "name": "CH1_1",
+          "mode": "",
+          "detector": "",
+          "family": "waveform",
+          "domain": "time",
+          "data": [
+            {
+              "freq": 0,
+              "amp": 0.1
+            },
+            {
+              "freq": 1e-06,
+              "amp": 0.8
+            },
+            {
+              "freq": 2e-06,
+              "amp": -0.2
+            }
+          ],
+          "file": "scope.csv",
+          "dn": "CH1",
+          "fileId": "file-time",
+          "fileName": "scope.csv"
+        }
+      ],
+      "format": "tabular"
+    }
+  ],
+  "datasets": [],
+  "displayTraces": [],
+  "derivedTraces": [],
+  "vis": {
+    "RF_Main_1": true,
+    "RF_Spur_1": true,
+    "CH1_1": true
+  },
+  "paneMode": 3,
+  "panes": [
+    {
+      "id": "pane-a",
+      "title": "RF custom",
+      "renderMode": "cartesian",
+      "settings": {
+        "gridMajor": true,
+        "gridMinor": false,
+        "gridMajorThickness": 1,
+        "gridMinorThickness": 0.5,
+        "gridMajorOpacity": 0.25,
+        "gridMinorOpacity": 0.15,
+        "gridDashStyle": "3 3",
+        "showMarkers": true,
+        "showReferenceLines": true,
+        "showLineLabels": true,
+        "showMarkerLabels": true
+      }
+    },
+    {
+      "id": "pane-k",
+      "title": "RF copy",
+      "renderMode": "cartesian",
+      "settings": {
+        "gridMajor": true,
+        "gridMinor": false,
+        "gridMajorThickness": 1,
+        "gridMinorThickness": 0.5,
+        "gridMajorOpacity": 0.25,
+        "gridMinorOpacity": 0.15,
+        "gridDashStyle": "3 3",
+        "showMarkers": true,
+        "showReferenceLines": true,
+        "showLineLabels": true,
+        "showMarkerLabels": true
+      }
+    },
+    {
+      "id": "pane-z",
+      "title": "Time custom",
+      "renderMode": "cartesian",
+      "settings": {
+        "gridMajor": true,
+        "gridMinor": false,
+        "gridMajorThickness": 1,
+        "gridMinorThickness": 0.5,
+        "gridMajorOpacity": 0.25,
+        "gridMinorOpacity": 0.15,
+        "gridDashStyle": "3 3",
+        "showMarkers": true,
+        "showReferenceLines": true,
+        "showLineLabels": true,
+        "showMarkerLabels": true
+      }
+    }
+  ],
+  "paneRenderModes": {
+    "pane-a": "cartesian",
+    "pane-z": "cartesian",
+    "pane-k": "cartesian"
+  },
+  "activePaneId": "pane-z",
+  "traceAssignments": {
+    "RF_Main_1": "pane-a",
+    "RF_Spur_1": "pane-k",
+    "CH1_1": "pane-missing"
+  },
+  "paneActiveTraceMap": {
+    "pane-a": "RF_Main_1",
+    "pane-z": null,
+    "pane-k": "RF_Spur_1"
+  },
+  "xZoomState": {
+    "zoomAll": false,
+    "sharedZoom": null,
+    "paneXZooms": {}
+  },
+  "yZoomState": {
+    "paneYZooms": {}
+  },
+  "ui": {
+    "showSidebar": true,
+    "showDetailedFiles": true,
+    "showRightPanel": true,
+    "showMeta": false,
+    "showMarkers": true,
+    "showMarkerTools": false,
+    "showPaneTools": false,
+    "showSearchTools": false,
+    "showLineTools": false,
+    "showViewTools": false,
+    "showDots": true,
+    "showDT": false,
+    "theme": "glass",
+    "lockLinesAcrossPanes": false,
+    "searchDirection": "left",
+    "newMarkerArmed": false,
+    "markerTrace": "RF_Main_1",
+    "selectedMkrIdx": 1,
+    "dRef": null,
+    "refMode": null,
+    "selectedRefLineId": null,
+    "showTouchstoneControls": false,
+    "showTraceOps": false,
+    "showImportExportPanel": false,
+    "traceOpsOpenSections": {
+      "offset": false,
+      "scale": false,
+      "smoothing": false,
+      "subtract": false
+    },
+    "showAnalysisPanel": false,
+    "noiseFilter": "gaussian",
+    "noiseSource": null,
+    "ip3Gain": "",
+    "dtTrace": null,
+    "traceColors": {
+      "RF_Main_1": "#3366aa"
+    },
+    "traceInterpolations": {}
+  },
+  "markers": [
+    {
+      "requestedFreq": 1100000000,
+      "freq": 1100000000,
+      "amp": -75,
+      "trace": "RF_Main_1",
+      "type": "normal",
+      "label": "M1",
+      "refIdx": null,
+      "interpolated": false
+    },
+    {
+      "requestedFreq": 1500000000,
+      "freq": 1500000000,
+      "amp": -45,
+      "trace": "RF_Main_1",
+      "type": "delta",
+      "label": "D1",
+      "refIdx": 0,
+      "interpolated": false
+    }
+  ],
+  "refLines": [
+    {
+      "id": 101,
+      "type": "v",
+      "value": 1500000000,
+      "paneId": "pane-a",
+      "groupId": "legacy-link-9",
+      "label": "V1"
+    },
+    {
+      "id": 102,
+      "type": "v",
+      "value": 1500000000,
+      "paneId": "pane-k",
+      "groupId": "legacy-link-9",
+      "label": "V1"
+    }
+  ],
+  "savedNoise": [],
+  "savedIP3": [],
+  "analysisOpenState": {},
+  "selectedTraceName": "RF_Main_1"
+}

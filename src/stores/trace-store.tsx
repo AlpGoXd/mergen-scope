@@ -14,6 +14,7 @@ export interface TraceState {
 
 export interface TraceContextValue extends TraceState {
   allTraces: Trace[];
+  allKnownTraces: Trace[];
   allDatasets: Dataset[];
   allDisplayTraces: DisplayTrace[];
 }
@@ -28,15 +29,15 @@ export type TraceAction =
   | { type: 'SET_ALL_VISIBILITY'; visible: boolean }
   | { type: 'RESTORE'; payload: { derivedTraces: Trace[]; vis: Record<string, boolean> } };
 
-const defaultState: TraceState = {
+export const defaultTraceState: TraceState = {
   derivedTraces: [],
   vis: {},
 };
 
-const TraceStateContext = createContext<TraceContextValue | null>(null);
-const TraceDispatchContext = createContext<React.Dispatch<TraceAction> | null>(null);
+export const TraceStateContext = createContext<TraceContextValue | null>(null);
+export const TraceDispatchContext = createContext<React.Dispatch<TraceAction> | null>(null);
 
-function traceReducer(state: TraceState, action: TraceAction): TraceState {
+export function traceReducer(state: TraceState, action: TraceAction): TraceState {
   switch (action.type) {
     case 'ADD_DERIVED': {
       return { ...state, derivedTraces: [...state.derivedTraces, action.payload] };
@@ -102,23 +103,14 @@ function traceReducer(state: TraceState, action: TraceAction): TraceState {
 }
 
 export function TraceStoreProvider({ children }: { children: React.ReactNode }) {
-  const [state, dispatch] = useReducer(traceReducer, defaultState);
+  const [state, dispatch] = useReducer(traceReducer, defaultTraceState);
 
   // Consume from FileStore
   const fileState = useFileState();
 
-  const rawTraces = useMemo(() => {
-    return fileState.files.flatMap((file) => {
-      if (file.datasets && file.displayTraces) {
-        return adaptDisplayTracesToLegacyTraces(
-          file.datasets,
-          file.displayTraces.filter((displayTrace) => !displayTrace.hidden),
-          file,
-        );
-      }
-      return file.traces;
-    });
-  }, [fileState.files]);
+  const rawKnownTraces = useMemo(() => fileState.files.flatMap(file => file.datasets?.length && file.displayTraces ? adaptDisplayTracesToLegacyTraces(file.datasets, file.displayTraces, file) : file.traces), [fileState.files]);
+  const hiddenIds = useMemo(() => new Set(fileState.files.flatMap(file => (file.displayTraces ?? []).filter(display => display.hidden).map(display => display.id))), [fileState.files]);
+  const rawTraces = useMemo(() => rawKnownTraces.filter(trace => !hiddenIds.has(trace.id)), [rawKnownTraces, hiddenIds]);
 
   const allDatasets = useMemo(() => {
     return fileState.files.flatMap((file) => file.datasets ?? []);
@@ -130,8 +122,8 @@ export function TraceStoreProvider({ children }: { children: React.ReactNode }) 
 
   // Reconcile derived traces whenever raw traces change
   useEffect(() => {
-    dispatch({ type: 'RECONCILE', payload: rawTraces });
-  }, [rawTraces]);
+    dispatch({ type: 'RECONCILE', payload: rawKnownTraces });
+  }, [rawKnownTraces]);
 
   useEffect(() => {
     rawTraces.forEach((trace) => {
@@ -145,10 +137,11 @@ export function TraceStoreProvider({ children }: { children: React.ReactNode }) 
     return {
       ...state,
       allTraces: [...rawTraces, ...state.derivedTraces],
+      allKnownTraces: [...rawKnownTraces, ...state.derivedTraces],
       allDatasets,
       allDisplayTraces,
     };
-  }, [state, rawTraces, allDatasets, allDisplayTraces]);
+  }, [state, rawTraces, rawKnownTraces, allDatasets, allDisplayTraces]);
 
   return (
     <TraceDispatchContext.Provider value={dispatch}>

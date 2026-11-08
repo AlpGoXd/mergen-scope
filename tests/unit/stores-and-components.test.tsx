@@ -38,6 +38,15 @@ describe("store and component behavior", () => {
     expect(state.wizardQueue[0]?.suggestedConfig?.confidence).toBeLessThan(0.8);
   });
 
+  it("reopens the wizard using the actual previous column configuration", () => {
+    const queued = fileReducer(defaultFileState, {type: "QUEUE_WIZARD", payload: {id: "ambiguous", fileName: "ambiguous.csv", rawText: "1,2,3\n2,3,4\n"}});
+    const config = {delimiter: ",", skipRows: 0, xCol: 0, yCols: [2], xMult: 1, yMult: 1, domain: "time" as const, confidence: 1, headers: []};
+    const imported = fileReducer(queued, {type: "RESOLVE_WIZARD", payload: {id: "ambiguous", config}});
+    expect(imported.files[0]?.wizardConfig).toEqual(config);
+    const reopened = fileReducer(imported, {type: "RERUN_WIZARD", payload: {fileId: "ambiguous", fileName: "ambiguous.csv"}});
+    expect(reopened.wizardQueue[0]?.suggestedConfig).toEqual(config);
+  });
+
   it("pane reducer assigns compatible traces and rejects mixed domains", () => {
     const frequencyTrace = makeTestTrace({ name: "freq" });
     const timeTrace = makeTestTrace({ name: "time", domain: "time", family: "waveform", units: { x: "s", y: "V" } });
@@ -50,7 +59,7 @@ describe("store and component behavior", () => {
       payload: { trace: timeTrace, targetPaneId: "pane-1", allTraces: [frequencyTrace, timeTrace] },
     });
 
-    expect(assigned.tracePaneMap[frequencyTrace.name]).toBe("pane-1");
+    expect(assigned.tracePaneMap[frequencyTrace.name]).toEqual(["pane-1"]);
     expect(rejected.tracePaneMap[timeTrace.name]).toBeUndefined();
   });
 

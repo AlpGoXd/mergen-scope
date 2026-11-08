@@ -61,7 +61,7 @@ export function classify(fileText: string, fileName: string): FileClassification
     }
   }
 
-  const isTabular = ext === "csv" || ext === "txt" || ext === "dat";
+  const isTabular = ext === "csv" || ext === "tsv" || ext === "txt" || ext === "dat";
 
   return {
     domain: likelyDomain,
@@ -69,3 +69,4 @@ export function classify(fileText: string, fileName: string): FileClassification
     confidence: conf,
   };
 }
+

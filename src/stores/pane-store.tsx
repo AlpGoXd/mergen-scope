@@ -1,20 +1,19 @@
-import React, { createContext, useContext, useReducer, useEffect } from 'react';
+import React, { createContext, useContext, useReducer, useEffect, useCallback, useState } from 'react';
 import type { Pane, PaneRenderMode, PaneSettings, YDomain } from '../types/pane';
 import type { Trace } from '../types/trace';
+import type { DisplayTrace } from '../types/display';
 import type { ZoomWindow } from '../types/marker';
-import { 
-  buildPanes, 
-  normalizePanes, 
-  normalizeTracePaneMap, 
-  normalizePaneActiveTraceMap, 
-  canAssignTraceToPane
-} from '../domain/pane-math';
+import { buildPanes } from '../domain/pane-math';
+import { canPlaceMembership, normalizeMemberships, planPaneRemoval, planPaneTypeChange } from '../domain/pane-placement';
+import type { PlacementTrace } from '../domain/pane-placement';
 import { useTraceState } from './trace-store';
+import { useUiDispatch } from './ui-store';
 import { useRefLineDispatch } from './ref-line-store';
 
 export interface PaneState {
   panes: Pane[];
-  tracePaneMap: Record<string, string>;
+  tracePaneMap: Record<string, string[]>;
+  issuedPaneIds: string[];
   paneActiveTraceMap: Record<string, string | null>;
   activePaneId: string | null;
   // Zoom/Scaling state
@@ -25,11 +24,14 @@ export interface PaneState {
 }
 
 export type PaneAction =
-  | { type: 'SET_PANE_COUNT'; payload: number }
-  | { type: 'ASSIGN_TRACE_TO_PANE'; payload: { trace: Trace; targetPaneId: string; allTraces: Trace[] } }
+  | { type: 'SET_PANE_COUNT'; payload: number; traces?: PlacementTrace[]; limit?: 4 | 8; confirmed?: boolean }
+  | { type: 'ADD_MEMBERSHIP'; payload: { trace: Trace; targetPaneId: string; allTraces: Trace[]; displayTraces?: readonly DisplayTrace[] } }
+  | { type: 'MOVE_MEMBERSHIP'; payload: { trace: Trace; fromPaneId: string; targetPaneId: string; allTraces: Trace[]; displayTraces?: readonly DisplayTrace[] } }
+  | { type: 'REMOVE_MEMBERSHIP'; payload: { traceName: string; paneId: string } }
+  | { type: 'ASSIGN_TRACE_TO_PANE'; payload: { trace: Trace; targetPaneId: string; allTraces: Trace[]; displayTraces?: readonly DisplayTrace[] } }
   | { type: 'SET_ACTIVE_PANE'; payload: string | null }
   | { type: 'SET_PANE_ACTIVE_TRACE'; payload: { paneId: string; traceName: string | null } }
-  | { type: 'SET_RENDER_MODE'; payload: { paneId: string; mode: PaneRenderMode } }
+  | { type: 'SET_RENDER_MODE'; payload: { paneId: string; mode: PaneRenderMode; traces?: PlacementTrace[]; confirmed?: boolean } }
   | { type: 'SET_PANE_TITLE'; payload: { paneId: string; title: string } }
   | { type: 'SET_ZOOM_ALL'; payload: boolean }
   | { type: 'SET_SHARED_ZOOM'; payload: ZoomWindow | null | ((prev: ZoomWindow | null) => ZoomWindow | null) }
@@ -43,6 +45,7 @@ export type PaneAction =
 export const defaultPaneState: PaneState = {
   panes: buildPanes(1),
   tracePaneMap: {},
+  issuedPaneIds: ['pane-1'],
   paneActiveTraceMap: { 'pane-1': null },
   activePaneId: 'pane-1',
   zoomAll: true,
@@ -51,62 +54,46 @@ export const defaultPaneState: PaneState = {
   paneYZooms: {},
 };
 
-const PaneStateContext = createContext<PaneState | null>(null);
-const PaneDispatchContext = createContext<React.Dispatch<PaneAction> | null>(null);
+export const PaneLimitContext = createContext<{ limit: 4 | 8; setExperimental: (enabled: boolean) => void } | null>(null);
+export const PaneStateContext = createContext<PaneState | null>(null);
+export const PaneDispatchContext = createContext<React.Dispatch<PaneAction> | null>(null);
 
 export function paneReducer(state: PaneState, action: PaneAction): PaneState {
   switch (action.type) {
     case 'SET_PANE_COUNT': {
-      const mode = action.payload;
-      const nextPanes = normalizePanes(state.panes, mode);
-      
-      // Traces of removed panes keep their stale pane id here; the provider's RECONCILE
-      // (it has allTraces) moves them to a pane of the same domain and rebuilds the active-trace map.
-      const validPaneIds = new Set(nextPanes.map(p => p.id));
-      const nextActiveMap = { ...state.paneActiveTraceMap };
-      for (const pid of Object.keys(nextActiveMap)) {
-        if (!validPaneIds.has(pid)) delete nextActiveMap[pid];
+      const requested = Math.max(1, Math.min(8, Math.round(action.payload)));
+      if (requested > state.panes.length && requested > (action.limit ?? 4)) return state;
+      const count = requested;
+      if (count === state.panes.length) return state;
+      if (count > state.panes.length) {
+        const panes = [...state.panes]; const issued = new Set(state.issuedPaneIds);
+        while (panes.length < count) { let n = 1; while (issued.has(`pane-${n}`)) n++; const id = `pane-${n}`; issued.add(id); const target = panes.find(p => p.id === state.activePaneId) ?? panes[0]; if (!target) return state; panes.push({ ...target, id, title: '', settings: { ...target.settings } }); }
+        return { ...state, panes, issuedPaneIds: [...issued] };
       }
-      // Pane ids are reused (pane-1..pane-N), so a re-added pane must not inherit an old zoom.
-      const keepValid = <T,>(zooms: Record<string, T>) =>
-        Object.fromEntries(Object.entries(zooms).filter(([pid]) => validPaneIds.has(pid)));
-
-      let nextActivePaneId = state.activePaneId;
-      if (nextActivePaneId && !validPaneIds.has(nextActivePaneId)) {
-        nextActivePaneId = 'pane-1';
-      }
-
-      return {
-        ...state,
-        panes: nextPanes,
-        paneActiveTraceMap: nextActiveMap,
-        activePaneId: nextActivePaneId,
-        paneXZooms: keepValid(state.paneXZooms),
-        paneYZooms: keepValid(state.paneYZooms),
-      };
+      const removed = state.panes.slice(count).map(p => p.id);
+      if (!action.traces && Object.values(state.tracePaneMap).some(ids => ids.some(id => removed.includes(id)))) return state;
+      const plan = planPaneRemoval(state.panes, action.traces ?? [], removed); if (!plan.ok || (plan.plan.unplaced.length > 0 && !action.confirmed)) return state;
+      const panes = state.panes.filter(p => !removed.includes(p.id)); const valid = new Set(panes.map(p => p.id));
+      const keep = <T,>(map: Record<string,T>) => Object.fromEntries(Object.entries(map).filter(([id]) => valid.has(id)));
+      return { ...state, panes, tracePaneMap: Object.fromEntries(Object.entries({...state.tracePaneMap,...plan.plan.memberships}).map(([name, ids]) => [name, [...ids]])), activePaneId: state.activePaneId && valid.has(state.activePaneId) ? state.activePaneId : panes[0]?.id ?? null, paneActiveTraceMap: keep(state.paneActiveTraceMap), paneXZooms: keep(state.paneXZooms), paneYZooms: keep(state.paneYZooms) };
     }
-    case 'ASSIGN_TRACE_TO_PANE': {
-      const { trace, targetPaneId, allTraces } = action.payload;
-      
-      const validation = canAssignTraceToPane(trace, targetPaneId, allTraces, state.tracePaneMap);
-      if (!validation.allowed) {
-        console.warn(`Cannot assign trace to pane: ${validation.reason}`);
-        return state;
-      }
-
-      const nextTracePaneMap = { ...state.tracePaneMap, [trace.name]: targetPaneId };
-      const nextPaneActiveTraceMap = normalizePaneActiveTraceMap(
-        allTraces, 
-        nextTracePaneMap, 
-        state.panes, 
-        state.paneActiveTraceMap
-      );
-
-      return {
-        ...state,
-        tracePaneMap: nextTracePaneMap,
-        paneActiveTraceMap: nextPaneActiveTraceMap,
-      };
+    case 'ASSIGN_TRACE_TO_PANE':
+    case 'ADD_MEMBERSHIP':
+    case 'MOVE_MEMBERSHIP': {
+      const { trace, targetPaneId, allTraces, displayTraces = [] } = action.payload;
+      const entry = (t: Trace): PlacementTrace => ({trace:t,paneIds:state.tracePaneMap[t.name] ?? [],displayTrace:displayTraces.find(display=>display.id===t.id || t.parameters?.['displayTraceId']===display.id)});
+      const entries = allTraces.map(entry); const current=state.tracePaneMap[trace.name] ?? [];
+      if (action.type === 'MOVE_MEMBERSHIP' && !current.includes(action.payload.fromPaneId)) return state;
+      const validation = canPlaceMembership(entry(trace),targetPaneId,state.panes,entries); if (!validation.allowed) return state;
+      const remaining=action.type === 'MOVE_MEMBERSHIP' ? current.filter(id=>id!==action.payload.fromPaneId) : current;
+      const ids=[...new Set([...remaining,targetPaneId])]; const memberships={...state.tracePaneMap,[trace.name]:ids};
+      const active=Object.fromEntries(state.panes.map(pane=>{const prior=state.paneActiveTraceMap[pane.id];const names=allTraces.filter(t=>memberships[t.name]?.includes(pane.id)).map(t=>t.name);return [pane.id,prior && names.includes(prior) ? prior : names[0] ?? null]}));
+      return {...state,tracePaneMap:memberships,paneActiveTraceMap:active};
+    }
+    case 'REMOVE_MEMBERSHIP': {
+      const {traceName,paneId}=action.payload; const current=state.tracePaneMap[traceName] ?? [];const memberships={...state.tracePaneMap,[traceName]:current.filter(id=>id!==paneId)};
+      const active={...state.paneActiveTraceMap}; if(active[paneId]===traceName) active[paneId]=Object.keys(memberships).find(name=>memberships[name]?.includes(paneId)) ?? null;
+      return {...state,tracePaneMap:memberships,paneActiveTraceMap:active};
     }
     case 'SET_ACTIVE_PANE': {
       return { ...state, activePaneId: action.payload };
@@ -120,8 +107,18 @@ export function paneReducer(state: PaneState, action: PaneAction): PaneState {
     }
     case 'SET_RENDER_MODE': {
       const { paneId, mode } = action.payload;
+      const target = state.panes.find(pane => pane.id === paneId); if (!target || target.renderMode === mode) return state;
+      if (!action.payload.traces && Object.values(state.tracePaneMap).some(ids => ids.includes(paneId))) return state;
+      const plan = planPaneTypeChange(state.panes, action.payload.traces ?? [], paneId, mode);
+      if (!plan.ok || (plan.plan.requiresConfirmation && !action.payload.confirmed)) return state;
       const nextPanes = state.panes.map(p => p.id === paneId ? { ...p, renderMode: mode } : p);
-      return { ...state, panes: nextPanes };
+      const memberships = Object.fromEntries(Object.entries({...state.tracePaneMap,...plan.plan.memberships}).map(([name,ids]) => [name,[...ids]]));
+      const paneActiveTraceMap = Object.fromEntries(nextPanes.map(pane => {
+        const old = state.paneActiveTraceMap[pane.id];
+        const names = (action.payload.traces ?? []).filter(entry => memberships[entry.trace.name]?.includes(pane.id)).map(entry => entry.trace.name);
+        return [pane.id,old && names.includes(old) ? old : names[0] ?? null];
+      }));
+      return { ...state, panes: nextPanes, tracePaneMap: memberships, paneActiveTraceMap };
     }
     case 'SET_PANE_TITLE': {
       const { paneId, title } = action.payload;
@@ -166,17 +163,12 @@ export function paneReducer(state: PaneState, action: PaneAction): PaneState {
       };
     }
     case 'RECONCILE': {
-      const allTraces = action.payload;
-      const nextTracePaneMap = normalizeTracePaneMap(allTraces, state.tracePaneMap, state.panes);
-      const nextPaneActiveTraceMap = normalizePaneActiveTraceMap(allTraces, nextTracePaneMap, state.panes, state.paneActiveTraceMap);
-      return {
-        ...state,
-        tracePaneMap: nextTracePaneMap,
-        paneActiveTraceMap: nextPaneActiveTraceMap
-      };
+      const nextTracePaneMap = normalizeMemberships(state.panes, action.payload.map(trace => ({trace,paneIds:state.tracePaneMap[trace.name] ?? []})));
+      const paneActiveTraceMap = Object.fromEntries(state.panes.map(pane => { const current=state.paneActiveTraceMap[pane.id]; const names=action.payload.filter(trace=>nextTracePaneMap[trace.name]?.includes(pane.id)).map(trace=>trace.name); return [pane.id,current && names.includes(current) ? current : names[0] ?? null]; }));
+      return {...state,tracePaneMap:nextTracePaneMap,paneActiveTraceMap};
     }
     case 'RESTORE': {
-      return action.payload;
+      return {...action.payload,issuedPaneIds:[...new Set([...state.issuedPaneIds,...action.payload.issuedPaneIds,...state.panes.map(p=>p.id),...action.payload.panes.map(p=>p.id)])]};
     }
     default:
       return state;
@@ -184,34 +176,60 @@ export function paneReducer(state: PaneState, action: PaneAction): PaneState {
 }
 
 export function PaneStoreProvider({ children }: { children: React.ReactNode }) {
-  const [state, dispatch] = useReducer(paneReducer, defaultPaneState);
+  const [state, rawDispatch] = useReducer(paneReducer, defaultPaneState);
+  const [limit, setLimit] = useState<4 | 8>(() => { try { return localStorage.getItem('mergen-experimental-eight-panes') === 'true' ? 8 : 4; } catch { return 4; } });
+  const setExperimental = useCallback((enabled: boolean) => { setLimit(enabled ? 8 : 4); try { if (enabled) localStorage.setItem('mergen-experimental-eight-panes','true'); else localStorage.removeItem('mergen-experimental-eight-panes'); } catch { /* Preference storage may be unavailable. */ } }, []);
 
   // Consume from TraceStore
   const traceState = useTraceState();
-  const allTraces = traceState.allTraces;
+  const allKnownTraces = traceState.allKnownTraces;
 
   const refLineDispatch = useRefLineDispatch();
+  const uiDispatch = useUiDispatch();
   const paneCount = state.panes.length;
+  const dispatch = useCallback<React.Dispatch<PaneAction>>((action) => {
+    const entries = () => allKnownTraces.map(trace=>({trace,paneIds:state.tracePaneMap[trace.name] ?? [],displayTrace:traceState.allDisplayTraces.find(display=>display.id===trace.id)}));
+    const refuse = (message: string, paneId: string | null) => uiDispatch({type:'SET',payload:{key:'paneAssignmentWarning',value:{message,paneId,traceName:null}}});
+    if(action.type === 'SET_PANE_COUNT') {
+      const traces = entries();
+      if (action.payload < state.panes.length && !action.confirmed) {
+        const plan = planPaneRemoval(state.panes,traces,state.panes.slice(action.payload).map(pane => pane.id));
+        if (!plan.ok || plan.plan.unplaced.length) { refuse(plan.ok ? 'Removing these panes would leave traces unplaced; confirmation is required.' : plan.reason,state.activePaneId); return; }
+      }
+      rawDispatch({...action,limit,traces});
+    }
+    else if (action.type === 'ASSIGN_TRACE_TO_PANE') rawDispatch({type:action.type,payload:{...action.payload,allTraces:allKnownTraces,displayTraces:traceState.allDisplayTraces}});
+    else if (action.type === 'ADD_MEMBERSHIP') rawDispatch({type:action.type,payload:{...action.payload,allTraces:allKnownTraces,displayTraces:traceState.allDisplayTraces}});
+    else if (action.type === 'MOVE_MEMBERSHIP') rawDispatch({type:action.type,payload:{...action.payload,allTraces:allKnownTraces,displayTraces:traceState.allDisplayTraces}});
+    else if (action.type === 'SET_RENDER_MODE') {
+      const traces=entries(); const plan=planPaneTypeChange(state.panes,traces,action.payload.paneId,action.payload.mode);
+      if (!plan.ok || (plan.plan.requiresConfirmation && !action.payload.confirmed)) { refuse(plan.ok ? 'Changing this pane would leave traces unplaced; confirmation is required.' : plan.reason,action.payload.paneId); return; }
+      rawDispatch({...action,payload:{...action.payload,traces}});
+    }
+    else rawDispatch(action);
+  }, [allKnownTraces,state.tracePaneMap,state.panes,state.activePaneId,traceState.allDisplayTraces,limit,uiDispatch]);
 
   // Reconcile whenever the global trace list or the pane count changes
   useEffect(() => {
-    dispatch({ type: 'RECONCILE', payload: allTraces });
-  }, [allTraces, paneCount]);
+    rawDispatch({ type: 'RECONCILE', payload: allKnownTraces });
+  }, [allKnownTraces, paneCount]);
 
   // Reference lines of removed panes would otherwise reappear when the pane id is reused.
   useEffect(() => {
     refLineDispatch({
       type: 'CLEANUP_ORPHANED_LINES',
-      payload: { paneIds: Array.from({ length: paneCount }, (_, i) => `pane-${i + 1}`) },
+      payload: { paneIds: state.panes.map(pane => pane.id) },
     });
-  }, [paneCount, refLineDispatch]);
+  }, [state.panes, refLineDispatch]);
 
   return (
+    <PaneLimitContext.Provider value={{limit,setExperimental}}>
     <PaneDispatchContext.Provider value={dispatch}>
       <PaneStateContext.Provider value={state}>
         {children}
       </PaneStateContext.Provider>
     </PaneDispatchContext.Provider>
+    </PaneLimitContext.Provider>
   );
 }
 
@@ -230,3 +248,5 @@ export function usePaneDispatch(): React.Dispatch<PaneAction> {
   }
   return context;
 }
+
+export function usePaneLimit() { const value = useContext(PaneLimitContext); if (!value) throw new Error('usePaneLimit must be used within a PaneStoreProvider'); return value; }

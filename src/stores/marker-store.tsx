@@ -5,8 +5,9 @@ import { placeMarker, type MagneticSnapOptions } from '../domain/markers';
 
 export interface MarkerState {
   markers: Marker[];
+  nextMarkerSerial: number;
   selectedMkrIdx: number;
-  mkrMode: "normal" | "delta" | null;
+  armed: { kind: 'normal' } | { kind: 'delta'; refId: string } | null;
   markerTrace: string; // The trace name to which new markers attach
 }
 
@@ -18,36 +19,42 @@ export type MarkerAction =
         targetFreq: number;
         markerType?: MarkerType;
         label?: string | null;
-        refIdx?: number | null;
+        refId?: string | null;
         magneticSnap?: MagneticSnapOptions;
       }
     }
   | { type: 'REMOVE_MARKER'; payload: number } // remove by idx
   | { type: 'REMOVE_MARKERS_FOR_TRACES'; payload: string[] }
   | { type: 'CLEAR_ALL' }
-  | { type: 'UPDATE_MARKER'; payload: { idx: number; updates: Partial<Marker> } }
+  // Internal resolved-position command: callers use placeMarker before dispatch.
+  | { type: 'UPDATE_MARKER'; payload: { idx: number; updates: Partial<Omit<Marker, 'id' | 'trace'>> } }
   | { type: 'SET_SELECTED_IDX'; payload: number }
-  | { type: 'SET_MODE'; payload: "normal" | "delta" | null }
+  | { type: 'ARM'; payload: MarkerState['armed'] }
   | { type: 'SET_TRACE'; payload: string }
   | { type: 'RESTORE'; payload: MarkerState };
 
 export const defaultMarkerState: MarkerState = {
   markers: [],
+  nextMarkerSerial: 1,
   selectedMkrIdx: -1,
-  mkrMode: 'normal',
+  armed: null,
   markerTrace: "",
 };
 
-const MarkerStateContext = createContext<MarkerState | null>(null);
-const MarkerDispatchContext = createContext<React.Dispatch<MarkerAction> | null>(null);
+export const MarkerStateContext = createContext<MarkerState | null>(null);
+export const MarkerDispatchContext = createContext<React.Dispatch<MarkerAction> | null>(null);
 
 export function markerReducer(state: MarkerState, action: MarkerAction): MarkerState {
   switch (action.type) {
     case 'PLACE_MARKER': {
-      const { targetFreq, trace, markerType = 'normal', label = null, refIdx = null, magneticSnap } = action.payload;
+      const { targetFreq, trace, markerType = 'normal', label = null, refId = null, magneticSnap } = action.payload;
       const placement = placeMarker(trace, targetFreq, magneticSnap);
       
+      let serial = state.nextMarkerSerial; const existing = new Set(state.markers.map(marker=>marker.id));
+      while (existing.has(`marker-${serial}`)) serial++;
+      if (markerType === 'delta' && (!refId || !state.markers.some(marker => marker.id === refId && marker.type !== 'delta'))) return state;
       const newMarker: Marker = {
+        id: `marker-${serial}`,
         requestedFreq: placement.requestedFreq,
         freq: placement.freq,
         amp: placement.amp,
@@ -55,20 +62,21 @@ export function markerReducer(state: MarkerState, action: MarkerAction): MarkerS
         trace: trace.name,
         type: markerType,
         label,
-        refIdx,
+        refId: markerType === 'delta' ? refId : null,
       };
 
       const newIdx = state.markers.length;
       const withNew = [...state.markers, newMarker];
 
-      // If new marker is non-delta, auto-assign it as ref for any delta markers with refIdx=null
-      const finalMarkers = markerType !== 'delta'
-        ? withNew.map((m, i) => (i !== newIdx && m.type === 'delta' && m.refIdx === null) ? { ...m, refIdx: newIdx } : m)
-        : withNew;
+      // A delta with a deleted reference is converted to normal at deletion time;
+      // creating another marker must never reattach an existing marker.
+      const finalMarkers = withNew;
 
       return {
         ...state,
         markers: finalMarkers,
+        nextMarkerSerial: serial + 1,
+        armed: null,
         selectedMkrIdx: newIdx,
       };
     }
@@ -76,17 +84,13 @@ export function markerReducer(state: MarkerState, action: MarkerAction): MarkerS
       const targetIdx = action.payload;
       const newMarkers = state.markers.filter((_, idx) => idx !== targetIdx);
 
-      // Adjust refIdx for remaining markers if necessary
-      const updatedMarkers = newMarkers.map((m) => {
-        if (m.refIdx === null) return m;
-        if (m.refIdx === targetIdx) return { ...m, refIdx: null }; // keep type='delta', ref becomes None
-        if (m.refIdx > targetIdx) return { ...m, refIdx: m.refIdx - 1 };
-        return m;
-      });
+      const removedId = state.markers[targetIdx]?.id;
+      const updatedMarkers = newMarkers.map(m => m.refId === removedId ? { ...m, type: 'normal' as const, refId: null } : m);
 
       return {
         ...state,
         markers: updatedMarkers,
+        armed: state.armed?.kind === 'delta' && state.armed.refId === removedId ? null : state.armed,
         selectedMkrIdx: state.selectedMkrIdx === targetIdx ? -1 : 
                         (state.selectedMkrIdx > targetIdx ? state.selectedMkrIdx - 1 : state.selectedMkrIdx)
       };
@@ -106,28 +110,18 @@ export function markerReducer(state: MarkerState, action: MarkerAction): MarkerS
 
       const newMarkers = state.markers.filter((_, idx) => !indicesToRemove.has(idx));
       
-      // We don't try to automatically re-sync refIdx here if multiple removals happen across traces, 
-      // but typically delta markers are on the same trace, so they also get removed.
-      // If cross-trace delta markers are allowed, we'd need to clear them just like REMOVE_MARKER.
-      const updatedMarkers = newMarkers.map((m) => {
-        if (m.refIdx === null) return m;
-        if (indicesToRemove.has(m.refIdx)) return { ...m, refIdx: null }; // keep type='delta', ref becomes None
-        // Adjust for all deleted indices that came before the refIdx
-        let shift = 0;
-        for (const r of indicesToRemove) {
-          if (r < m.refIdx) shift++;
-        }
-        return { ...m, refIdx: m.refIdx - shift };
-      });
+      const removedIds = new Set(state.markers.filter((_, idx) => indicesToRemove.has(idx)).map(marker => marker.id));
+      const updatedMarkers = newMarkers.map(m => m.refId && removedIds.has(m.refId) ? { ...m, type: 'normal' as const, refId: null } : m);
 
       return {
         ...state,
         markers: updatedMarkers,
-        selectedMkrIdx: -1, // Reset selection when massive changes happen
+        armed: state.armed?.kind === 'delta' && removedIds.has(state.armed.refId) ? null : state.armed,
+        selectedMkrIdx: updatedMarkers.findIndex(marker => marker.id === state.markers[state.selectedMkrIdx]?.id),
       };
     }
     case 'CLEAR_ALL': {
-      return { ...state, markers: [], selectedMkrIdx: -1 };
+      return { ...state, markers: [], selectedMkrIdx: -1, armed: null };
     }
     case 'UPDATE_MARKER': {
       const { idx, updates } = action.payload;
@@ -135,20 +129,27 @@ export function markerReducer(state: MarkerState, action: MarkerAction): MarkerS
       const newMarkers = [...state.markers];
       const current = newMarkers[idx];
       if (!current) return state;
-      newMarkers[idx] = { ...current, ...updates };
+      const moving = updates.requestedFreq !== undefined || updates.freq !== undefined || updates.amp !== undefined;
+      if (moving && (![updates.requestedFreq, updates.freq, updates.amp].every(value => typeof value === 'number' && Number.isFinite(value)))) return state;
+      const candidate = { ...current, ...updates, id: current.id, trace: current.trace };
+      if (candidate.type === 'delta' && (!candidate.refId || candidate.refId === candidate.id || !state.markers.some(marker => marker.id === candidate.refId && marker.type !== 'delta'))) return state;
+      newMarkers[idx] = candidate.type === 'delta' ? candidate : { ...candidate, refId: null };
       return { ...state, markers: newMarkers };
     }
     case 'SET_SELECTED_IDX': {
       return { ...state, selectedMkrIdx: action.payload };
     }
-    case 'SET_MODE': {
-      return { ...state, mkrMode: action.payload };
+    case 'ARM': {
+      const armed = action.payload;
+      if (armed?.kind === 'delta' && !state.markers.some(marker => marker.id === armed.refId && marker.type !== 'delta')) return state;
+      return { ...state, armed: action.payload };
     }
     case 'SET_TRACE': {
       return { ...state, markerTrace: action.payload };
     }
     case 'RESTORE': {
-      return action.payload;
+      const nextLoaded = action.payload.markers.reduce((next, marker) => { const match = /^marker-(\d+)$/.exec(marker.id); const serial = match ? Number(match[1]) : 0; return Number.isSafeInteger(serial) ? Math.max(next, serial + 1) : next; }, 1);
+      return {...action.payload, nextMarkerSerial: Math.max(state.nextMarkerSerial, action.payload.nextMarkerSerial, nextLoaded)};
     }
     default:
       return state;

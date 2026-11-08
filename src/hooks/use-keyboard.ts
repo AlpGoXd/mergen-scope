@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { useOptionalAggregateWorkspace } from '../stores/aggregate-workspace-store';
 import { useMarkerState, useMarkerDispatch } from '../stores/marker-store';
 import { usePaneDispatch } from '../stores/pane-store';
 import { useRefLineDispatch } from '../stores/ref-line-store';
@@ -8,6 +9,7 @@ import { useUiState, useUiDispatch } from '../stores/ui-store';
  * Hook for global application keyboard shortcuts.
  */
 export function useKeyboard() {
+  const historyDispatch = useOptionalAggregateWorkspace()?.historyDispatch;
   const { selectedMkrIdx, markers } = useMarkerState();
   const markerDispatch = useMarkerDispatch();
   const paneDispatch = usePaneDispatch();
@@ -17,14 +19,16 @@ export function useKeyboard() {
 
   useEffect(() => {
     const handleKeyDown = (ev: KeyboardEvent) => {
-      // Don't trigger shortcuts if user is typing in an input
-      const target = ev.target as HTMLElement;
-      if (
-        target.tagName === 'INPUT' ||
-        target.tagName === 'TEXTAREA' ||
-        target.isContentEditable
-      ) {
-        return;
+      // Native controls, open modal dialogs and menus own their keyboard input.
+      if (ev.defaultPrevented || document.querySelector('[role="dialog"][aria-modal="true"]')) return;
+      const target = ev.target instanceof HTMLElement ? ev.target : null;
+      if (target && (target.isContentEditable || target.closest('input, textarea, select, button, [contenteditable="true"], [role="menu"], [role="menuitem"]'))) return;
+
+      if ((ev.ctrlKey || ev.metaKey) && !ev.altKey && historyDispatch) {
+        const key=ev.key.toLowerCase();
+        if (key === 'z' || key === 'y') {
+          historyDispatch({type:key === 'y' || ev.shiftKey ? 'redo' : 'undo'}); ev.preventDefault(); return;
+        }
       }
 
       // Delete / Backspace: Remove selected marker
@@ -37,10 +41,18 @@ export function useKeyboard() {
 
       // Escape: Clear selections
       if (ev.key === 'Escape') {
+        markerDispatch({ type: 'ARM', payload: null });
         markerDispatch({ type: 'SET_SELECTED_IDX', payload: -1 });
         refLineDispatch({ type: 'SET_SELECTED', payload: null });
         uiDispatch({ type: 'SET', payload: { key: 'selectedTraceName', value: null } });
         uiDispatch({ type: 'SET', payload: { key: 'selectedRefLineId', value: null } });
+      }
+
+      if (ev.key.toLowerCase() === 'n' && !ev.ctrlKey && !ev.metaKey && !ev.altKey) {
+        const selected=markers[selectedMkrIdx];
+        if (ev.shiftKey) { if (selected && selected.type !== 'delta') markerDispatch({type:'ARM',payload:{kind:'delta',refId:selected.id}}); }
+        else markerDispatch({type:'ARM',payload:{kind:'normal'}});
+        ev.preventDefault();
       }
 
       // 1-4: Set pane layout
@@ -62,5 +74,5 @@ export function useKeyboard() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedMkrIdx, markers, markerDispatch, paneDispatch, refLineDispatch, uiDispatch, showMarkers]);
+  }, [selectedMkrIdx, markers, markerDispatch, paneDispatch, refLineDispatch, uiDispatch, showMarkers, historyDispatch]);
 }

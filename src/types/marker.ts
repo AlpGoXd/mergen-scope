@@ -19,6 +19,8 @@ export type MarkerType = "peak" | "normal" | "delta";
 
 /** A marker placed on a trace at a specific frequency/amplitude. */
 export interface Marker {
+  /** Stable session/workspace identity. */
+  readonly id: string;
   /** Requested x-position in Hz before interpolation/snap resolution. */
   readonly requestedFreq?: number;
 
@@ -41,7 +43,7 @@ export interface Marker {
    * Index of the reference marker for delta measurements.
    * `null` when this marker is not in delta mode.
    */
-  readonly refIdx: number | null;
+  readonly refId: string | null;
 
   /**
    * Whether this marker's position was interpolated between

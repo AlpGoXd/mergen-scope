@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useFileDispatch, useFileState } from '../../stores/file-store';
+import { useOptionalAggregateWorkspace } from '../../stores/aggregate-workspace-store';
+import type { OpenChoice } from '../../types/open-files-plan';
 import type { WizardConfig } from '../../types/file';
 import { summarizeTabularPreview } from '../../domain/parsers/tabular';
 import { WizardPreviewTable } from './WizardPreviewTable';
@@ -40,6 +42,7 @@ function formatRangeValue(value: number): string {
 export function ImportWizardModal() {
 	const { wizardQueue } = useFileState();
 	const fileDispatch = useFileDispatch();
+	const aggregate = useOptionalAggregateWorkspace();
 	const active = wizardQueue[0];
 
 	const initialConfig = useMemo<WizardConfig>(() => {
@@ -58,6 +61,30 @@ export function ImportWizardModal() {
 	useEffect(() => {
 		setConfig(initialConfig);
 	}, [initialConfig]);
+
+	const confirm = () => {
+		if (!active) return;
+		const batch=active.pendingBatch;
+		const decisions: Record<string,{choice:OpenChoice;expectedFileId?:string}> = {};
+		let workspaceChoice: 'replace' | undefined;
+		if (batch && aggregate && wizardQueue.filter(entry=>entry.pendingBatch?.id===batch.id).length === 1) {
+			const current=aggregate.state;
+			if (batch.workspace) {
+				const work=current.files.files.length>0 || current.traces.derivedTraces.length>0 || current.markers.markers.length>0 || current.lines.refLines.length>0 || current.panes.panes.length>1;
+				if (work) { if (!window.confirm('Replace the current workspace with the opened workspace?')) return; workspaceChoice='replace'; }
+			}
+			const files=batch.workspace?.snapshot.files ?? current.files.files;
+			for (const input of batch.inputs) {
+				const existing=files.find(file=>file.fileName===input.name);
+				if (!existing || input.choice==='copy' || (input.choice==='replace' && input.expectedFileId===String(existing.id))) continue;
+				const answer=window.prompt(`${input.name} is already open. Type replace or copy, or cancel opening.`, 'copy');
+				const choice=answer?.trim().toLowerCase();
+				if (choice!=='replace' && choice!=='copy') return;
+				decisions[input.id]={choice,expectedFileId:choice==='replace' ? String(existing.id) : undefined};
+			}
+		}
+		fileDispatch({type:'RESOLVE_WIZARD',payload:{id:active.id,config,decisions,workspaceChoice}});
+	};
 
 	const skip = () => {
 		if (active) fileDispatch({ type: 'SKIP_WIZARD', payload: { id: active.id } });
@@ -198,7 +225,7 @@ export function ImportWizardModal() {
 					</button>
 					<button
 						type="button"
-						onClick={() => fileDispatch({ type: 'RESOLVE_WIZARD', payload: { id: active.id, config } })}
+						onClick={confirm}
 						disabled={config.yCols.length === 0}
 					>
 						Confirm

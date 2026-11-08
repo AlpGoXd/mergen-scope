@@ -5,7 +5,7 @@
 // ============================================================================
 
 import type { Trace, TraceDomain } from "./trace.ts";
-import type { TouchstoneNetwork } from "./touchstone.ts";
+import type { TouchstoneNetwork, TouchstoneSelectionState } from "./touchstone.ts";
 import type { Dataset } from "./dataset.ts";
 import type { DisplayTrace } from "./display.ts";
 
@@ -57,6 +57,9 @@ export type FileMetadata = Record<string, MetadataEntry>;
 // Parsed file (output of a parser)
 // ---------------------------------------------------------------------------
 
+/** Source column for each surviving tabular display trace. */
+export interface ColumnIdentity { readonly index: number; readonly header?: string }
+
 /** Result of parsing a measurement file. */
 export interface ParsedFile {
   /** Detected format string. */
@@ -73,6 +76,9 @@ export interface ParsedFile {
 
   /** Display traces generated from the parsed datasets. */
   readonly displayTraces?: readonly DisplayTrace[];
+
+  /** Actual source columns, aligned with tabular display traces. */
+  readonly columnIdentities?: readonly ColumnIdentity[];
 
   /** Touchstone network data (only for Touchstone files). */
   readonly touchstoneNetwork?: TouchstoneNetwork;
@@ -117,14 +123,25 @@ export interface RawFileRecord {
   /** Display traces derived from the datasets. */
   readonly displayTraces?: readonly DisplayTrace[];
 
+  /** Reason a newly opened file could not be parsed. */
+  readonly error?: string;
+
   /** Detected format. */
   readonly format?: string;
+
+  /** Actual source columns, aligned with tabular display traces. */
+  readonly columnIdentities?: readonly ColumnIdentity[];
 
   /** Touchstone network data (only for Touchstone files). */
   readonly touchstoneNetwork?: TouchstoneNetwork;
 
   /** Pane ID this file was dropped onto, if any. */
   readonly targetPaneId?: string;
+
+  /** Actual settings used for the last completed tabular import. */
+  readonly wizardConfig?: WizardConfig;
+  readonly touchstoneControls?: Pick<TouchstoneSelectionState, 'activeFamily' | 'activeViewByFamily'>;
+  readonly matrixOpen?: boolean;
 }
 
 // ---------------------------------------------------------------------------

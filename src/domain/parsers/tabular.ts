@@ -158,18 +158,22 @@ export function parseTabularFile(
     }
   }
 
+  // Use the physical source header rather than possibly stale wizard labels.
+  const firstDataRow = Math.max(0, Math.floor(Number.isFinite(config.skipRows) ? config.skipRows : 0));
+  const headerRow = firstDataRow > 0 ? lines[firstDataRow - 1]?.split(config.delimiter).map(cell => cell.trim()) : undefined;
+  const sourceHeaders = headerRow?.some(cell => cell !== '' && !Number.isFinite(Number(cell))) ? headerRow : undefined;
   const traces: RawTrace[] = [];
   const datasetFamily = config.domain === 'time' ? 'waveform' : 'spectrum';
-  const xHeader = config.headers?.[config.xCol] ?? "";
+  const xHeader = sourceHeaders?.[config.xCol] ?? config.headers?.[config.xCol] ?? "";
   const xUnit = inferUnit(xHeader, "x") ?? (config.domain === "time" ? "s" : "Hz");
 
   for (let yIdx = 0; yIdx < config.yCols.length; yIdx++) {
     const yColIdx = config.yCols[yIdx]!;
-    const name = config.headers?.[yColIdx] ?? `CH${yIdx + 1}`;
+    const name = sourceHeaders?.[yColIdx] ?? config.headers?.[yColIdx] ?? `CH${yIdx + 1}`;
     const trace = makeTrace(`${fileName} `, fileName, String(name), incrementFileCounter());
     (trace as { domain: TraceDomain }).domain = config.domain;
     (trace as { family: "spectrum" | "waveform" }).family = datasetFamily;
-    (trace as { dn: string }).dn = `${fileName} ${name}`;
+    (trace as { dn: string }).dn = `${fileName} ${name}`.toLowerCase();
     (trace as { units: { x: string | null; y: string | null } }).units = {
       x: xUnit,
       y: inferUnit(String(name), "y"),
@@ -178,7 +182,6 @@ export function parseTabularFile(
   }
 
   // skipRows comes from user input (wizard): only whole, non-negative row counts are valid indices.
-  const firstDataRow = Math.max(0, Math.floor(Number.isFinite(config.skipRows) ? config.skipRows : 0));
   for (let i = firstDataRow; i < lines.length; i++) {
     const row = lines[i]!.split(config.delimiter);
     if (row.length <= config.xCol) continue;
@@ -196,9 +199,15 @@ export function parseTabularFile(
     }
   }
 
-  const filtered = traces
-    .map((trace) => ({ ...trace, data: normalizeTraceData(trace.data) }) as RawTrace)
-    .filter((t) => t.data.length > 1);
+  const surviving = traces
+    .map((trace, index) => ({ trace: { ...trace, data: normalizeTraceData(trace.data) } as RawTrace, index }))
+    .filter(({trace}) => trace.data.length > 1);
+  const filtered = surviving.map(({trace}) => trace);
+  const columnIdentities = surviving.map(({index}) => {
+    const column = config.yCols[index] as number;
+    const header = sourceHeaders?.[column];
+    return header ? {index: column, header} : {index: column};
+  });
 
   const datasets = filtered.map((trace) => buildSeriesDatasetFromTrace(trace, datasetFamily));
   const displayTraces = datasets.map((dataset, index) => buildScalarDisplayTraceFromSeriesDataset(dataset, dataset.series[0]!, filtered[index]!));
@@ -209,6 +218,7 @@ export function parseTabularFile(
     traces: filtered,
     datasets,
     displayTraces,
+    columnIdentities,
     rawText: text,
     suggestedConfig: config,
   };

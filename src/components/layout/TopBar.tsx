@@ -7,6 +7,7 @@ import { useRefLineState, useRefLineDispatch } from '../../stores/ref-line-store
 import { usePaneDispatch } from '../../stores/pane-store';
 import { useWorkspace } from '../../hooks/use-workspace';
 import { Btn } from '../shared/Btn';
+import { useOptionalAggregateWorkspace } from '../../stores/aggregate-workspace-store';
 
 /**
  * TopBar component for application-level actions and toggles.
@@ -37,6 +38,7 @@ export function TopBar() {
   const { refLines } = useRefLineState();
   const refLineDispatch = useRefLineDispatch();
   const paneDispatch = usePaneDispatch();
+  const aggregate = useOptionalAggregateWorkspace();
 
   const hasData = files.length > 0;
 
@@ -51,6 +53,15 @@ export function TopBar() {
   };
 
   const handleClearAll = () => {
+    if (aggregate) {
+      aggregate.historyDispatch({type:'change',toastMessage:'Cleared workspace',command:{slice:'transaction', actions:[
+        ...files.map(file => ({slice:'files' as const,action:{type:'REMOVE_FILE' as const,payload:{fileId:String(file.id)}}})),
+        {slice:'markers',action:{type:'CLEAR_ALL'}},
+        ...refLines.map(line => ({slice:'lines' as const,action:{type:'REMOVE_LINE' as const,payload:line.id}})),
+        {slice:'panes',limit:4,action:{type:'CLEAR_ALL_ZOOMS'}},
+      ]}});
+      return;
+    }
     files.forEach(f => fileDispatch({ type: 'REMOVE_FILE', payload: { fileId: String(f.id) } }));
     markerDispatch({ type: 'CLEAR_ALL' });
     refLines.forEach(rl => refLineDispatch({ type: 'REMOVE_LINE', payload: rl.id }));

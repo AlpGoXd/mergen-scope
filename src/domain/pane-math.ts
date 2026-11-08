@@ -41,7 +41,7 @@ export function normalizePaneRenderMode(
   let mode = String(renderMode ?? "cartesian").trim().toLowerCase()
     .replace(/\s+/g, "-").replace(/_/g, "-");
   if (mode === "smithinverted") mode = "smith-inverted";
-  if (mode !== "smith" && mode !== "smith-inverted" && mode !== "cartesian") mode = "cartesian";
+  if (mode !== "smith" && mode !== "smith-inverted" && mode !== "cartesian" && mode !== "table") mode = "cartesian";
   return mode as PaneRenderMode;
 }
 

@@ -54,7 +54,7 @@ export function BandwidthHelperCard() {
             style={{ flex: 1, background: 'var(--bg)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: '4px', fontSize: 'var(--font-label)', lineHeight: 'var(--lh-label)', padding: '0.24rem 0.45rem' }}
           >
             <option value="">(Select Trace)</option>
-            {allTraces.filter((t) => tracePaneMap[t.name] === activePaneId).map((t) => (
+            {allTraces.filter((t) => tracePaneMap[t.name]?.includes(activePaneId ?? '')).map((t) => (
               <option key={t.name} value={t.name}>{t.dn || t.name}</option>
             ))}
           </select>

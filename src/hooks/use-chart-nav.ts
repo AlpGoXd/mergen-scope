@@ -56,7 +56,7 @@ export function useChartNav(cursor: ChartCursorApi) {
 
   const getActivePaneTraces = useCallback((): Trace[] => {
     if (!activePaneId) return [];
-    return allTraces.filter(tr => (tracePaneMap[tr.name] || 'pane-1') === activePaneId);
+    return allTraces.filter(tr => tracePaneMap[tr.name]?.includes(activePaneId ?? ''));
   }, [allTraces, activePaneId, tracePaneMap]);
 
   const getXDomain = useCallback(() => {

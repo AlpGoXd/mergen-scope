@@ -1,3 +1,4 @@
+import type { Marker } from '../types/marker';
 import type { Trace, RawTrace, DerivedTrace } from '../types/trace.ts';
 import type { TouchstoneNetwork, TouchstoneParameterType } from '../types/touchstone.ts';
 import type {
@@ -518,7 +519,22 @@ export function migrateWorkspaceSnapshot(raw: unknown): WorkspaceSnapshot {
     xZoomState: input?.xZoomState ? { ...input.xZoomState } : { zoomAll: false, sharedZoom: null, paneXZooms: {} },
     yZoomState: input?.yZoomState ? { ...input.yZoomState } : { paneYZooms: {} },
     ui: input?.ui ? { ...defaultUiState(), ...input.ui } : defaultUiState(),
-    markers: asArray(input?.markers),
+    markers: (() => {
+      const legacy = asArray<Partial<Marker> & { refIdx?: number | null }>(input?.markers);
+      const reserved = new Set(legacy.flatMap(marker => typeof marker.id === 'string' && marker.id ? [marker.id] : []));
+      const used = new Set<string>();
+      let serial = 1;
+      const ids = legacy.map(marker => {
+        if (typeof marker.id === 'string' && marker.id && !used.has(marker.id)) { used.add(marker.id); return marker.id; }
+        while (reserved.has(`marker-${serial}`) || used.has(`marker-${serial}`)) serial++;
+        const id = `marker-${serial++}`; used.add(id); return id;
+      });
+      return legacy.map((marker, index) => {
+        const refId = marker.refId ?? (typeof marker.refIdx === 'number' ? ids[marker.refIdx] : null) ?? null;
+        const { refIdx: _legacyRefIdx, ...rest } = marker;
+        return { ...rest, id: ids[index] ?? `marker-${index + 1}`, refId, type: marker.type === 'delta' && !refId ? 'normal' : marker.type } as Marker;
+      });
+    })(),
     refLines: asArray(input?.refLines),
     savedNoise: asArray(input?.savedNoise),
     savedIP3: asArray(input?.savedIP3),

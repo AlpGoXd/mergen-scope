@@ -25,8 +25,8 @@ export const defaultRefLineState: RefLineState = {
   selectedRefLineId: null,
 };
 
-const RefLineStateContext = createContext<RefLineState | null>(null);
-const RefLineDispatchContext = createContext<React.Dispatch<RefLineAction> | null>(null);
+export const RefLineStateContext = createContext<RefLineState | null>(null);
+export const RefLineDispatchContext = createContext<React.Dispatch<RefLineAction> | null>(null);
 
 export function refLineReducer(state: RefLineState, action: RefLineAction): RefLineState {
   switch (action.type) {
@@ -34,11 +34,10 @@ export function refLineReducer(state: RefLineState, action: RefLineAction): RefL
       return { ...state, refLines: [...state.refLines, action.payload] };
     }
     case 'REMOVE_LINE': {
-      return {
-        ...state,
-        refLines: state.refLines.filter(line => line.id !== action.payload),
-        selectedRefLineId: state.selectedRefLineId === action.payload ? null : state.selectedRefLineId
-      };
+      const target = state.refLines.find(line => line.id === action.payload);
+      if (!target) return state;
+      const refLines = state.refLines.filter(line => target.groupId ? line.groupId !== target.groupId : line.id !== target.id);
+      return {...state, refLines, selectedRefLineId:refLines.some(line => line.id === state.selectedRefLineId) ? state.selectedRefLineId : null};
     }
     case 'UPDATE_LINE': {
       return {
@@ -73,11 +72,14 @@ export function refLineReducer(state: RefLineState, action: RefLineAction): RefL
     case 'LOCK_LINE': {
       const { lineId, allPaneIds } = action.payload;
       const line = state.refLines.find(l => l.id === lineId);
-      if (!line) return state;
+      if (!line || line.type !== 'v') return state;
       // If already locked, no-op
       if (line.groupId) return state;
-      const now = Date.now();
-      const groupId = String(now);
+      const now = Math.max(0, ...state.refLines.map(item => item.id));
+      let serial = now + 1;
+      const usedGroups = new Set(state.refLines.map(item => item.groupId));
+      while (usedGroups.has(`line-group-${serial}`)) serial++;
+      const groupId = `line-group-${serial}`;
       const updatedLines = state.refLines.map(l =>
         l.id === lineId ? { ...l, groupId } : l
       );
@@ -86,7 +88,7 @@ export function refLineReducer(state: RefLineState, action: RefLineAction): RefL
       const mirrorLines: RefLine[] = allPaneIds
         .filter(pid => pid !== linePaneId)
         .map((pid, i) => ({
-          id: now + i + 1,
+          id: serial + i,
           type: line.type,
           value: line.value,
           paneId: pid,
@@ -100,12 +102,8 @@ export function refLineReducer(state: RefLineState, action: RefLineAction): RefL
       const line = state.refLines.find(l => l.id === lineId);
       if (!line?.groupId) return state;
       const gid = line.groupId;
-      return {
-        ...state,
-        refLines: state.refLines.map(l =>
-          l.groupId === gid ? { ...l, groupId: null } : l
-        ),
-      };
+      return { ...state, refLines: state.refLines.flatMap(item => item.groupId !== gid ? [item] : item.id === lineId ? [{...item, groupId:null}] : []), selectedRefLineId: state.selectedRefLineId === null || state.refLines.some(item => item.id === state.selectedRefLineId && item.groupId !== gid) ? state.selectedRefLineId : lineId };
+
     }
     case 'MOVE_GROUP': {
       const { groupId, value } = action.payload;

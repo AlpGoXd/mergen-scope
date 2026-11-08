@@ -25,7 +25,7 @@ export function PeakTableCard() {
 
   // Traces in the active pane are better candidates
   const paneTraces = useMemo(() => {
-    return allTraces.filter(t => tracePaneMap[t.name] === activePaneId);
+    return allTraces.filter(t => tracePaneMap[t.name]?.includes(activePaneId ?? ''));
   }, [allTraces, tracePaneMap, activePaneId]);
 
   const results = peakResults[sourceTrace] || [];
@@ -64,7 +64,7 @@ export function PeakTableCard() {
             {paneTraces.map(t => (
               <option key={t.name} value={t.name}>{t.dn || t.name}</option>
             ))}
-            {allTraces.filter(t => tracePaneMap[t.name] !== activePaneId).map(t => (
+            {allTraces.filter(t => !tracePaneMap[t.name]?.includes(activePaneId ?? '')).map(t => (
               <option key={t.name} value={t.name}>{t.dn || t.name} (Other Pane)</option>
             ))}
           </select>
