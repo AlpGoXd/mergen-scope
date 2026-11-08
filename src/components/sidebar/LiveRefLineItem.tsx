@@ -3,15 +3,17 @@ import type { LineIntersection } from '../../domain/ref-lines';
 import type { RefLine } from '../../types/ref-line';
 import type { ThemeColors } from '../../types/theme';
 import type { Trace } from '../../types/trace';
-import { badgeStyle, formatRefLineValue, formatTraceXValue, formatWithUnit, parseEngineeringInput, sidebarButtonStyle } from './live-row-helpers';
+import { badgeStyle, formatRefLineValue, parseEngineeringInput, sidebarButtonStyle } from './live-row-helpers';
 
 export function RefLineItem(props: {
   refLine: RefLine;
   isSelected: boolean;
   intersections: LineIntersection[];
   allPanes: readonly { id: string; title: string }[];
+  linkedPaneIds: string[];
   siblingLines: RefLine[];
   onSelect: () => void;
+  onList?: () => void;
   onRemove: () => void;
   onLock: () => void;
   onUnlock: () => void;
@@ -23,8 +25,8 @@ export function RefLineItem(props: {
   colors?: ThemeColors | null;
   resolveTraceColor: (traceName: string) => string;
 }) {
-  const { refLine, isSelected, intersections, allPanes, siblingLines, onSelect, onRemove, onLock, onUnlock, onUpdateValue, onUpdateDeltaPartner, selectedTrace, xSpan, compact = false, colors, resolveTraceColor } = props;
-  const accentColor = refLine.type === 'v' ? (colors?.refV ?? '#d48a2b') : (colors?.refH ?? '#2b9ab7');
+  const { refLine, isSelected, intersections, allPanes, linkedPaneIds, onList, onSelect, onRemove, onLock, onUnlock, onUpdateValue, selectedTrace, xSpan, compact = false } = props;
+  const accentColor = 'var(--text-muted)';
   const isLocked = refLine.groupId != null;
 
   const [focused, setFocused] = React.useState(false);
@@ -42,12 +44,6 @@ export function RefLineItem(props: {
     else setEditText(formatRefLineValue(refLine, selectedTrace, xSpan)); // revert bad input
   };
 
-  // Group intersections by pane
-  const byPane: Record<string, LineIntersection[]> = {};
-  for (const ix of intersections) {
-    (byPane[ix.paneId] ??= []).push(ix);
-  }
-
   const lineLabel = refLine.label ?? (refLine.type === 'v' ? 'V' : 'H');
 
   return (
@@ -58,10 +54,7 @@ export function RefLineItem(props: {
         border: `1px solid ${isSelected ? accentColor : `color-mix(in srgb, ${accentColor} 18%, var(--border))`}`,
         borderRadius: compact ? '7px' : '8px',
         padding: compact ? '4px 5px' : '5px 6px',
-        background: isSelected
-          ? `color-mix(in srgb, ${accentColor} 12%, white)`
-          : `color-mix(in srgb, ${accentColor} 5%, white)`,
-        boxShadow: `inset 3px 0 0 ${accentColor}`,
+        background: 'var(--raised)',
         display: 'grid',
         gap: compact ? '2px' : '3px',
         cursor: 'pointer',
@@ -72,9 +65,9 @@ export function RefLineItem(props: {
       <div style={{ display: 'grid', gridTemplateColumns: 'auto minmax(0, 1fr) auto auto', gap: compact ? '4px' : '6px', alignItems: 'center', minWidth: 0 }}>
         <span style={{
           ...badgeStyle,
-          borderColor: accentColor,
-          background: isSelected ? accentColor : 'transparent',
-          color: isSelected ? '#fff' : accentColor,
+          border: '1px dashed var(--text-muted)',
+          background: 'transparent',
+          color: 'var(--text-muted)',
           fontFamily: 'var(--font-mono)',
           fontWeight: 700,
           padding: '1px 6px',
@@ -107,86 +100,24 @@ export function RefLineItem(props: {
             outline: 'none',
           }}
         />
-        {isLocked && (
-          <span style={{ fontSize: '10px', color: 'var(--dim)', userSelect: 'none' }} title="Locked across panes">🔒</span>
-        )}
+        <button type="button" disabled={refLine.type === 'h' || (!isLocked && allPanes.length < 2)}
+          title={refLine.type === 'h' ? 'Only vertical lines can be linked.' : allPanes.length < 2 && !isLocked ? 'Add another compatible pane to link.' : isLocked ? 'Unlink line' : 'Link panes with the same X unit'}
+          onClick={(event) => { event.stopPropagation(); isLocked ? onUnlock() : onLock(); }}
+          style={{ ...sidebarButtonStyle(isLocked ? 'var(--accent)' : 'var(--text-muted)', false, compact), opacity: refLine.type === 'h' ? .45 : 1 }}>↗</button>
         <button
           type="button"
           onClick={(event) => { event.stopPropagation(); onRemove(); }}
-          style={sidebarButtonStyle('#d76482', false, compact)}
+          style={sidebarButtonStyle('var(--text-muted)', false, compact)}
           title="Remove reference line"
         >
           x
         </button>
       </div>
 
-      {/* Row 2: lock/unlock controls + delta toggle when selected */}
-      {isSelected && (
-        <div style={{ display: 'flex', gap: '4px', marginTop: '1px', alignItems: 'center' }}>
-          {allPanes.length > 1 && (!isLocked ? (
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); onLock(); }}
-              disabled={refLine.type === 'h'}
-              title={refLine.type === 'h' ? 'Only vertical lines can be linked.' : 'Link panes with the same X unit'}
-              style={{ ...sidebarButtonStyle(accentColor, false, compact), fontSize: '10px' }}
-            >
-              Lock All Panes
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); onUnlock(); }}
-              style={{ ...sidebarButtonStyle(accentColor, false, compact), fontSize: '10px' }}
-            >
-              Unlock
-            </button>
-          ))}
-          {siblingLines.length > 0 && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '10px', color: 'var(--muted)', marginLeft: 'auto' }} onClick={e => e.stopPropagation()}>
-              <span>Δ</span>
-              <select
-                value={refLine.deltaPartnerId ?? ''}
-                onChange={e => onUpdateDeltaPartner(e.target.value ? Number(e.target.value) : null)}
-                style={{ fontSize: '10px', padding: '1px 3px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', cursor: 'pointer' }}
-              >
-                <option value="">none</option>
-                {siblingLines.map(sl => (
-                  <option key={sl.id} value={sl.id}>{sl.label ?? sl.id}</option>
-                ))}
-              </select>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Intersections */}
-      {intersections.length > 0 && (
-        <div style={{ display: 'grid', gap: '1px', marginTop: '2px' }}>
-          {Object.entries(byPane).map(([pid, ixs]) => (
-            <div key={pid}>
-              {allPanes.length > 1 && (
-                <div style={{ fontSize: '9px', color: 'var(--dim)', textTransform: 'uppercase', marginBottom: '1px', paddingLeft: '2px' }}>
-                  {pid.replace('pane-', 'P')}
-                </div>
-              )}
-              {ixs.map((ix, i) => (
-                <div key={i} style={{ display: 'grid', gridTemplateColumns: 'auto minmax(0,1fr) auto', gap: '5px', alignItems: 'center', paddingLeft: allPanes.length > 1 ? '8px' : '0', minWidth: 0 }}>
-                  <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: resolveTraceColor(ix.traceName), flexShrink: 0, border: '1px solid rgba(255,255,255,0.25)' }} />
-                  <span style={{ fontSize: 'var(--font-caption)', color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {ix.traceName}
-                  </span>
-                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--font-caption)', color: 'var(--text)', whiteSpace: 'nowrap' }}>
-                    {refLine.type === 'v'
-                      ? formatWithUnit(ix.amp, selectedTrace?.units.y ?? null)
-                      : formatTraceXValue(ix.freq, selectedTrace, xSpan)}
-                  </span>
-                </div>
-              ))}
-            </div>
-          ))}
-        </div>
-      )}
+      <div style={{ color: 'var(--text-muted)', fontSize: 'var(--font-caption)', display: 'flex', gap: 4 }}>
+        <span style={{ flex: 1 }}>{linkedPaneIds.map(id => { const index = allPanes.findIndex(pane => pane.id === id); return index >= 0 ? `P${index + 1}` : id; }).join(' + ') || '\u2014'}{isLocked ? ' (linked, ' : ' ('}{refLine.type === 'v' ? selectedTrace?.units.x ?? 'X' : selectedTrace?.units.y ?? 'Y'}) {'\u00b7'} {intersections.length} {intersections.length === 1 ? 'crossing' : 'crossings'}</span>
+        <button type="button" disabled={!onList} title={onList ? 'Open threshold crossings' : 'Threshold crossings will be available in Analysis'} onClick={event => { event.stopPropagation(); onList?.(); }}>List…</button>
+      </div>
     </div>
   );
 }

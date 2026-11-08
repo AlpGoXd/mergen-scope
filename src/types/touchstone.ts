@@ -150,10 +150,10 @@ export interface NetworkSource {
 // ---------------------------------------------------------------------------
 
 /** S-parameter family: S, Y, or Z. */
-export type TouchstoneFamily = "S" | "Y" | "Z";
+export type TouchstoneFamily = "S" | "Y" | "Z" | "ABCD";
 
 /** S-parameter view mode: dB, Mag, Phase, Real, Imag. */
-export type TouchstoneView = "dB" | "Mag" | "Phase" | "Real" | "Imag";
+export type TouchstoneView = "dB" | "Mag" | "Phase" | "Real" | "Imag" | "VSWR" | "Return loss" | "Group delay";
 
 /** Container for Touchstone parameter selections for a file. */
 export interface TouchstoneSelectionState {

@@ -4,6 +4,7 @@ import type { TouchstoneNetwork } from '../types/touchstone';
 import type { Trace } from '../types/trace';
 import { makeDatasetCapabilities, makeRootProvenance } from './dataset-capabilities';
 import { isUniformDataPoints, isUniformSpacing } from './interpolation';
+import { sToAbcd } from './touchstone/abcd';
 import { computeTwoPortStability, convertSMatrixToYMatrix, convertSMatrixToZMatrix } from './touchstone-math';
 
 function makeDatasetId(prefix: string, suffix: string): string {
@@ -234,30 +235,29 @@ export function buildNetworkProjectionDisplayTrace(
     ...common,
     valueType: 'scalar',
     xUnit: 'Hz',
-    yUnit: component === 'phase' ? 'Degrees' : component === 'vswr' ? 'VSWR' : component === 'return-loss' || component === 'magnitude-db' ? 'dB' : dataset.parameterFamily === 'Y' ? 'S' : dataset.parameterFamily === 'Z' ? 'Ohm' : null,
+    yUnit: component === 'phase' ? 'Degrees' : component === 'vswr' ? 'VSWR' : component === 'return-loss' || component === 'magnitude-db' ? 'dB' : dataset.parameterFamily === 'Y' ? 'S' : dataset.parameterFamily === 'Z' ? 'Ohm' : dataset.parameterFamily === 'ABCD' && row === 0 && col === 1 ? 'Ohm' : dataset.parameterFamily === 'ABCD' && row === 1 && col === 0 ? 'S' : null,
     semantics: semanticsMap[component],
     points: scalarPointsFromNetwork(dataset, row, col, component),
   };
 }
 
-export function convertNetworkDataset(dataset: NetworkDataset, parameterFamily: Extract<NetworkParameterFamily, 'Y' | 'Z'>): NetworkDataset | null {
+export function convertNetworkDataset(dataset: NetworkDataset, parameterFamily: Extract<NetworkParameterFamily, 'Y' | 'Z' | 'ABCD'>): NetworkDataset | null {
   if (dataset.parameterFamily === parameterFamily) {
     return dataset;
   }
-  if (dataset.parameterFamily !== 'S') {
+  if (dataset.parameterFamily !== 'S' || (parameterFamily === 'ABCD' && dataset.portCount !== 2)) {
     return null;
   }
 
   const samples = dataset.samples.flatMap((sample) => {
-    const matrix = parameterFamily === 'Y'
-      ? convertSMatrixToYMatrix(sample.matrix, dataset.referenceOhms)
-      : convertSMatrixToZMatrix(sample.matrix, dataset.referenceOhms);
+    const matrix = parameterFamily === 'Y' ? convertSMatrixToYMatrix(sample.matrix, dataset.referenceOhms) : parameterFamily === 'Z' ? convertSMatrixToZMatrix(sample.matrix, dataset.referenceOhms) : sToAbcd(sample.matrix, dataset.referenceOhms);
     if (!matrix) {
       return [];
     }
     return [{ freqHz: sample.freqHz, matrix }];
   });
 
+  if (samples.length === 0) return null;
   return {
     ...dataset,
     id: makeDatasetId('network', `${dataset.id}-${parameterFamily.toLowerCase()}`),
@@ -292,9 +292,10 @@ export function buildNetworkDerivedScalarTrace(
     label: string;
     legacyTraceName?: string;
     legacyDisplayName?: string;
+    instanceKey?: string;
   },
 ): ScalarDisplayTrace | null {
-  const { row, col, metric, label, legacyTraceName, legacyDisplayName } = args;
+  const { row, col, metric, label, legacyTraceName, legacyDisplayName, instanceKey } = args;
   let points: ScalarDisplayPoint[] = [];
 
     if (metric === 'group-delay') {
@@ -307,7 +308,7 @@ export function buildNetworkDerivedScalarTrace(
     let offset = 0;
     for (let index = 0; index < phases.length; index += 1) {
       const point = phases[index]!;
-      const prev = phases[index - 1];
+      const prev = unwrapped[index - 1];
       if (prev) {
         const delta = point.phase + offset - prev.phase;
         if (delta > Math.PI) offset -= 2 * Math.PI;
@@ -339,7 +340,7 @@ export function buildNetworkDerivedScalarTrace(
   }
 
   return {
-    id: makeDisplayTraceId('network-derived', `${dataset.id}-${row}-${col}-${metric}`),
+    id: makeDisplayTraceId('network-derived', `${dataset.id}-${row}-${col}-${metric}${instanceKey ? `-${instanceKey}` : ''}`),
     kind: 'derived-trace',
     label,
     datasetId: dataset.id,

@@ -47,6 +47,7 @@ export type FileAction =
   | { type: 'REPORT_IMPORT_ERROR'; payload: { fileName: string; message: string } }
   | { type: 'DISMISS_IMPORT_ERROR'; payload: { id: string } }
   | { type: 'REMOVE_FILE'; payload: { fileId: string } }
+  | { type: 'SET_MATRIX_OPEN'; payload: { fileId: string; open: boolean } }
   | { type: 'SET_TOUCHSTONE_CONTROLS'; payload: { fileId: string; controls: Pick<TouchstoneSelectionState, 'activeFamily' | 'activeViewByFamily'> } }
   | { type: 'APPEND_TOUCHSTONE_VIEW'; payload: { fileId: string; family: TouchstoneFamily; row: number; col: number; view: TouchstoneView } }
   | { type: 'DELETE_RAW_TRACE'; payload: { fileId: string; traceId: string } }
@@ -290,6 +291,12 @@ export function fileReducer(state: FileState, action: FileAction): FileState {
         rawFileData: newRawFileData,
         vis: newVis
       };
+    }
+    case 'SET_MATRIX_OPEN': {
+      const { fileId, open } = action.payload;
+      const file = state.files.find(item => String(item.id) === fileId);
+      if (!file || file.matrixOpen === open) return state;
+      return { ...state, files: state.files.map(item => item === file ? { ...item, matrixOpen: open } : item) };
     }
     case 'SET_TOUCHSTONE_CONTROLS': {
       const file = state.files.find(item => String(item.id) === action.payload.fileId);

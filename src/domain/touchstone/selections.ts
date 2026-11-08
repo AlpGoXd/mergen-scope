@@ -2,7 +2,7 @@ import type { RawFileRecord } from '../../types/file.ts';
 import type { TouchstoneSelectionState, TouchstoneFamily, TouchstoneView } from '../../types/touchstone.ts';
 import type { Dataset, NetworkDataset } from '../../types/dataset.ts';
 import type { DisplayTrace } from '../../types/display.ts';
-import { buildNetworkDatasetFromTouchstone, buildNetworkProjectionDisplayTrace, convertNetworkDataset } from '../dataset-builders.ts';
+import { buildNetworkDatasetFromTouchstone, buildNetworkProjectionDisplayTrace, buildNetworkDerivedScalarTrace, convertNetworkDataset } from '../dataset-builders.ts';
 import { adaptDisplayTracesToLegacyTraces } from '../display-trace-adapter.ts';
 
 function getSourceNetworkDataset(file: RawFileRecord): NetworkDataset | null {
@@ -45,18 +45,20 @@ function getOrCreateDataset(file: RawFileRecord, family: TouchstoneFamily, cache
   return derived;
 }
 
-function viewToComponent(view: TouchstoneView): 'magnitude-db' | 'magnitude-linear' | 'phase' | 'real' | 'imag' {
+function viewToComponent(view: Exclude<TouchstoneView, 'Group delay'>): 'magnitude-db' | 'magnitude-linear' | 'phase' | 'real' | 'imag' | 'vswr' | 'return-loss' {
   if (view === 'dB') return 'magnitude-db';
   if (view === 'Mag') return 'magnitude-linear';
   if (view === 'Phase') return 'phase';
   if (view === 'Real') return 'real';
+  if (view === 'VSWR') return 'vswr';
+  if (view === 'Return loss') return 'return-loss';
   return 'imag';
 }
 
 function getAllowedViews(family: TouchstoneFamily): readonly TouchstoneView[] {
   return family === 'S'
-    ? ['dB', 'Mag', 'Phase', 'Real', 'Imag']
-    : ['Mag', 'Phase', 'Real', 'Imag'];
+    ? ['dB', 'Mag', 'Phase', 'Real', 'Imag', 'VSWR', 'Return loss', 'Group delay']
+    : ['Mag', 'Phase', 'Real', 'Imag', 'Group delay'];
 }
 
 function getFamilyDefaultView(family: TouchstoneFamily): TouchstoneView {
@@ -77,17 +79,17 @@ function makeTouchstoneTraceBaseName(file: RawFileRecord, family: TouchstoneFami
 
 function makeUniqueInstanceKey(file: RawFileRecord, family: TouchstoneFamily, row: number, col: number, view: TouchstoneView): string {
   const baseName = makeTouchstoneTraceBaseName(file, family, row, col, view);
-  const currentCount = (file.displayTraces ?? []).filter(
-    (displayTrace) => (displayTrace.compat?.legacyTraceName ?? '').startsWith(baseName),
-  ).length;
-  return String(currentCount + 1);
+  const existing = new Set((file.displayTraces ?? []).map(display => display.compat?.legacyTraceName ?? ''));
+  let next = 1;
+  while (existing.has(`${baseName}__${next}`)) next += 1;
+  return String(next);
 }
 
 /** Default selection state for a new Touchstone file. */
 export function makeDefaultTouchstoneState(file: RawFileRecord): TouchstoneSelectionState {
   const portCount = file.touchstoneNetwork?.portCount ?? 0;
   const selectedCellsByFamily: Record<TouchstoneFamily, Record<string, TouchstoneView[]>> = {
-    S: {}, Y: {}, Z: {}
+    S: {}, Y: {}, Z: {}, ABCD: {}
   };
 
   if (portCount === 1) {
@@ -100,7 +102,7 @@ export function makeDefaultTouchstoneState(file: RawFileRecord): TouchstoneSelec
   return {
     activeFamily: 'S',
     isExpanded: true,
-    activeViewByFamily: { S: 'dB', Y: 'Mag', Z: 'Mag' },
+    activeViewByFamily: { S: 'dB', Y: 'Mag', Z: 'Mag', ABCD: 'Mag' },
     selectedCellsByFamily,
   };
 }
@@ -108,18 +110,18 @@ export function makeDefaultTouchstoneState(file: RawFileRecord): TouchstoneSelec
 /** Recover selections from persisted display traces when loading older workspaces. */
 export function touchstoneStateFromFile(file: RawFileRecord): TouchstoneSelectionState {
   const state = makeDefaultTouchstoneState(file);
-  state.selectedCellsByFamily.S = {}; state.selectedCellsByFamily.Y = {}; state.selectedCellsByFamily.Z = {};
+  state.selectedCellsByFamily.S = {}; state.selectedCellsByFamily.Y = {}; state.selectedCellsByFamily.Z = {}; state.selectedCellsByFamily.ABCD = {};
   for (const display of file.displayTraces ?? []) {
     const source = display.source;
-    if (source.sourceType !== 'network-parameter' || !['S','Y','Z'].includes(source.parameterFamily)) continue;
+    if (source.sourceType !== 'network-parameter' || !['S','Y','Z','ABCD'].includes(source.parameterFamily)) continue;
     const family = source.parameterFamily as TouchstoneFamily;
-    const view: TouchstoneView | null = source.component === 'magnitude-db' ? 'dB' : source.component === 'magnitude-linear' ? 'Mag' : source.component === 'phase' ? 'Phase' : source.component === 'real' ? 'Real' : source.component === 'imag' ? 'Imag' : null;
+    const view: TouchstoneView | null = source.component === 'magnitude-db' ? 'dB' : source.component === 'magnitude-linear' ? 'Mag' : source.component === 'phase' ? 'Phase' : source.component === 'real' ? 'Real' : source.component === 'imag' ? 'Imag' : source.component === 'vswr' ? 'VSWR' : source.component === 'return-loss' ? 'Return loss' : source.component === 'group-delay' ? 'Group delay' : null;
     if (!view) continue;
     const key = `${source.row + 1}:${source.col + 1}`;
     const existing = state.selectedCellsByFamily[family][key] ?? [];
     if (!existing.includes(view)) state.selectedCellsByFamily[family][key] = [...existing,view];
   }
-  return {...state,...file.touchstoneControls,isExpanded:file.matrixOpen ?? state.isExpanded};
+  return {...state,...file.touchstoneControls,activeViewByFamily:{...state.activeViewByFamily,...file.touchstoneControls?.activeViewByFamily},isExpanded:file.matrixOpen ?? state.isExpanded};
 }
 
 /** Clone a Touchstone selection state object. */
@@ -139,6 +141,7 @@ export function cloneTouchstoneSelectionState(state: TouchstoneSelectionState): 
       S: cloneFamilySelections(state.selectedCellsByFamily.S),
       Y: cloneFamilySelections(state.selectedCellsByFamily.Y),
       Z: cloneFamilySelections(state.selectedCellsByFamily.Z),
+      ABCD: cloneFamilySelections(state.selectedCellsByFamily.ABCD),
     },
   };
 }
@@ -166,18 +169,16 @@ export function appendTouchstoneDisplayTrace(
   const view = sanitizeView(family, requestedView ?? selectionState.activeViewByFamily[family]);
   const instanceKey = makeUniqueInstanceKey(file, family, row, col, view);
   const baseName = makeTouchstoneTraceBaseName(file, family, row, col, view);
-  const nextTrace = buildNetworkProjectionDisplayTrace(dataset, {
-    row: row - 1,
-    col: col - 1,
-    component: viewToComponent(view),
-    label: `${family}${row}${col} ${view}`,
-    legacyTraceName: `${baseName}__${instanceKey}`,
-    legacyDisplayName: makeTouchstoneTraceLabel(file, family, row, col, view),
-    instanceKey,
-  });
+  if ((view === 'VSWR' || view === 'Return loss') && (family !== 'S' || row !== col)) return file;
+  const args = { row: row - 1, col: col - 1, label: `${family}${row}${col} ${view}`, legacyTraceName: `${baseName}__${instanceKey}`, legacyDisplayName: makeTouchstoneTraceLabel(file, family, row, col, view) };
+  const nextTrace = view === 'Group delay'
+    ? buildNetworkDerivedScalarTrace(dataset, { ...args, metric: 'group-delay', instanceKey })
+    : buildNetworkProjectionDisplayTrace(dataset, { ...args, component: viewToComponent(view), instanceKey });
+  if (!nextTrace) return file;
+  const projection = view === 'Group delay' ? { ...nextTrace, kind: 'dataset-projection' as const } : nextTrace;
 
-  const nextDisplayTraces = [...(file.displayTraces ?? []), nextTrace];
-  const datasets: Dataset[] = [sourceDataset, ...(['Y', 'Z'] as const).flatMap((nextFamily) => {
+  const nextDisplayTraces = [...(file.displayTraces ?? []), projection];
+  const datasets: Dataset[] = [sourceDataset, ...(['Y', 'Z', 'ABCD'] as const).flatMap((nextFamily) => {
     const cached = getOrCreateDataset(file, nextFamily, datasetCache);
     return cached && cached.id !== sourceDataset.id ? [cached] : [];
   })];
@@ -201,7 +202,7 @@ export function reconcileTouchstoneFileSelections(file: RawFileRecord, selection
   datasetCache.set('S', sourceDataset);
 
   const nextDisplayTraces: DisplayTrace[] = [];
-  const families: TouchstoneFamily[] = ['S', 'Y', 'Z'];
+  const families: TouchstoneFamily[] = ['S', 'Y', 'Z', 'ABCD'];
 
   families.forEach((family) => {
     const familyCells = selectionState.selectedCellsByFamily[family] || {};
@@ -216,19 +217,15 @@ export function reconcileTouchstoneFileSelections(file: RawFileRecord, selection
 
       (familyCells[key] || []).forEach((view) => {
         const safeView = sanitizeView(family, view);
-        nextDisplayTraces.push(buildNetworkProjectionDisplayTrace(dataset, {
-          row: row - 1,
-          col: col - 1,
-          component: viewToComponent(safeView),
-          label: `${family}${row}${col} ${safeView}`,
-          legacyTraceName: makeTouchstoneTraceBaseName(file, family, row, col, safeView),
-          legacyDisplayName: makeTouchstoneTraceLabel(file, family, row, col, safeView),
-        }));
+        if ((safeView === 'VSWR' || safeView === 'Return loss') && (family !== 'S' || row !== col)) return;
+        const args = { row: row - 1, col: col - 1, label: `${family}${row}${col} ${safeView}`, legacyTraceName: makeTouchstoneTraceBaseName(file, family, row, col, safeView), legacyDisplayName: makeTouchstoneTraceLabel(file, family, row, col, safeView) };
+        const display = safeView === 'Group delay' ? buildNetworkDerivedScalarTrace(dataset, { ...args, metric: 'group-delay' }) : buildNetworkProjectionDisplayTrace(dataset, { ...args, component: viewToComponent(safeView) });
+        if (display) nextDisplayTraces.push(safeView === 'Group delay' ? { ...display, kind: 'dataset-projection' } : display);
       });
     });
   });
 
-  const datasets: Dataset[] = [sourceDataset, ...(['Y', 'Z'] as const).flatMap((family) => {
+  const datasets: Dataset[] = [sourceDataset, ...(['Y', 'Z', 'ABCD'] as const).flatMap((family) => {
     const dataset = datasetCache.get(family);
     return dataset && dataset.id !== sourceDataset.id ? [dataset] : [];
   })];
