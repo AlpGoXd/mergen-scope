@@ -387,7 +387,8 @@ export function workspaceEngineReducer(engine: WorkspaceEngine, action: Workspac
   if (action.type === 'commit-gesture') {
     if (!engine.gesture) return engine;
     const result = recordTransaction(engine.history,engine.gesture,captureWorkspace(engine.present),sameValue);
-    return {...engine,gesture:null,history:result.history,historyNotice:result.outcome === 'oversized' ? 'oversized' : result.prunedPast || result.prunedFuture ? 'pruned' : null};
+    // A new action normally clears redo; only past entries were evicted by the limit.
+    return {...engine,gesture:null,history:result.history,historyNotice:result.outcome === 'oversized' ? 'oversized' : result.prunedPast ? 'pruned' : null};
   }
   if (action.type === 'undo' || action.type === 'redo') {
     const current = engine.gesture ? restoreWorkspaceMemento(engine.present,engine.gesture) : engine.present;
@@ -406,7 +407,7 @@ export function workspaceEngineReducer(engine: WorkspaceEngine, action: Workspac
     const failed = Math.max(0,next.files.importErrors.length - engine.present.files.importErrors.length);
     toastMessage = opened || failed || action.command.workspace ? [action.command.workspace ? 'Opened workspace' : '', opened ? `Opened ${opened} file${opened === 1 ? '' : 's'}` : '', failed ? `${failed} failed` : ''].filter(Boolean).join(' - ') : undefined;
   }
-  return {present:next,history:result.history,gesture:null,historyNotice:result.outcome === 'oversized' ? 'oversized' : result.prunedPast || result.prunedFuture ? 'pruned' : null,toastMessage:result.outcome === 'noop' ? undefined : toastMessage};
+  return {present:next,history:result.history,gesture:null,historyNotice:result.outcome === 'oversized' ? 'oversized' : result.prunedPast ? 'pruned' : null,toastMessage:result.outcome === 'noop' ? undefined : toastMessage};
 }
 
 const WorkspaceContext = createContext<{ state: WorkspaceState; dispatch: React.Dispatch<WorkspaceAction>; history: TransactionHistory<WorkspaceMemento>; historyNotice: WorkspaceEngine['historyNotice']; historyDispatch: React.Dispatch<WorkspaceEngineAction> } | null>(null);
@@ -418,7 +419,7 @@ export function AggregateWorkspaceProvider({ children }: { children: React.React
   const show = useOptionalToast()?.show;
   useEffect(() => {
     if ((!engine.historyNotice && !engine.toastMessage) || !show) return;
-    const detail = engine.historyNotice === 'oversized' ? 'This change is too large to undo; history was cleared.' : engine.historyNotice === 'pruned' ? 'Older undo history was removed to stay within the history limit.' : '';
+    const detail = engine.historyNotice === 'oversized' ? 'This change is too large to undo; history was cleared.' : engine.historyNotice === 'pruned' ? 'Undo or redo history was removed to stay within the history limit.' : '';
     show({message:[engine.toastMessage, detail].filter(Boolean).join(' - '), ...(engine.toastMessage && engine.historyNotice !== 'oversized' ? {undo:() => historyDispatch({type:'undo'})} : {})});
     historyDispatch({type:'clear-notice'});
   }, [engine.historyNotice, engine.toastMessage, show]);
