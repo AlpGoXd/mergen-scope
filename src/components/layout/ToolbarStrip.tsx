@@ -92,6 +92,14 @@ export function ToolbarStrip() {
       <span style={{ color: `var(--${tone}-ink)`, fontWeight: 700, marginRight: 4 }}>{title}</span>{children}
     </div>
   );
+  // Size each reserved hint slot to its longest sentence, keeping groups still
+  // when placement is armed without reserving arbitrary extra width.
+  const hintSlot = (longest: string, message: string | null) => (
+    <span style={{ display: 'inline-grid', color: 'var(--text-muted)' }}>
+      <span aria-hidden="true" style={{ gridArea: '1 / 1', visibility: 'hidden' }}>{longest}</span>
+      <span aria-live="polite" style={{ gridArea: '1 / 1' }}>{message}</span>
+    </span>
+  );
   const normalMarkers = markers.filter(marker => marker.type !== 'delta');
   const selected = markers[selectedMkrIdx];
   const selectedLine = refLines.find(line => line.id === selectedRefLineId);
@@ -100,9 +108,17 @@ export function ToolbarStrip() {
     markerDispatch({ type: 'ARM', payload: { kind: 'delta', refId } });
   };
   const canSearch = !!activeTr?.data.length;
-  return <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'stretch', borderBottom: '1px solid var(--border)', background: 'var(--panel)', flexShrink: 0 }}>
+  return <div onKeyDown={event => {
+    // The global shortcut intentionally ignores native controls; let Escape
+    // cancel placement when focus remains on a toolbar button.
+    if (event.key === 'Escape' && event.target instanceof HTMLButtonElement && (armed || refMode)) {
+      markerDispatch({ type: 'ARM', payload: null });
+      refDispatch({ type: 'SET_MODE', payload: null });
+      event.preventDefault();
+    }
+  }} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'stretch', borderBottom: '1px solid var(--border)', background: 'var(--panel)', flexShrink: 0 }}>
     {showMarkerTools && group('Markers', 'marker', <>
-      <label>Trace: <select className="ui-select" style={{ minHeight: 20, height: 20, padding: '0 4px' }} value={markerTrace} onChange={e => uiDispatch({ type: 'SET', payload: { key: 'markerTrace', value: e.target.value } })} title="Auto picks the trace nearest the click">
+      <label>Trace: <select className="ui-select" style={{ minHeight: 20, height: 20, maxWidth: 110, padding: '0 4px' }} value={markerTrace} onChange={e => uiDispatch({ type: 'SET', payload: { key: 'markerTrace', value: e.target.value } })} title="Auto picks the trace nearest the click">
         <option value="__auto__">Auto</option>{visiblePaneTraces.map(trace => <option key={trace.name} value={trace.name}>{trace.dn || trace.name}</option>)}
       </select></label>
       <Btn small variant="slate" active={!!armed} aria-pressed={!!armed} aria-label="New Marker" title="Place a marker (N)" onClick={selectNormal}>+ New</Btn>
@@ -112,7 +128,7 @@ export function ToolbarStrip() {
           <Btn small disabled={!selected || selected.type === 'delta'} title={!selected || selected.type === 'delta' ? 'Select a normal marker first' : 'Place delta from selected marker (Shift+N)'} onClick={e => { if (selected) armDelta(selected.id); e.currentTarget.closest('details')?.removeAttribute('open'); }}>+ Δ from selected</Btn>
         </div>
       </details>
-      <span aria-live="polite" style={{ width: 210, color: 'var(--text-muted)' }}>{armed ? hint : ''}</span>
+      {hintSlot('Click to place a delta marker', armed ? hint : null)}
     </>)}
     {showSearchTools && group('Search', 'search', <>
       <Btn small disabled={!canSearch} title={canSearch ? 'Find peak' : 'Select a trace with data'} onClick={handlePeak}>Peak</Btn>
@@ -125,7 +141,7 @@ export function ToolbarStrip() {
       <Btn small variant="slate" active={refMode === 'v'} aria-pressed={refMode === 'v'} aria-label="V-Line" title="Place vertical line" onClick={() => toggleRefPlacement('v')}>V line</Btn>
       <Btn small variant="slate" active={refMode === 'h'} aria-pressed={refMode === 'h'} aria-label="H-Line" title="Place horizontal line" onClick={() => toggleRefPlacement('h')}>H line</Btn>
       <Btn small variant="chip" tone="lines" active={!!selectedLine?.groupId} disabled={!selectedLine || selectedLine.type !== 'v'} title={!selectedLine ? 'Select a vertical line first' : selectedLine.type !== 'v' ? 'Only vertical lines can be linked' : 'Link selected line across panes'} onClick={() => { if (!selectedLine) return; refDispatch(selectedLine.groupId ? { type: 'UNLOCK_LINE', payload: { lineId: selectedLine.id } } : { type: 'LOCK_LINE', payload: { lineId: selectedLine.id, allPaneIds: panes.map(pane => pane.id) } }); }}>Link</Btn>
-      <span aria-live="polite" style={{ width: 150, color: 'var(--text-muted)' }}>{refMode ? hint : ''}</span>
+      {hintSlot('Click to place V-line', refMode ? hint : null)}
     </>)}
     {showPaneTools && group('Pane', 'pane', <>
       <Btn small disabled title="Layout presets will be available after integration">Layout: Rows ▾</Btn>
