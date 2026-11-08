@@ -1082,7 +1082,7 @@ export function ChartPane({ paneId }: ChartPaneProps) {
       onDragLeave={(e) => { if (!(e.relatedTarget instanceof Node) || !e.currentTarget.contains(e.relatedTarget)) setPaneDragOver(false); }}
       onDrop={handlePaneDrop}
     >
-      <div data-testid={`chart-pane-header-${paneId}`} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 10px', background: isActive ? `color-mix(in srgb, ${colors?.accent || 'var(--accent)'} 8%, white)` : 'color-mix(in srgb, var(--card) 96%, white)', borderBottom: '1px solid var(--border)', borderLeft: isActive ? `3px solid ${colors?.accent || 'var(--accent)'}` : '3px solid transparent', cursor: isActive ? 'default' : 'pointer' }} onClick={() => !isActive && paneDispatch({ type: 'SET_ACTIVE_PANE', payload: paneId })}>
+      <div data-testid={`chart-pane-header-${paneId}`} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 10px', background: isActive ? `color-mix(in srgb, ${colors?.accent || 'var(--accent)'} 8%, var(--card))` : 'color-mix(in srgb, var(--card) 96%, white)', borderBottom: '1px solid var(--border)', borderLeft: isActive ? `3px solid ${colors?.accent || 'var(--accent)'}` : '3px solid transparent', cursor: isActive ? 'default' : 'pointer' }} onClick={() => !isActive && paneDispatch({ type: 'SET_ACTIVE_PANE', payload: paneId })}>
         <span style={{ fontSize: 'var(--font-label)', fontWeight: 500, color: isActive ? colors?.accent : 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
           {pane.title || `Pane ${paneId.split('-')[1]}`}{isActive && <span style={{ fontWeight: 400, opacity: 0.8 }}> · Target</span>}
         </span>
@@ -1194,7 +1194,7 @@ export function ChartPane({ paneId }: ChartPaneProps) {
                   width={yAxisWidth}
                   tickFormatter={formatYTick}
 
-                  label={{ value: fittedYLabel, angle: -90, position: 'insideLeft', offset: 10, style: { fontSize: 'var(--font-label)', fill: 'var(--muted)' } }}
+                  label={{ value: fittedYLabel, angle: -90, position: 'insideLeft', offset: 10, style: { fontSize: 'var(--font-label)', fill: 'var(--muted)', textAnchor: 'middle' } }}
                 />
                 <Tooltip isAnimationActive={false} cursor={false} content={() => null} />
                 {paneTraces.map((trace) => (
@@ -1444,3 +1444,4 @@ export function ChartPane({ paneId }: ChartPaneProps) {
     </div>
   );
 }
+
