@@ -1,12 +1,16 @@
-import type { InterpolationStrategy } from '../../types/interpolation';
+﻿import type { InterpolationStrategy } from '../../types/interpolation';
 import type { Trace } from '../../types/trace';
 import { badgeStyle, sidebarButtonStyle } from './live-row-helpers';
 
 export function TraceRow(props: {
   trace: Trace;
+  displayName: string;
+  subtitle?: string;
   isVisible: boolean;
   isSelected: boolean;
-  paneId?: string;
+  paneIds: string[];
+  panes: { id: string; title: string; disabledReason?: string }[];
+  onTogglePane: (paneId: string) => void;
   traceColor: string;
   onSelect: () => void;
   onRemove: () => void;
@@ -20,9 +24,13 @@ export function TraceRow(props: {
 }) {
   const {
     trace,
+    displayName,
+    subtitle,
     isVisible,
     isSelected,
-    paneId,
+    paneIds,
+    panes,
+    onTogglePane,
     traceColor,
     onSelect,
     onRemove,
@@ -48,16 +56,17 @@ export function TraceRow(props: {
       style={{
         display: 'grid',
         gridColumn: '1 / -1',
-        gridTemplateColumns: 'subgrid',
+        gridTemplateColumns: 'auto auto minmax(0, 1fr) auto auto auto',
+        gap: '4px',
         alignItems: 'center',
         minWidth: 0,
         padding: compact ? '2px 5px' : '3px 6px',
         borderRadius: compact ? '7px' : '8px',
-        border: `1px solid ${isSelected ? 'var(--text)' : 'var(--border)'}`,
+        border: `1px solid ${isSelected ? traceColor : 'var(--border)'}`,
         background: isSelected
           ? `color-mix(in srgb, ${traceColor} 10%, var(--card))`
           : 'var(--card)',
-        boxShadow: isSelected ? `inset 3px 0 0 ${traceColor}` : 'none',
+        opacity: isVisible ? 1 : 0.55,
         cursor: 'grab',
       }}
       onClick={onSelect}
@@ -101,7 +110,7 @@ export function TraceRow(props: {
             flex: 1,
           }}
         >
-          {trace.dn}
+          {displayName.length > 24 ? `${displayName.slice(0, 12)}…${displayName.slice(-9)}` : displayName}
         </span>
         {trace.kind === 'derived' && (
           <span style={{ ...badgeStyle, borderColor: `color-mix(in srgb, ${traceColor} 30%, var(--border))`, color: traceColor, flexShrink: 0 }}>
@@ -109,21 +118,22 @@ export function TraceRow(props: {
           </span>
         )}
       </div>
-      {paneId && <span style={badgeStyle}>{paneId.replace('pane-', 'P')}</span>}
+      
       <select
         value={interpolation}
         onClick={(event) => event.stopPropagation()}
         onChange={(event) => onInterpolationChange(event.target.value as InterpolationStrategy)}
         title={selectTitle}
         style={{
-          background: 'rgba(255,255,255,0.98)',
+          background: 'var(--raised)',
           color: 'var(--text)',
           border: '1px solid var(--border)',
           borderRadius: '5px',
           fontSize: 'var(--font-caption)',
           lineHeight: 'var(--lh-caption)',
-          padding: compact ? '0.18rem 0.28rem' : '0.22rem 0.34rem',
-          minWidth: compact ? '58px' : '70px',
+          minWidth: 0,
+          width: '52px',
+          padding: '1px',
         }}
       >
         <option value="snap">Snap</option>
@@ -132,20 +142,28 @@ export function TraceRow(props: {
           Sinc
         </option>
       </select>
-      <span style={{ fontSize: 'var(--font-caption)', lineHeight: 'var(--lh-caption)', color: 'var(--dim)' }}>
-        {trace.kind === 'derived' ? 'd' : 'r'}
-      </span>
+      <details onClick={(event) => event.stopPropagation()} style={{ position: 'relative' }}>
+        <summary title="Show in panes" style={{ ...badgeStyle, cursor: 'pointer', whiteSpace: 'nowrap' }}>{paneIds.length ? paneIds.map(id => id.replace('pane-', 'P')).join(' ') : '—'}</summary>
+        <div style={{ position: 'absolute', zIndex: 5, right: 0, minWidth: 150, padding: 6, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--raised)', boxShadow: '0 4px 12px oklch(0 0 0 / .15)' }}>
+          <strong>Show in</strong>
+          {panes.map(pane => <label key={pane.id} title={pane.disabledReason} style={{ display: 'flex', gap: 4, alignItems: 'center', whiteSpace: 'nowrap', opacity: pane.disabledReason ? .45 : 1 }}>
+            <input type="checkbox" checked={paneIds.includes(pane.id)} disabled={!!pane.disabledReason} onChange={() => onTogglePane(pane.id)} />{pane.title}
+          </label>)}
+        </div>
+      </details>
       <button
         type="button"
         onClick={(event) => {
           event.stopPropagation();
           onRemove();
         }}
-        style={sidebarButtonStyle('#d76482', false, compact)}
+        style={sidebarButtonStyle('var(--text-muted)', false, compact)}
         title={removeLabel}
       >
         x
       </button>
+      {subtitle && <span style={{ gridColumn: '3 / -1', color: 'var(--text-muted)', fontSize: 'var(--font-caption)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{subtitle}</span>}
     </div>
   );
 }
+

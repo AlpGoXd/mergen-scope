@@ -4,7 +4,7 @@ import { cloneTouchstoneSelectionState, touchstoneStateFromFile } from '../domai
 import type { TouchstoneSelectionState, TouchstoneFamily, TouchstoneView } from '../types/touchstone';
 
 function sanitizeView(family: TouchstoneFamily, view: TouchstoneView): TouchstoneView {
-  return family !== 'S' && view === 'dB' ? 'Mag' : view;
+  return family !== 'S' && ['dB', 'VSWR', 'Return loss'].includes(view) ? 'Mag' : view;
 }
 
 /** Matrix controls live with files; plotted selections are derived from display traces. */

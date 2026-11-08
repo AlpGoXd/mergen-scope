@@ -31,11 +31,11 @@ export const badgeStyle: CSSProperties = {
   borderRadius: '999px',
   padding: '0.08rem 0.42rem',
   lineHeight: 'var(--lh-caption)',
-  background: 'rgba(255,255,255,0.78)',
+  background: 'var(--panel)',
 };
 
 const smallButtonBaseStyle: CSSProperties = {
-  background: 'rgba(255, 255, 255, 0.98)',
+  background: 'var(--raised)',
   border: '1px solid var(--border)',
   borderRadius: '6px',
   padding: '0.22rem 0.58rem',
@@ -50,14 +50,9 @@ const smallButtonBaseStyle: CSSProperties = {
 export function sidebarButtonStyle(color: string, active = false, compact = false): CSSProperties {
   return {
     ...smallButtonBaseStyle,
-    border: `1px solid ${active ? color : `color-mix(in srgb, ${color} 62%, #9b8f7b)`}`,
-    background: active
-      ? `linear-gradient(180deg, color-mix(in srgb, ${color} 18%, white), color-mix(in srgb, ${color} 10%, white))`
-      : `linear-gradient(180deg, rgba(255,255,255,0.98), color-mix(in srgb, ${color} 4%, white))`,
-    color: active ? color : 'var(--text)',
-    boxShadow: active
-      ? `inset 0 1px 0 color-mix(in srgb, white 72%, ${color})`
-      : `inset 0 1px 0 rgba(255,255,255,0.85)`,
+    border: `1px solid ${active ? color : 'var(--border)'}`,
+    background: active ? `color-mix(in srgb, ${color} 12%, var(--raised))` : 'var(--raised)',
+    color: active ? color : 'var(--text-muted)',
     padding: compact ? '0.18rem 0.5rem' : '0.24rem 0.58rem',
     fontSize: 'var(--font-label)',
   };

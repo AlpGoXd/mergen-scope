@@ -1,26 +1,26 @@
-import { traceXGroup } from '../../domain/pane-placement';
+import { makeTraceColorResolver } from '../../domain/trace-colors';
+import { canPlaceMembership, traceXGroup } from '../../domain/pane-placement';
 import { useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import { computeVerticalIntersections, computeHorizontalIntersections } from '../../domain/ref-lines';
 import type { LineIntersection } from '../../domain/ref-lines';
 import { getInterpolationOptionDisabledReason, getResolvedInterpolationStrategy } from '../../domain/interpolation';
 import { placeMarker } from '../../domain/markers';
-import { makeDefaultTouchstoneState } from '../../domain/touchstone/selections';
+import { appendTouchstoneDisplayTrace, makeDefaultTouchstoneState } from '../../domain/touchstone/selections';
+import { adaptDisplayTracesToLegacyTraces } from '../../domain/display-trace-adapter';
 import { useTouchstoneState } from '../../hooks/use-touchstone-state';
 import { useTheme } from '../../hooks/use-theme';
 import { useTraceActions } from '../../hooks/use-trace-actions';
 import { useFileDispatch, useFileState } from '../../stores/file-store';
-import { useOptionalAggregateWorkspace } from '../../stores/aggregate-workspace-store';
-import { useMarkerDispatch, useMarkerState } from '../../stores/marker-store';
-import { usePaneState } from '../../stores/pane-store';
-import { useRefLineDispatch, useRefLineState } from '../../stores/ref-line-store';
+import { useOptionalAggregateWorkspace, workspaceReducer, traceView, type WorkspaceAction } from '../../stores/aggregate-workspace-store';
+import { useMarkerDispatch, useMarkerState, type MarkerAction } from '../../stores/marker-store';
+import { usePaneDispatch, usePaneLimit, usePaneState } from '../../stores/pane-store';
+import { useRefLineDispatch, useRefLineState, type RefLineAction } from '../../stores/ref-line-store';
 import { useTraceDispatch, useTraceState } from '../../stores/trace-store';
 import { useUiDispatch, useUiState } from '../../stores/ui-store';
-import type { Dataset } from '../../types/dataset';
-import type { RawFileRecord, FileMetadata, MetadataEntry } from '../../types/file';
+import type { FileMetadata, MetadataEntry } from '../../types/file';
 import type { TouchstoneFamily, TouchstoneView } from '../../types/touchstone';
 import type { Trace } from '../../types/trace';
 import { PretextLabel } from '../shared/PretextLabel';
-import { Sec } from '../shared/Sec';
 import { TouchstoneMatrixPicker } from '../sidebar/TouchstoneMatrixPicker';
 import { TraceRow } from '../sidebar/LiveTraceRow';
 import { MarkerItem } from '../sidebar/LiveMarkerItem';
@@ -31,6 +31,7 @@ const MATRIX_VIEWS_BY_FAMILY: Record<TouchstoneFamily, readonly TouchstoneView[]
   S: ['dB', 'Mag', 'Phase', 'Real', 'Imag'],
   Y: ['Mag', 'Phase', 'Real', 'Imag'],
   Z: ['Mag', 'Phase', 'Real', 'Imag'],
+  ABCD: ['Mag', 'Phase', 'Real', 'Imag'],
 };
 
 const headerCellStyle: CSSProperties = {
@@ -48,15 +49,27 @@ const subsectionLabelStyle: CSSProperties = {
   letterSpacing: '0.08em',
 };
 
-export function Sidebar({ width = 300 }: { width?: number }) {
-  const { files } = useFileState();
+export interface SidebarProps {
+  width?: number;
+  onOpenFiles?: () => void;
+  onDropFiles?: (files: FileList) => void;
+  onLoadDemo?: () => void;
+  onReplaceFile?: (fileId: string) => void;
+  onEditColumns?: (fileId: string) => void;
+  onRenameFile?: (fileId: string) => void;
+  onThresholdCrossings?: (lineId: number) => void;
+}
+export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onReplaceFile, onEditColumns, onRenameFile, onThresholdCrossings }: SidebarProps) {
+  const { files, rawFileData } = useFileState();
   const { allTraces, allKnownTraces, allDisplayTraces, vis } = useTraceState();
   const { markers, selectedMkrIdx } = useMarkerState();
   const { refLines, selectedRefLineId } = useRefLineState();
-  const { selectedTraceName, showSidebar, showDetailedFiles, traceColors } = useUiState();
-  const { panes, tracePaneMap, zoomAll, sharedZoom, paneXZooms } = usePaneState();
+  const { selectedTraceName, showSidebar, traceColors } = useUiState();
+  const { panes, activePaneId, tracePaneMap, zoomAll, sharedZoom, paneXZooms } = usePaneState();
 
   const fileDispatch = useFileDispatch();
+  const paneDispatch = usePaneDispatch();
+  const { limit } = usePaneLimit();
   const aggregate = useOptionalAggregateWorkspace();
   const markerDispatch = useMarkerDispatch();
   const refLineDispatch = useRefLineDispatch();
@@ -64,18 +77,19 @@ export function Sidebar({ width = 300 }: { width?: number }) {
   const uiDispatch = useUiDispatch();
   const { touchstoneStateByFileId, appendCell, setActiveFamily, setActiveView } = useTouchstoneState();
   const { selectTrace, removeTrace, toggleVisibility } = useTraceActions();
-  const { colors } = useTheme();
+  const { colors, theme } = useTheme();
 
-  const [activeTabByFileId, setActiveTabByFileId] = useState<Record<string, 'matrix' | 'meta' | null>>({});
+  const [hoveredMarkerId, setHoveredMarkerId] = useState<string | null>(null);
+  const [expandedByFileId, setExpandedByFileId] = useState<Record<string, { matrix?: boolean; meta?: boolean }>>({});
   const compactSidebar = files.length <= 1 && allTraces.length <= 1 && markers.length === 0 && refLines.length === 0;
-  const effectiveWidth = compactSidebar ? Math.min(width, 248) : width;
-  const sidebarMinWidth = compactSidebar ? '176px' : '200px';
-  const sidebarMaxWidth = 'min(45vw, 560px)';
+  const effectiveWidth = width;
+  const sidebarMinWidth = '220px';
+  const sidebarMaxWidth = 'min(45vw, 420px)';
   const sidebarInnerGap = compactSidebar ? '5px' : '7px';
   const sidebarInnerPadding = compactSidebar ? '4px 4px 6px' : '5px 5px 7px';
-  const fileCardPadding = compactSidebar ? '4px' : '5px';
+  const fileCardPadding = '4px';
   const fileCardGap = compactSidebar ? '3px' : '4px';
-  const fileCardRadius = compactSidebar ? '8px' : '10px';
+  const fileCardRadius = '6px';
 
   const visibleDisplayTraces = allDisplayTraces.filter((displayTrace) => !displayTrace.hidden);
   const displayTraceLocationByLegacyName = useMemo(() => {
@@ -90,32 +104,25 @@ export function Sidebar({ width = 300 }: { width?: number }) {
     });
     return result;
   }, [files]);
-  const sourceDatasetsByFileId = useMemo<Record<string, Dataset[]>>(() => {
-    return files.reduce<Record<string, Dataset[]>>((acc, file) => {
-      acc[String(file.id)] = (file.datasets ?? []).filter((dataset) => dataset.kind === 'source');
-      return acc;
-    }, {});
-  }, [files]);
 
   const resolveTraceColor = useMemo(() => {
-    const rawPalette = colors?.tr ?? [];
-    const derivedPalette = colors?.dr ?? [];
-
-    return (trace: Trace, fallbackIndex: number): string => {
-      const custom = traceColors[trace.name];
-      if (custom) {
-        return custom;
-      }
-
-      const sameKind = allTraces.filter((item) => item.kind === trace.kind);
-      const kindIndex = sameKind.findIndex((item) => item.name === trace.name);
-      const palette = trace.kind === 'derived' ? derivedPalette : rawPalette;
-      const paletteIndex = kindIndex >= 0 ? kindIndex : fallbackIndex;
-      return palette[paletteIndex % (palette.length || 1)] || 'var(--accent)';
-    };
-  }, [allTraces, colors?.dr, colors?.tr, traceColors]);
+    const styles = getComputedStyle(document.documentElement);
+    const sourcePalette = Array.from({ length: 8 }, (_, index) => styles.getPropertyValue(`--tr${index}`).trim());
+    const derivedPalette = Array.from({ length: 8 }, (_, index) => styles.getPropertyValue(`--dr${index}`).trim());
+    const resolve = makeTraceColorResolver(allKnownTraces, sourcePalette, derivedPalette, traceColors, theme);
+    return (trace: Trace, _fallbackIndex: number) => resolve(trace);
+  }, [allKnownTraces, colors, theme, traceColors]);
 
   // Removed toggleMetadata usage
+
+  const changeMarker = (action: MarkerAction, message: string) => {
+    if (aggregate) aggregate.historyDispatch({ type: 'change', toastMessage: message, command: { slice: 'markers', action } });
+    else markerDispatch(action);
+  };
+  const changeLine = (action: RefLineAction, message: string) => {
+    if (aggregate) aggregate.historyDispatch({ type: 'change', toastMessage: message, command: { slice: 'lines', action } });
+    else refLineDispatch(action);
+  };
 
   const getTraceDataSpan = (trace: Trace | null): number => {
     if (!trace || trace.data.length < 2) {
@@ -184,41 +191,57 @@ export function Sidebar({ width = 300 }: { width?: number }) {
           gap: sidebarInnerGap,
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-          <Sec first>Files</Sec>
-          <button
-            type="button"
-            onClick={() => uiDispatch({ type: 'SET', payload: { key: 'showDetailedFiles', value: !showDetailedFiles } })}
-            className={showDetailedFiles ? 'btn-active' : 'btn'}
-          >
-            {showDetailedFiles ? 'Compact' : 'Detailed'}
-          </button>
-        </div>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+        <PanelSection title="Files" count={files.length} actions={[{ label: 'Close all files…', disabled: !files.length, run: () => {
+          const actions = files.map(file => ({ slice: 'files' as const, action: { type: 'REMOVE_FILE' as const, payload: { fileId: String(file.id) } } }));
+          if (aggregate) aggregate.historyDispatch({ type: 'change', toastMessage: `Closed ${files.length} files`, command: { slice: 'transaction', actions } });
+          else actions.forEach(item => fileDispatch(item.action));
+        } }]} rightElement={
+          <button type="button" className="btn" onClick={onOpenFiles} disabled={!onOpenFiles} title={onOpenFiles ? 'Open files' : 'Open files is available from the top bar'}>Open…</button>
+        }>
           {files.map((file) => {
             const fileId = String(file.id);
-            const activeTab = activeTabByFileId[fileId] || null;
-            const isMatrixTab = activeTab === 'matrix';
-            const isMetaTab = activeTab === 'meta';
+            const isMatrixTab = !!file.matrixOpen;
+            const isMetaTab = !!expandedByFileId[fileId]?.meta;
             const touchstoneState = touchstoneStateByFileId[fileId] ?? makeDefaultTouchstoneState(file);
             const activeFamily = touchstoneState.activeFamily;
             const activeView = touchstoneState.activeViewByFamily[activeFamily];
-            const sourceDatasets = sourceDatasetsByFileId[fileId] ?? [];
-            const visibleViewCount = (file.displayTraces ?? []).filter((displayTrace) => !displayTrace.hidden).length;
             const hiddenViewCount = (file.displayTraces ?? []).filter((displayTrace) => displayTrace.hidden).length;
-            const hasMetadata = Object.keys(file.meta ?? {}).length > 0;
-            const fileTags = getFileTags(file, sourceDatasets);
             const availableViews = MATRIX_VIEWS_BY_FAMILY[activeFamily];
+
+            const toggleMatrix = (row: number, col: number, view: TouchstoneView) => {
+                        const component = ({ dB: 'magnitude-db', Mag: 'magnitude-linear', Phase: 'phase', Real: 'real', Imag: 'imag', VSWR: 'vswr', 'Return loss': 'return-loss', 'Group delay': 'group-delay' } as const)[view];
+                        const display = (file.displayTraces ?? []).find(item => !item.hidden && item.source.sourceType === 'network-parameter' && item.source.parameterFamily === activeFamily && item.source.row === row && item.source.col === col && item.source.component === component);
+                        const trace = display && allKnownTraces.find(item => item.name === (display.compat?.legacyTraceName ?? display.id));
+                        const paneId = activePaneId ?? 'pane-1';
+                        if (!trace) {
+                          const nextFile = appendTouchstoneDisplayTrace(file, touchstoneState, activeFamily, row + 1, col + 1, view);
+                          const added = nextFile.displayTraces?.[nextFile.displayTraces.length - 1];
+                          const created = added && adaptDisplayTracesToLegacyTraces(nextFile.datasets ?? [], [added], nextFile)[0];
+                          if (!created || nextFile === file) return;
+                          const fileAction = { type: 'APPEND_TOUCHSTONE_VIEW' as const, payload: { fileId, family: activeFamily, row: row + 1, col: col + 1, view } };
+                          const paneAction = { type: 'ADD_MEMBERSHIP' as const, payload: { trace: created, targetPaneId: paneId, allTraces: [...allKnownTraces, created], displayTraces: [...allDisplayTraces, added] } };
+                          const entries = allKnownTraces.map(item => ({ trace: item, paneIds: tracePaneMap[item.name] ?? [], displayTrace: allDisplayTraces.find(itemDisplay => itemDisplay.id === item.id) }));
+                          const result = canPlaceMembership({ trace: created, paneIds: [], displayTrace: added }, paneId, panes, entries);
+                          if (!result.allowed) { uiDispatch({ type: 'SET', payload: { key: 'paneAssignmentWarning', value: { message: result.reason, paneId, traceName: created.name } } }); return; }
+                          if (aggregate) aggregate.historyDispatch({ type: 'change', toastMessage: 'Added trace', command: { slice: 'transaction', actions: [{ slice: 'files', action: fileAction }, { slice: 'panes', action: paneAction, limit }] } });
+                          else { appendCell(fileId, activeFamily, row + 1, col + 1, view); paneDispatch(paneAction); }
+                          return;
+                        }
+                        const action = (tracePaneMap[trace.name] ?? []).includes(paneId)
+                          ? { type: 'REMOVE_MEMBERSHIP' as const, payload: { traceName: trace.name, paneId } }
+                          : { type: 'ADD_MEMBERSHIP' as const, payload: { trace, targetPaneId: paneId, allTraces: allKnownTraces, displayTraces: allDisplayTraces } };
+                        if (aggregate) aggregate.historyDispatch({ type: 'change', toastMessage: 'Updated trace panes', command: { slice: 'panes', action, limit } });
+                        else paneDispatch(action);
+            };
 
             return (
               <div
                 key={fileId}
                 style={{
-                  border: '1px solid color-mix(in srgb, var(--accent) 9%, var(--border))',
+                  border: '1px solid var(--border)',
                   borderRadius: fileCardRadius,
                   padding: fileCardPadding,
-                  background: 'linear-gradient(180deg, color-mix(in srgb, var(--card) 96%, white), var(--card))',
+                  background: 'var(--raised)',
                   display: 'flex',
                   flexDirection: 'column',
                   gap: fileCardGap,
@@ -227,6 +250,11 @@ export function Sidebar({ width = 300 }: { width?: number }) {
               >
                 <FileTitleRow
                   fileName={file.fileName}
+                  onReplace={onReplaceFile ? () => onReplaceFile(fileId) : undefined}
+                  onRename={onRenameFile ? () => onRenameFile(fileId) : undefined}
+                  onEdit={file.format === 'tabular' ? () => onEditColumns ? onEditColumns(fileId) : fileDispatch({ type: 'RERUN_WIZARD', payload: { fileId, fileName: file.fileName } }) : undefined}
+                  onVisibility={(visible) => { const traces = allTraces.filter(item => displayTraceLocationByLegacyName.get(item.name)?.fileId === fileId); const actions = traces.map(item => ({ slice: 'traces' as const, action: { type: 'SET_VISIBILITY' as const, name: item.name, visible } })); if (aggregate) aggregate.historyDispatch({ type: 'change', toastMessage: visible ? 'Showed file traces' : 'Hid file traces', command: { slice: 'transaction', actions } }); else actions.forEach(item => traceDispatch(item.action)); }}
+                  onInfo={() => setExpandedByFileId(prev => ({ ...prev, [fileId]: { ...prev[fileId], meta: !prev[fileId]?.meta } }))}
                   compact={compactSidebar}
                   onRemove={() => {
                     const names = new Set([...file.traces.map(trace => trace.name), ...(file.displayTraces ?? []).map(display => display.compat?.legacyTraceName ?? display.id)]);
@@ -239,26 +267,12 @@ export function Sidebar({ width = 300 }: { width?: number }) {
 
                 {file.error && <div role="alert" title={file.error}>{file.error}</div>}
 
-                {showDetailedFiles && (
-                  <div style={{ display: 'flex', gap: '4px', alignItems: 'center', flexWrap: 'wrap' }}>
-                    <span style={badgeStyle}>{visibleViewCount} views</span>
-                    <span style={badgeStyle}>{sourceDatasets.length} datasets</span>
-                    {fileTags.map((tag) => (
-                      <span key={tag} style={badgeStyle}>
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
-                )}
-
-                {file.error && <div role="alert" title={file.error}>{file.error}</div>}
-
-                {showDetailedFiles && (
+                {(
                   <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
                     {file.touchstoneNetwork && (
                       <button
                         type="button"
-                        onClick={() => setActiveTabByFileId((prev) => ({ ...prev, [fileId]: prev[fileId] === 'matrix' ? null : 'matrix' }))}
+                        onClick={() => fileDispatch({ type: 'SET_MATRIX_OPEN', payload: { fileId, open: !isMatrixTab } })}
                         className={isMatrixTab ? 'btn-active' : 'btn'}
                         style={{ padding: compactSidebar ? '2px 6px' : '4px 8px', fontSize: 'var(--font-caption)' }}
                         title="Show network parameter tools"
@@ -266,31 +280,31 @@ export function Sidebar({ width = 300 }: { width?: number }) {
                         Matrix
                       </button>
                     )}
-                    {hasMetadata && (
+                    {(
                       <button
                         type="button"
-                        onClick={() => setActiveTabByFileId((prev) => ({ ...prev, [fileId]: prev[fileId] === 'meta' ? null : 'meta' }))}
+                        onClick={() => setExpandedByFileId((prev) => ({ ...prev, [fileId]: { ...prev[fileId], meta: !prev[fileId]?.meta } }))}
                         className={isMetaTab ? 'btn-active' : 'btn'}
                         style={{ padding: compactSidebar ? '2px 6px' : '4px 8px', fontSize: 'var(--font-caption)' }}
                       >
-                        Meta
+                        Info
                       </button>
                     )}
                     {file.format === 'tabular' && (
                       <button
                         type="button"
-                        onClick={() => fileDispatch({ type: 'RERUN_WIZARD', payload: { fileId, fileName: file.fileName } })}
+                        onClick={() => onEditColumns ? onEditColumns(fileId) : fileDispatch({ type: 'RERUN_WIZARD', payload: { fileId, fileName: file.fileName } })}
                         className="btn"
                         style={{ padding: compactSidebar ? '2px 6px' : '4px 8px', fontSize: 'var(--font-caption)' }}
-                        title="Open the import wizard again for this table"
+                        title="Edit columns for this table"
                       >
-                        Re-import
+                        Edit columns…
                       </button>
                     )}
                   </div>
                 )}
 
-                {showDetailedFiles && isMatrixTab && file.touchstoneNetwork && (
+                {isMatrixTab && file.touchstoneNetwork && (
                   <div
                     style={{
                       display: 'grid',
@@ -302,10 +316,12 @@ export function Sidebar({ width = 300 }: { width?: number }) {
                     }}
                   >
                     <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-                      {(['S', 'Y', 'Z'] as const).map((family) => (
+                      {(['S', 'Y', 'Z', 'ABCD'] as const).map((family) => (
                         <button
                           key={family}
                           type="button"
+                          disabled={family === 'ABCD' && file.touchstoneNetwork?.portCount !== 2}
+                          title={family === 'ABCD' && file.touchstoneNetwork?.portCount !== 2 ? '2-port only' : family}
                           onClick={() => setActiveFamily(fileId, family)}
                           className={touchstoneState.activeFamily === family ? 'btn-active' : 'btn'}
                           style={{ padding: '4px 8px', fontSize: 'var(--font-caption)' }}
@@ -316,7 +332,7 @@ export function Sidebar({ width = 300 }: { width?: number }) {
                     </div>
 
                     <div style={{ display: 'grid', gap: '3px' }}>
-                      <span style={subsectionLabelStyle}>Append view</span>
+                      <span style={subsectionLabelStyle}>Plot as</span>
                       <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
                         {availableViews.map((view) => (
                           <button
@@ -329,33 +345,88 @@ export function Sidebar({ width = 300 }: { width?: number }) {
                             {view}
                           </button>
                         ))}
+                        <select aria-label="More network views" value={['VSWR', 'Return loss', 'Group delay'].includes(activeView) ? activeView : ''} onChange={event => { if (event.target.value) setActiveView(fileId, activeFamily, event.target.value as TouchstoneView); }}><option value="">More…</option><option value="VSWR" disabled={activeFamily !== 'S'}>VSWR</option><option value="Return loss" disabled={activeFamily !== 'S'}>Return loss</option><option value="Group delay">Group delay</option></select>
                       </div>
                     </div>
 
+                    {file.touchstoneNetwork.portCount >= 3 && <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                      {(['All Sii', 'All Sij', 'Lower', 'Clear'] as const).map(pick => <button type="button" key={pick} onClick={() => {
+                        const n = file.touchstoneNetwork?.portCount ?? 0;
+                        if (!aggregate) return;
+                        let candidate = aggregate.state;
+                        const actions: Extract<WorkspaceAction, { slice: 'transaction' }>['actions'][number][] = [];
+                        const apply = (action: typeof actions[number]) => { candidate = workspaceReducer(candidate, action); actions.push(action); };
+                        const component = ({ dB: 'magnitude-db', Mag: 'magnitude-linear', Phase: 'phase', Real: 'real', Imag: 'imag', VSWR: 'vswr', 'Return loss': 'return-loss', 'Group delay': 'group-delay' } as const)[activeView];
+                        const paneId = activePaneId ?? 'pane-1';
+                        for (let row = 0; row < n; row++) for (let col = 0; col < n; col++) {
+                          if ((activeView === 'VSWR' || activeView === 'Return loss') && row !== col) continue;
+                          const matches = pick === 'All Sii' ? row === col : pick === 'All Sij' ? row !== col : pick === 'Lower' ? row > col : true;
+                          if (!matches) continue;
+                          const currentFile = candidate.files.files.find(item => String(item.id) === fileId);
+                          if (!currentFile) continue;
+                          const projection = (currentFile.displayTraces ?? []).find(item => !item.hidden && item.source.sourceType === 'network-parameter' && item.source.parameterFamily === activeFamily && item.source.row === row && item.source.col === col && item.source.component === component);
+                          let currentView = traceView(candidate.files, candidate.traces);
+                          let trace = projection && currentView.allKnownTraces.find(item => item.name === (projection.compat?.legacyTraceName ?? projection.id));
+                          const selected = !!trace && (candidate.panes.tracePaneMap[trace.name] ?? []).includes(paneId);
+                          if (pick === 'Clear') {
+                            if (trace && selected) apply({ slice: 'panes', limit, action: { type: 'REMOVE_MEMBERSHIP', payload: { traceName: trace.name, paneId } } });
+                            continue;
+                          }
+                          if (selected) continue;
+                          if (!trace) {
+                            const nextFile = appendTouchstoneDisplayTrace(currentFile, touchstoneState, activeFamily, row + 1, col + 1, activeView);
+                            const added = nextFile === currentFile ? undefined : nextFile.displayTraces?.at(-1);
+                            const created = added && adaptDisplayTracesToLegacyTraces(nextFile.datasets ?? [], [added], nextFile)[0];
+                            if (!created) continue;
+                            const entries = currentView.allKnownTraces.map(item => ({ trace: item, paneIds: candidate.panes.tracePaneMap[item.name] ?? [], displayTrace: currentView.allDisplayTraces.find(display => display.id === item.id) }));
+                            if (!canPlaceMembership({ trace: created, paneIds: [], displayTrace: added }, paneId, candidate.panes.panes, entries).allowed) continue;
+                            apply({ slice: 'files', action: { type: 'APPEND_TOUCHSTONE_VIEW', payload: { fileId, family: activeFamily, row: row + 1, col: col + 1, view: activeView } } });
+                            currentView = traceView(candidate.files, candidate.traces);
+                            trace = currentView.allKnownTraces.find(item => item.id === created.id);
+                          }
+                          if (trace) apply({ slice: 'panes', limit, action: { type: 'ADD_MEMBERSHIP', payload: { trace, targetPaneId: paneId, allTraces: currentView.allKnownTraces, displayTraces: currentView.allDisplayTraces } } });
+                        }
+                        if (actions.length) aggregate.historyDispatch({ type: 'change', toastMessage: `${pick} matrix views`, command: { slice: 'transaction', actions } });
+                      }} disabled={!aggregate} title={!aggregate ? 'Batch actions require workspace history' : pick}>{pick === 'Lower' ? 'Lower \u25e3' : pick}</button>)}
+                    </div>}
                     <TouchstoneMatrixPicker
                       portCount={file.touchstoneNetwork.portCount}
                       family={activeFamily}
                       view={activeView}
                       cellColors={(() => {
-                        const cellPattern = `${activeFamily}`;
                         const map: Record<string, string> = {};
-                        allTraces.forEach((trace, index) => {
-                          if (displayTraceLocationByLegacyName.get(trace.name)?.fileId !== fileId) return;
-                          const match = trace.name.match(new RegExp(`_${cellPattern}(\\d+)(\\d+)_`));
-                          if (!match) return;
-                          const key = `${match[1]}:${match[2]}`;
-                          if (!map[key]) map[key] = resolveTraceColor(trace, index);
-                        });
+                        const component = ({ dB: 'magnitude-db', Mag: 'magnitude-linear', Phase: 'phase', Real: 'real', Imag: 'imag', VSWR: 'vswr', 'Return loss': 'return-loss', 'Group delay': 'group-delay' } as const)[activeView];
+                        for (const display of file.displayTraces ?? []) {
+                          const source = display.source;
+                          if (display.hidden || source.sourceType !== 'network-parameter' || source.parameterFamily !== activeFamily || source.component !== component) continue;
+                          const name = display.compat?.legacyTraceName ?? display.id;
+                          if (!(tracePaneMap[name] ?? []).includes(activePaneId ?? 'pane-1')) continue;
+                          const trace = allTraces.find(item => item.name === name);
+                          if (trace) map[`${source.row + 1}:${source.col + 1}`] = resolveTraceColor(trace, allTraces.indexOf(trace));
+                        }
                         return map;
                       })()}
-                      onToggle={(row, col, view) => appendCell(fileId, activeFamily, row + 1, col + 1, view)}
+                      otherCells={(() => {
+                        const cells = new Set<string>();
+                        const component = ({ dB: 'magnitude-db', Mag: 'magnitude-linear', Phase: 'phase', Real: 'real', Imag: 'imag', VSWR: 'vswr', 'Return loss': 'return-loss', 'Group delay': 'group-delay' } as const)[activeView];
+                        for (const display of file.displayTraces ?? []) {
+                          const source = display.source;
+                          if (display.hidden || source.sourceType !== 'network-parameter' || source.parameterFamily !== activeFamily) continue;
+                          const name = display.compat?.legacyTraceName ?? display.id;
+                          const memberships = tracePaneMap[name] ?? [];
+                          if (memberships.some(id => id !== activePaneId) || (memberships.length && source.component !== component)) cells.add(`${source.row + 1}:${source.col + 1}`);
+                        }
+                        return cells;
+                      })()}
+                      disabledReason={(row, col) => (activeView === 'VSWR' || activeView === 'Return loss') && row !== col ? 'Reflection parameters only' : undefined}
+                      onToggle={toggleMatrix}
                     />
                   </div>
                 )}
 
-                {showDetailedFiles && hasMetadata && isMetaTab && <MetadataPanel meta={file.meta} compact={compactSidebar} />}
+                {isMetaTab && <MetadataPanel meta={file.meta} raw={rawFileData[fileId] ?? ''} compact={compactSidebar} />}
 
-                {showDetailedFiles && hiddenViewCount > 0 && (
+                {hiddenViewCount > 0 && (
                   <div
                     style={{
                       display: 'grid',
@@ -386,29 +457,15 @@ export function Sidebar({ width = 300 }: { width?: number }) {
               </div>
             );
           })}
-          {files.length === 0 && <SidebarEmpty text="No files loaded." compact={compactSidebar} />}
-        </div>
+          {files.length === 0 && <div onDragOver={onDropFiles ? event => event.preventDefault() : undefined} onDrop={onDropFiles ? event => { event.preventDefault(); event.stopPropagation(); if (event.dataTransfer.files.length) onDropFiles(event.dataTransfer.files); } : undefined} style={{ minHeight: 210, border: '1px dashed var(--border-strong)', borderRadius: 6, padding: 12, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: 8, color: 'var(--text-muted)', textAlign: 'center' }}><strong style={{ color: 'var(--text)' }}>Drop files here</strong><span>.s1p ... .sNp ? .dat ? .csv ? .txt</span><div style={{ display: 'flex', gap: 4 }}><button type="button" disabled={!onOpenFiles} title={!onOpenFiles ? 'Open is available from the main file control' : 'Open files'} onClick={onOpenFiles}>Open…</button><button type="button" disabled={!onLoadDemo} title={!onLoadDemo ? 'Demo loading is not connected yet' : 'Load demo'} onClick={onLoadDemo}>Load demo</button></div><span>Files are read in this browser; nothing is uploaded.</span></div>}
+        </PanelSection>
 
-        <PanelSection title="Traces" compact={compactSidebar}>
+        {files.length > 0 && <>
+        <PanelSection title="Traces" count={allTraces.length} actions={[
+          ...([true, false] as const).map(visible => ({ label: visible ? 'Show all' : 'Hide all', disabled: !allTraces.length, run: () => { const actions = allTraces.map(trace => ({ slice: 'traces' as const, action: { type: 'SET_VISIBILITY' as const, name: trace.name, visible } })); if (aggregate) aggregate.historyDispatch({ type: 'change', toastMessage: visible ? 'Showed all traces' : 'Hid all traces', command: { slice: 'transaction', actions } }); else actions.forEach(item => traceDispatch(item.action)); } })),
+        ]}>
           <div style={{ display: 'grid', gridTemplateColumns: 'auto auto minmax(0, 1fr) auto auto auto auto', columnGap: '5px', rowGap: '2px' }}>
-            {allTraces.length > 0 && !compactSidebar && effectiveWidth >= 230 && (
-              <div style={{
-                display: 'grid',
-                gridColumn: '1 / -1',
-                gridTemplateColumns: 'subgrid',
-                alignItems: 'center',
-                padding: '0 6px',
-                marginBottom: '1px',
-              }}>
-                <span />
-                <span />
-                <span style={headerCellStyle} title="Display name of the trace">Trace</span>
-                <span style={headerCellStyle} title="Which chart pane this trace is displayed in (P1, P2, …)">Pane</span>
-                <span style={headerCellStyle} title="How marker values are read between data points&#10;Snap — nearest sample&#10;Linear — straight line between samples&#10;Sinc — bandlimited reconstruction (uniform data only)">Interp</span>
-                <span style={headerCellStyle} title="r = Raw — imported directly from a file&#10;d = Derived — computed from one or more raw traces">Kind</span>
-                <span />
-              </div>
-            )}
+            {allTraces.length > 0 && <div style={{ gridColumn: '1 / -1', display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 8, padding: '0 32px', ...headerCellStyle }}><span>Name</span><span>Interp</span><span>Pane</span></div>}
             {allTraces.map((trace, index) => {
               const traceColor = resolveTraceColor(trace, index);
               const isBackedByDisplayTrace = visibleDisplayTraces.some(
@@ -430,55 +487,48 @@ export function Sidebar({ width = 300 }: { width?: number }) {
                 <TraceRow
                   key={trace.id || trace.name}
                   trace={trace}
+                  displayName={trace.dn}
+                  subtitle={(() => { const display = allDisplayTraces.find(item => (item.compat?.legacyTraceName ?? item.id) === trace.name); const source = display?.source; return source?.sourceType === 'network-parameter' ? `${source.parameterFamily}${source.row + 1}${source.col + 1} · ${display?.label.split(' ').pop() ?? ''}` : source?.sourceType === 'series' ? trace.dn : undefined; })()}
                   isVisible={!!vis[trace.name]}
                   isSelected={selectedTraceName === trace.name}
-                  paneId={tracePaneMap[trace.name]?.[0]}
+                  paneIds={tracePaneMap[trace.name] ?? []}
+                  panes={panes.map((pane, paneIndex) => {
+                    const entries = allKnownTraces.map(item => ({ trace: item, paneIds: tracePaneMap[item.name] ?? [], displayTrace: allDisplayTraces.find(display => display.id === item.id) }));
+                    const entry = entries.find(item => item.trace.name === trace.name);
+                    const result = entry && canPlaceMembership(entry, pane.id, panes, entries);
+                    return { id: pane.id, title: pane.title || `Pane ${paneIndex + 1}`, disabledReason: !(tracePaneMap[trace.name] ?? []).includes(pane.id) && result && !result.allowed ? result.reason : undefined };
+                  })}
+                  onTogglePane={(paneId) => {
+                    const action = (tracePaneMap[trace.name] ?? []).includes(paneId)
+                      ? { type: 'REMOVE_MEMBERSHIP' as const, payload: { traceName: trace.name, paneId } }
+                      : { type: 'ADD_MEMBERSHIP' as const, payload: { trace, targetPaneId: paneId, allTraces: allKnownTraces, displayTraces: allDisplayTraces } };
+                    if (aggregate) aggregate.historyDispatch({ type: 'change', toastMessage: 'Updated trace panes', command: { slice: 'panes', action, limit } });
+                    else paneDispatch(action);
+                  }}
                   traceColor={traceColor}
                   onSelect={() => selectTrace(trace.name)}
-                  onRemove={() => removeTrace(trace)}
+                  onRemove={() => { if (markers.some(marker => marker.trace === trace.name) && !window.confirm(`Remove ${trace.dn} and its markers?`)) return; removeTrace(trace); }}
                   onToggle={() => toggleVisibility(trace.name)}
                   onColorChange={(color) => {
                     const next = { ...traceColors, [trace.name]: color };
-                    uiDispatch({ type: 'SET', payload: { key: 'traceColors', value: next } });
+                    const action = { type: 'SET' as const, payload: { key: 'traceColors' as const, value: next } };
+                    if (aggregate) aggregate.historyDispatch({ type: 'change', toastMessage: 'Changed trace color', command: { slice: 'ui', action } }); else uiDispatch(action);
                   }}
                   interpolation={effectiveInterpolation}
                   sincDisabledReason={sincDisabledReason}
                   onInterpolationChange={(interpolation) => {
+                    const actions: Extract<WorkspaceAction, { slice: 'transaction' }>['actions'][number][] = [];
                     const nextTrace = { ...trace, interpolation };
-                    markers.forEach((marker, markerIndex) => {
-                      if (marker.trace !== trace.name) {
-                        return;
-                      }
+                    markers.forEach((marker, idx) => {
+                      if (marker.trace !== trace.name) return;
                       const placement = placeMarker(nextTrace, marker.requestedFreq ?? marker.freq);
-                      markerDispatch({
-                        type: 'UPDATE_MARKER',
-                        payload: {
-                          idx: markerIndex,
-                          updates: {
-                            requestedFreq: placement.requestedFreq,
-                            freq: placement.freq,
-                            amp: placement.amp,
-                            interpolated: placement.interpolated,
-                          },
-                        },
-                      });
+                      actions.push({ slice: 'markers', action: { type: 'UPDATE_MARKER', payload: { idx, updates: { requestedFreq: placement.requestedFreq, freq: placement.freq, amp: placement.amp, interpolated: placement.interpolated } } } });
                     });
-
-                    if (trace.kind === 'derived') {
-                      traceDispatch({ type: 'SET_DERIVED_INTERPOLATION', payload: { traceId: trace.id, interpolation } });
-                      return;
-                    }
-                    if (!displayTraceLocation) {
-                      return;
-                    }
-                    fileDispatch({
-                      type: 'SET_DISPLAY_TRACE_INTERPOLATION',
-                      payload: {
-                        fileId: displayTraceLocation.fileId,
-                        displayTraceId: displayTraceLocation.displayTraceId,
-                        interpolation,
-                      },
-                    });
+                    if (trace.kind === 'derived') actions.push({ slice: 'traces', action: { type: 'SET_DERIVED_INTERPOLATION', payload: { traceId: trace.id, interpolation } } });
+                    else if (displayTraceLocation) actions.push({ slice: 'files', action: { type: 'SET_DISPLAY_TRACE_INTERPOLATION', payload: { fileId: displayTraceLocation.fileId, displayTraceId: displayTraceLocation.displayTraceId, interpolation } } });
+                    else return;
+                    if (aggregate) aggregate.historyDispatch({ type: 'change', toastMessage: 'Changed interpolation', command: { slice: 'transaction', actions } });
+                    else actions.forEach(item => { if (item.slice === 'markers') markerDispatch(item.action); else if (item.slice === 'traces') traceDispatch(item.action); else if (item.slice === 'files') fileDispatch(item.action); });
                   }}
                   compact={compactSidebar}
                   removeLabel={
@@ -491,23 +541,14 @@ export function Sidebar({ width = 300 }: { width?: number }) {
                 />
               );
             })}
-            {allTraces.length === 0 && <SidebarEmpty text="No traces loaded." compact={compactSidebar} />}
+            {allTraces.length === 0 && <SidebarEmpty text="Open files to add traces." compact={compactSidebar} />}
           </div>
         </PanelSection>
 
-        {markers.length > 0 && (
           <PanelSection 
             title="Markers" 
-            compact={compactSidebar}
-            rightElement={
-              <a 
-                href="#" 
-                onClick={(e) => { e.preventDefault(); markerDispatch({ type: 'CLEAR_ALL' }); }}
-                style={{ fontSize: 'var(--font-caption)', color: 'var(--accent)', textDecoration: 'none' }}
-              >
-                Clear All
-              </a>
-            }
+            count={markers.length}
+            actions={[{ label: 'Remove all', disabled: !markers.length, run: () => { const action = { type: 'CLEAR_ALL' as const }; if (aggregate) aggregate.historyDispatch({ type: 'change', toastMessage: 'Removed all markers', command: { slice: 'markers', action } }); else markerDispatch(action); } }]}
           >
             <div style={{ display: 'grid', gap: '4px' }}>
               {markers.map((marker, index) => {
@@ -530,27 +571,31 @@ export function Sidebar({ width = 300 }: { width?: number }) {
                     traceColor={traceColor}
                     xSpan={getVisibleTraceXSpan(trace)}
                     isSelected={selectedMkrIdx === index}
-                    onSelect={() => markerDispatch({ type: 'SET_SELECTED_IDX', payload: index })}
-                    onRemove={() => markerDispatch({ type: 'REMOVE_MARKER', payload: index })}
+                    isVisible={!!vis[marker.trace]}
+                    isRelated={!!hoveredMarkerId && (marker.refId === hoveredMarkerId || markers.some(other => other.id === hoveredMarkerId && other.refId === marker.id))}
+                    onHover={(hovered) => setHoveredMarkerId(hovered ? marker.id : null)}
+                    paneNumbers={(tracePaneMap[marker.trace] ?? []).map(id => panes.findIndex(pane => pane.id === id) + 1).filter(n => n > 0)}
+                    onSelect={() => { markerDispatch({ type: 'SET_SELECTED_IDX', payload: index }); selectTrace(marker.trace); }}
+                    onRemove={() => changeMarker({ type: 'REMOVE_MARKER', payload: index }, 'Removed marker')}
                     compact={compactSidebar}
                     paneNumber={paneNumber}
                     refMarker={refMarker}
                     allMarkers={markers}
                     onUpdateRefIdx={(refIdx) => {
-                      markerDispatch({
+                      changeMarker({
                         type: 'UPDATE_MARKER',
                         payload: {
                           idx: index,
                           updates: { refId: refIdx != null ? markers[refIdx]?.id ?? null : null, type: refIdx != null && markers[refIdx] ? 'delta' : 'normal' },
                         },
-                      });
+                      }, 'Updated marker');
                     }}
                     onUpdateFreq={(freq) => {
                       if (!trace) {
                         return;
                       }
                       const placement = placeMarker(trace, freq);
-                      markerDispatch({
+                      changeMarker({
                         type: 'UPDATE_MARKER',
                         payload: {
                           idx: index,
@@ -561,17 +606,20 @@ export function Sidebar({ width = 300 }: { width?: number }) {
                             interpolated: placement.interpolated,
                           },
                         },
-                      });
+                      }, 'Updated marker');
                     }}
                   />
                 );
               })}
             </div>
+            {markers.length === 0 && <SidebarEmpty text="Use the Markers tools to add markers." />}
           </PanelSection>
-        )}
 
-        {refLines.length > 0 && (
-          <PanelSection title="Reference Lines" compact={compactSidebar}>
+          <PanelSection title="Lines" count={refLines.filter((line, index) => !line.groupId || refLines.findIndex((other) => other.groupId === line.groupId) === index).length} actions={[{ label: 'Remove all', disabled: !refLines.length, run: () => {
+            const actions = refLines.map(line => ({ slice: 'lines' as const, action: { type: 'REMOVE_LINE' as const, payload: line.id } }));
+            if (aggregate) aggregate.historyDispatch({ type: 'change', toastMessage: 'Removed all lines', command: { slice: 'transaction', actions } });
+            else actions.forEach(item => refLineDispatch(item.action));
+          } }]}>
             <div style={{ display: 'grid', gap: '4px' }}>
               {(() => {
                 const selectedTrace = selectedTraceName ? allTraces.find((t) => t.name === selectedTraceName) ?? null : null;
@@ -610,32 +658,22 @@ export function Sidebar({ width = 300 }: { width?: number }) {
                           (refLine.groupId != null && refLines.some((l) => l.groupId === refLine.groupId && l.id === selectedRefLineId))}
                         intersections={intersections}
                         allPanes={panes}
+                        linkedPaneIds={refLine.groupId ? refLines.filter(line => line.groupId === refLine.groupId).map(line => line.paneId).filter((id): id is string => !!id) : refLine.paneId ? [refLine.paneId] : []}
+                        onList={onThresholdCrossings ? () => onThresholdCrossings(refLine.id) : undefined}
                         onSelect={() => {
                           refLineDispatch({ type: 'SET_SELECTED', payload: refLine.id });
                           markerDispatch({ type: 'SET_SELECTED_IDX', payload: -1 });
                         }}
-                        onRemove={() => {
-                          if (refLine.groupId) {
-                            // Remove all lines in the group
-                            refLines
-                              .filter((l) => l.groupId === refLine.groupId)
-                              .forEach((l) => refLineDispatch({ type: 'REMOVE_LINE', payload: l.id }));
-                          } else {
-                            refLineDispatch({ type: 'REMOVE_LINE', payload: refLine.id });
-                          }
-                        }}
-                        onLock={() => { const groupFor = (paneId: string) => { const members=allKnownTraces.filter(trace=>tracePaneMap[trace.name]?.includes(paneId)); const groups=members.map(traceXGroup); return groups.length && groups[0] && groups.every(group=>group===groups[0]) ? groups[0] : null; }; const group=refLine.paneId ? groupFor(refLine.paneId) : null; if (group) refLineDispatch({ type: 'LOCK_LINE', payload: { lineId: refLine.id, allPaneIds: panes.filter(pane=>groupFor(pane.id)===group).map(pane=>pane.id) } }); }}
-                        onUnlock={() => refLineDispatch({ type: 'UNLOCK_LINE', payload: { lineId: refLine.id } })}
+                        onRemove={() => changeLine({ type: 'REMOVE_LINE', payload: refLine.id }, 'Removed line')}
+                        onLock={() => { const groupFor = (paneId: string) => { const members=allKnownTraces.filter(trace=>tracePaneMap[trace.name]?.includes(paneId)); const groups=members.map(traceXGroup); return groups.length && groups[0] && groups.every(group=>group===groups[0]) ? groups[0] : null; }; const group=refLine.paneId ? groupFor(refLine.paneId) : null; if (group) changeLine({ type: 'LOCK_LINE', payload: { lineId: refLine.id, allPaneIds: panes.filter(pane=>groupFor(pane.id)===group).map(pane=>pane.id) } }, 'Linked line'); }}
+                        onUnlock={() => changeLine({ type: 'UNLOCK_LINE', payload: { lineId: refLine.id } }, 'Unlinked line')}
                         onUpdateValue={(value) => {
-                          if (refLine.groupId) {
-                            refLineDispatch({ type: 'MOVE_GROUP', payload: { groupId: refLine.groupId, value } });
-                          } else {
-                            refLineDispatch({ type: 'UPDATE_LINE', payload: { id: refLine.id, updates: { value } } });
-                          }
+                          if (refLine.groupId) changeLine({ type: 'MOVE_GROUP', payload: { groupId: refLine.groupId, value } }, 'Moved line');
+                          else changeLine({ type: 'UPDATE_LINE', payload: { id: refLine.id, updates: { value } } }, 'Moved line');
                         }}
                         siblingLines={refLines.filter(l => l.type === refLine.type && l.paneId === refLine.paneId && l.id !== refLine.id)}
                         onUpdateDeltaPartner={(partnerId) => refLineDispatch({ type: 'UPDATE_LINE', payload: { id: refLine.id, updates: { deltaPartnerId: partnerId } } })}
-                        selectedTrace={selectedTrace}
+                        selectedTrace={paneTraces.find(trace => trace.name === selectedTraceName) ?? paneTraces[0] ?? selectedTrace}
                         xSpan={getVisibleXSpanForPaneId(refLine.paneId)}
                         compact={compactSidebar}
                         colors={colors}
@@ -648,36 +686,32 @@ export function Sidebar({ width = 300 }: { width?: number }) {
                   });
               })()}
             </div>
+            {refLines.length === 0 && <SidebarEmpty text="Use the Lines tools to add lines." />}
           </PanelSection>
-        )}
+        </>}
       </div>
     </div>
   );
 }
 
-function FileTitleRow({ fileName, compact = false, onRemove }: { fileName: string; compact?: boolean; onRemove: () => void }) {
+function FileTitleRow({ fileName, compact = false, onRemove, onInfo, onReplace, onRename, onEdit, onVisibility }: { fileName: string; compact?: boolean; onRemove: () => void; onInfo: () => void; onReplace?: () => void; onRename?: () => void; onEdit?: () => void; onVisibility: (visible: boolean) => void }) {
   return (
     <div
       style={{
         display: 'grid',
-        gridTemplateColumns: 'minmax(0, 1fr) auto',
+        gridTemplateColumns: 'auto minmax(0, 1fr) auto auto',
         gap: compact ? '4px' : '6px',
         alignItems: 'start',
         minWidth: 0,
       }}
     >
-      <PretextLabel
-        text={fileName}
-        font="400 var(--font-body) system-ui"
-        lineHeight="var(--lh-body)"
-        maxLines={compact ? 4 : 5}
-        style={{ fontSize: 'var(--font-body)', color: 'var(--text)', minWidth: 0 }}
-        lineStyle={{ whiteSpace: 'normal' }}
-      />
+      <span style={{ ...badgeStyle, borderRadius: 4, fontFamily: 'var(--font-mono)', minWidth: 30, textAlign: 'center', padding: '1px 2px' }}>{fileName.split('.').pop()?.toUpperCase().slice(0, 4) ?? 'FILE'}</span>
+      <span title={fileName} style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{fileName.length > 28 ? `${fileName.slice(0, 14)}…${fileName.slice(-11)}` : fileName}</span>
+      <ActionMenu label={`Actions for ${fileName}`} actions={[{ label: 'Info', run: onInfo }, { label: 'Replace file…', disabled: !onReplace, run: () => onReplace?.() }, ...(onEdit ? [{ label: 'Edit columns…', run: onEdit }] : []), { label: 'Rename', disabled: !onRename, run: () => onRename?.() }, { label: 'Show all', run: () => onVisibility(true) }, { label: 'Hide all', run: () => onVisibility(false) }, { label: 'Remove file…', run: onRemove }]} />
       <button
         type="button"
         onClick={onRemove}
-        style={{ ...sidebarButtonStyle('#d76482', false, compact), lineHeight: '1.2', flexShrink: 0 }}
+        style={{ ...sidebarButtonStyle('var(--text-muted)', false, compact), lineHeight: '1.2', flexShrink: 0 }}
         title="Remove file"
       >
         x
@@ -701,39 +735,32 @@ function SidebarEmpty({ text, compact = false }: { text: string; compact?: boole
   );
 }
 
-function PanelSection({ title, compact = false, children, rightElement }: { title: string; compact?: boolean; children: ReactNode; rightElement?: ReactNode }) {
-  return (
-    <div
-      style={{
-        border: '1px solid color-mix(in srgb, var(--accent) 10%, var(--border))',
-        borderRadius: compact ? '8px' : '10px',
-        background: 'linear-gradient(180deg, color-mix(in srgb, var(--card) 96%, white), var(--card))',
-        padding: compact ? '4px 5px 5px' : '5px 6px 6px',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: compact ? '3px' : '4px',
-      }}
-    >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Sec>{title}</Sec>
-        {rightElement}
-      </div>
-      {children}
-    </div>
-  );
+type SidebarAction = { label: string; run: () => void; disabled?: boolean };
+function ActionMenu({ label, actions }: { label: string; actions: SidebarAction[] }) {
+  return <details style={{ position: 'relative' }}><summary aria-label={label} title={label} style={{ cursor: 'pointer', listStyle: 'none', padding: '0 5px' }}>⋯</summary><div style={{ position: 'absolute', zIndex: 10, right: 0, minWidth: 140, padding: 4, background: 'var(--raised)', border: '1px solid var(--border)', borderRadius: 6, boxShadow: '0 4px 12px oklch(0 0 0 / .15)' }}>{actions.map(action => <button key={action.label} type="button" disabled={action.disabled} title={action.disabled ? 'Unavailable until the required data or integration is present' : action.label} onClick={event => { action.run(); event.currentTarget.closest('details')?.removeAttribute('open'); }} style={{ display: 'block', width: '100%', textAlign: 'left', whiteSpace: 'nowrap' }}>{action.label}</button>)}</div></details>;
 }
-
-function getFileTags(file: RawFileRecord, sourceDatasets: readonly Dataset[]): string[] {
-  const tags = new Set<string>();
-  sourceDatasets.forEach((dataset) => {
-    if (dataset.family === 'spectrum') tags.add('Spectrum');
-    if (dataset.family === 'waveform') tags.add('Waveform');
-    if (dataset.family === 'network') tags.add('Network');
+function PanelSection({ title, count, children, rightElement, actions = [] }: { title: string; count: number; children: ReactNode; rightElement?: ReactNode; actions?: SidebarAction[] }) {
+  const key = `mergen.sidebar.collapsed.${title.toLowerCase()}`;
+  const [collapsed, setCollapsed] = useState(() => {
+    try { return localStorage.getItem(key) === 'true'; } catch { return false; }
   });
-  if (file.touchstoneNetwork) {
-    tags.add('Touchstone');
-  }
-  return [...tags];
+  const toggle = () => {
+    const next = !collapsed;
+    setCollapsed(next);
+    try { localStorage.setItem(key, String(next)); } catch { /* Storage can be unavailable. */ }
+  };
+  return (
+    <section style={{ minWidth: 0 }}>
+      <div style={{ position: 'sticky', top: 0, zIndex: 1, height: 26, display: 'flex', alignItems: 'center', gap: 4, background: 'var(--panel)', borderBottom: '1px solid var(--border)' }}>
+        <button type="button" onClick={toggle} aria-expanded={!collapsed} style={{ flex: 1, minWidth: 0, textAlign: 'left', border: 0, background: 'transparent', color: 'var(--text)', cursor: 'pointer', fontWeight: 700 }}>
+          {collapsed ? '▸' : '▾'} {title} <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>{count}</span>
+        </button>
+        {rightElement}
+        {actions.length > 0 && <ActionMenu label={`${title} actions`} actions={actions} />}
+      </div>
+      {!collapsed && <div style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '4px 0' }}>{children}</div>}
+    </section>
+  );
 }
 
 function metadataEntryToDisplay(entry: MetadataEntry): string {
@@ -743,11 +770,19 @@ function metadataEntryToDisplay(entry: MetadataEntry): string {
   return formatWithUnit(entry.value, entry.unit);
 }
 
-function MetadataPanel({ meta, compact = false }: { meta: FileMetadata; compact?: boolean }) {
+function MetadataPanel({ meta, raw, compact = false }: { meta: FileMetadata; raw: string; compact?: boolean }) {
+  const [mode, setMode] = useState<'table' | 'raw'>('table');
   const entries = useMemo(() => Object.entries(meta), [meta]);
-  if (entries.length === 0) {
-    return null;
-  }
+  const rawHeader = useMemo(() => {
+    const lines = raw.split(/\r?\n/);
+    const header: string[] = [];
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (trimmed && !/^[!#;%]/.test(trimmed) && /^[+-]?(?:\d|\.\d)/.test(trimmed)) break;
+      header.push(line);
+    }
+    return header.join('\n').trimEnd();
+  }, [raw]);
 
   return (
     <div
@@ -760,8 +795,8 @@ function MetadataPanel({ meta, compact = false }: { meta: FileMetadata; compact?
         gap: compact ? '3px' : '4px',
       }}
     >
-      <div style={subsectionLabelStyle}>Metadata</div>
-      {entries.map(([key, value]) => (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}><strong style={{ flex: 1 }}>Info</strong><button type="button" aria-pressed={mode === 'table'} onClick={() => setMode('table')}>Table</button><button type="button" aria-pressed={mode === 'raw'} onClick={() => setMode('raw')}>Raw</button><button type="button" onClick={() => void navigator.clipboard.writeText(mode === 'raw' ? rawHeader : entries.map(([key, value]) => `${key}: ${metadataEntryToDisplay(value)}`).join('\n'))}>Copy</button></div>
+      {mode === 'raw' ? <pre style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', maxHeight: 200, overflow: 'auto', margin: 0 }}>{rawHeader || 'No header fields in this file'}</pre> : entries.length === 0 ? <SidebarEmpty text="No header fields in this file" /> : entries.map(([key, value]) => (
         <div
           key={key}
           style={{

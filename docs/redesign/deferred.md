@@ -39,3 +39,12 @@ See [Phase 1–2 comparison](phase1-2-reference-comparison.md) and [side-by-side
 Phase 1 implemented the base tokens, offline fonts, type foundation, focus and reduced-motion styles, retained existing Recharts animation-off settings, and provider-owned theme preference API. The light/dark theme API was verified, but the user-facing Settings UI is still Phase 7 work. The base fixes for findings 01, 03, 05, 07 and 11 do not close the later component work listed above.
 
 Keep the Phase 8 gate open until every applicable ledger item is closed and verified. Phase 8 must also complete the specified screen/state review and contrast checks (including text contrast of at least 4.5:1), confirm no component hex colors or emoji remain where prohibited, and use repository searches to prove compatibility aliases and legacy theme handling have no remaining consumers before removal. Record any item that is still open; do not report the redesign as complete while this ledger has open work.
+
+## Phase 4 continuation follow-up
+
+| Remaining work | Target phase | Status |
+| --- | --- | --- |
+| Adopt the same trace-family color resolver in chart rendering and verify matching colors for source and created traces in both themes. Resolver allocation is recomputed from surviving traces; deleting an earlier source or sibling can shift later colors. Preserve allocation in a workspace-compatible identity contract if colors must remain fixed across deletion and reload. | Phase 5 | Sidebar adopts the resolver; chart adoption and persistent allocation remain open. |
+| Connect sidebar Open, Drop, Load demo, Replace, Edit columns, Rename and Threshold crossings callbacks to their shared workflows; verify the empty sidebar and file replacement end to end. | Phase 7E | Typed callbacks exist; App wiring remains open. |
+| Complete large-port plotted chips across views, grid popover dismissal/focus, and verify all-panes/unplaced and marker/line states against board 42-L1. Replace heuristic raw-header extraction with retained parsed header boundaries. | Phase 7E / final visual audit | Current chips cover the selected view in the target pane; additional states and exact header fidelity remain open. |
+| Finish trace row naming, interpolation choices, nesting and visual sizing; verify Undo for all individual edits and failure paths. | Phase 4 continuation / Phase 8 audit | Partial implementation and focused tests exist; board fidelity and complete action coverage remain open. |
