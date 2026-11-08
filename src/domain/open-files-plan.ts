@@ -6,7 +6,7 @@ function selectTraces(selection: Extract<OpenData['result'], { ok: true }>['sele
   if (!Number.isInteger(selection.ports) || selection.ports < 1) return null;
   if (selection.ports >= 3) return { traces: [], matrixOpen: true };
   if (!selection.s11 || (selection.ports === 2 && !selection.s21)) return null;
-  return { traces: selection.ports === 1 ? [selection.s11] : [selection.s21 as OpenTrace, selection.s11], matrixOpen: false };
+  return { traces: selection.ports === 1 ? [selection.s11] : [selection.s21 as OpenTrace, selection.s11], matrixOpen: true };
 }
 
 function copyName(name: string, used: ReadonlySet<string>): string {

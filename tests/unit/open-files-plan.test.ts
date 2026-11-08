@@ -13,8 +13,8 @@ describe('file opening plans', () => {
     const s11 = trace('11', 'Hz:S11'); const s21 = trace('21', 'Hz:S21');
     const cases: [Extract<OpenData['result'], { ok: true }>['selection'], string[], boolean][] = [
       [{ kind: 'single', trace: s11 }, ['11'], false],
-      [{ kind: 'network', ports: 1, s11 }, ['11'], false],
-      [{ kind: 'network', ports: 2, s11, s21 }, ['21', '11'], false],
+      [{ kind: 'network', ports: 1, s11 }, ['11'], true],
+      [{ kind: 'network', ports: 2, s11, s21 }, ['21', '11'], true],
       [{ kind: 'network', ports: 3 }, [], true],
       [{ kind: 'columns', selected: Array.from({ length: 10 }, (_, i) => trace(`${i}`, `Hz:${i}`)), recognized: true }, ['0','1','2','3','4','5','6','7'], false],
       [{ kind: 'columns', selected: Array.from({ length: 10 }, (_, i) => trace(`${i}`, `Hz:${i}`)), recognized: false }, ['0','1','2','3','4','5','6','7','8','9'], false],

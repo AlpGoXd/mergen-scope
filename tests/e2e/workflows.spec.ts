@@ -177,7 +177,6 @@ test("Touchstone import exposes matrix controls and analysis cards without crash
   await importFromEmptyPane(page, touchstoneFixture);
   await expect(page.getByText("cascaded chain.s2p", { exact: true })).toBeVisible();
 
-  await page.getByRole("button", { name: "Matrix" }).click();
   await expect(page.getByTestId("touchstone-cell-S11")).toBeVisible();
   await page.getByTestId("touchstone-cell-S11").click();
   const s11Trace = page.locator('[data-testid^="trace-row-"]').filter({ hasText: "S11" }).first();
