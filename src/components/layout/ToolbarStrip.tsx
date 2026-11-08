@@ -105,7 +105,7 @@ export function ToolbarStrip() {
       <label>Trace: <select className="ui-select" style={{ minHeight: 20, height: 20, padding: '0 4px' }} value={markerTrace} onChange={e => uiDispatch({ type: 'SET', payload: { key: 'markerTrace', value: e.target.value } })} title="Auto picks the trace nearest the click">
         <option value="__auto__">Auto</option>{visiblePaneTraces.map(trace => <option key={trace.name} value={trace.name}>{trace.dn || trace.name}</option>)}
       </select></label>
-      <Btn small variant="slate" active={!!armed} aria-pressed={!!armed} title="Place a marker (N)" onClick={selectNormal}>+ New</Btn>
+      <Btn small variant="slate" active={!!armed} aria-pressed={!!armed} aria-label="New Marker" title="Place a marker (N)" onClick={selectNormal}>+ New</Btn>
       <details style={{ position: 'relative' }}><summary aria-label="Choose a delta marker reference" title="Choose a delta marker reference" style={{ cursor: 'pointer', listStyle: 'none', padding: '0 4px', border: '1px solid var(--border)', borderRadius: 4 }}>▾</summary>
         <div style={{ position: 'absolute', zIndex: 20, top: '100%', left: 0, minWidth: 170, background: 'var(--raised)', border: '1px solid var(--border)', padding: 4 }}>
           {normalMarkers.map((marker, i) => <Btn key={marker.id} small onClick={e => { armDelta(marker.id); e.currentTarget.closest('details')?.removeAttribute('open'); }}>+ Δ from {marker.label || `M${i + 1}`}</Btn>)}
