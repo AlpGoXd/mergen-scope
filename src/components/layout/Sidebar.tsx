@@ -1,3 +1,4 @@
+import { traceXGroup } from '../../domain/pane-placement';
 import React, { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import { formatAdaptiveXAxisValue, formatEngineeringValue, formatScalarWithUnit } from '../../domain/format';
 import { parseEngInput } from '../../domain/units';
@@ -10,6 +11,7 @@ import { useTouchstoneState } from '../../hooks/use-touchstone-state';
 import { useTheme } from '../../hooks/use-theme';
 import { useTraceActions } from '../../hooks/use-trace-actions';
 import { useFileDispatch, useFileState } from '../../stores/file-store';
+import { useOptionalAggregateWorkspace } from '../../stores/aggregate-workspace-store';
 import { useMarkerDispatch, useMarkerState } from '../../stores/marker-store';
 import { usePaneState } from '../../stores/pane-store';
 import { useRefLineDispatch, useRefLineState } from '../../stores/ref-line-store';
@@ -94,13 +96,14 @@ const subsectionLabelStyle: CSSProperties = {
 
 export function Sidebar({ width = 300 }: { width?: number }) {
   const { files } = useFileState();
-  const { allTraces, allDisplayTraces, vis } = useTraceState();
+  const { allTraces, allKnownTraces, allDisplayTraces, vis } = useTraceState();
   const { markers, selectedMkrIdx } = useMarkerState();
   const { refLines, selectedRefLineId } = useRefLineState();
   const { selectedTraceName, showSidebar, showDetailedFiles, traceColors } = useUiState();
   const { panes, tracePaneMap, zoomAll, sharedZoom, paneXZooms } = usePaneState();
 
   const fileDispatch = useFileDispatch();
+  const aggregate = useOptionalAggregateWorkspace();
   const markerDispatch = useMarkerDispatch();
   const refLineDispatch = useRefLineDispatch();
   const traceDispatch = useTraceDispatch();
@@ -178,7 +181,7 @@ export function Sidebar({ width = 300 }: { width?: number }) {
     if (zoom && Number.isFinite(zoom.left) && Number.isFinite(zoom.right) && zoom.right > zoom.left) {
       return zoom.right - zoom.left;
     }
-    const tracesInPane = allTraces.filter((t) => tracePaneMap[t.name] === pid);
+    const tracesInPane = allTraces.filter((t) => tracePaneMap[t.name]?.includes(pid));
     for (const trace of tracesInPane) {
       const span = getTraceDataSpan(trace);
       if (span > 1) return span;
@@ -190,7 +193,7 @@ export function Sidebar({ width = 300 }: { width?: number }) {
     if (!trace) {
       return 1;
     }
-    const paneId = tracePaneMap[trace.name] ?? 'pane-1';
+    const paneId = tracePaneMap[trace.name]?.[0] ?? 'pane-1';
     const zoom = zoomAll ? sharedZoom : (paneXZooms[paneId] ?? null);
     if (zoom && Number.isFinite(zoom.left) && Number.isFinite(zoom.right) && zoom.right > zoom.left) {
       return zoom.right - zoom.left;
@@ -271,8 +274,16 @@ export function Sidebar({ width = 300 }: { width?: number }) {
                 <FileTitleRow
                   fileName={file.fileName}
                   compact={compactSidebar}
-                  onRemove={() => fileDispatch({ type: 'REMOVE_FILE', payload: { fileId } })}
+                  onRemove={() => {
+                    const names = new Set([...file.traces.map(trace => trace.name), ...(file.displayTraces ?? []).map(display => display.compat?.legacyTraceName ?? display.id)]);
+                    if (((file.displayTraces?.length ?? file.traces.length) > 1 || markers.some(marker => names.has(marker.trace))) && !window.confirm(`Remove ${file.fileName} and its traces?`)) return;
+                    const action = {type:'REMOVE_FILE' as const,payload:{fileId}};
+                    if (aggregate) aggregate.historyDispatch({type:'change',toastMessage:`Removed ${file.fileName}`,command:{slice:'files',action}});
+                    else fileDispatch(action);
+                  }}
                 />
+
+                {file.error && <div role="alert" title={file.error}>{file.error}</div>}
 
                 {showDetailedFiles && (
                   <div style={{ display: 'flex', gap: '4px', alignItems: 'center', flexWrap: 'wrap' }}>
@@ -285,6 +296,8 @@ export function Sidebar({ width = 300 }: { width?: number }) {
                     ))}
                   </div>
                 )}
+
+                {file.error && <div role="alert" title={file.error}>{file.error}</div>}
 
                 {showDetailedFiles && (
                   <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
@@ -465,7 +478,7 @@ export function Sidebar({ width = 300 }: { width?: number }) {
                   trace={trace}
                   isVisible={!!vis[trace.name]}
                   isSelected={selectedTraceName === trace.name}
-                  paneId={tracePaneMap[trace.name]}
+                  paneId={tracePaneMap[trace.name]?.[0]}
                   traceColor={traceColor}
                   onSelect={() => selectTrace(trace.name)}
                   onRemove={() => removeTrace(trace)}
@@ -549,10 +562,10 @@ export function Sidebar({ width = 300 }: { width?: number }) {
                 const traceColor = trace
                   ? resolveTraceColor(trace, Math.max(traceIndex, 0))
                   : (colors?.mn ?? 'var(--accent)');
-                const paneId = tracePaneMap[marker.trace] ?? 'pane-1';
+                const paneId = tracePaneMap[marker.trace]?.[0] ?? 'pane-1';
                 const paneNumber = parseInt(paneId.replace('pane-', ''), 10);
 
-                const refMarker = marker.refIdx != null ? (markers[marker.refIdx] ?? null) : null;
+                const refMarker = marker.refId ? markers.find(item => item.id === marker.refId) ?? null : null;
 
                 return (
                   <MarkerItem
@@ -574,7 +587,7 @@ export function Sidebar({ width = 300 }: { width?: number }) {
                         type: 'UPDATE_MARKER',
                         payload: {
                           idx: index,
-                          updates: { refIdx, type: refIdx != null ? 'delta' : 'normal' },
+                          updates: { refId: refIdx != null ? markers[refIdx]?.id ?? null : null, type: refIdx != null && markers[refIdx] ? 'delta' : 'normal' },
                         },
                       });
                     }}
@@ -619,13 +632,13 @@ export function Sidebar({ width = 300 }: { width?: number }) {
                   })
                   .map((refLine) => {
                     // Collect traces for this line's pane
-                    const paneTraces = allTraces.filter((t) => tracePaneMap[t.name] === refLine.paneId);
+                    const paneTraces = allTraces.filter((t) => tracePaneMap[t.name]?.includes(refLine.paneId ?? ''));
                     // For locked lines, also collect intersections from all panes in the group
                     let intersections: LineIntersection[];
                     if (refLine.groupId) {
                       const groupLines = refLines.filter((l) => l.groupId === refLine.groupId);
                       intersections = groupLines.flatMap((gl) => {
-                        const gTraces = allTraces.filter((t) => tracePaneMap[t.name] === gl.paneId);
+                        const gTraces = allTraces.filter((t) => tracePaneMap[t.name]?.includes(gl.paneId ?? ''));
                         return gl.type === 'v'
                           ? computeVerticalIntersections(gl.value, gTraces, gl.paneId ?? 'pane-1')
                           : computeHorizontalIntersections(gl.value, gTraces, gl.paneId ?? 'pane-1');
@@ -657,7 +670,7 @@ export function Sidebar({ width = 300 }: { width?: number }) {
                             refLineDispatch({ type: 'REMOVE_LINE', payload: refLine.id });
                           }
                         }}
-                        onLock={() => refLineDispatch({ type: 'LOCK_LINE', payload: { lineId: refLine.id, allPaneIds: panes.map((p) => p.id) } })}
+                        onLock={() => { const groupFor = (paneId: string) => { const members=allKnownTraces.filter(trace=>tracePaneMap[trace.name]?.includes(paneId)); const groups=members.map(traceXGroup); return groups.length && groups[0] && groups.every(group=>group===groups[0]) ? groups[0] : null; }; const group=refLine.paneId ? groupFor(refLine.paneId) : null; if (group) refLineDispatch({ type: 'LOCK_LINE', payload: { lineId: refLine.id, allPaneIds: panes.filter(pane=>groupFor(pane.id)===group).map(pane=>pane.id) } }); }}
                         onUnlock={() => refLineDispatch({ type: 'UNLOCK_LINE', payload: { lineId: refLine.id } })}
                         onUpdateValue={(value) => {
                           if (refLine.groupId) {
@@ -1197,7 +1210,7 @@ function MarkerItem(props: {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                 <span style={{ fontSize: 'var(--font-caption)', color: 'var(--accent)' }}>Ref</span>
                 <select
-                  value={marker.refIdx ?? ''}
+                  value={marker.refId ? allMarkers.findIndex(item => item.id === marker.refId) : ''}
                   onClick={(e) => e.stopPropagation()}
                   onChange={(e) => {
                     e.stopPropagation();
@@ -1350,6 +1363,8 @@ function RefLineItem(props: {
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); onLock(); }}
+              disabled={refLine.type === 'h'}
+              title={refLine.type === 'h' ? 'Only vertical lines can be linked.' : 'Link panes with the same X unit'}
               style={{ ...sidebarButtonStyle(accentColor, false, compact), fontSize: '10px' }}
             >
               Lock All Panes

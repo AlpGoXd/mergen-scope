@@ -28,7 +28,7 @@ export type AnalysisAction =
   | { type: 'SET_RANGE_STATS_RESULT'; payload: { id: string; result: RangeStats | null } }
   | { type: 'RESTORE'; payload: Partial<AnalysisState> };
 
-const defaultState: AnalysisState = {
+export const defaultAnalysisState: AnalysisState = {
   analysisOpenState: getDefaultAnalysisOpenState(),
   noiseResults: {},
   ip3Results: {},
@@ -38,10 +38,10 @@ const defaultState: AnalysisState = {
   rangeStatsResults: {},
 };
 
-const AnalysisStateContext = createContext<AnalysisState | null>(null);
-const AnalysisDispatchContext = createContext<React.Dispatch<AnalysisAction> | null>(null);
+export const AnalysisStateContext = createContext<AnalysisState | null>(null);
+export const AnalysisDispatchContext = createContext<React.Dispatch<AnalysisAction> | null>(null);
 
-function analysisReducer(state: AnalysisState, action: AnalysisAction): AnalysisState {
+export function analysisReducer(state: AnalysisState, action: AnalysisAction): AnalysisState {
   switch (action.type) {
     case 'TOGGLE_PANEL': {
       const nextOpenState = setAnalysisOpenState(
@@ -98,9 +98,9 @@ function analysisReducer(state: AnalysisState, action: AnalysisAction): Analysis
     }
     case 'RESTORE': {
       return {
-        ...defaultState,
+        ...defaultAnalysisState,
         ...action.payload,
-        analysisOpenState: action.payload.analysisOpenState ?? defaultState.analysisOpenState,
+        analysisOpenState: action.payload.analysisOpenState ?? defaultAnalysisState.analysisOpenState,
       };
     }
     default:
@@ -109,7 +109,7 @@ function analysisReducer(state: AnalysisState, action: AnalysisAction): Analysis
 }
 
 export function AnalysisStoreProvider({ children }: { children: React.ReactNode }) {
-  const [state, dispatch] = useReducer(analysisReducer, defaultState);
+  const [state, dispatch] = useReducer(analysisReducer, defaultAnalysisState);
 
   return (
     <AnalysisDispatchContext.Provider value={dispatch}>

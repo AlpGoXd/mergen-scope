@@ -110,3 +110,16 @@ describe("workspace serialization", () => {
     expect(restoreSnapshot("{not json")).toBeNull();
   });
 });
+
+
+describe("legacy marker identifiers", () => {
+  it("allocates missing IDs around explicit IDs before resolving index references", () => {
+    const source = {version: 4, files: [], markers: [
+      {id: "marker-2", type: "normal", trace: "a", freq: 1, amp: 2},
+      {type: "delta", trace: "a", freq: 3, amp: 4, refIdx: 0},
+    ]};
+    const result = restoreSnapshot(JSON.stringify(source));
+    expect(result?.markers.map(m => m.id)).toEqual(["marker-2", "marker-1"]);
+    expect(result?.markers[1]?.refId).toBe("marker-2");
+  });
+});

@@ -25,7 +25,7 @@ export type UiAction =
   | { type: 'SET_ALL_VIS'; payload: Record<string, boolean> }
   | { type: 'RESTORE'; payload: Partial<UiState> };
 
-const defaultState: UiState = {
+export const defaultUiState: UiState = {
   showSidebar: true,
   showDetailedFiles: true,
   showRightPanel: false, // Hidden by default as part of v1 regression fix
@@ -73,19 +73,19 @@ export type ThemePreference = 'system' | 'light' | 'dark';
 const THEME_KEY = 'mergen-theme-preference';
 const ThemeContext = createContext<{ preference: ThemePreference; setPreference: (value: ThemePreference) => void } | null>(null);
 
-const UiStateContext = createContext<UiState | null>(null);
-const UiDispatchContext = createContext<React.Dispatch<UiAction> | null>(null);
+export const UiStateContext = createContext<UiState | null>(null);
+export const UiDispatchContext = createContext<React.Dispatch<UiAction> | null>(null);
 
-function readThemePreference(): ThemePreference {
+export function readThemePreference(): ThemePreference {
   try { const value = localStorage.getItem(THEME_KEY); return value === 'light' || value === 'dark' ? value : 'system'; } catch { return 'system'; }
 }
 
-function getInitialUiState(preference: ThemePreference): UiState {
+export function getInitialUiState(preference: ThemePreference): UiState {
   const systemDark = typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(prefers-color-scheme: dark)').matches;
-  return { ...defaultState, theme: preference === 'system' ? (systemDark ? 'dark' : 'light') : preference };
+  return { ...defaultUiState, theme: preference === 'system' ? (systemDark ? 'dark' : 'light') : preference };
 }
 
-function uiReducer(state: UiState, action: UiAction): UiState {
+export function uiReducer(state: UiState, action: UiAction): UiState {
   switch (action.type) {
     case 'TOGGLE': {
       const key = action.payload;
@@ -101,7 +101,7 @@ function uiReducer(state: UiState, action: UiAction): UiState {
       return { ...state, vis: action.payload };
     }
     case 'RESTORE': {
-      return { ...defaultState, ...action.payload, theme: state.theme };
+      return { ...defaultUiState, ...action.payload, theme: state.theme };
     }
     default:
       return state;
@@ -109,8 +109,13 @@ function uiReducer(state: UiState, action: UiAction): UiState {
 }
 
 export function UiStoreProvider({ children }: { children: React.ReactNode }) {
+  const [state, dispatch] = useReducer(uiReducer, readThemePreference(), getInitialUiState);
+  return <UiStoreAdapter state={state} dispatch={dispatch}>{children}</UiStoreAdapter>;
+}
+
+/** Connect the shared workspace state to the browser-only theme preference. */
+export function UiStoreAdapter({ children, state, dispatch }: { children: React.ReactNode; state: UiState; dispatch: React.Dispatch<UiAction> }) {
   const [preference, setPreferenceState] = useState<ThemePreference>(readThemePreference);
-  const [state, dispatch] = useReducer(uiReducer, preference, getInitialUiState);
   const setPreference = useCallback((value: ThemePreference) => {
     setPreferenceState(value);
     try { if (value === 'system') localStorage.removeItem(THEME_KEY); else localStorage.setItem(THEME_KEY, value); } catch { /* storage may be unavailable */ }
@@ -122,7 +127,7 @@ export function UiStoreProvider({ children }: { children: React.ReactNode }) {
     if (preference !== 'system' || !media) return;
     if (typeof media.addEventListener === 'function') { media.addEventListener('change', sync); return () => media.removeEventListener('change', sync); }
     media.addListener(sync); return () => media.removeListener(sync);
-  }, [preference]);
+  }, [preference, dispatch]);
   useLayoutEffect(() => {
     document.documentElement.classList.remove('theme-dark', 'theme-light', 'theme-glass');
     document.documentElement.classList.add(`theme-${state.theme === 'glass' ? 'dark' : state.theme}`);

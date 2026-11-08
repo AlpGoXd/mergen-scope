@@ -5,28 +5,28 @@ import { useMarkerState } from '../../stores/marker-store';
 import { useRefLineState } from '../../stores/ref-line-store';
 import { useTraceState } from '../../stores/trace-store';
 
-function deriveMode(mkrMode: string | null, refMode: string | null, newMarkerArmed: boolean): string {
+function deriveMode(armed: string | null, refMode: string | null): string {
   if (refMode === 'h') return 'H-Line';
   if (refMode === 'v') return 'V-Line';
-  if (newMarkerArmed) return 'Place Marker';
-  if (mkrMode === 'delta') return 'Marker / Delta';
-  return 'Marker / Normal';
+  if (armed === 'normal') return 'Place Marker';
+  if (armed === 'delta') return 'Place Delta';
+  return 'Select';
 }
 
 export function StatusBar() {
   const { activePaneId, paneActiveTraceMap, tracePaneMap } = usePaneState();
-  const { selectedTraceName, newMarkerArmed } = useUiState();
-  const { mkrMode } = useMarkerState();
+  const { selectedTraceName } = useUiState();
+  const { armed } = useMarkerState();
   const { refMode } = useRefLineState();
   const { allTraces } = useTraceState();
 
   const paneNum = activePaneId ? activePaneId.split('-')[1] : '—';
-  const mode = deriveMode(mkrMode, refMode, newMarkerArmed);
+  const mode = deriveMode(armed?.kind ?? null, refMode);
 
   const activeTraceName: string | null =
     (activePaneId ? paneActiveTraceMap[activePaneId] : null)
     ?? selectedTraceName
-    ?? Object.entries(tracePaneMap).find(([, pid]) => pid === activePaneId)?.[0]
+    ?? Object.entries(tracePaneMap).find(([, pid]) => pid.includes(activePaneId ?? ''))?.[0]
     ?? null;
   const traceLabel = activeTraceName
     ? (allTraces.find(t => t.name === activeTraceName)?.name ?? activeTraceName)

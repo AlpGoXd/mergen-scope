@@ -93,12 +93,8 @@ export function makeDefaultTouchstoneState(file: RawFileRecord): TouchstoneSelec
   if (portCount === 1) {
     selectedCellsByFamily.S['1:1'] = ['dB'];
   } else if (portCount === 2) {
-    selectedCellsByFamily.S['1:1'] = ['dB'];
     selectedCellsByFamily.S['2:1'] = ['dB'];
-  } else if (portCount > 2) {
-    for (let i = 1; i <= portCount; i += 1) {
-      selectedCellsByFamily.S[`${i}:${i}`] = ['dB'];
-    }
+    selectedCellsByFamily.S['1:1'] = ['dB'];
   }
 
   return {
@@ -107,6 +103,23 @@ export function makeDefaultTouchstoneState(file: RawFileRecord): TouchstoneSelec
     activeViewByFamily: { S: 'dB', Y: 'Mag', Z: 'Mag' },
     selectedCellsByFamily,
   };
+}
+
+/** Recover selections from persisted display traces when loading older workspaces. */
+export function touchstoneStateFromFile(file: RawFileRecord): TouchstoneSelectionState {
+  const state = makeDefaultTouchstoneState(file);
+  state.selectedCellsByFamily.S = {}; state.selectedCellsByFamily.Y = {}; state.selectedCellsByFamily.Z = {};
+  for (const display of file.displayTraces ?? []) {
+    const source = display.source;
+    if (source.sourceType !== 'network-parameter' || !['S','Y','Z'].includes(source.parameterFamily)) continue;
+    const family = source.parameterFamily as TouchstoneFamily;
+    const view: TouchstoneView | null = source.component === 'magnitude-db' ? 'dB' : source.component === 'magnitude-linear' ? 'Mag' : source.component === 'phase' ? 'Phase' : source.component === 'real' ? 'Real' : source.component === 'imag' ? 'Imag' : null;
+    if (!view) continue;
+    const key = `${source.row + 1}:${source.col + 1}`;
+    const existing = state.selectedCellsByFamily[family][key] ?? [];
+    if (!existing.includes(view)) state.selectedCellsByFamily[family][key] = [...existing,view];
+  }
+  return {...state,...file.touchstoneControls,isExpanded:file.matrixOpen ?? state.isExpanded};
 }
 
 /** Clone a Touchstone selection state object. */

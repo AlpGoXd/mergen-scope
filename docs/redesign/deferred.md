@@ -28,6 +28,12 @@ See [Phase 1–2 comparison](phase1-2-reference-comparison.md) and [side-by-side
 | V05 | Capture all four message-status primitives in light/dark, then compare actual refusing-drop/wizard/settings messages where adopted. | Phase 2 evidence; Phases 5/7 adoption | Deferred; current gallery demonstrates warning only. |
 | V06 | Validate/document dark solid C .1136 vs nominal .12, light secondary fill .0241 vs .03, dark secondary ink .0596 vs .07; hue recipe gamut clamping is already intentional. | Phase 8 | Deferred literal-token audit; do not label exact equality. |
 
+## Phase 3 checkpoint follow-up
+
+| ID | Exact remaining work | Target phase | Status |
+| --- | --- | --- | --- |
+| E2E-07 | Stabilize `long menus stay visible and track their anchor on resize and scroll` (`tests/e2e/shared-controls.spec.ts:25`): first of three full runs failed because the menu x-position was 31.8 px from its anchor (expected <2 px); the next two runs passed. Diagnose timing/position update and make the assertion deterministic without hiding a real anchoring defect. | Phase 7 | Deferred; intermittent in one full-suite run, not reproduced in two subsequent runs. |
+
 ## Phase 1 evidence and scope
 
 Phase 1 implemented the base tokens, offline fonts, type foundation, focus and reduced-motion styles, retained existing Recharts animation-off settings, and provider-owned theme preference API. The light/dark theme API was verified, but the user-facing Settings UI is still Phase 7 work. The base fixes for findings 01, 03, 05, 07 and 11 do not close the later component work listed above.

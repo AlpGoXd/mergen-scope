@@ -1,9 +1,8 @@
 import { useCallback } from 'react';
 import { useTraceState, useTraceDispatch } from '../stores/trace-store';
 import { usePaneState, usePaneDispatch } from '../stores/pane-store';
-import { useUiState, useUiDispatch } from '../stores/ui-store';
-import { useMarkerDispatch } from '../stores/marker-store';
-import { useFileDispatch, useFileState } from '../stores/file-store';
+import { useUiDispatch } from '../stores/ui-store';
+import { useOptionalAggregateWorkspace } from '../stores/aggregate-workspace-store';
 import type { Trace } from '../types/trace';
 
 /**
@@ -15,57 +14,22 @@ export function useTraceActions() {
   const traceDispatch = useTraceDispatch();
   const paneState = usePaneState();
   const paneDispatch = usePaneDispatch();
-  const uiState = useUiState();
   const uiDispatch = useUiDispatch();
-  const markerDispatch = useMarkerDispatch();
-  const fileState = useFileState();
-  const fileDispatch = useFileDispatch();
+  const aggregate = useOptionalAggregateWorkspace();
 
   const selectTrace = useCallback((traceName: string) => {
     uiDispatch({ type: 'SET', payload: { key: 'selectedTraceName', value: traceName } });
 
-    const paneId = paneState.tracePaneMap[traceName] || 'pane-1';
-    paneDispatch({ type: 'SET_PANE_ACTIVE_TRACE', payload: { paneId, traceName } });
-    paneDispatch({ type: 'SET_ACTIVE_PANE', payload: paneId });
+    const paneId = paneState.tracePaneMap[traceName]?.[0];
+    if (paneId) { paneDispatch({ type: 'SET_PANE_ACTIVE_TRACE', payload: { paneId, traceName } }); paneDispatch({ type: 'SET_ACTIVE_PANE', payload: paneId }); }
   }, [uiDispatch, paneDispatch, paneState.tracePaneMap]);
 
   const removeTrace = useCallback((trace: Trace) => {
-    if (trace.kind === 'derived') {
-      traceDispatch({ type: 'REMOVE_DERIVED', payload: trace.id });
-    } else {
-      const directFileId = trace.fileId !== undefined && trace.fileId !== null ? String(trace.fileId) : null;
-      const ownerFile = directFileId
-        ? fileState.files.find((file) => String(file.id) === directFileId) ?? null
-        : fileState.files.find((file) => file.traces.some((item) => item.name === trace.name)) ?? null;
-      const sourceDisplayTrace = ownerFile?.displayTraces?.find(
-        (displayTrace) => (displayTrace.compat?.legacyTraceName ?? displayTrace.id) === trace.name,
-      ) ?? null;
-
-      if (ownerFile && sourceDisplayTrace) {
-        fileDispatch({
-          type: 'SET_DISPLAY_TRACE_HIDDEN',
-          payload: {
-            fileId: String(ownerFile.id),
-            displayTraceId: sourceDisplayTrace.id,
-            hidden: true,
-          },
-        });
-      } else if (ownerFile) {
-        fileDispatch({ type: 'REMOVE_FILE', payload: { fileId: String(ownerFile.id) } });
-      }
+    if (aggregate) {
+      aggregate.historyDispatch({type:'change',toastMessage:'Removed trace',command:{slice:'deleteTrace',traceId:trace.id}});
     }
-
-    markerDispatch({ type: 'REMOVE_MARKERS_FOR_TRACES', payload: [trace.name] });
-
-    if (uiState.selectedTraceName === trace.name) {
-      uiDispatch({ type: 'SET', payload: { key: 'selectedTraceName', value: null } });
-    }
-
-    if (uiState.markerTrace === trace.name) {
-      uiDispatch({ type: 'SET', payload: { key: 'markerTrace', value: '__auto__' } });
-    }
-
-  }, [traceDispatch, fileDispatch, fileState.files, markerDispatch, uiState.selectedTraceName, uiState.markerTrace, uiDispatch]);
+    else if (trace.kind === 'derived') traceDispatch({ type: 'REMOVE_DERIVED', payload: trace.id });
+  }, [aggregate, traceDispatch]);
 
   const toggleVisibility = useCallback((traceName: string) => {
     const nextVis = !traceState.vis[traceName];
@@ -81,13 +45,12 @@ export function useTraceActions() {
     if (!trace) return;
 
     paneDispatch({
-      type: 'ASSIGN_TRACE_TO_PANE',
-      payload: { trace, targetPaneId: paneId, allTraces: traceState.allTraces },
+      type: 'MOVE_MEMBERSHIP',
+      payload: { trace, fromPaneId: paneState.activePaneId && paneState.tracePaneMap[trace.name]?.includes(paneState.activePaneId) ? paneState.activePaneId : paneState.tracePaneMap[trace.name]?.[0] ?? '', targetPaneId: paneId, allTraces: traceState.allTraces },
     });
-    paneDispatch({ type: 'SET_PANE_ACTIVE_TRACE', payload: { paneId, traceName } });
-    paneDispatch({ type: 'SET_ACTIVE_PANE', payload: paneId });
+    if (paneId) { paneDispatch({ type: 'SET_PANE_ACTIVE_TRACE', payload: { paneId, traceName } }); paneDispatch({ type: 'SET_ACTIVE_PANE', payload: paneId }); }
     uiDispatch({ type: 'SET', payload: { key: 'selectedTraceName', value: traceName } });
-  }, [traceState.allTraces, paneDispatch, uiDispatch]);
+  }, [traceState.allTraces, paneState.activePaneId, paneState.tracePaneMap, paneDispatch, uiDispatch]);
 
   return {
     selectTrace,

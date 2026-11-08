@@ -41,9 +41,10 @@ describe("pane count changes", () => {
     state = paneReducer(state, { type: "RECONCILE", payload: traces });
     state = paneReducer(state, { type: "ASSIGN_TRACE_TO_PANE", payload: { trace: traces[1]!, targetPaneId: "pane-2", allTraces: traces } });
 
-    const shrunk = paneReducer(paneReducer(state, { type: "SET_PANE_COUNT", payload: 1 }), { type: "RECONCILE", payload: traces });
+    const entries = traces.map(trace => ({trace, paneIds:state.tracePaneMap[trace.name] ?? []}));
+    const shrunk = paneReducer(paneReducer(state, { type: "SET_PANE_COUNT", payload: 1, traces: entries }), { type: "RECONCILE", payload: traces });
 
-    expect(shrunk.tracePaneMap).toEqual({ a: "pane-1", b: "pane-1" });
+    expect(shrunk.tracePaneMap).toEqual({ a: [], b: ["pane-1"] });
     expect(Object.keys(shrunk.paneActiveTraceMap)).toEqual(["pane-1"]);
   });
 });

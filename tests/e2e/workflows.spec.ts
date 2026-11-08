@@ -68,7 +68,7 @@ test("rejecting a trace drop onto another domain shows a warning", async ({ page
   await expect(timeRow).toContainText("P1");
 });
 
-test("a file dropped onto an incompatible pane reports its new pane", async ({ page }) => {
+test("a file dropped onto an incompatible pane is refused", async ({ page }) => {
   await importFromEmptyPane(page, datFixture);
   await expect(firstTraceRow(page)).toContainText("P1");
   await page.keyboard.press("2");
@@ -76,8 +76,8 @@ test("a file dropped onto an incompatible pane reports its new pane", async ({ p
   await expect(page.getByTestId("chart-plot-pane-2")).toBeVisible();
 
   await dropCsv(page, "pane-2", "time.csv", timeCsv);
-  await expect(page.getByRole("alert")).toContainText("time.csv was placed on Pane 3: Pane 2 holds frequency-domain traces");
-  await expect(page.locator('[data-testid^="trace-row-"]').filter({ hasText: "time.csv" }).first()).toContainText("P3");
+  await expect(page.getByRole("alert")).toContainText("Cannot assign a time-domain trace to a pane containing frequency-domain traces");
+  await expect(page.locator('[data-testid^="trace-row-"]').filter({ hasText: "time.csv" })).toHaveCount(0);
 });
 
 test("multi-pane assignment survives workspace save and reload", async ({ page }) => {
@@ -101,6 +101,7 @@ test("multi-pane assignment survives workspace save and reload", async ({ page }
   await page.getByRole("button", { name: "Clear All" }).click();
   await expect(page.getByTestId("chart-pane-pane-1").getByTestId("empty-chart-dropzone")).toBeVisible();
 
+  page.once("dialog", (dialog) => dialog.accept());
   await page.getByTestId("topbar-workspace-input").setInputFiles(workspacePath!);
   await expect(page.getByTestId("chart-pane-pane-2")).toBeVisible();
   await expect(firstTraceRow(page)).toContainText("P2");
@@ -174,7 +175,7 @@ test("reference-line placement creates, edits, and deletes sidebar state", async
 
 test("Touchstone import exposes matrix controls and analysis cards without crashing", async ({ page }) => {
   await importFromEmptyPane(page, touchstoneFixture);
-  await expect(page.getByText("cascaded chain.s2p")).toBeVisible();
+  await expect(page.getByText("cascaded chain.s2p", { exact: true })).toBeVisible();
 
   await page.getByRole("button", { name: "Matrix" }).click();
   await expect(page.getByTestId("touchstone-cell-S11")).toBeVisible();
@@ -272,6 +273,7 @@ test("loading a workspace keeps traces in their saved pane even when another pan
   const workspacePath = await (await downloadPromise).path();
 
   await page.getByRole("button", { name: "Clear All" }).click();
+  page.once("dialog", (dialog) => dialog.accept());
   await page.getByTestId("topbar-workspace-input").setInputFiles(workspacePath!);
   await expect(firstTraceRow(page)).toContainText("P2");
 });

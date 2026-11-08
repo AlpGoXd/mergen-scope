@@ -9,7 +9,7 @@
 // ---------------------------------------------------------------------------
 
 /** How a chart pane renders its traces. */
-export type PaneRenderMode = "cartesian" | "smith" | "smith-inverted";
+export type PaneRenderMode = "cartesian" | "smith" | "smith-inverted" | "table";
 
 // ---------------------------------------------------------------------------
 // Pane settings
@@ -66,6 +66,9 @@ export interface Pane {
 
   /** Per-pane display and grid settings. */
   readonly settings: PaneSettings;
+
+  /** Optional persisted X-axis group, used by linked lines. */
+  readonly xLinkGroup?: string | null;
 }
 
 // ---------------------------------------------------------------------------

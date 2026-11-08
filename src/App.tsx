@@ -10,11 +10,8 @@ import { useKeyboard } from './hooks/use-keyboard';
 import { useTheme } from './hooks/use-theme';
 import { useUiState } from './stores/ui-store';
 import { useUiDispatch } from './stores/ui-store';
-import { useFileState } from './stores/file-store';
 import { useFileImport } from './hooks/use-file-import';
-import { useTraceDispatch, useTraceState } from './stores/trace-store';
-import { usePaneDispatch, usePaneState } from './stores/pane-store';
-import { canAssignTraceToPane } from './domain/pane-math';
+import { usePaneState } from './stores/pane-store';
 
 
 function clampLeftPanelWidth(width: number, viewportWidth: number) {
@@ -37,30 +34,13 @@ export function App() {
   useTheme();
   const {
     theme,
-    selectedTraceName,
     paneAssignmentWarning,
     showSidebar,
     showRightPanel,
   } = useUiState();
-  const { allTraces, vis } = useTraceState();
-  const traceDispatch = useTraceDispatch();
   const uiDispatch = useUiDispatch();
   const importFiles = useFileImport();
-  const { files } = useFileState();
-  const paneDispatch = usePaneDispatch();
-  const { panes, activePaneId, tracePaneMap } = usePaneState();
-
-  useEffect(() => {
-    const selectedIsVisible = selectedTraceName ? !!vis[selectedTraceName] : false;
-    if (selectedIsVisible) {
-      return;
-    }
-
-    const firstVisible = allTraces.find((trace) => vis[trace.name]);
-    if (firstVisible) {
-      uiDispatch({ type: 'SET', payload: { key: 'selectedTraceName', value: firstVisible.name } });
-    }
-  }, [allTraces, selectedTraceName, uiDispatch, vis]);
+  const { activePaneId } = usePaneState();
 
   const lastActivePaneIdRef = useRef(activePaneId);
 
@@ -70,107 +50,6 @@ export function App() {
     }
     lastActivePaneIdRef.current = activePaneId;
   }, [activePaneId, paneAssignmentWarning, uiDispatch]);
-
-  const knownTraceNamesRef = useRef<Set<string>>(new Set());
-
-  useEffect(() => {
-    const known = knownTraceNamesRef.current;
-    const newTraces = allTraces.filter((trace) => !known.has(trace.name));
-
-    if (newTraces.length === 0) {
-      knownTraceNamesRef.current = new Set(allTraces.map((trace) => trace.name));
-      return;
-    }
-
-    const nextKnown = new Set(allTraces.map((trace) => trace.name));
-    let firstAssignedTraceName: string | null = null;
-    let paneCount = panes.length;
-    const provisionalPaneDomains = new Map<string, 'time' | 'frequency'>();
-
-    panes.forEach((pane) => {
-      const paneTrace = allTraces.find((trace) => (tracePaneMap[trace.name] ?? 'pane-1') === pane.id);
-      if (paneTrace) {
-        provisionalPaneDomains.set(pane.id, paneTrace.domain);
-      }
-    });
-
-    const traceTargetPane: Record<string, string> = {};
-    const traceFileName: Record<string, string> = {};
-    files.forEach(f => {
-      if (f.targetPaneId) f.traces.forEach(t => { traceTargetPane[t.name] = f.targetPaneId ?? ''; traceFileName[t.name] = f.fileName ?? t.name; });
-    });
-
-    let conflictWarning: { message: string; paneId: string; traceName: string } | null = null;
-
-    for (const trace of newTraces) {
-      // Already placed (e.g. restored from a workspace): keep the saved pane and visibility.
-      if (tracePaneMap[trace.name]) {
-        continue;
-      }
-      traceDispatch({ type: 'SET_VISIBILITY', name: trace.name, visible: true });
-
-      let targetPaneId = traceTargetPane[trace.name] ?? activePaneId ?? 'pane-1';
-      let validation = provisionalPaneDomains.has(targetPaneId)
-        ? { allowed: provisionalPaneDomains.get(targetPaneId) === trace.domain }
-        : canAssignTraceToPane(trace, targetPaneId, allTraces, tracePaneMap);
-
-      if (!validation.allowed) {
-        const originalPaneId = targetPaneId;
-        const originalDomain = provisionalPaneDomains.get(originalPaneId) ?? (trace.domain === 'time' ? 'frequency' : 'time');
-        // provisionalPaneDomains also holds panes created earlier in this loop (not yet in `panes`).
-        const compatiblePaneId = Array.from(provisionalPaneDomains).find(([, domain]) => domain === trace.domain)?.[0]
-          ?? panes.find((pane) => !provisionalPaneDomains.has(pane.id) && canAssignTraceToPane(trace, pane.id, allTraces, tracePaneMap).allowed)?.id;
-        if (compatiblePaneId) {
-          targetPaneId = compatiblePaneId;
-          validation = { allowed: true };
-        } else if (paneCount < 4) {
-          paneCount += 1;
-          targetPaneId = `pane-${paneCount}`;
-          paneDispatch({ type: 'SET_PANE_COUNT', payload: paneCount });
-          provisionalPaneDomains.set(targetPaneId, trace.domain);
-          validation = { allowed: true };
-        } else {
-          conflictWarning ??= {
-            message: trace.domain === 'time'
-              ? 'Cannot place time-domain traces on a frequency-domain pane'
-              : 'Cannot place frequency-domain traces on a time-domain pane',
-            paneId: targetPaneId,
-            traceName: trace.name,
-          };
-          continue;
-        }
-        if (traceTargetPane[trace.name]) {
-          conflictWarning ??= {
-            message: `${traceFileName[trace.name] ?? trace.name} was placed on Pane ${targetPaneId.split('-')[1]}: Pane ${originalPaneId.split('-')[1]} holds ${originalDomain}-domain traces.`,
-            paneId: originalPaneId,
-            traceName: trace.name,
-          };
-        }
-      }
-
-      if (validation.allowed) {
-        provisionalPaneDomains.set(targetPaneId, trace.domain);
-        paneDispatch({
-          type: 'ASSIGN_TRACE_TO_PANE',
-          payload: { trace, targetPaneId, allTraces },
-        });
-        paneDispatch({ type: 'SET_PANE_ACTIVE_TRACE', payload: { paneId: targetPaneId, traceName: trace.name } });
-        lastActivePaneIdRef.current = targetPaneId;
-        paneDispatch({ type: 'SET_ACTIVE_PANE', payload: targetPaneId });
-        firstAssignedTraceName ??= trace.name;
-      }
-    }
-
-    if (firstAssignedTraceName) {
-      uiDispatch({ type: 'SET', payload: { key: 'selectedTraceName', value: firstAssignedTraceName } });
-    }
-    // One message per batch: a later successful trace must not erase an earlier conflict.
-    if (conflictWarning || firstAssignedTraceName) {
-      uiDispatch({ type: 'SET', payload: { key: 'paneAssignmentWarning', value: conflictWarning } });
-    }
-
-    knownTraceNamesRef.current = nextKnown;
-  }, [activePaneId, allTraces, files, paneDispatch, panes, traceDispatch, tracePaneMap, uiDispatch]);
 
   const [dragging, setDragging] = useState(false);
   const [leftPanelWidth, setLeftPanelWidth] = useState(() => clampLeftPanelWidth(300, typeof window === 'undefined' ? 1440 : window.innerWidth));

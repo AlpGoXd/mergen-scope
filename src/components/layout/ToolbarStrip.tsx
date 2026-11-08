@@ -3,7 +3,7 @@ import { useUiState, useUiDispatch } from '../../stores/ui-store';
 import { useMarkerState, useMarkerDispatch } from '../../stores/marker-store';
 import { usePaneState, usePaneDispatch } from '../../stores/pane-store';
 import { useTraceState } from '../../stores/trace-store';
-import { useRefLineState, useRefLineDispatch } from '../../stores/ref-line-store';
+import { useRefLineState } from '../../stores/ref-line-store';
 import { findAbsoluteMax, findAbsoluteMin, findNextLocalExtremum } from '../../domain/markers';
 import { useInteractionMode } from '../../hooks/use-interaction-mode';
 import { Btn } from '../shared/Btn';
@@ -20,23 +20,20 @@ export function ToolbarStrip() {
     showMarkerTools,
     searchDirection,
     markerTrace,
-    newMarkerArmed,
-    dRef,
   } = useUiState();
 
   const { allTraces, vis } = useTraceState();
-  const { markers, selectedMkrIdx, mkrMode } = useMarkerState();
+  const { markers, selectedMkrIdx, armed } = useMarkerState();
   const { panes, activePaneId, tracePaneMap, paneActiveTraceMap } = usePaneState();
   const { refMode } = useRefLineState();
 
   const uiDispatch = useUiDispatch();
   const markerDispatch = useMarkerDispatch();
-  const refLineDispatch = useRefLineDispatch();
   const paneDispatch = usePaneDispatch();
   const { toggleRefPlacement, selectNormal, selectDelta } = useInteractionMode();
 
   const paneTraceNames = React.useMemo(() => Object.entries(tracePaneMap)
-    .filter(([, pid]) => pid === activePaneId)
+    .filter(([, pid]) => pid.includes(activePaneId ?? ''))
     .map(([n]) => n), [tracePaneMap, activePaneId]);
   const visiblePaneTraces = allTraces.filter(t => paneTraceNames.includes(t.name) && vis[t.name] !== false);
 
@@ -120,50 +117,8 @@ export function ToolbarStrip() {
 
         {showMarkerTools && group("Marker", "var(--marker-color)", (
           <>
-            <Btn
-              active={mkrMode !== 'delta'}
-              title="Normal marker mode"
-              onClick={selectNormal}
-            >
-              Normal
-            </Btn>
-            <Btn
-              active={mkrMode === 'delta'}
-              title="Delta marker mode"
-              onClick={selectDelta}
-            >
-              Delta
-            </Btn>
-            {mkrMode === 'delta' && (
-              <select
-                value={dRef ?? ''}
-                onChange={e => {
-                  const v: number | null = e.target.value === '' ? null : Number(e.target.value);
-                  uiDispatch({ type: 'SET', payload: { key: 'dRef', value: v } });
-                }}
-                style={{ fontSize: '13px', padding: '4px 6px', borderRadius: '7px', border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)' }}
-              >
-                <option value="">Ref…</option>
-                {markers.map((m, i) => m.type !== 'delta' ? (
-                  <option key={i} value={i}>M{i + 1}</option>
-                ) : null)}
-              </select>
-            )}
-            <Btn
-              active={selectedMkrIdx < 0 && newMarkerArmed}
-              title={selectedMkrIdx >= 0 ? "Deselect active marker" : "Arm for new marker placement on next click"}
-              onClick={() => {
-                if (selectedMkrIdx >= 0) {
-                  markerDispatch({ type: 'SET_SELECTED_IDX', payload: -1 });
-                  refLineDispatch({ type: 'SET_SELECTED', payload: null });
-                  uiDispatch({ type: 'SET', payload: { key: 'newMarkerArmed', value: false } });
-                } else {
-                  uiDispatch({ type: 'SET', payload: { key: 'newMarkerArmed', value: true } });
-                }
-              }}
-            >
-              {selectedMkrIdx >= 0 ? 'Unselect' : 'New Marker'}
-            </Btn>
+            <Btn variant="slate" active={armed?.kind === 'normal'} title="Arm a new marker" onClick={selectNormal}>New Marker</Btn>
+            <Btn variant="slate" active={armed?.kind === 'delta'} disabled={!markers.some(marker=>marker.type !== 'delta')} title="Arm a delta from the selected marker" onClick={selectDelta}>New Delta</Btn>
             <select
               value={markerTrace}
               onChange={(e) => uiDispatch({ type: 'SET', payload: { key: 'markerTrace', value: e.target.value } })}

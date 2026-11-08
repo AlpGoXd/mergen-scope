@@ -1,0 +1,18 @@
+{
+  "version": 4,
+  "files": {
+    "expected": "array"
+  },
+  "panes": "not-an-array",
+  "traceAssignments": {
+    "RF_Main_1": [
+      "pane-a"
+    ]
+  },
+  "markers": [
+    {
+      "type": "delta",
+      "refIdx": 900
+    }
+  ]
+}

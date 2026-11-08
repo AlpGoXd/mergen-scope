@@ -54,18 +54,19 @@ describe("additional reducer behavior", () => {
     });
     const withDelta = markerReducer(first, {
       type: "PLACE_MARKER",
-      payload: { trace, targetFreq: 15, markerType: "delta", refIdx: 0 },
+      payload: { trace, targetFreq: 15, markerType: "delta", refId: first.markers[0]?.id },
     });
     const removedRef = markerReducer(withDelta, { type: "REMOVE_MARKER", payload: 0 });
 
     expect(first.markers[0]).toMatchObject({ freq: 0, amp: 0, trace: trace.name });
-    expect(withDelta.markers[1]).toMatchObject({ type: "delta", refIdx: 0 });
-    expect(removedRef.markers[0]).toMatchObject({ type: "delta", refIdx: null });
+    expect(withDelta.markers[1]).toMatchObject({ type: "delta", refId: first.markers[0]?.id });
+    expect(removedRef.markers[0]).toMatchObject({ type: "normal", refId: null, freq: withDelta.markers[1]?.freq, amp: withDelta.markers[1]?.amp });
+    const later = markerReducer(removedRef, { type: "PLACE_MARKER", payload: { trace, targetFreq: 1 } });
+    expect(later.markers[0]).toMatchObject({ type: "normal", refId: null });
     expect(removedRef.selectedMkrIdx).toBe(0);
   });
 
   it("ref-line reducer locks, moves, unlocks, and cleans pane-scoped lines", () => {
-    vi.spyOn(Date, "now").mockReturnValue(5000);
     const added = refLineReducer(defaultRefLineState, {
       type: "ADD_LINE",
       payload: { id: 1, type: "v", paneId: "pane-1", groupId: null, value: 10, label: "V1" },
@@ -76,7 +77,7 @@ describe("additional reducer behavior", () => {
     });
     const moved = refLineReducer(locked, {
       type: "MOVE_GROUP",
-      payload: { groupId: "5000", value: 20 },
+      payload: { groupId: locked.refLines[0]?.groupId ?? "", value: 20 },
     });
     const unlocked = refLineReducer(moved, {
       type: "UNLOCK_LINE",

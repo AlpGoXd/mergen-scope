@@ -1,12 +1,18 @@
 import React, { createContext, useContext, useReducer } from 'react';
 import type { RawFileRecord, WizardConfig, ParsedFile } from '../types/file';
+import type { OpenChoice } from '../types/open-files-plan';
+import type { WorkspaceSnapshotV5 } from '../types/workspace-v5';
+import type { TouchstoneFamily, TouchstoneView, TouchstoneSelectionState } from '../types/touchstone';
+import { makeDefaultTouchstoneState, touchstoneStateFromFile, reconcileTouchstoneFileSelections, appendTouchstoneDisplayTrace } from '../domain/touchstone/selections';
 import type { InterpolationStrategy } from '../types/interpolation';
 import { parseMeasurementFile } from '../domain/parsers/parse-file';
 import { classify } from '../domain/parsers/classifier';
 import { parseTabularFile } from '../domain/parsers/tabular';
 import { adaptDisplayTracesToLegacyTraces } from '../domain/display-trace-adapter';
-import { buildScalarDisplayTraceFromSeriesDataset, buildSeriesDatasetFromTrace } from '../domain/dataset-builders';
+import { buildScalarDisplayTraceFromSeriesDataset, buildSeriesDatasetFromTrace, buildNetworkDatasetFromTouchstone } from '../domain/dataset-builders';
 
+export interface PendingOpenInput { readonly id:string; readonly name:string; readonly text:string; readonly parsed:ParsedFile | null; readonly error?:string; readonly choice?:OpenChoice; readonly expectedFileId?:string; readonly wizardConfig?:WizardConfig }
+export interface PendingOpenBatch { readonly id:string; readonly inputs:readonly PendingOpenInput[]; readonly targetPaneId?:string; readonly workspace?:{readonly snapshot:WorkspaceSnapshotV5;readonly legacy:boolean;readonly choice?:'replace'|'cancel'} }
 export interface WizardEntry {
   id: string;
   fileName: string;
@@ -14,6 +20,8 @@ export interface WizardEntry {
   previewLines: readonly string[];
   suggestedConfig?: WizardConfig;
   targetPaneId?: string;
+  duplicateChoice?: OpenChoice;
+  pendingBatch?: PendingOpenBatch;
 }
 
 export interface ImportError {
@@ -32,13 +40,17 @@ export interface FileState {
 
 export type FileAction =
   | { type: 'QUEUE_WIZARD'; payload: { fileName: string; rawText: string; id: string; targetPaneId?: string } }
-  | { type: 'RESOLVE_WIZARD'; payload: { id: string; config: WizardConfig } }
+  | { type: 'RESOLVE_WIZARD'; payload: { id: string; config: WizardConfig; decisions?:Readonly<Record<string,{choice:OpenChoice;expectedFileId?:string}>>; workspaceChoice?:'replace'|'cancel' } }
   | { type: 'RERUN_WIZARD'; payload: { fileId: string; fileName: string } }
   | { type: 'SKIP_WIZARD'; payload: { id: string } }
   | { type: 'SKIP_ALL_WIZARD' }
   | { type: 'REPORT_IMPORT_ERROR'; payload: { fileName: string; message: string } }
   | { type: 'DISMISS_IMPORT_ERROR'; payload: { id: string } }
   | { type: 'REMOVE_FILE'; payload: { fileId: string } }
+  | { type: 'SET_TOUCHSTONE_CONTROLS'; payload: { fileId: string; controls: Pick<TouchstoneSelectionState, 'activeFamily' | 'activeViewByFamily'> } }
+  | { type: 'APPEND_TOUCHSTONE_VIEW'; payload: { fileId: string; family: TouchstoneFamily; row: number; col: number; view: TouchstoneView } }
+  | { type: 'DELETE_RAW_TRACE'; payload: { fileId: string; traceId: string } }
+  | { type: 'DELETE_DISPLAY_TRACE'; payload: { fileId: string; displayTraceId: string } }
   | { type: 'SET_DISPLAY_TRACE_HIDDEN'; payload: { fileId: string; displayTraceId: string; hidden: boolean } }
   | { type: 'SET_DISPLAY_TRACE_INTERPOLATION'; payload: { fileId: string; displayTraceId: string; interpolation: InterpolationStrategy } }
   | { type: 'SHOW_ALL_DISPLAY_TRACES'; payload: { fileId: string } }
@@ -78,8 +90,17 @@ function nonEmptyPreviewLines(text: string): string[] {
   return text.split(/\r?\n/).filter((line) => line.trim().length > 0).slice(0, 100);
 }
 
-const FileStateContext = createContext<FileState | null>(null);
-const FileDispatchContext = createContext<React.Dispatch<FileAction> | null>(null);
+function initializeNetworkFile(file: RawFileRecord): RawFileRecord {
+  if (!file.touchstoneNetwork || (file.displayTraces?.length ?? 0) > 0) return file;
+  const source = buildNetworkDatasetFromTouchstone(file.touchstoneNetwork,file.fileName,file.id);
+  const identified = {...file,datasets:[source]};
+  const selection = makeDefaultTouchstoneState(identified);
+  const initialized = reconcileTouchstoneFileSelections(identified, selection);
+  return {...initialized, matrixOpen:file.touchstoneNetwork.portCount >= 3, touchstoneControls:{activeFamily:selection.activeFamily,activeViewByFamily:selection.activeViewByFamily}};
+}
+
+export const FileStateContext = createContext<FileState | null>(null);
+export const FileDispatchContext = createContext<React.Dispatch<FileAction> | null>(null);
 
 export function fileReducer(state: FileState, action: FileAction): FileState {
   switch (action.type) {
@@ -110,17 +131,19 @@ export function fileReducer(state: FileState, action: FileAction): FileState {
         if (!hasImportedData(parsed)) {
           return withImportError(state, fileName, 'No data found in this file.');
         }
-        const newRecord: RawFileRecord = {
+        const newRecord: RawFileRecord = initializeNetworkFile({
           id,
           fileName,
           meta: parsed.meta,
           traces: parsed.traces,
           datasets: parsed.datasets,
           displayTraces: parsed.displayTraces,
+          columnIdentities: parsed.columnIdentities,
+          wizardConfig: parsed.suggestedConfig,
           format: parsed.format,
           touchstoneNetwork: parsed.touchstoneNetwork,
           targetPaneId,
-        };
+        });
         const newVis = { ...state.vis };
         parsed.traces.forEach(t => { newVis[t.name] = true; });
 
@@ -193,9 +216,11 @@ export function fileReducer(state: FileState, action: FileAction): FileState {
         traces,
         datasets,
         displayTraces,
+        columnIdentities: parsed.columnIdentities,
         format: parsed.format,
         touchstoneNetwork: undefined,
         targetPaneId: entry.targetPaneId,
+        wizardConfig: config,
       };
 
       return {
@@ -214,10 +239,10 @@ export function fileReducer(state: FileState, action: FileAction): FileState {
       if (!text) return state; // can't rerun without text
       if (state.wizardQueue.some((entry) => entry.id === fileId)) return state;
 
-      let suggestedConfig: WizardConfig | undefined;
+      let suggestedConfig: WizardConfig | undefined = state.files.find(file => String(file.id) === fileId)?.wizardConfig;
       try {
-        // Seed from the parser's own guess; the file stays in place until the wizard is confirmed.
-        suggestedConfig = parseTabularFile(text, fileName, null).suggestedConfig;
+        // Prefer the actual previous choice; fall back to parser inference for older files.
+        suggestedConfig ??= parseTabularFile(text, fileName, null).suggestedConfig;
       } catch {
         suggestedConfig = undefined;
       }
@@ -265,6 +290,40 @@ export function fileReducer(state: FileState, action: FileAction): FileState {
         rawFileData: newRawFileData,
         vis: newVis
       };
+    }
+    case 'SET_TOUCHSTONE_CONTROLS': {
+      const file = state.files.find(item => String(item.id) === action.payload.fileId);
+      if (!file?.touchstoneNetwork) return state;
+      return {...state,files:state.files.map(item => item === file ? {...file,touchstoneControls:action.payload.controls} : item)};
+    }
+    case 'APPEND_TOUCHSTONE_VIEW': {
+      const {fileId,family,row,col,view} = action.payload;
+      const file = state.files.find(item => String(item.id) === fileId);
+      if (!file?.touchstoneNetwork) return state;
+      const selection = touchstoneStateFromFile(file);
+      const nextFile = appendTouchstoneDisplayTrace(file, selection, family, row, col, view);
+      if (nextFile === file) return state;
+      const activeViewByFamily = {...selection.activeViewByFamily,[family]:view};
+      return {...state,files:state.files.map(item => item === file ? {...nextFile,touchstoneControls:{activeFamily:family,activeViewByFamily}} : item)};
+    }
+    case 'DELETE_RAW_TRACE': {
+      const {fileId,traceId} = action.payload;
+      const file = state.files.find(item => String(item.id) === fileId);
+      const trace = file?.traces.find(item => item.id === traceId);
+      if (!file || !trace || (file.datasets?.length ?? 0) > 0) return state;
+      const vis = {...state.vis}; delete vis[trace.name];
+      return {...state, files:state.files.map(item => item === file ? {...file,traces:file.traces.filter(t => t.id !== traceId)} : item),vis};
+    }
+    case 'DELETE_DISPLAY_TRACE': {
+      const {fileId, displayTraceId} = action.payload;
+      const file = state.files.find(item => String(item.id) === fileId);
+      const display = file?.displayTraces?.find(item => item.id === displayTraceId);
+      if (!file || !display || !file.datasets) return state;
+      const displayTraces = (file.displayTraces ?? []).filter(item => item.id !== displayTraceId);
+      const columnIdentities = file.columnIdentities?.filter((_, index) => file.displayTraces?.[index]?.id !== displayTraceId);
+      const nextFile = {...file, displayTraces, columnIdentities, traces:adaptDisplayTracesToLegacyTraces(file.datasets, displayTraces.filter(item => !item.hidden), file)};
+      const vis = {...state.vis}; delete vis[display.compat?.legacyTraceName ?? display.id];
+      return {...state, files:state.files.map(item => item === file ? nextFile : item), vis};
     }
     case 'SET_DISPLAY_TRACE_HIDDEN': {
       const { fileId, displayTraceId, hidden } = action.payload;
@@ -356,16 +415,18 @@ export function fileReducer(state: FileState, action: FileAction): FileState {
     case 'ADD_PARSED_FILE': {
       // Direct insertion of a known parsed file layout
       const { id, fileName, parsed, text } = action.payload;
-      const newRecord: RawFileRecord = {
+      const newRecord: RawFileRecord = initializeNetworkFile({
         id,
         fileName,
         meta: parsed.meta,
         traces: parsed.traces,
         datasets: parsed.datasets,
         displayTraces: parsed.displayTraces,
+        columnIdentities: parsed.columnIdentities,
+        wizardConfig: parsed.suggestedConfig,
         format: parsed.format,
         touchstoneNetwork: parsed.touchstoneNetwork,
-      };
+      });
       const newVis = { ...state.vis };
       parsed.traces.forEach(t => { newVis[t.name] = true; });
 

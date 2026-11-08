@@ -11,6 +11,7 @@ import {
   ReferenceDot,
   ReferenceArea,
 } from 'recharts';
+import { useOptionalAggregateWorkspace } from '../../stores/aggregate-workspace-store';
 import { usePaneState, usePaneDispatch } from '../../stores/pane-store';
 import { useMarkerState, useMarkerDispatch } from '../../stores/marker-store';
 import { useRefLineState, useRefLineDispatch } from '../../stores/ref-line-store';
@@ -20,7 +21,7 @@ import { useTheme } from '../../hooks/use-theme';
 import { usePaneData } from '../../hooks/use-pane-data';
 import { useFileImport } from '../../hooks/use-file-import';
 import { deriveAxisInfo } from '../../domain/units';
-import { canAssignTraceToPane } from '../../domain/pane-math';
+import { checkPaneAssignment } from '../../domain/pane-placement';
 import { formatAdaptiveXAxisTickLabels, formatAdaptiveXAxisValue, formatPerDivision, formatScalarWithUnit, makeYAxisTickFormatter } from '../../domain/format';
 import { getResolvedInterpolationStrategy } from '../../domain/interpolation';
 import { placeMarker, nearestIndexByFreq } from '../../domain/markers';
@@ -84,16 +85,17 @@ const CHART_MARGIN_TOP = 10;
 const CHART_X_AXIS_HEIGHT = 35; // approximate height for x-axis ticks + label
 
 export function ChartPane({ paneId }: ChartPaneProps) {
+  const historyDispatch = useOptionalAggregateWorkspace()?.historyDispatch;
   const { panes, activePaneId, tracePaneMap, paneActiveTraceMap, zoomAll, sharedZoom, paneXZooms, paneYZooms } = usePaneState();
-  const { markers, selectedMkrIdx, mkrMode } = useMarkerState();
+  const { markers, selectedMkrIdx, armed } = useMarkerState();
   const markerDispatch = useMarkerDispatch();
   const { refLines, refMode, selectedRefLineId } = useRefLineState();
   const refLineDispatch = useRefLineDispatch();
-  const { newMarkerArmed, selectedTraceName, showDots, traceColors, markerTrace, dRef } = useUiState();
+  const { selectedTraceName, showDots, traceColors, markerTrace } = useUiState();
   const uiDispatch = useUiDispatch();
   const paneDispatch = usePaneDispatch();
   const importFiles = useFileImport();
-  const { allTraces, vis } = useTraceState();
+  const { allTraces, allDisplayTraces, vis } = useTraceState();
   const { colors } = useTheme();
 
   const pane = panes.find((item) => item.id === paneId) || panes[0];
@@ -116,7 +118,7 @@ export function ChartPane({ paneId }: ChartPaneProps) {
 
   const traceNamesInPane = useMemo(() => {
     return Object.entries(tracePaneMap)
-      .filter(([_, pid]) => pid === paneId)
+      .filter(([_, ids]) => ids.includes(paneId))
       .map(([name]) => name);
   }, [tracePaneMap, paneId]);
 
@@ -551,12 +553,10 @@ export function ChartPane({ paneId }: ChartPaneProps) {
       return;
     }
 
-    if (newMarkerArmed) {
-      const trace = resolvePlacementTrace(freq, e?.nativeEvent?.clientY ?? lastPointerClientYRef.current);
-      if (trace) {
-        markerDispatch({ type: 'PLACE_MARKER', payload: { trace, targetFreq: freq, magneticSnap: { nearestPointPixelDistance: computeNearestPixelDist(trace, freq), snapThresholdPx: 10 } } });
-        uiDispatch({ type: 'SET', payload: { key: 'newMarkerArmed', value: false } });
-      }
+    if (armed) {
+      const reference = armed.kind === 'delta' ? markers.find(marker => marker.id === armed.refId) : null;
+      const trace = reference ? allTraces.find(item => item.name === reference.trace && traceNamesInPane.includes(item.name)) : resolvePlacementTrace(freq, e?.nativeEvent?.clientY ?? lastPointerClientYRef.current);
+      if (trace) markerDispatch({ type: 'PLACE_MARKER', payload: { trace, targetFreq: freq, markerType: armed.kind, refId: reference?.id ?? null, magneticSnap: { nearestPointPixelDistance: computeNearestPixelDist(trace, freq), snapThresholdPx: 10 } } });
       return;
     }
 
@@ -567,6 +567,7 @@ export function ChartPane({ paneId }: ChartPaneProps) {
     if (markerHit) {
       refLineDispatch({ type: 'SET_SELECTED', payload: null });
       markerDispatch({ type: 'SET_SELECTED_IDX', payload: markerHit.index });
+      historyDispatch?.({type:'begin-gesture'});
       setDraggingMarkerIdx(markerHit.index);
       return;
     }
@@ -575,6 +576,7 @@ export function ChartPane({ paneId }: ChartPaneProps) {
     const selectedMarker = selectedMkrIdx >= 0 ? markers[selectedMkrIdx] : null;
     if (selectedMarker && traceNamesInPane.includes(selectedMarker.trace)) {
       refLineDispatch({ type: 'SET_SELECTED', payload: null });
+      historyDispatch?.({type:'begin-gesture'});
       setDraggingMarkerIdx(selectedMkrIdx);
       return;
     }
@@ -586,6 +588,7 @@ export function ChartPane({ paneId }: ChartPaneProps) {
       if (selLine) {
         const inThisPane = !selLine.paneId || selLine.paneId === paneId;
         if (inThisPane) {
+          historyDispatch?.({type:'begin-gesture'});
           setDraggingRefLineId(selectedRefLineId);
           return;
         }
@@ -593,32 +596,14 @@ export function ChartPane({ paneId }: ChartPaneProps) {
         if (selLine.groupId) {
           const mirror = refLines.find(l => l.groupId === selLine.groupId && (!l.paneId || l.paneId === paneId));
           if (mirror) {
-            setDraggingRefLineId(mirror.id);
+            historyDispatch?.({type:'begin-gesture'});
+          setDraggingRefLineId(mirror.id);
             return;
           }
         }
       }
     }
 
-    // Delta mode: place delta marker when clicking empty area with no selected marker
-    if (mkrMode === 'delta') {
-      if (dRef == null || dRef < 0 || dRef >= markers.length) return;
-      const refMarker = markers[dRef];
-      if (!refMarker) return;
-      const deltaTrace = allTraces.find((t) => t.name === refMarker.trace);
-      if (!deltaTrace) return;
-      markerDispatch({
-        type: 'PLACE_MARKER',
-        payload: {
-          trace: deltaTrace,
-          targetFreq: freq,
-          markerType: 'delta',
-          refIdx: dRef,
-          magneticSnap: { nearestPointPixelDistance: computeNearestPixelDist(deltaTrace, freq), snapThresholdPx: 10 },
-        },
-      });
-      return;
-    }
 
     const lineHit = refLines
       .filter((line) => line.type === 'v' && (!line.paneId || line.paneId === paneId))
@@ -626,7 +611,8 @@ export function ChartPane({ paneId }: ChartPaneProps) {
     if (lineHit) {
       markerDispatch({ type: 'SET_SELECTED_IDX', payload: -1 });
       refLineDispatch({ type: 'SET_SELECTED', payload: lineHit.id });
-      setDraggingRefLineId(lineHit.id);
+      historyDispatch?.({type:'begin-gesture'});
+          setDraggingRefLineId(lineHit.id);
       return;
     }
 
@@ -640,7 +626,8 @@ export function ChartPane({ paneId }: ChartPaneProps) {
     if (hLineHit) {
       markerDispatch({ type: 'SET_SELECTED_IDX', payload: -1 });
       refLineDispatch({ type: 'SET_SELECTED', payload: hLineHit.id });
-      setDraggingRefLineId(hLineHit.id);
+      historyDispatch?.({type:'begin-gesture'});
+          setDraggingRefLineId(hLineHit.id);
       return;
     }
 
@@ -701,8 +688,21 @@ export function ChartPane({ paneId }: ChartPaneProps) {
 
   const handleMouseUp = () => {
     if (zoomDragActive || panStartZoom) return;
+    if (draggingMarkerIdx !== null || draggingRefLineId !== null) historyDispatch?.({type:'commit-gesture'});
     clearPointerDragState();
   };
+
+  React.useEffect(() => {
+    if (draggingMarkerIdx === null && draggingRefLineId === null) return;
+    const finish = () => { historyDispatch?.({type:'commit-gesture'}); clearPointerDragState(); };
+    const cancel = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      historyDispatch?.({type:'cancel-gesture'}); clearPointerDragState(); event.preventDefault(); event.stopPropagation();
+    };
+    window.addEventListener('mouseup',finish);
+    window.addEventListener('keydown',cancel,true);
+    return () => { window.removeEventListener('mouseup',finish); window.removeEventListener('keydown',cancel,true); };
+  },[draggingMarkerIdx,draggingRefLineId,historyDispatch,clearPointerDragState]);
 
   const handleWheel = (e: React.WheelEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -804,7 +804,7 @@ export function ChartPane({ paneId }: ChartPaneProps) {
     return selectedTraceName ? allTraces.find((trace) => trace.name === selectedTraceName) ?? null : null;
   }, [allTraces, selectedTraceName]);
 
-  const canMoveSelectedHere = !!selectedTrace && (tracePaneMap[selectedTrace.name] || 'pane-1') !== paneId;
+  const canMoveSelectedHere = !!selectedTrace && !tracePaneMap[selectedTrace.name]?.includes(paneId);
 
   const resolveTraceColor = useMemo(() => {
     const tracePalette = colors?.tr ?? [];
@@ -976,12 +976,14 @@ export function ChartPane({ paneId }: ChartPaneProps) {
     // Only a known trace name is a trace move; file drags can carry unrelated text/plain too.
     const trace = traceName ? allTraces.find((item) => item.name === traceName) : undefined;
     if (trace) {
-      const validation = canAssignTraceToPane(trace, paneId, allTraces, tracePaneMap);
+      const validation = checkPaneAssignment(trace, paneId, allTraces, tracePaneMap, panes, allDisplayTraces);
       if (!validation.allowed) {
         uiDispatch({ type: 'SET', payload: { key: 'paneAssignmentWarning', value: { message: validation.reason ?? 'Cannot assign trace to this pane.', paneId, traceName: trace.name } } });
         return;
       }
-      paneDispatch({ type: 'ASSIGN_TRACE_TO_PANE', payload: { trace, targetPaneId: paneId, allTraces } });
+      const fromPaneId = activePaneId && tracePaneMap[trace.name]?.includes(activePaneId) ? activePaneId : tracePaneMap[trace.name]?.[0];
+      if (fromPaneId) paneDispatch({ type: 'MOVE_MEMBERSHIP', payload: { trace, fromPaneId, targetPaneId: paneId, allTraces } });
+      else paneDispatch({ type: 'ADD_MEMBERSHIP', payload: { trace, targetPaneId: paneId, allTraces } });
       paneDispatch({ type: 'SET_PANE_ACTIVE_TRACE', payload: { paneId, traceName: trace.name } });
       paneDispatch({ type: 'SET_ACTIVE_PANE', payload: paneId });
       return;
@@ -1127,12 +1129,14 @@ export function ChartPane({ paneId }: ChartPaneProps) {
           <Btn soft style={{ padding: '0.2rem 0.55rem', fontSize: 'var(--font-caption)', minHeight: 'auto' }} disabled={!canMoveSelectedHere} onClick={(e) => {
             e.stopPropagation();
             if (!selectedTrace) return;
-            const validation = canAssignTraceToPane(selectedTrace, paneId, allTraces, tracePaneMap);
+            const validation = checkPaneAssignment(selectedTrace, paneId, allTraces, tracePaneMap, panes, allDisplayTraces);
             if (!validation.allowed) {
               uiDispatch({ type: 'SET', payload: { key: 'paneAssignmentWarning', value: { message: validation.reason ?? 'Cannot assign trace to this pane.', paneId, traceName: selectedTrace.name } } });
               return;
             }
-            paneDispatch({ type: 'ASSIGN_TRACE_TO_PANE', payload: { trace: selectedTrace, targetPaneId: paneId, allTraces } });
+            const fromPaneId = activePaneId && tracePaneMap[selectedTrace.name]?.includes(activePaneId) ? activePaneId : tracePaneMap[selectedTrace.name]?.[0];
+            if (fromPaneId) paneDispatch({ type: 'MOVE_MEMBERSHIP', payload: { trace: selectedTrace, fromPaneId, targetPaneId: paneId, allTraces } });
+            else paneDispatch({ type: 'ADD_MEMBERSHIP', payload: { trace: selectedTrace, targetPaneId: paneId, allTraces } });
             paneDispatch({ type: 'SET_PANE_ACTIVE_TRACE', payload: { paneId, traceName: selectedTrace.name } });
             paneDispatch({ type: 'SET_ACTIVE_PANE', payload: paneId });
           }}>Move Here</Btn>

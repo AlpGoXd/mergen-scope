@@ -49,6 +49,13 @@ describe("known-good parser samples", () => {
     expect(parsed.datasets?.some((dataset) => dataset.family === "network")).toBe(true);
   });
 
+  it("parses advertised TSV files through the tabular path", () => {
+    const parsed = parseMeasurementFile("Time\tCH1\n0\t1\n1\t2\n", "waveform.tsv");
+    expect(parsed.format).toBe("tabular");
+    expect(parsed.traces[0]?.data).toHaveLength(2);
+    expect(parsed.traces[0]?.domain).toBe("time");
+  });
+
   it.todo("locks additional parser formats once their intended behavior is finished");
   it.todo("locks waveform CSV domain/family inference after parser heuristics are finalized");
   it.todo("locks Touchstone legacy trace projection counts after network view policy is finalized");

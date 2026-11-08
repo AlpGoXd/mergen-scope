@@ -43,7 +43,7 @@ describe('theme preference', () => {
     await waitFor(() => expect(result.current.theme.theme).toBe('dark'));
     act(() => staleRestore({ ...snapshot, ui: { ...snapshot.ui, theme: 'glass' } }));
     expect(result.current.theme.theme).toBe('dark');
-    expect(result.current.workspace.getSnapshot().ui.theme).toBe('dark');
+    expect(result.current.workspace.getSnapshot().ui).not.toHaveProperty('theme');
   });
   it('works without storage and shares one system listener among consumers', async () => {
     vi.stubGlobal('localStorage', { getItem: () => { throw Error(); }, setItem: () => { throw Error(); }, removeItem: () => { throw Error(); } });
@@ -65,7 +65,7 @@ describe('theme preference', () => {
     await waitFor(() => expect(result.current.colors?.tr[0]).toBe('dark-token'));
     vi.restoreAllMocks();
   });
-  it.each(['dark', 'light', 'glass'] as const)('keeps the preference when restoring legacy %s and saves v4 without preference', async (legacy) => {
+  it.each(['dark', 'light', 'glass'] as const)('keeps the preference when restoring legacy %s and saves v5 without appearance preferences', async (legacy) => {
     const { result } = renderHook(() => ({ theme: useTheme(), workspace: useWorkspace() }), { wrapper: StoreRoot });
     act(() => result.current.theme.setTheme('light'));
     await waitFor(() => expect(result.current.theme.theme).toBe('light'));
@@ -73,7 +73,7 @@ describe('theme preference', () => {
     act(() => result.current.workspace.restore({ ...snapshot, ui: { ...snapshot.ui, theme: legacy } }));
     await waitFor(() => expect(result.current.theme.theme).toBe('light'));
     const saved = result.current.workspace.getSnapshot();
-    expect(saved.version).toBe(4); expect(saved.ui.theme).toBe('light');
+    expect(saved.version).toBe(5); expect(saved.ui).not.toHaveProperty('theme');
     expect(saved.ui).not.toHaveProperty('preference'); expect(storage.get(key)).toBe('light');
   });
 });
