@@ -25,7 +25,7 @@ import { TouchstoneMatrixPicker } from '../sidebar/TouchstoneMatrixPicker';
 import { TraceRow } from '../sidebar/LiveTraceRow';
 import { MarkerItem } from '../sidebar/LiveMarkerItem';
 import { RefLineItem } from '../sidebar/LiveRefLineItem';
-import { badgeStyle, formatWithUnit, sidebarButtonStyle } from '../sidebar/live-row-helpers';
+import { badgeStyle, formatWithUnit } from '../sidebar/live-row-helpers';
 
 const MATRIX_VIEWS_BY_FAMILY: Record<TouchstoneFamily, readonly TouchstoneView[]> = {
   S: ['dB', 'Mag', 'Phase', 'Real', 'Imag'],
@@ -79,15 +79,13 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
   const { colors, theme } = useTheme();
 
   const [hoveredMarkerId, setHoveredMarkerId] = useState<string | null>(null);
-  const [expandedByFileId, setExpandedByFileId] = useState<Record<string, { matrix?: boolean; meta?: boolean }>>({});
+  const [expandedByFileId, setExpandedByFileId] = useState<Record<string, { columns?: boolean; meta?: boolean }>>({});
   const compactSidebar = files.length <= 1 && allTraces.length <= 1 && markers.length === 0 && refLines.length === 0;
   const effectiveWidth = width;
   const sidebarMinWidth = '220px';
   const sidebarMaxWidth = 'min(45vw, 420px)';
   const sidebarInnerGap = compactSidebar ? '5px' : '7px';
   const sidebarInnerPadding = compactSidebar ? '4px 4px 6px' : '5px 5px 7px';
-  const fileCardPadding = '4px';
-  const fileCardGap = compactSidebar ? '3px' : '4px';
   const fileCardRadius = '6px';
 
   const visibleDisplayTraces = allDisplayTraces.filter((displayTrace) => !displayTrace.hidden);
@@ -200,6 +198,7 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
           {files.map((file) => {
             const fileId = String(file.id);
             const isMatrixTab = !!file.matrixOpen;
+            const isColumnsTab = !!expandedByFileId[fileId]?.columns;
             const isMetaTab = !!expandedByFileId[fileId]?.meta;
             const touchstoneState = touchstoneStateByFileId[fileId] ?? makeDefaultTouchstoneState(file);
             const activeFamily = touchstoneState.activeFamily;
@@ -237,18 +236,20 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
               <div
                 key={fileId}
                 style={{
-                  border: '1px solid var(--border)',
+                  border: `1px ${!file.touchstoneNetwork && file.displayTraces?.length === 1 && hiddenViewCount ? 'dashed' : 'solid'} ${file.error ? 'var(--danger-line)' : 'var(--border)'}`,
+                  color: file.error ? 'var(--danger-ink)' : undefined,
                   borderRadius: fileCardRadius,
-                  padding: fileCardPadding,
-                  background: 'var(--raised)',
+                  padding: '0 5px',
+                  background: file.error ? 'var(--danger-fill)' : 'var(--raised)',
                   display: 'flex',
                   flexDirection: 'column',
-                  gap: fileCardGap,
+                  gap: 0,
                   minWidth: 0,
                 }}
               >
                 <FileTitleRow
                   fileName={file.fileName}
+                  error={file.error}
                   summary={file.touchstoneNetwork ? `${file.touchstoneNetwork.portCount} ports \u00b7 ${file.touchstoneNetwork.samples.length} pts${file.touchstoneNetwork.samples.length ? ` \u00b7 ${formatWithUnit((file.touchstoneNetwork.samples[0]?.freq ?? 0), "Hz")} - ${formatWithUnit((file.touchstoneNetwork.samples[file.touchstoneNetwork.samples.length - 1]?.freq ?? 0), "Hz")}` : ""}` : `${file.traces.length} ${file.traces.length === 1 ? "trace" : "traces"}`}
                   matrixOpen={file.touchstoneNetwork ? isMatrixTab : undefined}
                   onMatrix={file.touchstoneNetwork ? () => fileDispatch({ type: 'SET_MATRIX_OPEN', payload: { fileId, open: !isMatrixTab } }) : undefined}
@@ -258,6 +259,11 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
                   onVisibility={(visible) => { const traces = allTraces.filter(item => displayTraceLocationByLegacyName.get(item.name)?.fileId === fileId); const actions = traces.map(item => ({ slice: 'traces' as const, action: { type: 'SET_VISIBILITY' as const, name: item.name, visible } })); if (aggregate) aggregate.historyDispatch({ type: 'change', toastMessage: visible ? 'Showed file traces' : 'Hid file traces', command: { slice: 'transaction', actions } }); else actions.forEach(item => traceDispatch(item.action)); }}
                   onInfo={() => setExpandedByFileId(prev => ({ ...prev, [fileId]: { ...prev[fileId], meta: !prev[fileId]?.meta } }))}
                   compact={compactSidebar}
+                  showSummary={isMatrixTab || isMetaTab}
+                  columnsOpen={isColumnsTab}
+                  onColumns={!file.touchstoneNetwork && file.format === 'tabular' && (file.displayTraces?.length ?? 0) > 1 ? () => setExpandedByFileId(prev => ({ ...prev, [fileId]: { ...prev[fileId], columns: !prev[fileId]?.columns } })) : undefined}
+                  onPlot={!file.touchstoneNetwork && file.displayTraces?.length === 1 && hiddenViewCount ? () => fileDispatch({ type: 'SHOW_ALL_DISPLAY_TRACES', payload: { fileId } }) : undefined}
+                  multiTrace={(file.displayTraces?.length ?? file.traces.length) > 1}
                   onRemove={() => {
                     const names = new Set([...file.traces.map(trace => trace.name), ...(file.displayTraces ?? []).map(display => display.compat?.legacyTraceName ?? display.id)]);
                     if (((file.displayTraces?.length ?? file.traces.length) > 1 || markers.some(marker => names.has(marker.trace))) && !window.confirm(`Remove ${file.fileName} and its traces?`)) return;
@@ -267,17 +273,17 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
                   }}
                 />
 
-                {file.error && <div role="alert" title={file.error}>{file.error}</div>}
+                {file.error && <span role="alert" style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clipPath: 'inset(50%)' }}>{file.error}</span>}
 
                 {isMatrixTab && file.touchstoneNetwork && (
                   <div
                     style={{
                       display: 'grid',
-                      gap: '6px',
-                      padding: '2px 0',
+                      gap: '3px',
+                      padding: '2px 0 5px',
                     }}
                   >
-                    <div style={{ display: 'flex', gap: '2px', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', gap: 0, alignItems: 'center' }}>
                       <span style={{ ...subsectionLabelStyle, width: 44, flexShrink: 0 }}>Family</span>
                       {(['S', 'Y', 'Z', 'ABCD'] as const).map((family) => (
                         <button
@@ -287,7 +293,7 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
                           title={family === 'ABCD' && file.touchstoneNetwork?.portCount !== 2 ? '2-port only' : family}
                           onClick={() => setActiveFamily(fileId, family)}
                           className={touchstoneState.activeFamily === family ? 'btn-active' : 'btn'}
-                          style={{ padding: '1px 4px', fontSize: 'var(--font-caption)', minWidth: 0 }}
+                          style={{ padding: '0 5px', minHeight: 18, borderRadius: 3, fontSize: 'var(--font-caption)', lineHeight: '16px', minWidth: 0 }}
                         >
                           {family}
                         </button>
@@ -296,19 +302,19 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
 
                     <div style={{ display: 'flex', gap: '2px', alignItems: 'center', minWidth: 0 }}>
                       <span style={{ ...subsectionLabelStyle, width: 44, flexShrink: 0 }}>Plot as</span>
-                      <div style={{ display: 'flex', gap: '2px', alignItems: 'center', minWidth: 0 }}>
+                      <div style={{ display: 'flex', gap: 0, alignItems: 'center', minWidth: 0 }}>
                         {availableViews.map((view) => (
                           <button
                             key={view}
                             type="button"
                             onClick={() => setActiveView(fileId, activeFamily, view)}
                             className={activeView === view ? 'btn-active' : 'btn'}
-                            style={{ padding: '1px 4px', fontSize: 'var(--font-caption)', minWidth: 0 }}
+                            style={{ padding: '0 5px', minHeight: 18, borderRadius: 3, fontSize: 'var(--font-caption)', lineHeight: '16px', minWidth: 0 }}
                           >
                             {view === 'Real' ? 'Re' : view === 'Imag' ? 'Im' : view}
                           </button>
                         ))}
-                        <select style={{ minWidth: 0, width: 54, padding: '1px 0', fontSize: 'var(--font-caption)' }} aria-label="More network views" value={['VSWR', 'Return loss', 'Group delay'].includes(activeView) ? activeView : ''} onChange={event => { if (event.target.value) setActiveView(fileId, activeFamily, event.target.value as TouchstoneView); }}><option value="">More…</option><option value="VSWR" disabled={activeFamily !== 'S'}>VSWR</option><option value="Return loss" disabled={activeFamily !== 'S'}>Return loss</option><option value="Group delay">Group delay</option></select>
+                        <select style={{ minWidth: 0, width: 54, height: 18, marginLeft: 4, padding: '0', fontSize: 'var(--font-caption)' }} aria-label="More network views" value={['VSWR', 'Return loss', 'Group delay'].includes(activeView) ? activeView : ''} onChange={event => { if (event.target.value) setActiveView(fileId, activeFamily, event.target.value as TouchstoneView); }}><option value="">More…</option><option value="VSWR" disabled={activeFamily !== 'S'}>VSWR</option><option value="Return loss" disabled={activeFamily !== 'S'}>Return loss</option><option value="Group delay">Group delay</option></select>
                       </div>
                     </div>
 
@@ -387,36 +393,11 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
                   </div>
                 )}
 
-                {isMetaTab && <MetadataPanel meta={file.meta} raw={rawFileData[fileId] ?? ''} compact={compactSidebar} />}
+                {isColumnsTab && <div style={{ display: 'grid', padding: '0 0 5px 35px', fontSize: 'var(--font-caption)' }}>{(file.displayTraces ?? []).map((display, index) => <label key={display.id} style={{ display: 'flex', alignItems: 'center', gap: 4 }}><input type="checkbox" checked={!display.hidden} onChange={event => fileDispatch({ type: 'SET_DISPLAY_TRACE_HIDDEN', payload: { fileId, displayTraceId: display.id, hidden: !event.target.checked } })} />{file.columnIdentities?.[index]?.header || display.label.replace(`${file.fileName} `, '')}{display.hidden ? ' \u00b7 not plotted' : ''}</label>)}</div>}
 
-                {!file.touchstoneNetwork && hiddenViewCount > 0 && (
-                  <div
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: 'minmax(0, 1fr) auto',
-                      alignItems: 'center',
-                      gap: '6px',
-                      minWidth: 0,
-                    }}
-                  >
-                    <PretextLabel
-                      text={`${hiddenViewCount} hidden ${hiddenViewCount === 1 ? 'view' : 'views'}`}
-                      font="400 var(--font-label) system-ui"
-                      lineHeight="var(--lh-label)"
-                      maxLines={3}
-                      style={{ fontSize: 'var(--font-label)', color: 'var(--dim)', minWidth: 0 }}
-                      lineStyle={{ whiteSpace: 'normal' }}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => fileDispatch({ type: 'SHOW_ALL_DISPLAY_TRACES', payload: { fileId } })}
-                      className="btn"
-                      style={{ padding: '2px 8px', fontSize: 'var(--font-caption)' }}
-                    >
-                      Restore
-                    </button>
-                  </div>
-                )}
+                {isMetaTab && <MetadataPanel meta={file.meta} raw={rawFileData[fileId] ?? ''} compact={compactSidebar} onClose={() => setExpandedByFileId(prev => ({ ...prev, [fileId]: { ...prev[fileId], meta: false } }))} />}
+
+
               </div>
             );
           })}
@@ -657,30 +638,31 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
   );
 }
 
-function FileTitleRow({ fileName, summary, matrixOpen, onMatrix, compact = false, onRemove, onInfo, onReplace, onRename, onEdit, onVisibility }: { fileName: string; summary: string; matrixOpen?: boolean; onMatrix?: () => void; compact?: boolean; onRemove: () => void; onInfo: () => void; onReplace?: () => void; onRename?: () => void; onEdit?: () => void; onVisibility: (visible: boolean) => void }) {
+function FileTitleRow({ fileName, error, summary, matrixOpen, onMatrix, compact = false, showSummary, multiTrace, columnsOpen, onColumns, onPlot, onRemove, onInfo, onReplace, onRename, onEdit, onVisibility }: { fileName: string; error?: string; summary: string; matrixOpen?: boolean; onMatrix?: () => void; compact?: boolean; showSummary: boolean; multiTrace: boolean; columnsOpen?: boolean; onColumns?: () => void; onPlot?: () => void; onRemove: () => void; onInfo: () => void; onReplace?: () => void; onRename?: () => void; onEdit?: () => void; onVisibility: (visible: boolean) => void }) {
   return (
     <div
       style={{
         display: 'grid',
         gridTemplateColumns: 'auto minmax(0, 1fr) auto auto auto',
         gap: compact ? '4px' : '6px',
-        alignItems: 'start',
+        alignItems: 'center',
+        minHeight: 24,
         minWidth: 0,
       }}
     >
       <span style={{ ...badgeStyle, borderRadius: 4, fontFamily: 'var(--font-mono)', minWidth: 30, textAlign: 'center', padding: '1px 2px' }}>{fileName.split('.').pop()?.toUpperCase().slice(0, 4) ?? 'FILE'}</span>
-      <span title={`${fileName} ? ${summary}`} style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{fileName.length > 28 ? `${fileName.slice(0, 14)}…${fileName.slice(-11)}` : fileName}</span>
-      {onMatrix ? <button type="button" aria-label="Matrix" aria-expanded={matrixOpen} onClick={onMatrix} className={matrixOpen ? 'btn-active' : 'btn'} style={{ padding: '1px 3px', fontSize: 'var(--font-caption)', whiteSpace: 'nowrap' }}>Matrix {matrixOpen ? '\u25b4' : '\u25be'}</button> : <span />}
-      <ActionMenu label={`Actions for ${fileName}`} actions={[{ label: 'Info', run: onInfo }, { label: 'Replace file…', disabled: !onReplace, run: () => onReplace?.() }, ...(onEdit ? [{ label: 'Edit columns…', run: onEdit }] : []), { label: 'Rename', disabled: !onRename, run: () => onRename?.() }, { label: 'Show all', run: () => onVisibility(true) }, { label: 'Hide all', run: () => onVisibility(false) }, { label: 'Remove file…', run: onRemove }]} />
+      <span title={error ?? `${fileName} \u00b7 ${summary}`} style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{fileName.length > 28 ? `${fileName.slice(0, 14)}…${fileName.slice(-11)}` : fileName}</span>
+      {error ? <button type="button" onClick={onEdit ?? onReplace} disabled={!onEdit && !onReplace} title={error} style={{ border: 0, background: 'transparent', color: 'var(--danger-ink)', textDecoration: 'underline', cursor: 'pointer', padding: 0 }}>{'Fix\u2026'}</button> : onMatrix ? <button type="button" aria-label="Matrix" aria-expanded={matrixOpen} onClick={onMatrix} className={matrixOpen ? 'btn-active' : 'btn'} style={{ padding: '1px 3px', fontSize: 'var(--font-caption)', whiteSpace: 'nowrap' }}>Matrix {matrixOpen ? '\u25b4' : '\u25be'}</button> : onColumns ? <button type="button" aria-label="Columns" aria-expanded={columnsOpen} onClick={onColumns} className={columnsOpen ? 'btn-active' : 'btn'} style={{ padding: '1px 3px', fontSize: 'var(--font-caption)', whiteSpace: 'nowrap' }}>Columns {columnsOpen ? '\u25b4' : '\u25be'}</button> : onPlot ? <button type="button" className="btn" onClick={onPlot} style={{ padding: '1px 3px', fontSize: 'var(--font-caption)' }}>Plot</button> : <span />}
+      <ActionMenu label={`Actions for ${fileName}`} actions={[{ label: 'Info', run: onInfo }, { label: 'Replace file…', disabled: !onReplace, run: () => onReplace?.() }, ...(onEdit ? [{ label: 'Edit columns…', run: onEdit }] : []), { label: 'Rename', disabled: !onRename, run: () => onRename?.() }, ...(multiTrace ? [{ label: 'Show all', run: () => onVisibility(true) }, { label: 'Hide all', run: () => onVisibility(false) }] : []), { label: 'Remove file…', run: onRemove }]} />
       <button
         type="button"
         onClick={onRemove}
-        style={{ ...sidebarButtonStyle('var(--text-muted)', false, compact), lineHeight: '1.2', flexShrink: 0 }}
+        style={{ border: 0, background: 'transparent', color: 'var(--text-muted)', padding: '0 2px', cursor: 'pointer', lineHeight: '1.2', flexShrink: 0 }}
         title="Remove file"
       >
         x
       </button>
-      <span style={{ gridColumn: '1 / -1', color: 'var(--dim)', fontSize: 'var(--font-caption)', fontFamily: 'var(--font-mono)' }}>{summary}</span>
+      {showSummary && <span style={{ gridColumn: '1 / -1', color: 'var(--dim)', fontSize: 'var(--font-caption)', fontFamily: 'var(--font-mono)', paddingBottom: 2 }}>{summary}</span>}
     </div>
   );
 }
@@ -735,7 +717,7 @@ function metadataEntryToDisplay(entry: MetadataEntry): string {
   return formatWithUnit(entry.value, entry.unit);
 }
 
-function MetadataPanel({ meta, raw, compact = false }: { meta: FileMetadata; raw: string; compact?: boolean }) {
+function MetadataPanel({ meta, raw, compact = false, onClose }: { meta: FileMetadata; raw: string; compact?: boolean; onClose: () => void }) {
   const [mode, setMode] = useState<'table' | 'raw'>('table');
   const entries = useMemo(() => Object.entries(meta), [meta]);
   const rawHeader = useMemo(() => {
@@ -752,16 +734,15 @@ function MetadataPanel({ meta, raw, compact = false }: { meta: FileMetadata; raw
   return (
     <div
       style={{
-        border: '1px solid var(--border)',
-        borderRadius: '8px',
-        padding: compact ? '4px 5px' : '5px 6px',
-        background: 'var(--bg)',
+        borderTop: '1px solid var(--border)',
+        padding: compact ? '4px 0' : '5px 0',
+        background: 'transparent',
         display: 'grid',
         gap: compact ? '3px' : '4px',
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}><strong style={{ flex: 1 }}>Info</strong><button type="button" aria-pressed={mode === 'table'} onClick={() => setMode('table')}>Table</button><button type="button" aria-pressed={mode === 'raw'} onClick={() => setMode('raw')}>Raw</button><button type="button" onClick={() => void navigator.clipboard.writeText(mode === 'raw' ? rawHeader : entries.map(([key, value]) => `${key}: ${metadataEntryToDisplay(value)}`).join('\n'))}>Copy</button></div>
-      {mode === 'raw' ? <pre style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', maxHeight: 200, overflow: 'auto', margin: 0 }}>{rawHeader || 'No header fields in this file'}</pre> : entries.length === 0 ? <SidebarEmpty text="No header fields in this file" /> : entries.map(([key, value]) => (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}><strong>Info</strong><button type="button" className={mode === 'table' ? 'btn-active' : 'btn'} style={{ padding: '0 5px', borderRadius: 3, fontSize: 'var(--font-caption)' }} aria-pressed={mode === 'table'} onClick={() => setMode('table')}>Table</button><button type="button" className={mode === 'raw' ? 'btn-active' : 'btn'} style={{ padding: '0 5px', borderRadius: 3, fontSize: 'var(--font-caption)', marginLeft: -4 }} aria-pressed={mode === 'raw'} onClick={() => setMode('raw')}>Raw</button><button type="button" style={{ marginLeft: 'auto', border: 0, padding: 0, background: 'transparent', color: 'var(--accent)', cursor: 'pointer' }} onClick={() => void navigator.clipboard.writeText(entries.map(([key, value]) => `${key}: ${metadataEntryToDisplay(value)}`).join('\n'))}>Copy</button><button type="button" aria-label="Close info" onClick={onClose} style={{ border: 0, background: 'transparent', color: 'var(--text-muted)', cursor: 'pointer' }}>{'\u00d7'}</button></div>
+      {mode === 'raw' ? <pre style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', maxHeight: 200, overflow: 'auto', margin: 0, padding: 5, borderRadius: 4, background: 'var(--panel)', fontFamily: 'var(--font-mono)' }}>{rawHeader || 'No header fields in this file'}</pre> : entries.length === 0 ? <SidebarEmpty text="No header fields in this file" /> : entries.map(([key, value]) => (
         <div
           key={key}
           style={{

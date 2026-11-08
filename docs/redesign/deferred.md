@@ -79,3 +79,14 @@ The candidate comparison is in [phase7b-evidence/comparison.html](phase7b-eviden
 | --- | --- | --- |
 | Match compact control, cell and trace-row sizing and trace naming against board 42-L1; capture and compare the narrow 220 px sidebar and populated marker/line states in both themes. | Phase 8 visual audit | The 1440 px light/dark comparison in [sidebar completion evidence](sidebar-completion-evidence/comparison.md) fixes the file summary and matrix alignment, but those states and sizing remain open. |
 | Provide matrix cell tooltips describing the target-pane add/remove action and existing placements. | Phase 8 | The current tooltip identifies the parameter and view but does not describe the action or pane placement. |
+
+## File-card visual correction follow-up
+
+| Remaining work | Target phase | Status and evidence |
+| --- | --- | --- |
+| Expose actual parsing progress in the file-import state and render the specified percentage and 2 px accent bar on the file row while parsing. | Phase 7D / 7E | Deferred: the current file record has no progress field, so this state cannot be displayed or captured faithfully. |
+| Wire the error row Fix action to the shared wizard or replacement pipeline, then verify recovery end to end. | Phase 7D / 7E | Partial: the error row is tinted and exposes its reason; Fix is disabled when the parent does not supply the relevant callback. |
+| Show the current view and existing pane placements in each matrix cell tooltip, including whether clicking adds to or removes from the target pane. | Phase 7E; verify in Phase 8 | Deferred: the current tooltip shows the parameter and view only. |
+| Finish the greater-than-eight-port picker: compare its row/column selectors, removable plotted chips and full-grid popover against board 23-C04, and complete cross-view chips plus popover focus and dismissal. | Phase 7E; visual audit in Phase 8 | Partial: the list picker and grid exist; the visual treatment and cross-view/focus behavior remain incomplete. |
+
+Light and dark populated network, CSV and error captures and comparisons are in [file-card visual evidence](file-card-visual-evidence/README.md). The native More selector and cell sizing also need final comparison against boards 00, 01 and 42 in the Phase 8 visual audit.
