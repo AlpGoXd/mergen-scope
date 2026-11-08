@@ -1,4 +1,5 @@
 import React from 'react';
+import { ToastProvider } from './toast-store';
 import { UiStoreProvider } from './ui-store';
 import { AnalysisStoreProvider } from './analysis-store';
 import { MarkerStoreProvider } from './marker-store';
@@ -9,6 +10,7 @@ import { PaneStoreProvider } from './pane-store';
 
 export function StoreRoot({ children }: { children: React.ReactNode }) {
   return (
+    <ToastProvider>
     <UiStoreProvider>
       <AnalysisStoreProvider>
         <MarkerStoreProvider>
@@ -27,5 +29,6 @@ export function StoreRoot({ children }: { children: React.ReactNode }) {
         </MarkerStoreProvider>
       </AnalysisStoreProvider>
     </UiStoreProvider>
+    </ToastProvider>
   );
 }

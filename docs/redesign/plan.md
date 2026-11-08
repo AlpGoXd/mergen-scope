@@ -2,9 +2,9 @@
 
 Planning date: 2026-11-08. Repository: `ts_refactor`, HEAD `31724ef` (`before redesign`); working tree clean before these planning documents were added.
 
-Source of product requirements: [spec-v2.md](spec-v2.md), copied verbatim from the user's 7 Nov orchestrator prompt. This plan decomposes that specification; it does not replace its visual details. Landing page, logo, Polar/IQ work and command palette remain out of scope.
+Current product requirements: [spec-v3.md](spec-v3.md), copied verbatim from the current orchestrator prompt. [spec-v2.md](spec-v2.md) remains historical evidence. This plan decomposes that specification; it does not replace its visual details. Landing page, logo, Polar/IQ work and command palette remain out of scope.
 
-Status: Phase 1 complete at an uncommitted checkpoint. Independent main verification passed all five gates; see [phase1.md](phase1.md) and the [verification log](phase1-verification-artifacts/independent-main-gates-2026-11-08.md). Phase 0 baseline evidence and its checksums remain pinned to c030; this plan status update changes only the plan document.
+Status: Phase 1 foundation committed with the remaining work tracked in [deferred.md](deferred.md); Phase 2 shared scope verified at an uncommitted checkpoint; see [phase2.md](phase2.md). Phase 3 has not started. Independent main verification passed all five gates; see [phase1.md](phase1.md) and the [verification log](phase1-verification-artifacts/independent-main-gates-2026-11-08.md). Phase 0 baseline evidence and its checksums remain pinned to c030; this plan status update changes only the plan document.
 
 ## Decisions and working rules
 
@@ -136,6 +136,7 @@ Exit: complete workflows verified rather than isolated screenshots: open → mat
 ### Phase 8 — final consistency and adversarial review
 
 - Matrix: Light/Dark × Compact/Comfortable × 1440 × 900 / 1024 × 640. Add checks on both sides of the 1280 px panel breakpoint. Exercise empty, frequency, time, mixed-unit, Smith, Table, multi-copy, unplaced and 8-pane workspaces.
+- Remove legacy palette aliases and glass compatibility only after consumer migration and searches prove they are unused; close every item in [deferred.md](deferred.md).
 - Walk the source's shared rules: role colors, disabled reasons, destruction/Undo policy, no component hex/emoji/side stripes, no obsolete Import wording, correct armed state, formatting, footer, keyboard/focus and reduced motion. Scan findings are candidates for review, not blind edits of raw data or fixtures.
 - Measure text contrast against actual composited backgrounds in both themes; target 4.5:1. Verify status messages use borders/icons and only the specified error-file row uses a status fill.
 - Built-app privacy/offline checks: inventory initial asset loading, then capture and assert every attempted runtime request's method, origin, path and payload, including same-origin requests; only explicitly requested same-origin demo GETs are allowed. Blocking forbidden requests alone does not pass this gate. Separately verify offline reload/open/export, no cookies, browser storage contains preferences rather than measurement/workspace content, feedback URL has no file/workspace data, fonts render offline, and exported files are self-contained.

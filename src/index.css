@@ -220,3 +220,41 @@ table {
 
 /* Density is a browser preference in a later phase; this class provides its tokens. */
 .density-comfortable { --font-caption: 12px; --font-label: 13px; --font-body: 13px; --font-emphasis: 13px; --font-title: 15px; --font-display: 15px; --control-height: 28px; --row-height: 30px; --gap: 6px; --panel-padding: 12px; --input-height: 24px; }
+
+/* Phase 2 shared controls */
+.ui-btn { min-height: var(--control-height); padding: 0 8px; display: inline-flex; align-items: center; justify-content: center; gap: 4px; border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--raised); color: var(--text); font: inherit; cursor: pointer; white-space: nowrap; transition: background 120ms, border-color 120ms, color 120ms; }
+.ui-btn:hover:not(:disabled) { background: var(--panel); border-color: var(--border-strong); }
+.ui-btn.is-small { min-height: var(--control-sm-height); }
+.ui-btn--chip.is-active { background: var(--chip-fill, color-mix(in oklch, var(--group-color, var(--accent)) 15%, var(--panel))); border-color: var(--chip-line, color-mix(in oklch, var(--group-color, var(--accent)) 45%, var(--border))); color: var(--chip-ink, var(--text)); }
+.ui-btn--slate.is-active { background: var(--slate-fill); border-color: var(--slate-line); color: var(--slate-ink); }
+.ui-btn--solid { background: var(--solid); border-color: var(--solid); color: var(--solid-ink); font-weight: 600; }
+.ui-btn--solid:hover:not(:disabled) { background: var(--solid-hover); border-color: var(--solid-hover); }
+.ui-btn--solid.is-danger { background: var(--solid-danger); border-color: var(--solid-danger); color: var(--solid-ink); }
+.ui-btn--secondary { background: var(--secondary-fill); border-color: var(--secondary-line); color: var(--secondary-ink); }
+.ui-btn:disabled { opacity: .45; cursor: not-allowed; }
+.ui-select { min-height: var(--control-height); border: 1px solid var(--border); border-radius: var(--radius-input); padding: 0 8px; background: var(--raised); color: var(--text); font: inherit; }
+.ui-segmented, .ui-split { display: inline-flex; gap: 4px; }
+.ui-menu-root, .ui-tooltip-anchor { position: relative; display: inline-flex; }
+.ui-tooltip { visibility: hidden; position: absolute; z-index: 100; top: calc(100% + 4px); left: 0; width: max-content; max-width: 240px; padding: 4px 8px; background: var(--raised); color: var(--text); border: 1px solid var(--border-strong); border-radius: var(--radius-input); box-shadow: 0 4px 12px oklch(0 0 0 / .15); }
+.ui-tooltip[hidden] { display: none; }
+.ui-tooltip-anchor:hover > .ui-tooltip, .ui-tooltip-anchor:focus > .ui-tooltip, .ui-tooltip-anchor:focus-within > .ui-tooltip { visibility: visible; }
+.ui-popover { position: fixed; z-index: 90; top: calc(100% + 4px); left: 0; min-width: min(160px, calc(100vw - 8px)); overflow: auto; padding: 4px; background: var(--raised); border: 1px solid var(--border-strong); border-radius: var(--radius-card); box-shadow: 0 4px 12px oklch(0 0 0 / .15); animation: ui-pop 120ms ease-out; }
+.ui-popover [role=menuitem] { display: block; width: 100%; border: 0; border-radius: var(--radius-input); padding: 4px 8px; text-align: left; background: transparent; color: var(--text); font: inherit; cursor: pointer; }
+.ui-popover [role=menuitem]:hover:not(:disabled):not([aria-disabled=true]), .ui-popover [role=menuitem]:focus-visible { background: var(--panel); }
+.ui-message { display: flex; align-items: center; gap: 8px; padding: 8px; color: var(--text); background: var(--panel); border: 1px solid var(--message-line); border-radius: var(--radius-control); }
+.ui-message svg { color: var(--message-ink); flex: none; }
+.ui-message--danger { --message-line: var(--danger-line); --message-ink: var(--danger-ink); } .ui-message--warning { --message-line: var(--warning-line); --message-ink: var(--warning-ink); } .ui-message--success { --message-line: var(--success-line); --message-ink: var(--success-ink); } .ui-message--info { --message-line: var(--info-line); --message-ink: var(--info-ink); }
+.ui-dialog-backdrop { position: fixed; inset: 0; z-index: 150; display: grid; place-items: center; background: oklch(0 0 0 / .45); }
+.ui-dialog { display: grid; gap: 16px; width: min(480px, calc(100vw - 32px)); padding: 16px; background: var(--raised); color: var(--text); border: 1px solid var(--border-strong); border-radius: var(--radius-card); }
+.ui-dialog h2 { font-size: var(--font-title); font-weight: 600; }.ui-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.ui-toast-host { position: fixed; z-index: 200; bottom: calc(var(--footer-height) + 8px); left: 50%; transform: translateX(-50%); display: grid; gap: 8px; }
+.ui-toast { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: var(--radius-card); background: oklch(.20 .016 255); color: oklch(.93 .01 255); border: 1px solid oklch(.42 .016 255); animation: ui-toast-in 150ms ease-out; }
+.ui-toast .ui-btn { background: transparent; color: inherit; border-color: oklch(.50 .016 255); }.ui-toast-close { display: inline-flex; background: transparent; color: inherit; border: 0; cursor: pointer; }
+@keyframes ui-pop { from { opacity: 0; } to { opacity: 1; } } @keyframes ui-toast-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) { .ui-popover, .ui-toast { animation: none; } }
+
+.ui-btn--chip.is-active:hover:not(:disabled) { background: var(--chip-fill, color-mix(in oklch, var(--group-color, var(--accent)) 15%, var(--panel))); border-color: var(--chip-line, var(--border-strong)); color: var(--chip-ink, var(--text)); }
+.ui-btn--slate.is-active:hover:not(:disabled) { background: var(--slate-fill); border-color: var(--slate-line); color: var(--slate-ink); }
+.ui-btn--solid.is-danger:hover:not(:disabled) { background: var(--solid-danger); border-color: var(--solid-danger); color: var(--solid-ink); }
+.ui-toast .ui-btn:hover:not(:disabled) { background: oklch(.31 .016 255); color: oklch(.93 .01 255); border-color: oklch(.50 .016 255); }
+.ui-popover [role=menuitem][aria-disabled=true] { opacity: .45; cursor: not-allowed; }

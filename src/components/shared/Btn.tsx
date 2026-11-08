@@ -1,50 +1,15 @@
 import React from 'react';
 
+export type ButtonVariant = 'neutral' | 'chip' | 'slate' | 'solid' | 'secondary';
+export type GroupTone = 'marker' | 'lines' | 'search' | 'export' | 'pane' | 'left' | 'analysis' | 'data';
 export interface BtnProps extends React.ComponentPropsWithoutRef<'button'> {
-  active?: boolean;
-  color?: string;
-  soft?: boolean;
-  bold?: boolean;
-  children?: React.ReactNode;
-  disabled?: boolean;
-  onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void;
-  style?: React.CSSProperties;
-  title?: string;
-  className?: string;
-  type?: 'button' | 'submit' | 'reset';
+  active?: boolean; color?: string; soft?: boolean; bold?: boolean;
+  variant?: ButtonVariant; tone?: GroupTone; danger?: boolean; small?: boolean;
 }
-
-/**
- * Common styled button component for Mergen Scope.
- * Uses CSS color-mix() for transparent tints — works with both
- * hex colors and CSS custom properties (var(--accent) etc.).
- */
-export function Btn({
-  active,
-  color, // Keep the prop in case some caller passes it but ignore it for styling, unless it's a data trace? 
-         // Actually, wait, "Saturated colors (Mint, Teal, Orange-Red) are reserved strictly for data traces on the plot." 
-         // So Btn doesn't need to use `color` at all. The buttons on toolbars won't use it.
-  soft,
-  bold,
-  children,
-  style,
-  className,
-  disabled,
-  ...props
-}: BtnProps) {
-  
-  const baseClass = active ? 'btn-active' : 'btn';
-  const combinedClassName = className ? `${baseClass} ${className}` : baseClass;
-
-  const mergedStyle: React.CSSProperties = {
-    opacity: disabled ? 0.45 : 1,
-    ...(color ? ({ '--group-color': color } as React.CSSProperties) : {}),
-    ...style,
-  };
-
-  return (
-    <button className={combinedClassName} disabled={disabled} style={mergedStyle} {...props}>
-      {children}
-    </button>
-  );
+/** Shared button; legacy active/color/soft props remain supported during migration. */
+export function Btn({ active, color, soft: _soft, bold, variant, tone, danger, small, children, style, className = '', type = 'button', ...props }: BtnProps) {
+  const role = variant ?? (active ? 'chip' : 'neutral');
+  const classes = ['ui-btn', `ui-btn--${role}`, active && 'is-active', danger && role === 'solid' && 'is-danger', small && 'is-small', className].filter(Boolean).join(' ');
+  const vars = { ...(color ? { '--group-color': color } : {}), ...(tone ? { '--chip-fill': `var(--${tone}-fill)`, '--chip-line': `var(--${tone}-line)`, '--chip-ink': `var(--${tone}-ink)` } : {}), ...(bold ? { fontWeight: 700 } : {}), ...style } as React.CSSProperties;
+  return <button type={type} className={classes} style={vars} aria-pressed={role === 'chip' ? !!active : props['aria-pressed']} {...props}>{children}</button>;
 }

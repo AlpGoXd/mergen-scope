@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import { formatAdaptiveXAxisValue, formatEngineeringValue, formatScalarWithUnit } from '../../domain/format';
+import { parseEngInput } from '../../domain/units';
 import { computeVerticalIntersections, computeHorizontalIntersections } from '../../domain/ref-lines';
 import type { LineIntersection } from '../../domain/ref-lines';
 import { getInterpolationOptionDisabledReason, getResolvedInterpolationStrategy } from '../../domain/interpolation';
@@ -51,19 +52,6 @@ const TIME_UNIT_SCALE: Record<string, number> = {
   us: 1e-6,
   ns: 1e-9,
   ps: 1e-12,
-};
-
-const PREFIX_SCALE: Record<string, number> = {
-  T: 1e12,
-  G: 1e9,
-  M: 1e6,
-  k: 1e3,
-  K: 1e3,
-  '': 1,
-  m: 1e-3,
-  u: 1e-6,
-  n: 1e-9,
-  p: 1e-12,
 };
 
 const badgeStyle: CSSProperties = {
@@ -858,50 +846,13 @@ function formatRefLineValue(refLine: RefLine, selectedTrace: Trace | null, visib
 }
 
 function parseEngineeringInput(text: string, trace: Trace | null): number | null {
-  const compact = text.trim().replace(/\s+/g, '').replace(/µ/g, 'u');
-  if (!compact) {
-    return null;
-  }
-
-  const match = compact.match(/^([+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?)([A-Za-z]*)$/);
-  if (!match) {
-    return null;
-  }
-
-  const rawValue = Number(match[1]);
-  const rawSuffix = match[2] ?? '';
-  if (!Number.isFinite(rawValue)) {
-    return null;
-  }
-
-  const suffix = rawSuffix.trim();
-  if (!suffix) {
-    return rawValue;
-  }
-
-  const lower = suffix.toLowerCase();
-  if (lower in FREQUENCY_UNIT_SCALE) {
-    return rawValue * FREQUENCY_UNIT_SCALE[lower as keyof typeof FREQUENCY_UNIT_SCALE]!;
-  }
-  if (lower in TIME_UNIT_SCALE) {
-    return rawValue * TIME_UNIT_SCALE[lower as keyof typeof TIME_UNIT_SCALE]!;
-  }
-
-  if (suffix in PREFIX_SCALE) {
-    return rawValue * PREFIX_SCALE[suffix as keyof typeof PREFIX_SCALE]!;
-  }
-
-  const frequencyKey = lower + 'hz';
-  if (trace?.domain === 'frequency' && frequencyKey in FREQUENCY_UNIT_SCALE) {
-    return rawValue * FREQUENCY_UNIT_SCALE[frequencyKey as keyof typeof FREQUENCY_UNIT_SCALE]!;
-  }
-
-  const timeKey = lower + 's';
-  if (trace?.domain === 'time' && timeKey in TIME_UNIT_SCALE) {
-    return rawValue * TIME_UNIT_SCALE[timeKey as keyof typeof TIME_UNIT_SCALE]!;
-  }
-
-  return null;
+  const baseUnit = trace?.domain === 'time'
+    ? 's'
+    : trace?.domain === 'frequency'
+      ? 'Hz'
+      : undefined;
+  const result = parseEngInput(text, { baseUnit });
+  return result.ok ? result.value : null;
 }
 
 function MetadataPanel({ meta, compact = false }: { meta: FileMetadata; compact?: boolean }) {

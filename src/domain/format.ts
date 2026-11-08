@@ -6,6 +6,16 @@
 // ============================================================================
 
 // ---------------------------------------------------------------------------
+// Canonical scalar formatting and parsing live with the unit rules. Keep this
+// re-export as a convenient public surface for formatting callers.
+export { formatEng, parseEngInput } from "./units";
+export type {
+  ParseEngInputFailureReason,
+  ParseEngInputOptions,
+  ParseEngInputResult,
+} from "./units";
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
