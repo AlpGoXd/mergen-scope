@@ -39,3 +39,14 @@ See [Phase 1–2 comparison](phase1-2-reference-comparison.md) and [side-by-side
 Phase 1 implemented the base tokens, offline fonts, type foundation, focus and reduced-motion styles, retained existing Recharts animation-off settings, and provider-owned theme preference API. The light/dark theme API was verified, but the user-facing Settings UI is still Phase 7 work. The base fixes for findings 01, 03, 05, 07 and 11 do not close the later component work listed above.
 
 Keep the Phase 8 gate open until every applicable ledger item is closed and verified. Phase 8 must also complete the specified screen/state review and contrast checks (including text contrast of at least 4.5:1), confirm no component hex colors or emoji remain where prohibited, and use repository searches to prove compatibility aliases and legacy theme handling have no remaining consumers before removal. Record any item that is still open; do not report the redesign as complete while this ledger has open work.
+
+## Phase 7A integration follow-up
+
+| Remaining work | Target | Status |
+| --- | --- | --- |
+| Wire the top-bar Open action to the unified data/workspace opening path; the temporary fallback loads workspace JSON only. Remove the transitional Right and Clear All controls once their replacement workflows are wired. | Phase 7E | Deferred; the fallback preserves existing workflows until integration. |
+| Wire the top-bar Export action and implement the Layout preset previews and selection; both controls are currently disabled with reasons. | Phase 7E | Deferred. |
+| Refine reserved armed-hint space so controls remain stationary without causing the strip groups to wrap earlier than board 40-T1. Verify marker and line armed hints against the footer and target-pane behavior. | Phase 7E | Deferred; the empty-workspace captures do not show armed states. |
+| Complete the empty-app, pane and footer integration visible in the 40-T1 comparison, and compare light/dark populated and armed states at both sides of the 1280 px breakpoint. | Phase 7E (footer component in 7B) | Deferred; Phase 7A evidence covers light/dark empty workspace at 1440 x 900 only. |
+
+Phase 7A screenshots and side-by-side comparisons are in [phase7a-evidence](phase7a-evidence/comparison.md). The 32 px top and strip rows intentionally follow the written specification over the taller reference drawing.

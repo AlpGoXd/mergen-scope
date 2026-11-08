@@ -1,168 +1,63 @@
 import React from 'react';
 import { useUiState, useUiDispatch } from '../../stores/ui-store';
 import type { UiState } from '../../stores/ui-store';
+import { useWorkspace } from '../../hooks/use-workspace';
 import { useFileState, useFileDispatch } from '../../stores/file-store';
 import { useMarkerDispatch } from '../../stores/marker-store';
 import { useRefLineState, useRefLineDispatch } from '../../stores/ref-line-store';
 import { usePaneDispatch } from '../../stores/pane-store';
-import { useWorkspace } from '../../hooks/use-workspace';
-import { Btn } from '../shared/Btn';
 import { useOptionalAggregateWorkspace } from '../../stores/aggregate-workspace-store';
+import { Btn } from '../shared/Btn';
 
-/**
- * TopBar component for application-level actions and toggles.
- * Ported from legacy TopBar in app-shell-components.js.
- */
-export function TopBar() {
-  const {
-    showSidebar,
-    showRightPanel,
-    showAnalysisPanel,
-    showTraceOps,
-    showDT,
-    showImportExportPanel,
-    showPaneTools,
-    showSearchTools,
-    showMarkerTools,
-    showLineTools,
-    showViewTools,
-    showDots,
-  } = useUiState();
+interface TopBarProps {
+  onOpen?: () => void;
+  onExport?: () => void;
+}
 
-  const { files } = useFileState();
-  const uiDispatch = useUiDispatch();
+export function TopBar({ onOpen, onExport }: TopBarProps = {}) {
+  const ui = useUiState();
+  const dispatch = useUiDispatch();
   const { downloadWorkspace, loadFromFile } = useWorkspace();
-
-  const fileDispatch = useFileDispatch();
-  const markerDispatch = useMarkerDispatch();
-  const { refLines } = useRefLineState();
-  const refLineDispatch = useRefLineDispatch();
-  const paneDispatch = usePaneDispatch();
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const { files } = useFileState(); const fileDispatch = useFileDispatch();
+  const markerDispatch = useMarkerDispatch(); const { refLines } = useRefLineState();
+  const lineDispatch = useRefLineDispatch(); const paneDispatch = usePaneDispatch();
   const aggregate = useOptionalAggregateWorkspace();
-
-  const hasData = files.length > 0;
-
-  const handleToggle = (key: keyof UiState, currentVal: boolean) => {
-    uiDispatch({ type: 'SET', payload: { key, value: !currentVal } });
-    if (key === 'showRightPanel' && !currentVal && !showAnalysisPanel && !showTraceOps && !showDT && !showImportExportPanel) {
-      uiDispatch({ type: 'SET', payload: { key: 'showAnalysisPanel', value: true } });
-    }
-    if ((key === 'showAnalysisPanel' || key === 'showTraceOps' || key === 'showDT' || key === 'showImportExportPanel') && !currentVal) {
-      uiDispatch({ type: 'SET', payload: { key: 'showRightPanel', value: true } });
-    }
-  };
-
-  const handleClearAll = () => {
+  const clearAll = () => {
     if (aggregate) {
       aggregate.historyDispatch({type:'change',toastMessage:'Cleared workspace',command:{slice:'transaction', actions:[
         ...files.map(file => ({slice:'files' as const,action:{type:'REMOVE_FILE' as const,payload:{fileId:String(file.id)}}})),
         {slice:'markers',action:{type:'CLEAR_ALL'}},
         ...refLines.map(line => ({slice:'lines' as const,action:{type:'REMOVE_LINE' as const,payload:line.id}})),
         {slice:'panes',limit:4,action:{type:'CLEAR_ALL_ZOOMS'}},
-      ]}});
-      return;
+      ]}}); return;
     }
-    files.forEach(f => fileDispatch({ type: 'REMOVE_FILE', payload: { fileId: String(f.id) } }));
-    markerDispatch({ type: 'CLEAR_ALL' });
-    refLines.forEach(rl => refLineDispatch({ type: 'REMOVE_LINE', payload: rl.id }));
-    paneDispatch({ type: 'CLEAR_ALL_ZOOMS' });
+    files.forEach(file => fileDispatch({type:'REMOVE_FILE',payload:{fileId:String(file.id)}}));
+    markerDispatch({type:'CLEAR_ALL'}); refLines.forEach(line => lineDispatch({type:'REMOVE_LINE',payload:line.id}));
+    paneDispatch({type:'CLEAR_ALL_ZOOMS'});
   };
-
-  const fileInputRef = React.useRef<HTMLInputElement>(null);
-  const groupStyle: React.CSSProperties = {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '6px',
-    flexWrap: 'wrap',
-    padding: '6px 8px',
-    border: '1px solid color-mix(in srgb, var(--accent) 10%, var(--border))',
-    borderRadius: '12px',
-    background: 'var(--panel)',
+  const toggle = (key: keyof UiState, value: boolean) => {
+    dispatch({ type: 'SET', payload: { key, value: !value } });
+    if (key === 'showRightPanel' && !value && !ui.showAnalysisPanel) {
+      dispatch({ type: 'SET', payload: { key: 'showAnalysisPanel', value: true } });
+    }
   };
-
-  const groupLabelStyle: React.CSSProperties = {
-    fontSize: 'var(--font-caption)',
-    fontWeight: 500,
-    letterSpacing: '0.08em',
-    textTransform: 'uppercase',
-    color: 'var(--muted)',
-    marginRight: '2px',
-  };
-
-  return (
-    <div style={{
-      minHeight: '56px',
-      background: 'var(--card)',
-      borderBottom: '1px solid var(--border)',
-      display: 'flex',
-      alignItems: 'center',
-      padding: '8px 12px',
-      gap: '10px',
-      flexWrap: 'wrap',
-      flexShrink: 0,
-      zIndex: 10
-    }}>
-      <a
-        href="app.html"
-        style={{ display: 'flex', alignItems: 'center', gap: '8px', marginRight: '12px', textDecoration: 'none', color: 'inherit' }}
-        title="Go to app home"
-      >
-        <img
-          src="mergen-scope-icon.svg"
-          alt="Mergen Scope"
-          width={20}
-          height={20}
-          style={{ display: 'block', flexShrink: 0 }}
-        />
-        <span style={{ fontWeight: 400, fontSize: 'var(--font-title)', letterSpacing: '-0.2px', color: 'var(--text)' }}>
-          Mergen <span style={{ color: 'var(--accent)' }}>Scope</span>
-        </span>
-        <span style={{ fontSize: 'var(--font-caption)', color: 'var(--dim)', background: 'var(--bg)', padding: '0.1rem 0.4rem', borderRadius: '4px', fontWeight: 400 }}>
-          v2.0-TS
-        </span>
-      </a>
-
-      {hasData && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', flex: '1 1 820px', minWidth: 0 }}>
-          <div style={groupStyle}>
-            <span style={groupLabelStyle}>Panels</span>
-            <Btn active={showSidebar} soft color="var(--left-color)" title="Toggle sidebar" onClick={() => handleToggle('showSidebar', showSidebar)}>Left</Btn>
-            <Btn active={showRightPanel} soft color="var(--analysis-color)" title="Toggle right panel" onClick={() => handleToggle('showRightPanel', showRightPanel)}>Right</Btn>
-          </div>
-
-          <div style={groupStyle}>
-            <span style={groupLabelStyle}>Workbench</span>
-            <Btn active={showPaneTools} color="var(--pane-color)" title="Toggle pane tools" onClick={() => handleToggle('showPaneTools', showPaneTools)}>Pane</Btn>
-            <Btn active={showMarkerTools} color="var(--marker-color)" title="Toggle marker tools" onClick={() => handleToggle('showMarkerTools', showMarkerTools)}>Marker</Btn>
-            <Btn active={showSearchTools} color="var(--search-color)" title="Toggle search tools" onClick={() => handleToggle('showSearchTools', showSearchTools)}>Search</Btn>
-            <Btn active={showLineTools} color="var(--lines-color)" title="Toggle reference line tools" onClick={() => handleToggle('showLineTools', showLineTools)}>Lines</Btn>
-            <Btn active={showViewTools} color="var(--view-color)" title="Toggle view tools" onClick={() => handleToggle('showViewTools', showViewTools)}>View</Btn>
-            <Btn active={showDots} color="var(--dots-color)" title="Toggle plotted sample dots" onClick={() => handleToggle('showDots', showDots)}>Dots</Btn>
-          </div>
-
-          <div style={groupStyle}>
-            <span style={groupLabelStyle}>Reset</span>
-            <Btn title="Remove all loaded files and clear state" onClick={handleClearAll}>Clear All</Btn>
-          </div>
-        </div>
-      )}
-
-      <div style={{ marginLeft: 'auto', display: 'flex', gap: '6px', ...groupStyle }}>
-        <span style={groupLabelStyle}>Workspace</span>
-        <input
-          data-testid="topbar-workspace-input"
-          type="file"
-          ref={fileInputRef}
-          style={{ display: 'none' }}
-          accept=".json"
-          onChange={(e) => {
-            if (e.target.files?.[0]) loadFromFile(e.target.files[0]);
-            e.target.value = '';
-          }}
-        />
-        <Btn onClick={() => fileInputRef.current?.click()} title="Load Workspace JSON">Load</Btn>
-        <Btn onClick={() => downloadWorkspace()} title="Save Workspace JSON">Save</Btn>
-      </div>
-    </div>
-  );
+  const icon = (path: React.ReactNode) => <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">{path}</svg>;
+  return <div style={{ minHeight: 32, display: 'flex', alignItems: 'center', gap: 4, padding: '0 8px', background: 'var(--panel)', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+    <style>{'@media (max-width: 1279px) { .topbar-action-label { display: none; } }'}</style>
+    <span style={{ whiteSpace: 'nowrap', fontSize: 'var(--font-title)', marginRight: 8 }}>Mergen <span style={{ color: 'var(--accent)' }}>Scope</span></span>
+    <Btn variant="chip" tone="left" active={ui.showSidebar} title="Toggle left panel" onClick={() => toggle('showSidebar', ui.showSidebar)}>Left</Btn>
+    <span aria-hidden="true" style={{ height: 20, borderLeft: '1px solid var(--border)', margin: '0 4px' }} />
+    <input data-testid="topbar-workspace-input" type="file" ref={fileInputRef} style={{ display: 'none' }} accept=".json" onChange={e => { if (e.target.files?.[0]) loadFromFile(e.target.files[0]); e.target.value = ''; }} />
+    <Btn title={onOpen ? 'Open… (Ctrl+O)' : 'Load Workspace JSON'} aria-label="Open" onClick={onOpen ?? (() => fileInputRef.current?.click())}>{icon(<path d="M3 19V5h7l2 3h9v11z" />)}<span className="topbar-action-label">Open</span></Btn>
+    <Btn title="Save Workspace JSON" aria-label="Save" onClick={() => downloadWorkspace()}>{icon(<><path d="M4 3h14l3 3v15H4z"/><path d="M8 3v6h9V3M8 21v-8h9v8"/></>)}<span className="topbar-action-label">Save</span></Btn>
+    <Btn title={onExport ? 'Export…' : 'Export will be available after integration'} aria-label="Export" disabled={!onExport} onClick={onExport}>{icon(<><path d="M12 3v12m-4-4 4 4 4-4"/><path d="M4 17v4h16v-4"/></>)}<span className="topbar-action-label">Export…</span></Btn>
+    <span aria-hidden="true" style={{ height: 20, borderLeft: '1px solid var(--border)', margin: '0 4px' }} />
+    <Btn variant="chip" tone="marker" active={ui.showMarkerTools} onClick={() => toggle('showMarkerTools', ui.showMarkerTools)}>Markers</Btn>
+    <Btn variant="chip" tone="search" active={ui.showSearchTools} onClick={() => toggle('showSearchTools', ui.showSearchTools)}>Search</Btn>
+    <Btn variant="chip" tone="lines" active={ui.showLineTools} onClick={() => toggle('showLineTools', ui.showLineTools)}>Lines</Btn>
+    <Btn variant="chip" tone="pane" active={ui.showPaneTools} onClick={() => toggle('showPaneTools', ui.showPaneTools)}>Pane</Btn>
+    {!onOpen && <><Btn title="Toggle right panel" onClick={() => toggle('showRightPanel', ui.showRightPanel)}>Right</Btn><Btn title="Remove all loaded files and clear state" onClick={clearAll}>Clear All</Btn></>}
+    <Btn style={{ marginLeft: 'auto' }} variant="chip" tone="analysis" active={ui.showRightPanel} onClick={() => toggle('showRightPanel', ui.showRightPanel)}>Analysis</Btn>
+  </div>;
 }
