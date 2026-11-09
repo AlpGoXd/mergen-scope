@@ -68,7 +68,7 @@ The candidate comparison is in [phase7b-evidence/comparison.html](phase7b-eviden
 | Remaining work | Target phase | Status |
 | --- | --- | --- |
 | Adopt the same trace-family color resolver in chart rendering and verify matching colors for source and created traces in both themes. Resolver allocation is recomputed from surviving traces; deleting an earlier source or sibling can shift later colors. Preserve allocation in a workspace-compatible identity contract if colors must remain fixed across deletion and reload. | Phase 5 | Sidebar adopts the resolver; chart adoption and persistent allocation remain open. |
-| Connect sidebar Drop, Load demo, Replace, Edit columns, file Rename and Threshold crossings callbacks to shared workflows; verify empty sidebar and replacement end to end. | Phase 7D / 7E | Open is wired in App; the other callbacks remain unwired. Trace-label rename is separately implemented with Undo. |
+| Connect sidebar Drop, Load demo, Replace, Edit columns, and file Rename callbacks to shared workflows; verify empty sidebar and replacement end to end. | Phase 7D / 7E | Open is wired in App; the other callbacks remain unwired. Trace-label rename is separately implemented with Undo. |
 | Complete large-port plotted chips across views, grid popover dismissal/focus, and verify all-panes/unplaced and marker/line states against board 42-L1. Replace heuristic raw-header extraction with retained parsed header boundaries. | Phase 7E / final visual audit | Current chips cover the selected view in the target pane; additional states and exact header fidelity remain open. |
 | Verify trace nesting, visual sizing and Undo failure paths against integrated application states. | Phase 8 audit | Phase 4 kit work adds file-based row names, the seven interpolation choices, atomic apply-to-file and Undo; focused interpolation and rename tests pass. Complete action/failure-path coverage remains open. |
 
@@ -104,7 +104,7 @@ Light and dark populated network, CSV and error captures and comparisons are in 
 | Remaining work | Target phase | Status and evidence |
 | --- | --- | --- |
 | Capture real parsing-progress and recoverable-error rows in light and dark at 2x, and compare with the supplied kit and C03 board. | Phase 7D / 7E | Not captured: import records do not expose progress and error recovery depends on App workflow wiring. Existing populated network, normal/delta marker and linked-line captures are in [left-kit evidence](left-kit-evidence/comparison.md). |
-| Wire sidebar file Drop, Load demo, Replace, Edit columns, file Rename and Threshold crossings through App and verify recovery and Undo. | Phase 7D / 7E | Sidebar accepts callbacks; App currently supplies Open only. Do not treat placeholder callbacks as connected. |
+| Wire sidebar file Drop, Load demo, Replace, Edit columns, and file Rename through App and verify recovery and Undo. | Phase 7D / 7E | Sidebar accepts callbacks; App supplies Open and Threshold crossings. Do not treat placeholder callbacks as connected. |
 | Complete matrix cell placement/action tooltips, greater-than-eight-port cross-view chips, grid focus and outside dismissal, and verify full narrow-panel and unusual states. | Phase 7E / Phase 8 | Matrix keyboard navigation and target-pane batch Undo are covered; tooltip, list and visual details remain open. |
 | Audit shared popover focus and keyboard behavior for kit menus and verify all marker/line edit invalid and cancellation paths. | Phase 8 | Shared popover and kit menu are connected; focused coverage does not establish every keyboard and invalid-input path. |
 
@@ -126,3 +126,9 @@ Light and dark populated network, CSV and error captures and comparisons are in 
 | Remaining work | Target | Status |
 | --- | --- | --- |
 | Compare toolbar zones and the consolidated hint position to the requested 2x toolbar reference; review bound pane removal, line migration, and history. | Current feedback review | Pending reference and independent history/migration review. |
+
+## Line crossings follow-up
+
+| Remaining work | Target | Status |
+| --- | --- | --- |
+| Compare the Threshold Crossings line-list card in light and dark with the requested 2x analysis-card reference. | Phase 7C / reference delivery | Light and dark captures are in line-crossings-evidence; the requested reference was not supplied, so visual differences cannot yet be classified. |

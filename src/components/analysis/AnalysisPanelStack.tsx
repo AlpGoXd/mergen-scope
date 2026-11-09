@@ -1,3 +1,4 @@
+import { useContext, useEffect } from 'react';
 import { useUiState } from '../../stores/ui-store';
 import { useAnalysisState, useAnalysisDispatch } from '../../stores/analysis-store';
 import { useAnalysisRegistry } from '../../hooks/use-analysis-registry';
@@ -9,7 +10,7 @@ import { OccupiedBandwidthCard } from './spectrum/OccupiedBandwidthCard';
 import { BandwidthHelperCard } from './spectrum/BandwidthHelperCard';
 import { RippleCard } from './spectrum/RippleCard';
 import { RangeStatsCard } from './spectrum/RangeStatsCard';
-import { ThresholdCrossingsCard } from './shared/ThresholdCrossingsCard';
+import { LineCrossingsContext, ThresholdCrossingsCard } from './shared/ThresholdCrossingsCard';
 import { PeakTableCard } from './spectrum/PeakTableCard';
 import { VSWRCard } from './touchstone/VSWRCard';
 import { ReturnLossCard } from './touchstone/ReturnLossCard';
@@ -28,6 +29,10 @@ export function AnalysisPanelStack() {
   const { analysisOpenState } = useAnalysisState();
   const analysisDispatch = useAnalysisDispatch();
   const registry = useAnalysisRegistry();
+  const { setLineId } = useContext(LineCrossingsContext);
+  useEffect(() => {
+    if (!analysisOpenState['threshold-crossings']) setLineId(null);
+  }, [analysisOpenState, setLineId]);
 
   const anyAnalysisOpen = Object.values(analysisOpenState).some(Boolean);
   const anyPanelOpen = showAnalysisPanel || anyAnalysisOpen;
