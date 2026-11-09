@@ -8,6 +8,8 @@ Status: Phase 1 foundation committed at `ed8319c`; Phase 2 shared scope verified
 
 ## Decisions and working rules
 
+- **Size setting (10 November):** App settings > Appearance has Size = Compact · Comfortable · Large; **Comfortable is the default** (previously Compact). Buttons 24/28/32, small controls 20/22/24, rows 26/30/34, bars 32/36/40, footer 24/26/28, body text 12/13/14. Stored in localStorage (`mergen-app-preferences.size`), applied as `html[data-size]`, never saved in workspaces. The old `density` field is ignored.
+
 The current implementation worktrees, accepted subtask transfers and remaining Phase 3 acceptance work are recorded in [run-state.md](run-state.md). This is a resume aid, not a completion report.
 
 Continuation instruction, 8 November: the user authorized proceeding through all remaining phases sequentially, finishing one before starting the next. This supersedes the earlier stop-and-ask-about-continuing gate; it does not authorize commits, pushes, deployments, new dependencies, or bypassing checks. Keep phases separate with reviewed allowlisted working-tree snapshots and reports. Before each phase, verify push protections and create/verify a Git bundle; archive accepted uncommitted changes separately because a bundle contains only Git objects. Phase 2 was committed by the user at `517fb4c`. Before Phase 3, `../mergen-scope-before-phase3.bundle` was verified and `../mergen-scope-before-phase3-docs.zip` preserves the uncommitted reference/audit documents. Terra owns the coupled Phase 3 implementation in `../mergen-scope-codex-phase3-model`; Luna independently reviews preservation requirements. Later phases start only after the previous phase's required verification and review pass. Any genuine new-dependency decision remains pending until the user answers a concrete proposal.
@@ -140,7 +142,7 @@ Exit: complete workflows verified rather than isolated screenshots: open → mat
 
 ### Phase 8 — final consistency and adversarial review
 
-- Matrix: Light/Dark × Compact/Comfortable × 1440 × 900 / 1024 × 640. Add checks on both sides of the 1280 px panel breakpoint. Exercise empty, frequency, time, mixed-unit, Smith, Table, multi-copy, unplaced and 8-pane workspaces.
+- Matrix: Light/Dark × Compact/Comfortable/Large × 1440 × 900 / 1024 × 640. Add checks on both sides of the 1280 px panel breakpoint. Exercise empty, frequency, time, mixed-unit, Smith, Table, multi-copy, unplaced and 8-pane workspaces.
 - Remove legacy palette aliases and glass compatibility only after consumer migration and searches prove they are unused; close every item in [deferred.md](deferred.md).
 - Walk the source's shared rules: role colors, disabled reasons, destruction/Undo policy, no component hex/emoji/side stripes, no obsolete Import wording, correct armed state, formatting, footer, keyboard/focus and reduced motion. Scan findings are candidates for review, not blind edits of raw data or fixtures.
 - Measure text contrast against actual composited backgrounds in both themes; target 4.5:1. Verify status messages use borders/icons and only the specified error-file row uses a status fill.

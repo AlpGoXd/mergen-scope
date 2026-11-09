@@ -9,11 +9,11 @@
   --text-soft: oklch(0.32 0.012 255); --diag-bg: oklch(0.94 0.008 255); --menu-shadow: 0 6px 20px oklch(0.3 0.02 255 / 0.18);
   --neutral-h: 255; --neutral-c: 0.010;
   --font-sans: "IBM Plex Sans", sans-serif; --font-mono: "JetBrains Mono", monospace;
-  --font-caption: 11px; --font-label: 12px; --font-body: 12px; --font-emphasis: 12px; --font-title: 14px; --font-display: 14px;
-  --lh-caption: 14px; --lh-label: 16px; --lh-body: 17px; --lh-title: 19px;
+  --font-caption: 12px; --font-label: 13px; --font-body: 13px; --font-emphasis: 13px; --font-title: 15px; --font-display: 15px;
+  --lh-caption: 15px; --lh-label: 17px; --lh-body: 18px; --lh-title: 20px;
   --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-5: 24px;
-  --top-row-height: 32px; --tool-row-height: 32px; --pane-header-height: 28px; --footer-height: 24px; --left-panel-width: 280px; --right-panel-width: 320px; --pane-min-height: 160px;
-  --control-height: 24px; --control-sm-height: 20px; --row-height: 26px; --gap: 4px; --panel-padding: 8px; --input-height: 22px;
+  --top-row-height: 36px; --tool-row-height: 36px; --pane-header-height: 30px; --footer-height: 26px; --left-panel-width: 280px; --right-panel-width: 320px; --pane-min-height: 160px;
+  --control-height: 28px; --control-sm-height: 22px; --row-height: 30px; --gap: 6px; --panel-padding: 12px; --input-height: 24px;
   --radius-control: 6px; --radius-card: 8px; --radius-input: 5px; --radius-badge: 4px;
   --marker-hue: 20; --marker-color: oklch(0.50 0.0799 20);
   --lines-hue: 80; --lines-color: oklch(0.50 0.0799 80);
@@ -222,8 +222,11 @@ table {
 :disabled { opacity: 0.45; cursor: not-allowed; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }
 
-/* Density is a browser preference in a later phase; this class provides its tokens. */
-.density-comfortable { --font-caption: 12px; --font-label: 13px; --font-body: 13px; --font-emphasis: 13px; --font-title: 15px; --font-display: 15px; --control-height: 28px; --row-height: 30px; --gap: 6px; --panel-padding: 12px; --input-height: 24px; }
+/* App size preference (App settings > Appearance, board S2), saved in localStorage and applied as html[data-size].
+   Base :root above is Comfortable (the default). Sizes: buttons 24/28/32, small controls 20/22/24, rows 26/30/34,
+   bars 32/36/40, footer 24/26/28, body text 12/13/14. */
+:root[data-size="compact"] { --font-caption: 11px; --font-label: 12px; --font-body: 12px; --font-emphasis: 12px; --font-title: 14px; --font-display: 14px; --lh-caption: 14px; --lh-label: 16px; --lh-body: 17px; --lh-title: 19px; --top-row-height: 32px; --tool-row-height: 32px; --pane-header-height: 28px; --footer-height: 24px; --control-height: 24px; --control-sm-height: 20px; --row-height: 26px; --gap: 4px; --panel-padding: 8px; --input-height: 22px; }
+:root[data-size="large"] { --font-caption: 13px; --font-label: 14px; --font-body: 14px; --font-emphasis: 14px; --font-title: 16px; --font-display: 16px; --lh-caption: 16px; --lh-label: 18px; --lh-body: 19px; --lh-title: 21px; --top-row-height: 40px; --tool-row-height: 40px; --pane-header-height: 32px; --footer-height: 28px; --control-height: 32px; --control-sm-height: 24px; --row-height: 34px; --gap: 8px; --panel-padding: 14px; --input-height: 26px; }
 
 /* Phase 2 shared controls */
 .ui-btn { min-height: var(--control-height); padding: 0 8px; display: inline-flex; align-items: center; justify-content: center; gap: 4px; border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--raised); color: var(--text); font: inherit; cursor: pointer; white-space: nowrap; transition: background 120ms, border-color 120ms, color 120ms; }
