@@ -141,7 +141,7 @@
 .an-cross__group { display: flex; align-items: center; gap: 6px; padding: 4px 2px 2px; font-size: var(--font-caption); color: var(--text-muted); }
 .an-cross__table { border: 1px solid var(--border); border-radius: var(--radius-input); overflow: hidden; }
 .an-cross__row {
-  width: 100%; display: grid; grid-template-columns: 9px minmax(0, 1fr) auto auto; gap: 8px; align-items: center;
+  width: 100%; display: grid; grid-template-columns: 9px minmax(0, 1fr) auto; gap: 8px; align-items: center;
   padding: 0 6px; height: calc(var(--row-height) - 4px); box-sizing: border-box;
   border: 0; border-top: 1px solid var(--border); background: none; color: var(--text);
   font: inherit; font-size: var(--font-caption); text-align: left; cursor: pointer;
@@ -151,10 +151,14 @@
 .an-cross__row[aria-current='true'] { background: var(--slate-fill); color: var(--slate-ink); }
 .an-cross__swatch { width: 9px; height: 9px; border-radius: 2px; background: var(--trace, var(--text-muted)); }
 .an-cross__trace { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.an-cross__x, .an-cross__y { font-family: var(--font-mono); white-space: nowrap; text-align: right; }
-.an-cross__x { color: var(--text); }
-.an-cross__y { color: var(--text-muted); min-width: 64px; }
-.an-cross__row[aria-current='true'] .an-cross__y { color: inherit; }
+/* the one value that changes: regular weight Mono (the app ships Mono 400 only), full ink */
+.an-cross__value { font-family: var(--font-mono); font-weight: 400; color: var(--text); white-space: nowrap; text-align: right; }
+.an-cross__head {
+  display: grid; grid-template-columns: 9px minmax(0, 1fr) auto; gap: 8px; padding: 3px 6px;
+  font-size: calc(var(--font-caption) - 0.5px); color: var(--text-muted); border-bottom: 1px solid var(--border);
+}
+.an-cross__head span:last-child { text-align: right; }
+.an-cross__head + .an-cross__row { border-top: 0; }
 .an-cross__foot { display: flex; align-items: center; gap: 8px; font-size: var(--font-caption); color: var(--text-muted); }
 
 /* ---------- + Add analysis menu ---------- */

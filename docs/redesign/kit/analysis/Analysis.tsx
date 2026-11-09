@@ -161,7 +161,7 @@ export function OutputRow({ hue, name, panes, live, onLive }: MathOutput): React
 }
 
 /* ---------- crossings ---------- */
-export function CrossingsList({ groups, capNote, emptyText = 'No crossings with the visible traces.', onSelect, onCopy }: CrossingsListProps): ReactElement {
+export function CrossingsList({ groups, valueLabel, capNote, emptyText = 'No crossings with the visible traces.', onSelect, onCopy }: CrossingsListProps): ReactElement {
   const total = groups.reduce((n, g) => n + g.rows.length, 0);
   return (
     <div className="an-cross">
@@ -169,13 +169,13 @@ export function CrossingsList({ groups, capNote, emptyText = 'No crossings with 
         <div key={g.paneBadge}>
           {groups.length > 1 ? <div className="an-cross__group"><span className="an-pane-badge">{g.paneBadge}</span>{g.paneTitle} · {g.rows.length}</div> : null}
           <div className="an-cross__table" role="list">
+            <div className="an-cross__head" aria-hidden="true"><span /><span>Trace</span><span>{valueLabel}</span></div>
             {g.rows.map((r) => (
               <button key={r.id} type="button" role="listitem" className="an-cross__row" style={hueStyle(r.hue)}
-                aria-current={r.current ? true : undefined} title={`${r.trace} · ${r.x} · ${r.y}`} onClick={() => onSelect(r.id)}>
+                aria-current={r.current ? true : undefined} title={`${r.trace} · ${valueLabel} ${r.value}`} onClick={() => onSelect(r.id)}>
                 <span className="an-cross__swatch" />
                 <span className="an-cross__trace">{r.trace}</span>
-                <span className="an-cross__x">{r.x}</span>
-                <span className="an-cross__y">{r.y}</span>
+                <span className="an-cross__value" aria-label={`${valueLabel} ${r.value}`}>{r.value}</span>
               </button>
             ))}
           </div>

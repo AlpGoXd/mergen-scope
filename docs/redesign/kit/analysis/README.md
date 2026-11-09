@@ -44,7 +44,7 @@ Components in `Analysis.tsx`:
 - `Busy`: computing or waiting text.
 - `OutputRow`: a Math tool's created trace: swatch, name, pane badges, Live / Freeze.
 - `CrossingsList`: crossings grouped by pane (a group header only when there's more than one pane).
-  - Each row: swatch · trace · x · y.
+  - Each row: swatch · trace · **the one value that changes** (y for a V line, x for an H line or a threshold level). The constant goes in the card's source line ("V1 · 3.653 32 GHz"), never in every row. No bold: the value is regular Mono in full ink.
   - The `current` row is the one highlighted on the chart.
   - The footer has a cap note and "Copy as CSV".
   - Used by Threshold crossings (manual level) and by a line's **List…** ("V1 crossings", P4c).

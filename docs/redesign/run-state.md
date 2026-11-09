@@ -78,8 +78,100 @@ Gates on HEAD: typecheck pass; unit 277 passed + 4 todo (51 files); e2e 59 passe
 
 ## Next step
 
-Step 5 (bug and rule fixes found in testing) is done in the main tree, uncommitted, on top of Step 4 (lines presentation, also uncommitted). The three earlier commits (design fixes `4bc4179`, Size setting `5b3bf2b`, lines data model `2019cec`) already exist; nothing was pushed. Gates: typecheck pass; unit 311 passed + 4 todo (58 files); e2e 83 passed; build pass; static 1 passed.
+Lines work is committed (`f11625a`, on top of `2019cec`, `5b3bf2b`, `4bc4179`; nothing pushed). **Analysis overhaul, Part A (plan only) is below; no code was changed.** The updated analysis kit (`docs/redesign/kit/analysis/`, modified, not committed) was read as text only; no image was opened. Awaiting the user's answers to "Decisions needed" and the OK to start Part B.
 
-Fixes: line placement only in the clicked pane (rule removed from code, `spec-v3.md`, `plan.md`, tests); cursor placement via the real plot geometry (`plotGeometry()` in `ChartPane.tsx`; `LinesLayer` publishes `data-plot`, `data-x-domain`, `data-y-domain` for tests); right-click behaviour (pane-level `onContextMenu`); toast policy (`ToastKind` gate in the engine, one toast at a time in `toast-store.tsx`, no history notices). No Codex work this step (all small, interdependent edits in `ChartPane.tsx`/store/tests).
+### Kit changes that matter (read from the updated README and types)
 
-Awaiting the user's OK to commit Steps 4 and 5 (suggested: one commit for the lines presentation, one for these fixes), then Phase 5.
+- Threshold crossings (manual level) and a line's "V1 crossings" share `CrossingsList`: grouped by pane (group header only with 2+ panes), each row = swatch · short trace name · **only the value that changes** (y for a V line; x for an H line or a threshold level). The constant goes in the card's source line ("V1 · 3.653 32 GHz"). Regular Mono, no bold. Footer: cap note and "Copy as CSV". The `current` row is highlighted on the chart.
+- **A line's card has no "Manual threshold" button.** It is its own card instance (tool `crossings`, parameter `lineId`), separate from the manual Threshold crossings card (parameter `level`). The `LineCrossingsContext.lineId`, `setLineId` and the card's two-mode switch go away.
+- Emphasised numbers use IBM Plex Sans 600 with tabular digits (JetBrains Mono ships only in 400 here); plain readouts stay Mono 400. Adding JetBrains Mono 600 (about 90 KB font file, no npm package) would need the user's approval; not needed with the kit as it is.
+- The kit replaces `AnalysisFeatureCard`, `AnalysisMenuCard`, `MR`, the CSS in `analysis-card.css`, `CrossingsView`; it brings `AnalysisPanel`, `AnalysisEmpty`, `AnalysisCard` (collapse by header click or Enter, summary in the header when collapsed, `selected`), `KeyValues`, `Result`, `Params` (number with unit and `invalid`, select via `onOpen` popover, segmented), `CardMsg` (SC-3, optional action such as "Pick a trace"), `Busy`, `OutputRow` (swatch, name, pane badges, Live / Freeze), `CrossingsList`, `AddAnalysisMenu` (search, All / ƒ Math / Measure, Recent, A–Z, greyed items show their reason, ✓ for tools already open).
+
+### 1. What the right panel holds today
+
+Source: `src/components/layout/RightPanelStack.tsx`, `src/components/analysis/*`, `src/components/panels/*`, `src/stores/ui-store.tsx`, `src/stores/analysis-store.tsx`.
+
+| # | Item | Where | What it does today |
+|---|---|---|---|
+| F1 | Panel frame | `RightPanelStack.tsx` | Header "Tools / Contextual tools and numeric results", four hard-coded-colour tab buttons (Analysis `#e48f77`, Trace Ops `#c786ec`, Import/Export `#71c59a`, Data `#ee6faa`), a gradient background, a "Open one or more tool groups above" placeholder. Visibility: `showRightPanel`; sections: `showAnalysisPanel`, `showTraceOps`, `showImportExportPanel`, `showDT` (Data is exclusive) in `ui-store`. |
+| F2 | Panel openers | `TopBar.tsx`, `App.tsx` | Top-bar "Analysis" chip (toggles `showRightPanel`), a transitional "Right" button, and `App.listCrossings(lineId)` (opens the panel, shows Analysis, enables the crossings card, sets `crossingsLineId`). `LineCrossingsContext` (lineId, setLineId, listCrossings). |
+| A0 | Analysis chooser | `AnalysisMenuCard.tsx` (we restyled it to a 32 px header + chip list) | "Analysis" · count · "+ Add analysis" toggling an always-visible list of 14 chips (the registry items). |
+| A1 | Noise PSD | `NoisePSDCard.tsx`, `use-noise-psd.ts`, `domain/analysis/noise-psd.ts` | Pick trace and filter (ui `noiseFilter`, `noiseSource`), Compute, shows peak/avg/min density and RBW (`MR` rows), "Save" keeps results (`noiseResults`, `savedNoise`), list of saved results with remove. |
+| A2 | IP3 / TOI | `IP3Card.tsx`, `use-ip3.ts`, `domain/analysis/ip3.ts` | Reads placed markers with IP3 roles (F1, F2, IM3L, IM3U; menu or auto-pick), gain field (ui `ip3Gain`), shows OIP3 values (`MR`), "Save" (`ip3Results`, `savedIP3`). |
+| A3 | Peak Table | `PeakTableCard.tsx`, `domain/analysis/range-stats.ts` (`buildPeakSpurTable`) | Trace select (panes' traces, "Other pane" ones too), min spacing, Find Peaks, ranked table (Rank, freq, amp). `peakResults`. |
+| A4 | Range Statistics | `RangeStatsCard.tsx` | Trace select, Compute Stats: max/min with frequency, average, span, sample count. `rangeStatsResults`. |
+| A5 | 3 dB / 10 dB BW | `BandwidthHelperCard.tsx`, `domain/analysis/bandwidth.ts` | Trace select, drop dB, Compute: bandwidth, centre, left/right edge, reference. `bandwidthResults`. |
+| A6 | Threshold Crossings | `shared/ThresholdCrossingsCard.tsx`, `domain/analysis/threshold.ts`, `crossing-rows.ts` | Two modes in one card: manual level on the selected trace, or (via a line's List…) that line's crossings per pane with a "Manual threshold" button. Local state only (threshold text), no store entry; `formatEng` rows (we added). |
+| A7 | Ripple / Flatness | `RippleCard.tsx`, `domain/analysis/ripple.ts` | Trace select, Compute: peak-to-peak ripple, max/min amp, span. `rippleResults`. |
+| A8 | Occupied Bandwidth | `OccupiedBandwidthCard.tsx` | Percent field; result bandwidth or the reason "Select a trace with power units (dBm or dBW)". No store entry. |
+| A9 | Channel Power | `ChannelPowerCard.tsx`, `domain/analysis/channel-power.ts` | Bandwidth field; result dBm or "Select a trace with spectral density units (dBm/Hz or dBW/Hz)". No store entry. |
+| A10 | VSWR | `touchstone/VSWRCard.tsx`, `touchstone-math.ts` | Min/max/average VSWR of the active Sii trace. |
+| A11 | Return Loss | `touchstone/ReturnLossCard.tsx` | Min/max/average RL. |
+| A12 | Group Delay | `touchstone/GroupDelayCard.tsx` | Min/max/average group delay. |
+| A13 | Reciprocity / Isolation | `touchstone/ReciprocityIsolationCard.tsx` | Worst and average reciprocity error, worst isolation (2-port). |
+| A14 | Touchstone Stability | `touchstone/StabilityCard.tsx` | Min K, min mu1, min mu2, unstable-point count (2-port). |
+| T1 | Trace Ops card | `TraceOpsCard.tsx`, `use-trace-ops.ts`, `domain/trace-ops.ts` | One card, four collapsible forms, each makes a **derived trace once** (`operationType`, no live link today): Offset (dB), Scale (x), Smoothing (method incl. Savitzky–Golay, window), Trace Math (A, B, operation add / subtract / multiply / divide). Collapse state in ui `traceOpsOpenSections`. |
+| I1 | Import / Export card | `panels/ImportExportPanel.tsx` | Four buttons and two hidden file inputs: Import Data Files, Load Workspace, Save Workspace, Export Visible CSV. |
+| D1 | Data table panel | `panels/DataTablePanel.tsx` (48 lines) | Exclusive full-panel table of the active trace's samples (#, Freq, Amp). There is no Table pane component yet. |
+
+State that rides along: `analysis-store` (`analysisOpenState` map by id, six result maps, none of which is saved except through the workspace's `analysisOpenState`, `savedNoise`, `savedIP3`); `ui-store` flags above plus `noiseFilter`, `noiseSource`, `ip3Gain`, `traceOpsOpenSections`; the legacy v4 workspace `ui` type still lists the `show*` flags (v5 ignores them).
+
+### 2. Mapping: every item to a registry tool, a matrix view, or removal
+
+Registry contract (`types/registry-contract.ts`, `domain/analysis/tool-contract.ts`, spec-v3 R5): `kind` math · measure · view, `meta`, `appliesTo(trace) -> ok | reason`, `params` (schema from which `Params` is generated), `compute(inputs, params)` pure and unit-tested, `outputs` (numbers · table · overlay · trace). "View" tools are not in the Add menu (they live in the matrix).
+
+| Item | Decision | Kind / outputs | appliesTo and notes |
+|---|---|---|---|
+| A1 Noise PSD | **Registry tool** `noise-psd` | Measure: numbers (peak, avg, min density, RBW); optional overlay; ⋯ "Create trace" | spectrum traces; params filter, RBW source. "Save" and the saved-results list become card instances plus Create trace; `savedNoise` migrates to instances. |
+| A2 IP3 / TOI | **Registry tool** `ip3` | Measure: numbers (OIP3, per-tone) | needs 4 role markers: otherwise `CardMsg` "Place F1, F2, IM3L, IM3U" with action; param gain. `savedIP3` migrates to instances. |
+| A3 Peak Table | **Registry tool** `peak-table` | Measure: table (rank, x, y) | any trace; params min spacing, count; rows later can place markers. |
+| A4 Range Statistics | **Registry tool** `range-stats` | Measure: numbers | any trace; over the visible X range (today whole trace; spec says "range": use the pane's visible range, decide in B). |
+| A5 3 dB / 10 dB BW | **Registry tool** `bandwidth` | Measure: numbers + overlay (edges) | params drop (3, 10, custom), peak reference; one tool, two presets. |
+| A6 Threshold Crossings | **Two uses of one tool** `crossings` | Measure: table (`CrossingsList`) | (a) manual: param `level` (with unit); (b) line: param `lineId`, opened only by a line's **List…** / context menu, title "V1 crossings", no Manual threshold button. Both are separate instances in the panel. |
+| A7 Ripple / Flatness | **Registry tool** `ripple` | Measure: numbers | any trace. |
+| A8 Occupied Bandwidth | **Registry tool** `occupied-bandwidth` | Measure: numbers | greyed in Add menu with the reason when the target has no power units. |
+| A9 Channel Power | **Registry tool** `channel-power` | Measure: numbers | greyed with "needs density units (dBm/Hz or dBW/Hz)". |
+| A10 VSWR | **Matrix view** (already a view in the matrix "More" menu) | view | **Remove the card.** Its min/max/average is obtained by running Range Statistics on the VSWR trace. |
+| A11 Return Loss | **Matrix view** (exists) | view | Remove the card; same reasoning. |
+| A12 Group Delay | **Matrix view** (exists) | view | Remove the card; same reasoning. |
+| A13 Reciprocity / Isolation | **Registry tool** `reciprocity-isolation` | Measure: numbers | appliesTo 2-port network, reason otherwise. |
+| A14 Touchstone Stability | **Registry tool** `stability` ("2-port stability: K, mu1, mu2, abs delta") | Measure: numbers (min K, min mu1, min mu2, unstable points; **abs delta is new**) | 2-port network. The K and mu curves stay available as matrix views; the tool gives the numbers. |
+| T1 Offset | **Registry tool** `offset-scale` (Math) | Math: output trace ("-> name · offset 3 dB · P1") | one tool with offset and scale parameters (spec: "offset · scale"); replaces the Offset and Scale forms. |
+| T1 Smoothing | **Registry tool** `smooth` (Math) | Math: output trace | params method (moving average, Savitzky–Golay…), window. |
+| T1 Trace Math | **Registry tool** `trace-math` (Math) | Math: output trace | A and B traces, operation + − × ÷; unit compatibility reasons come from `appliesTo` (today the card just allows anything). |
+| T1 collapse state | **Remove** (`traceOpsOpenSections`) | | each card collapses itself (`AnalysisCard`), as a preference. |
+| I1 Import Data Files | **Remove from the panel**: it is the top bar's Open (unified opening path) | | needs no new work; the two hidden inputs and the `import-export-*` test ids go. |
+| I1 Load Workspace | **Remove**: top bar Open (workspace JSON path exists) | | |
+| I1 Save Workspace | **Remove**: top bar Save | | |
+| I1 Export Visible CSV | **Remove from the panel after it has a new home**: the top bar's Export… (Phase 6B CSV); see decision 1 | | today the only way to export CSV. |
+| D1 Data table | **Remove from the panel**: becomes the Table pane type (Phase 5D, "Table pane shares membership and cursor contracts") | | there is no Table pane yet; see decision 2. |
+| F1 Frame, tabs, placeholder | **Remove** | | Right panel holds only Analysis (spec 5.5): `AnalysisPanel` header (32 px) with count and "+ Add analysis"; closed by default; adding an analysis or clicking the Analysis chip opens it; removing the last analysis or clicking the chip closes it. |
+| F2 Openers | **Replace** | | the top-bar Analysis chip stays (opens or closes by the rule above); remove the transitional "Right" button; `listCrossings` becomes "add a `crossings` instance with `lineId`" (and opens the panel); `LineCrossingsContext` is deleted. |
+| A0 chooser chips | **Replace by `AddAnalysisMenu`** | | search, All / Math / Measure, Recent, A–Z, reasons for greyed items, ✓ for open ones; items come from the registry (`kind` measure / math only, never view). |
+| ui flags `showAnalysisPanel`, `showTraceOps`, `showImportExportPanel`, `showDT` | **Remove** | | `showRightPanel` stays as the single flag (derived from "has analyses and chip on"). |
+
+Counts: 14 chooser items become 12 registry tools (+ crossings used twice) after three go to the matrix; Trace Ops (4 forms) becomes 3 Math tools; 2 panel cards (Import/Export, Data) and the frame are removed; 4 `ui` flags are removed.
+
+### 3. Target structure (what Part B builds)
+
+- **Instances, not an open-state map.** `analysis-store` holds an ordered list of analysis instances `{ id, toolId, params, source: traceId | lineId | null, collapsed, ... }` (several instances of one tool are allowed, e.g. two Range Statistics on two traces); results are computed (pure `compute`) and never stored in the store. Replaces `analysisOpenState`, the six result maps, `savedNoise`, `savedIP3`.
+- **Registry**: `domain/analysis/registry.ts` (`ANALYSIS_ITEMS`, scopes) is replaced by `domain/analysis/tools/*.ts` (one module per tool, one registry line each) over the existing `tool-contract.ts`; unit tests per tool with independent arithmetic (existing tests for noise, IP3, range stats, bandwidth, ripple, threshold, channel power, touchstone math are reused, not rewritten).
+- **UI**: the kit copied unchanged into `src/components/analysis/` (like the lines kit); one generic card renderer that maps `params`/`outputs` to `Params`, `KeyValues`, `Result`, `CrossingsList`, `OutputRow`, `CardMsg`, `Busy`; `AddAnalysisMenu` in the shared popover; the card ⋯ menu (Create trace, Copy results, Remove) in the shared popover; remove with Undo toast ("delete" kind of the toast policy).
+- **Workspace v5**: replace `analysisOpenState`, `savedNoise`, `savedIP3` with `analyses[]`; migration maps open ids to instances (default params, source = the trace that was selected when saved, else none), saved noise/IP3 rows to instances with their parameters, drops views (vswr, return-loss, group-delay) with a note; reader still accepts the old shape; tests in `workspace-v5.test.ts` / a new migration test.
+- **Files that change or go**: `RightPanelStack.tsx`, `AnalysisPanelStack.tsx`, `AnalysisMenuCard.tsx`, `AnalysisFeatureCard.tsx`, `analysis-card.css`, all 14 card files + `TraceOpsCard.tsx`, `CrossingsView.tsx`, `ImportExportPanel.tsx`, `DataTablePanel.tsx`, `shared/MR.tsx`, hooks `use-noise-psd`, `use-ip3`, `use-trace-ops`, `use-analysis-registry`, `use-analysis-target`, `use-touchstone-state` (re-check), `LineCrossingsContext` users (`App.tsx`, `ChartPane.tsx`, `Sidebar.tsx`), ui-store flags, `TopBar.tsx` ("Right"), tests that open the panel through the old tab (`tests/e2e/workflows.spec.ts` helper `openRightPanelSection`, `line-crossings.spec.ts`, `toasts` unaffected).
+
+### 4. Proposed split (one owner per file; Claude runs every gate)
+
+1. **B1, domain (Codex Terra, worktree)**: tool modules + registry + `appliesTo` reasons + instance reducer in the store + workspace migration with tests; no UI. Review: independent Terra review of the migration (as for lines).
+2. **B2, presentation (Claude)**: copy the kit unchanged, panel frame (`AnalysisPanel`, `AnalysisEmpty`, header chip behaviour), generic card renderer, Add menu and card menu wiring in the shared popover; remove the old cards, tabs and flags; light/dark 2x screenshots of the integrated panel, with the difference list written from the kit's README and CSS (the kit's demo image is compared only if the user allows it).
+3. **B3, wiring and cleanup (Codex Terra for the non-visual parts, Claude for `App.tsx` / `TopBar.tsx` / `ChartPane.tsx` edits)**: `listCrossings` -> instance, crossing-row highlight on the chart (`current`), Copy as CSV, Undo toasts, remove Import/Export and Data panels once decisions 1 and 2 are settled, update e2e helpers.
+4. Gates after every step: typecheck, unit, e2e (full), build, static; `ChartPane.tsx` edits in small steps with e2e after each.
+
+### Decisions needed before Part B
+
+1. **Where does "Export Visible CSV" live until Phase 6?** Proposal: enable the top bar's Export… as a plain "Export visible CSV" now (same function, no dialog), so the Import/Export card can go in B2. Alternative: keep that one button in the panel until Phase 6.
+2. **The Data table until the Table pane exists (Phase 5D).** Proposal: remove the Data tab in B2 and record the loss in `deferred.md` (a Table pane is on the Phase 5D list). Alternative: keep the Data tab alone until 5D.
+3. **Live / Freeze for Math outputs.** Today derived traces are computed once. The kit's `OutputRow` has Live / Freeze, and spec 5.5 says a Math output is "-> smoothed · SG 7 · P1 · live" with **Freeze**. Proposal: build Live (recompute when the source trace changes) in B1 with a Freeze action; alternative: ship Freeze-only first (all outputs frozen, as today) and add Live later.
+4. **Range Statistics range.** Today whole trace; proposal: the pane's visible X range with a "visible / all" choice, as the spec wording ("range statistics") implies.
+5. **Stability abs delta.** Proposal: add abs(delta) to the 2-port stability tool (spec lists it; today's card lacks it).
+6. **Emphasised number font.** Proposal: accept the kit's choice (Plex Sans 600 tabular). No font file needed.

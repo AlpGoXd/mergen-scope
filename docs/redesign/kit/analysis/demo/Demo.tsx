@@ -42,14 +42,15 @@ function Panel(): ReactElement {
       <AnalysisCard id="noise" kind="measure" title="Noise density" source="S21 · lna_board_rev3.s2p" onToggle={noop} onMenu={noop} onRemove={noop}>
         <CardMsg tone="warning" text="Needs a power spectral density trace (dBm/Hz). S21 is in dB." action={{ label: 'Pick a trace', onClick: noop }} />
       </AnalysisCard>
-      <AnalysisCard id="v1" kind="measure" title="V1 crossings" source="2.400 00 GHz · shown in P1, P2" onToggle={noop} onMenu={noop} onRemove={noop}>
-        <CrossingsList onSelect={noop} onCopy={noop} groups={[
+      <AnalysisCard id="v1" kind="measure" title="V1 crossings" source="V1 · 3.653 32 GHz · P1, P2" onToggle={noop} onMenu={noop} onRemove={noop}>
+        <Result value="3" unit="crossings" />
+        <CrossingsList valueLabel="Y" onSelect={noop} onCopy={noop} groups={[
           { paneBadge: 'P1', paneTitle: 'Pane 1 · Chart', rows: [
-            { id: 'a', hue: 0, trace: 'lna_board_rev3.s2p · S21', x: '2.400 00 GHz', y: '−1.86 dB', current: true },
-            { id: 'b', hue: 270, trace: 'lna_board_rev3.s2p · S11', x: '2.400 00 GHz', y: '−14.2 dB' },
+            { id: 'a', hue: 270, trace: 'S11 · cascaded chain.s2p', value: '−9.198 dB', current: true },
+            { id: 'b', hue: 0, trace: 'S21 · cascaded chain.s2p', value: '17.57 dB' },
           ] },
           { paneBadge: 'P2', paneTitle: 'Pane 2 · Chart', rows: [
-            { id: 'c', hue: 90, trace: 'filter_v3.s2p · S21', x: '2.400 00 GHz', y: '−0.92 dB' },
+            { id: 'c', hue: 90, trace: 'S21 · filter_v3.s2p', value: '−0.92 dB' },
           ] },
         ]} />
       </AnalysisCard>
@@ -66,9 +67,9 @@ function Manual(): ReactElement {
           { id: 'level', label: 'Level', control: { type: 'number', value: '−3', unit: 'dB', onCommit: noop } },
         ]} />
         <Result value="2" unit="crossings" />
-        <CrossingsList onSelect={noop} onCopy={noop} groups={[{ paneBadge: 'P1', paneTitle: 'Pane 1', rows: [
-          { id: 'x1', hue: 0, trace: 'S21 rising', x: '2.398 12 GHz', y: '−3.00 dB' },
-          { id: 'x2', hue: 0, trace: 'S21 falling', x: '2.484 40 GHz', y: '−3.00 dB' },
+        <CrossingsList valueLabel="X" onSelect={noop} onCopy={noop} groups={[{ paneBadge: 'P1', paneTitle: 'Pane 1', rows: [
+          { id: 'x1', hue: 0, trace: 'S21 rising', value: '2.398 12 GHz' },
+          { id: 'x2', hue: 0, trace: 'S21 falling', value: '2.484 40 GHz' },
         ] }]} />
       </AnalysisCard>
       <AnalysisCard id="ip3" kind="measure" title="IP3 / TOI" source="cascade_ip3_-12dBm_final.DAT" onToggle={noop} onRemove={noop}>

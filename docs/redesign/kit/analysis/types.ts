@@ -48,18 +48,22 @@ export type ParamControl =
 
 export interface ParamField { id: string; label: string; control: ParamControl }
 
+/** One crossing. Only the value that changes is shown: for a V line every crossing has the line's x,
+ *  so `value` is y ("−9.20 dB"); for an H line or a threshold level it is x ("2.398 12 GHz").
+ *  The constant goes in the card's source line ("V1 · 3.653 32 GHz"), never in the rows. */
 export interface CrossingRow {
   id: string;
   hue: number;
-  trace: string;   // "lna_board_rev3.s2p · S21"
-  x: string;       // "2.398 12 GHz"
-  y: string;       // "−3.00 dB"
+  trace: string;   // "S11" (short: the card source already names the file)
+  value: string;
   current?: boolean;
 }
 export interface CrossingGroup { paneBadge: string; paneTitle: string; rows: CrossingRow[] }
 
 export interface CrossingsListProps {
   groups: CrossingGroup[];
+  /** Header of the value column: "Y" for a V line, "X" for an H line or a threshold. */
+  valueLabel: string;
   /** "Showing 200 of 1 834" when the list is capped. */
   capNote?: string;
   emptyText?: string;
