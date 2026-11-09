@@ -1,0 +1,77 @@
+/*
+ * Design tokens used by the left-panel kit (values from spec-v3 §4 / Tokens board).
+ * If src/index.css already defines the same names, delete this file and keep only
+ * the kit-specific names at the bottom (marked "kit").
+ * Light = default; dark = .theme-dark on any ancestor (the app root uses theme-${theme}).
+ */
+:root {
+  --bg: oklch(0.985 0.006 255);
+  --panel: oklch(0.965 0.010 255);
+  --raised: oklch(0.997 0.003 255);
+  --border: oklch(0.90 0.010 255);
+  --border-strong: oklch(0.78 0.010 255);
+  --text-muted: oklch(0.50 0.010 255);
+  --text: oklch(0.22 0.015 255);
+  --accent: oklch(0.50 0.14 255);
+
+  /* Slate "selected / armed" */
+  --sel-bg: oklch(0.92 0.03 255);
+  --sel-ink: oklch(0.32 0.06 255);
+  --sel-line: oklch(0.80 0.045 255);
+
+  /* Pane hue 200 chip (pane badges) */
+  --pane-fill: oklch(0.95 0.03 200);
+  --pane-ink: oklch(0.45 0.12 200);
+  --pane-line: oklch(0.86 0.05 200);
+
+  /* Analysis hue 310 ink (the ƒ of created traces) */
+  --analysis-ink: oklch(0.45 0.12 310);
+
+  /* Status: danger 25, warning 85 */
+  --danger-ink: oklch(0.48 0.15 25);
+  --danger-fill: oklch(0.96 0.019 25);
+  --danger-line: oklch(0.88 0.05 25);
+  --warn-ink: oklch(0.45 0.10 75);
+  --warn-line: oklch(0.72 0.10 85);
+
+  /* kit: secondary text a step darker than muted (format badge, menu text) */
+  --text-soft: oklch(0.32 0.012 255);
+  /* kit: Sii diagonal tint in the matrix */
+  --diag-bg: oklch(0.94 0.008 255);
+  /* kit: the one menu shadow */
+  --menu-shadow: 0 6px 20px oklch(0.3 0.02 255 / 0.18);
+
+  --font-ui: 'IBM Plex Sans', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+}
+
+.theme-dark {
+  --bg: oklch(0.17 0.016 255);
+  --panel: oklch(0.20 0.016 255);
+  --raised: oklch(0.24 0.016 255);
+  --border: oklch(0.31 0.016 255);
+  --border-strong: oklch(0.42 0.016 255);
+  --text-muted: oklch(0.72 0.016 255);
+  --text: oklch(0.93 0.010 255);
+  --accent: oklch(0.78 0.113 255);
+
+  --sel-bg: oklch(0.34 0.045 255);
+  --sel-ink: oklch(0.93 0.03 255);
+  --sel-line: oklch(0.50 0.06 255);
+
+  --pane-fill: oklch(0.33 0.07 200);
+  --pane-ink: oklch(0.90 0.09 200);
+  --pane-line: oklch(0.50 0.10 200);
+
+  --analysis-ink: oklch(0.80 0.10 310);
+
+  --danger-ink: oklch(0.84 0.088 25);
+  --danger-fill: oklch(0.28 0.06 25);
+  --danger-line: oklch(0.42 0.09 25);
+  --warn-ink: oklch(0.85 0.10 85);
+  --warn-line: oklch(0.55 0.10 85);
+
+  --text-soft: oklch(0.86 0.012 255);
+  --diag-bg: oklch(0.22 0.014 255);
+  --menu-shadow: 0 8px 24px oklch(0 0 0 / 0.45);
+}
