@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useRef, useEffect } from 'react';
+import React, { useMemo, useState, useRef, useEffect, useContext } from 'react';
 import {
   ResponsiveContainer,
   LineChart,
@@ -10,6 +10,7 @@ import {
   ReferenceLine,
   ReferenceDot,
   ReferenceArea,
+  Customized,
 } from 'recharts';
 import { useOptionalAggregateWorkspace } from '../../stores/aggregate-workspace-store';
 import { usePaneState, usePaneDispatch } from '../../stores/pane-store';
@@ -25,9 +26,18 @@ import { checkPaneAssignment } from '../../domain/pane-placement';
 import { formatAdaptiveXAxisTickLabels, formatAdaptiveXAxisValue, formatPerDivision, formatScalarWithUnit, makeYAxisTickFormatter } from '../../domain/format';
 import { getResolvedInterpolationStrategy } from '../../domain/interpolation';
 import { placeMarker, nearestIndexByFreq } from '../../domain/markers';
-import { computeVerticalIntersections, computeHorizontalIntersections, linePlacementPanes } from '../../domain/ref-lines';
+import { computeVerticalIntersections, computeHorizontalIntersections } from '../../domain/ref-lines';
 import { makeNiceTicks, NICE_TICK_COUNT } from '../../domain/trace-math';
 import { Btn } from '../shared/Btn';
+import { LinesLayer, CrossingsLayer } from './LinesLayer';
+import type { ToastKind } from '../../stores/toast-store';
+import type { PlotView } from './LinesLayer';
+import { EdgeTag, lineContextEntries, lineShowInEntries } from '../lines/Lines';
+import { Menu as KitMenu } from '../left-panel/Menu';
+import { PopoverAt } from '../shared/Controls';
+import { LineCrossingsContext } from '../analysis/shared/ThresholdCrossingsCard';
+import { lineShowInChoices, linePaneAxisUnit, paneName } from '../../domain/line-view';
+import { formatCrossingValue, } from '../../domain/analysis/crossing-rows';
 import { EmptyChartPane } from './EmptyChartPane';
 import { SmithPane } from './SmithPane';
 import { PaneSettingsPopover } from './PaneSettingsPopover';
@@ -82,7 +92,7 @@ export function ChartPane({ paneId }: ChartPaneProps) {
   const { panes, activePaneId, tracePaneMap, paneActiveTraceMap, zoomAll, sharedZoom, paneXZooms, paneYZooms } = usePaneState();
   const { markers, selectedMkrIdx, armed } = useMarkerState();
   const markerDispatch = useMarkerDispatch();
-  const { refLines, refMode, selectedRefLineId } = useRefLineState();
+  const { refLines, refMode, selectedRefLineId, hoveredRefLineId } = useRefLineState();
   const refLineDispatch = useRefLineDispatch();
   const { selectedTraceName, traceColors, markerTrace } = useUiState();
   const uiDispatch = useUiDispatch();
@@ -202,19 +212,6 @@ export function ChartPane({ paneId }: ChartPaneProps) {
     return pairs;
   }, [paneHLines]);
 
-  const vLabelYOffset = useMemo((): Record<number, number> => {
-    const sorted = [...paneVLines].sort((a, b) => a.value - b.value);
-    const offsets: Record<number, number> = {};
-    sorted.forEach((line, i) => {
-      const prev = sorted[i - 1];
-      if (prev && Math.abs(line.value - prev.value) / Math.max(visibleXSpan, 1e-12) < 0.12) {
-        offsets[line.id] = (offsets[prev.id] ?? 0) + 18;
-      } else {
-        offsets[line.id] = 0;
-      }
-    });
-    return offsets;
-  }, [paneVLines, visibleXSpan]);
   const xDomain = useMemo(() => {
     const min = currentXZoom?.left ?? mergedData[0]?.fs ?? null;
     const max = currentXZoom?.right ?? mergedData[mergedData.length - 1]?.fs ?? null;
@@ -224,6 +221,13 @@ export function ChartPane({ paneId }: ChartPaneProps) {
     return { min, max };
   }, [currentXZoom, mergedData]);
 
+  // Right-click menu on a line (kit lineContextEntries; "Show in" opens the checklist as a second menu).
+  const [lineMenu, setLineMenu] = useState<{ lineId: number; at: { x: number; y: number }; mode: 'main' | 'showin' } | null>(null);
+  const { listCrossings } = useContext(LineCrossingsContext);
+  const changeLine = (action: Parameters<typeof refLineDispatch>[0], message: string, toastKind?: ToastKind) => {
+    if (historyDispatch) historyDispatch({ type: 'change', ...(toastKind ? { toastMessage: message, toastKind } : {}), command: { slice: 'lines', action } });
+    else refLineDispatch(action);
+  };
   const [dragStart, setDragStart] = React.useState<number | null>(null);
   const [dragCurrent, setDragCurrent] = React.useState<number | null>(null);
   const [zoomDragActive, setZoomDragActive] = React.useState(false);
@@ -231,7 +235,6 @@ export function ChartPane({ paneId }: ChartPaneProps) {
   const [panStartClientX, setPanStartClientX] = React.useState<number | null>(null);
   const [draggingMarkerIdx, setDraggingMarkerIdx] = React.useState<number | null>(null);
   const [draggingRefLineId, setDraggingRefLineId] = React.useState<number | null>(null);
-  const [hoveredRefLineId, setHoveredRefLineId] = React.useState<number | null>(null);
   const [hoverFreq, setHoverFreq] = React.useState<number | null>(null);
   const chartAreaRef = React.useRef<HTMLDivElement | null>(null);
   const [plotHeight, setPlotHeight] = useState(0);
@@ -367,14 +370,27 @@ export function ChartPane({ paneId }: ChartPaneProps) {
     yAxisWidthRef.current = { key, width };
     return width;
   }, [activePaneTrace?.units.y, formatYTick, traceNamesInPane, yValueRange]);
+  // The pane's real plot rectangle in client pixels (reported by the lines layer), so the cursor maps to axis values exactly.
+  const plotGeometry = (): { svgLeft: number; svgTop: number; plot: PlotView['plot'] } | null => {
+    const svg = chartAreaRef.current?.querySelector('svg.recharts-surface');
+    if (!svg || !plotView || plotView.plot.width <= 0 || plotView.plot.height <= 0) return null;
+    const rect = svg.getBoundingClientRect();
+    return { svgLeft: rect.left, svgTop: rect.top, plot: plotView.plot };
+  };
+
   const resolveClientFreq = (
     clientX: number,
     domainOverride?: { left: number; right: number } | null,
   ): number | null => {
     const chartEl = chartAreaRef.current;
-    const domainLeft = domainOverride?.left ?? currentXZoom?.left ?? mergedData[0]?.fs ?? null;
-    const domainRight = domainOverride?.right ?? currentXZoom?.right ?? mergedData[mergedData.length - 1]?.fs ?? null;
+    const geometry = plotGeometry();
+    const domainLeft = domainOverride?.left ?? (geometry ? plotView?.x?.[0] : undefined) ?? currentXZoom?.left ?? mergedData[0]?.fs ?? null;
+    const domainRight = domainOverride?.right ?? (geometry ? plotView?.x?.[1] : undefined) ?? currentXZoom?.right ?? mergedData[mergedData.length - 1]?.fs ?? null;
     if (!chartEl || domainLeft == null || domainRight == null || domainRight <= domainLeft) return null;
+    if (geometry) {
+      const gx = Math.max(0, Math.min(geometry.plot.width, clientX - geometry.svgLeft - geometry.plot.left));
+      return geometry.plot.width > 0 ? domainLeft + (gx / geometry.plot.width) * (domainRight - domainLeft) : null;
+    }
     const rect = chartEl.getBoundingClientRect();
     const plotLeft = yAxisWidth;
     const plotWidth = rect.width - plotLeft - CHART_MARGIN_RIGHT;
@@ -423,10 +439,20 @@ export function ChartPane({ paneId }: ChartPaneProps) {
     return { min: minAmp - pad, max: maxAmp + pad };
   }, [mergedData, paneTraces, yDomain]);
 
+  // The line layer reports the plot rectangle and the real scale domains: they feed the edge tags here and the rows' "off view" text.
+  const [plotView, setPlotView] = useState<PlotView | null>(null);
+  const handlePlotView = React.useCallback((view: PlotView) => {
+    setPlotView(prev => prev && prev.x?.[0] === view.x?.[0] && prev.x?.[1] === view.x?.[1] && prev.y?.[0] === view.y?.[0] && prev.y?.[1] === view.y?.[1]
+      && prev.plot.left === view.plot.left && prev.plot.top === view.plot.top && prev.plot.width === view.plot.width && prev.plot.height === view.plot.height ? prev : view);
+    refLineDispatch({ type: 'SET_PANE_VIEW', payload: { paneId, view: { x: view.x, y: view.y } } });
+  }, [refLineDispatch, paneId]);
+  useEffect(() => () => refLineDispatch({ type: 'SET_PANE_VIEW', payload: { paneId, view: null } }), [refLineDispatch, paneId]);
+
   const resolveClientAmp = (clientY: number, overshootFraction = 0): number | null => {
     const chartEl = chartAreaRef.current;
     if (!chartEl) return null;
-    const baseDomain = resolveBaseYDomain();
+    const geometry = plotGeometry();
+    const baseDomain = geometry && plotView?.y ? { min: plotView.y[0], max: plotView.y[1] } : resolveBaseYDomain();
     if (!baseDomain) return null;
     let yMin = baseDomain.min;
     let yMax = baseDomain.max;
@@ -436,6 +462,10 @@ export function ChartPane({ paneId }: ChartPaneProps) {
       yMax += overshoot;
     }
     if (!Number.isFinite(yMin) || !Number.isFinite(yMax) || yMax <= yMin) return null;
+    if (geometry) {
+      const gy = Math.max(0, Math.min(geometry.plot.height, clientY - geometry.svgTop - geometry.plot.top));
+      return yMax - (gy / geometry.plot.height) * (yMax - yMin);
+    }
     const rect = chartEl.getBoundingClientRect();
     const plotHeight = rect.height - CHART_MARGIN_TOP - CHART_X_AXIS_HEIGHT;
     if (plotHeight <= 0) return null;
@@ -530,8 +560,7 @@ export function ChartPane({ paneId }: ChartPaneProps) {
 
     if (refMode === 'v') {
       const newId = Date.now();
-      const entries = allKnownTraces.map(trace => ({ trace, paneIds: tracePaneMap[trace.name] ?? [] }));
-      refLineDispatch({ type: 'ADD_LINE', payload: { id: newId, type: 'v', value: freq, paneIds: linePlacementPanes('v', paneId, panes, entries, zoomAll), label: nextLineLabel('v', refLines) } });
+      refLineDispatch({ type: 'ADD_LINE', payload: { id: newId, type: 'v', value: freq, paneIds: [paneId], label: nextLineLabel('v', refLines) } });
       refLineDispatch({ type: 'SET_MODE', payload: null });
       refLineDispatch({ type: 'SET_SELECTED', payload: newId });
       markerDispatch({ type: 'SET_SELECTED_IDX', payload: -1 });
@@ -623,19 +652,6 @@ export function ChartPane({ paneId }: ChartPaneProps) {
     if (freq == null || !Number.isFinite(freq)) return;
     setHoverFreq(freq);
 
-    if (draggingMarkerIdx === null && draggingRefLineId === null) {
-      const tol = computeMarkerHitTolerance();
-      const yTol = computeRefLineYTolerance();
-      const amp = resolveEventAmp(e);
-      const paneLines = refLines.filter(l => l.paneIds.includes(paneId));
-      const hovered = paneLines.find(l =>
-        l.type === 'v'
-          ? Math.abs(l.value - freq) < tol
-          : amp != null && yTol > 0 && Math.abs(amp - l.value) < yTol
-      );
-      setHoveredRefLineId(hovered?.id ?? null);
-    }
-
     if (draggingMarkerIdx !== null) {
       const marker = markers[draggingMarkerIdx];
       const trace = marker ? paneTraces.find((item) => item.name === marker.trace) : undefined;
@@ -661,7 +677,6 @@ export function ChartPane({ paneId }: ChartPaneProps) {
 
   const handleMouseLeave = () => {
     setHoverFreq(null);
-    setHoveredRefLineId(null);
     lastPointerClientXRef.current = null;
     lastPointerClientYRef.current = null;
   };
@@ -738,8 +753,14 @@ export function ChartPane({ paneId }: ChartPaneProps) {
     else paneDispatch({ type: 'SET_PANE_ZOOM', payload: { paneId, zoom: null } });
   };
 
-  const handleContextMenu = (e: React.MouseEvent<HTMLDivElement>) => {
+  // Right-click on a chart: the browser menu never appears. A line (or its label) handles it itself and opens its own menu first;
+  // on anything else it does nothing, except that it cancels an armed tool, like Esc.
+  const handlePaneContextMenu = (e: React.MouseEvent<HTMLDivElement>) => {
+    const handledByLine = e.defaultPrevented;
     e.preventDefault();
+    if (handledByLine) return;
+    if (refMode !== null) refLineDispatch({ type: 'SET_MODE', payload: null });
+    if (armed) markerDispatch({ type: 'ARM', payload: null });
   };
 
   const xAxisLabelText = useMemo(() => {
@@ -1056,6 +1077,7 @@ export function ChartPane({ paneId }: ChartPaneProps) {
   return (
     <div
       data-testid={`chart-pane-${paneId}`}
+      onContextMenu={handlePaneContextMenu}
       style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: '120px', borderTop: firstPaneId && paneId !== firstPaneId ? '1px solid var(--border)' : 'none', background: 'linear-gradient(180deg, color-mix(in srgb, var(--bg) 97%, white), var(--bg))', userSelect: 'none', outline: paneDragOver ? '2px solid var(--accent)' : undefined, outlineOffset: '-2px' }}
       onDragEnter={handlePaneDragOver}
       onDragOver={handlePaneDragOver}
@@ -1139,7 +1161,7 @@ export function ChartPane({ paneId }: ChartPaneProps) {
         ) : mergedData.length === 0 ? (
           <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--dim)', fontSize: 'var(--font-title)' }}>No visible traces in this pane.</div>
         ) : (
-          <div data-testid={`chart-plot-${paneId}`} ref={chartAreaRef} onWheel={handleWheel} onMouseDownCapture={(e) => { lastPointerClientXRef.current = e.clientX; lastPointerClientYRef.current = e.clientY; lastPointerButtonRef.current = e.button; }} onMouseMoveCapture={(e) => { lastPointerClientXRef.current = e.clientX; lastPointerClientYRef.current = e.clientY; }} onMouseDown={handleContainerMouseDown} onContextMenu={handleContextMenu} style={{ height: '100%', cursor: draggingRefLineId !== null ? 'grabbing' : hoveredRefLineId !== null ? (refLines.find(l => l.id === hoveredRefLineId)?.type === 'h' ? 'ns-resize' : 'ew-resize') : undefined }}>
+          <div data-testid={`chart-plot-${paneId}`} data-line-labels={settings.showLineLabels ? 'on' : 'off'} ref={chartAreaRef} onWheel={handleWheel} onMouseDownCapture={(e) => { lastPointerClientXRef.current = e.clientX; lastPointerClientYRef.current = e.clientY; lastPointerButtonRef.current = e.button; }} onMouseMoveCapture={(e) => { lastPointerClientXRef.current = e.clientX; lastPointerClientYRef.current = e.clientY; }} onMouseDown={handleContainerMouseDown} style={{ height: '100%', cursor: draggingRefLineId !== null ? 'grabbing' : hoveredRefLineId !== null ? (refLines.find(l => l.id === hoveredRefLineId)?.type === 'h' ? 'ns-resize' : 'ew-resize') : undefined }}>
             <ResponsiveContainer width="100%" height="100%">
               <LineChart ref={lineChartRef} data={plotData} margin={{ top: 10, right: 20, left: 0, bottom: 10 }} onMouseDown={(state) => handleMouseDown(state, (state as any)?.nativeEvent?.button ?? lastPointerButtonRef.current ?? 0)} onMouseMove={handleMouseMove} onMouseLeave={handleMouseLeave} onMouseUp={handleMouseUp}>
                 {settings.gridMajor && (
@@ -1273,55 +1295,11 @@ export function ChartPane({ paneId }: ChartPaneProps) {
                     />
                   );
                 })}
-                {settings.showReferenceLines && (() => {
-                  return paneRefLines.map((line) => {
-                    const isSelected = selectedRefLineId === line.id;
-                    const isHovered = hoveredRefLineId === line.id;
-                    const lineColor = line.type === 'v' ? (colors?.refV ?? '#d48a2b') : (colors?.refH ?? '#2b9ab7');
-                    const strokeWidth = isSelected ? 2 : isHovered ? 1.5 : 1;
-                    const strokeDasharray = isSelected ? '6 3' : '4 4';
-                    const strokeOpacity = isSelected ? 1 : isHovered ? 0.9 : 0.65;
-
-                    const formattedValue = line.type === 'v'
-                      ? formatAdaptiveXAxisValue(line.value, visibleXSpan, { domain: axisInfo.axisDomain, unit: axisInfo.axisDomain === 'time' ? 's' : 'Hz' })
-                      : formatScalarWithUnit(line.value, axisInfo.yUnit, { digits: 4 });
-                    const labelText = line.label
-                      ? `${line.label}  ${formattedValue}`
-                      : formattedValue;
-                    const yOff = line.type === 'v' ? (vLabelYOffset[line.id] ?? 0) : 0;
-
-                    const labelEl = settings.showLineLabels ? (props: { viewBox?: { x: number; y: number; width: number; height: number } }) => {
-                      const vb = props.viewBox;
-                      if (!vb) return null;
-                      const lx = line.type === 'v' ? vb.x + 5 : vb.x + 6;
-                      const ly = line.type === 'v' ? vb.y + 11 + yOff : vb.y - 4;
-                      const charW = 6.3;
-                      const tw = labelText.length * charW;
-                      return (
-                        <g>
-                          <rect x={lx - 2} y={ly - 11} width={tw + 6} height={14} rx={3}
-                            fill="var(--card)" fillOpacity={0.85} />
-                          <text x={lx + 1} y={ly} fill={lineColor} fontSize={10}
-                            fontFamily="var(--font-mono, monospace)" fontWeight={isSelected ? 600 : 400}>
-                            {labelText}
-                          </text>
-                        </g>
-                      );
-                    } : undefined;
-
-                    return (
-                      <ReferenceLine
-                        key={line.id}
-                        {...(line.type === 'v' ? { x: line.value } : { y: line.value })}
-                        stroke={lineColor}
-                        strokeDasharray={strokeDasharray}
-                        strokeWidth={strokeWidth}
-                        strokeOpacity={strokeOpacity}
-                        label={labelEl as any}
-                      />
-                    );
-                  });
-                })()}
+                <Customized component={<LinesLayer lines={settings.showReferenceLines ? paneRefLines : []} litId={hoveredRefLineId ?? selectedRefLineId} selectedId={selectedRefLineId}
+                  onView={handlePlotView}
+                  onHover={(id) => refLineDispatch({ type: 'SET_HOVERED', payload: id })}
+                  onContextMenu={(line, event) => { event.preventDefault(); refLineDispatch({ type: 'SET_SELECTED', payload: line.id }); setLineMenu({ lineId: line.id, at: { x: event.clientX, y: event.clientY }, mode: 'main' }); }}
+                  onLabelClick={(line) => { markerDispatch({ type: 'SET_SELECTED_IDX', payload: -1 }); refLineDispatch({ type: 'SET_SELECTED', payload: line.id }); }} />} />
                 {/* ΔX between V-line delta pairs */}
                 {settings.showReferenceLines && vDeltaPairs.map(([a, b]) => {
                   const lo = Math.min(a.value, b.value);
@@ -1378,28 +1356,44 @@ export function ChartPane({ paneId }: ChartPaneProps) {
                       }} />
                   );
                 })}
-                {settings.showReferenceLines && paneRefLines.flatMap((line) => {
-                  const intersections = line.type === 'v'
-                    ? computeVerticalIntersections(line.value, paneTraces, paneId)
-                    : computeHorizontalIntersections(line.value, paneTraces, paneId);
-                  return intersections.map((ix, i) => (
-                    <ReferenceDot
-                      key={`rl-${line.id}-ix-${i}`}
-                      x={ix.freq}
-                      y={ix.amp}
-                      r={4}
-                      fill={resolveTraceColor(ix.traceName)}
-                      stroke="white"
-                      strokeWidth={1}
-                      isFront
-                    />
-                  ));
-                })}
+                {settings.showReferenceLines && (
+                  <Customized component={<CrossingsLayer points={paneRefLines.flatMap((line) => {
+                    const intersections = line.type === 'v'
+                      ? computeVerticalIntersections(line.value, paneTraces, paneId)
+                      : computeHorizontalIntersections(line.value, paneTraces, paneId);
+                    return intersections.map((ix, i) => ({ key: `rl-${line.id}-ix-${i}`, x: ix.freq, y: ix.amp, color: resolveTraceColor(ix.traceName) }));
+                  })} />} />
+                )}
                 {dragStart !== null && dragCurrent !== null && <ReferenceLine x={dragStart} stroke="var(--accent)" strokeWidth={1} />}
                 {dragStart !== null && dragCurrent !== null && <ReferenceLine x={dragCurrent} stroke="var(--accent)" strokeWidth={1} />}
                 <ReferenceLine y={0} stroke="var(--dim)" strokeWidth={0.5} />
               </LineChart>
             </ResponsiveContainer>
+            {settings.showReferenceLines && plotView && paneRefLines.flatMap((line) => {
+              const range = line.type === 'v' ? plotView.x : plotView.y;
+              if (!range || (line.value >= range[0] && line.value <= range[1])) return [];
+              const side = line.type === 'v' ? (line.value > range[1] ? 'right' : 'left') : (line.value > range[1] ? 'top' : 'bottom');
+              const offset = line.type === 'v' ? plotView.plot.top + plotView.plot.height / 2 : plotView.plot.left + plotView.plot.width / 2;
+              const unit = line.type === 'v' ? (activePaneTrace?.units.x ?? (activePaneTrace?.domain === 'time' ? 's' : 'Hz')) : axisInfo.yUnit;
+              const value = formatCrossingValue(line.value, unit, Math.abs(line.value) > 0 ? 10 ** (Math.floor(Math.log10(Math.abs(line.value))) - 5) : 0);
+              const reveal = () => {
+                if (line.type === 'v') {
+                  // Centre the line, but keep the window inside the data so the pane never goes blank.
+                  const span = Math.max(visibleXSpan, 1e-12);
+                  const lo = paneDataBounds?.min ?? line.value - span / 2, hi = paneDataBounds?.max ?? line.value + span / 2;
+                  const left = Math.min(Math.max(line.value - span / 2, lo), Math.max(lo, hi - span));
+                  const win = { left, right: left + span };
+                  if (zoomAll) paneDispatch({ type: 'SET_SHARED_ZOOM', payload: win });
+                  else paneDispatch({ type: 'SET_PANE_ZOOM', payload: { paneId, zoom: win } });
+                } else {
+                  const half = Math.max(range[1] - range[0], 1e-12) / 2;
+                  paneDispatch({ type: 'SET_PANE_Y_ZOOM', payload: { paneId, zoom: { min: line.value - half, max: line.value + half } } });
+                }
+              };
+              return [<EdgeTag key={`edge-${line.id}`} side={side} offset={offset} label={line.label ?? (line.type === 'v' ? 'V' : 'H')} value={value}
+                lit={(hoveredRefLineId ?? selectedRefLineId) === line.id} onReveal={reveal}
+                onHover={(hovering) => refLineDispatch({ type: 'SET_HOVERED', payload: hovering ? line.id : null })} />];
+            })}
 
             {hoverFreq != null && hoverRows.length > 0 && (
               <div style={{ position: 'absolute', top: '12px', right: '12px', minWidth: '220px', maxWidth: '320px', padding: '10px 12px', borderRadius: '12px', border: '1px solid color-mix(in srgb, var(--tipBd) 88%, white)', background: 'color-mix(in srgb, var(--tipBg) 82%, transparent)', boxShadow: '0 10px 28px rgba(0,0,0,0.18)', display: 'grid', gap: '6px', pointerEvents: 'none' }}>
@@ -1419,7 +1413,33 @@ export function ChartPane({ paneId }: ChartPaneProps) {
           </div>
         )}
       </div>
+      {lineMenu && (() => {
+        const line = refLines.find(item => item.id === lineMenu.lineId);
+        if (!line) return null;
+        const name = line.label ?? (line.type === 'v' ? 'V' : 'H');
+        const entries = allKnownTraces.map(trace => ({ trace, paneIds: tracePaneMap[trace.name] ?? [] }));
+        const close = () => setLineMenu(null);
+        const toggle = (target: string) => {
+          if (line.paneIds.includes(target)) changeLine({ type: 'REMOVE_LINE_PANE', payload: { lineId: line.id, paneId: target, axisUnit: linePaneAxisUnit(line, target, entries) } }, `Removed ${name} from ${paneName(panes, target)}`);
+          else changeLine({ type: 'ADD_LINE_PANE', payload: { lineId: line.id, paneId: target, panes, entries } }, `${name} also shown in ${paneName(panes, target)}`);
+          close();
+        };
+        const suffix = line.paneIds.length > 1 ? ` from ${line.paneIds.length} panes` : ` from ${paneName(panes, line.paneIds[0] ?? paneId)}`;
+        return (
+          <PopoverAt label={`${name} menu`} at={lineMenu.at} onClose={close}>
+            {lineMenu.mode === 'showin'
+              ? <KitMenu label="Show in" title="Show in" checklist style={{ width: 220 }} entries={lineShowInEntries(lineShowInChoices(line, panes, entries), toggle)} />
+              : <KitMenu label={`${name} line`} entries={lineContextEntries({
+                  label: name, kind: line.type, paneName: paneName(panes, paneId),
+                  onShowIn: () => setLineMenu({ ...lineMenu, mode: 'showin' }),
+                  onEdit: () => { close(); const input = document.querySelector<HTMLInputElement>(`[data-testid="ref-line-row-${name}"] input`); input?.focus(); input?.select(); },
+                  onListCrossings: () => { close(); listCrossings?.(line.id); },
+                  onRemoveHere: () => { changeLine({ type: 'REMOVE_LINE_PANE', payload: { lineId: line.id, paneId, axisUnit: linePaneAxisUnit(line, paneId, entries) } }, `Removed ${name} from ${paneName(panes, paneId)}`); close(); },
+                  onDelete: () => { changeLine({ type: 'REMOVE_LINE', payload: line.id }, `Deleted ${name}${suffix}`, 'delete'); close(); },
+                })} />}
+          </PopoverAt>
+        );
+      })()}
     </div>
   );
 }
-

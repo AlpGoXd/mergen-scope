@@ -25,7 +25,7 @@ export function TopBar({ onOpen, onExport }: TopBarProps = {}) {
   const aggregate = useOptionalAggregateWorkspace();
   const clearAll = () => {
     if (aggregate) {
-      aggregate.historyDispatch({type:'change',toastMessage:'Cleared workspace',command:{slice:'transaction', actions:[
+      aggregate.historyDispatch({type:'change',toastMessage:'Cleared workspace',toastKind:'delete',command:{slice:'transaction', actions:[
         ...files.map(file => ({slice:'files' as const,action:{type:'REMOVE_FILE' as const,payload:{fileId:String(file.id)}}})),
         {slice:'markers',action:{type:'CLEAR_ALL'}},
         ...refLines.map(line => ({slice:'lines' as const,action:{type:'REMOVE_LINE' as const,payload:line.id}})),

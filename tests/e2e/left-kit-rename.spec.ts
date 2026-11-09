@@ -17,7 +17,7 @@ test('trace rename preserves placement and marker association and is undoable', 
   await expect(row).toHaveAttribute('data-testid', original!);
   await expect(row.getByTitle('Show in panes')).toContainText('P1');
   await expect(page.locator('[data-testid^="marker-row-"]')).toHaveCount(1);
-  await page.getByRole('button', { name: 'Undo' }).last().click();
+  await page.keyboard.press('Control+z');
   await expect(row.locator('.lp-name')).not.toHaveText('Renamed trace');
   await expect(row).toHaveAttribute('data-testid', original!);
   await expect(page.locator('[data-testid^="marker-row-"]')).toHaveCount(1);
@@ -51,7 +51,7 @@ test('derived trace rename is undoable and keeps its identity', async ({ page })
   await row.locator('.lp-name').dblclick();
   await expect(row.locator('.lp-name')).toHaveText('Custom derived');
   await expect(row).toHaveAttribute('data-testid', id!);
-  await page.getByRole('button', { name: 'Undo' }).last().click();
+  await page.keyboard.press('Control+z');
   await expect(row.locator('.lp-name')).not.toHaveText('Custom derived');
   await page.keyboard.press('Control+Shift+z');
   await expect(row.locator('.lp-name')).toHaveText('Custom derived');

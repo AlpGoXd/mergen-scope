@@ -5,7 +5,7 @@ import { initialWorkspaceEngine, workspaceEngineReducer } from '../../src/stores
 it('keeps the action message and oversized status together without offering history', () => {
   const initial = initialWorkspaceEngine();
   const engine = {...initial,history:createTransactionHistory({maxBytes:100})};
-  const changed = workspaceEngineReducer(engine,{type:'change',toastMessage:'Removed trace',command:{slice:'ui',action:{type:'SET',payload:{key:'ip3Gain',value:'12345'}}}});
+  const changed = workspaceEngineReducer(engine,{type:'change',toastMessage:'Removed trace',toastKind:'delete',command:{slice:'ui',action:{type:'SET',payload:{key:'ip3Gain',value:'12345'}}}});
   expect(changed.toastMessage).toBe('Removed trace');
   expect(changed.historyNotice).toBe('oversized');
   expect(changed.history.past).toHaveLength(0);

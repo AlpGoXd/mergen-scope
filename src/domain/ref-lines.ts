@@ -23,12 +23,6 @@ export function linePaneXGroup(paneId: string, entries: readonly PlacementTrace[
   return first && groups.every(group => group === first) ? first : null;
 }
 
-export function linePlacementPanes(type: 'h' | 'v', paneId: string, panes: readonly PlacementPane[], entries: readonly PlacementTrace[], zoomAll: boolean): string[] {
-  const group = linePaneXGroup(paneId, entries);
-  if (type === 'h' || !zoomAll || !group) return [paneId];
-  return panes.filter(pane => pane.id === paneId || linePaneXGroup(pane.id, entries) === group).map(pane => pane.id);
-}
-
 export function canSetLinePanes(line: RefLine, paneIds: readonly string[], panes: readonly PlacementPane[], entries: readonly PlacementTrace[]): PlacementResult {
   if (new Set(paneIds).size !== paneIds.length) return { allowed: false, reason: 'A pane may only be listed once.' };
   if (line.type === 'h' && paneIds.length > 1) return { allowed: false, reason: 'H lines belong to one pane.' };

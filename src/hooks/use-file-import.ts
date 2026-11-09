@@ -84,6 +84,6 @@ export function useFileImport() {
       const existing=(workspaceInput?.snapshot.files ?? stateRef.current.files.files).find(file=>file.fileName===input.name);
       chosen.push({...input,choice,expectedFileId:choice==='replace' && existing ? String(existing.id) : undefined}); names.add(input.name);
     }
-    workspace.historyDispatch({type:'change',toastMessage:`Opened ${chosen.length} file${chosen.length === 1 ? '' : 's'}`,command:{slice:'open-data',inputs:chosen,targetPaneId,limit:limitRef.current,workspace:workspaceInput}});
+    workspace.historyDispatch({type:'change',toastMessage:`Opened ${chosen.length} file${chosen.length === 1 ? '' : 's'}`,toastKind:'opened',command:{slice:'open-data',inputs:chosen,targetPaneId,limit:limitRef.current,workspace:workspaceInput}});
   },[workspace.historyDispatch,workspace.dispatch]);
 }

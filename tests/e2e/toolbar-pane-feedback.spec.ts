@@ -14,7 +14,7 @@ for (const theme of ['light', 'dark'] as const) {
     await expect(add).toBeDisabled();
     await remove.click();
     await expect(add).toBeEnabled();
-    await page.getByRole('button', { name: 'Undo', exact: true }).last().click();
+    await page.keyboard.press('Control+z'); // removing an empty pane raises no toast
     await expect(add).toBeDisabled();
     await page.keyboard.press('Control+Shift+z');
     await expect(add).toBeEnabled();
@@ -61,7 +61,7 @@ test('incompatible removal confirms and keeps a paneless line out of the remaini
   await expect(pane2).toHaveCount(0);
   await expect(line).toContainText('Not in a pane');
   await expect(pane1.locator('.recharts-reference-line')).toHaveCount(before);
-  await page.getByRole('button',{name:'Undo',exact:true}).last().click();
+  await page.keyboard.press('Control+z'); // no toast when no trace moved
   await expect(pane2).toBeVisible();
   await expect(line).not.toContainText('Not in a pane');
   await page.keyboard.press('Control+Shift+z');

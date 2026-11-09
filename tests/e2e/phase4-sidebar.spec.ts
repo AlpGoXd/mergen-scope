@@ -32,7 +32,7 @@ test('section menu removes all markers with undo', async ({ page }) => {
   await page.getByRole('button', { name: 'Markers actions' }).click();
   await page.getByRole('menuitem', { name: 'Remove all', exact: true }).click();
   await expect(page.locator('[data-testid^="marker-row-"]')).toHaveCount(0);
-  await page.getByRole('button', { name: 'Undo' }).last().click();
+  await page.keyboard.press('Control+z');
   await expect(page.locator('[data-testid^="marker-row-"]')).toHaveCount(1);
 });
 
@@ -71,6 +71,6 @@ test('matrix quick picks add several views as one undoable action', async ({ pag
   await page.getByTestId('empty-chart-file-input').setInputFiles({ name: 'three.s3p', mimeType: 'text/plain', buffer: Buffer.from(data) });
   await page.getByRole('button', { name: 'All Sii' }).click();
   await expect(page.locator('[data-testid^="trace-row-"]')).toHaveCount(3);
-  await page.getByRole('button', { name: 'Undo' }).last().click();
+  await page.keyboard.press('Control+z');
   await expect(page.locator('[data-testid^="trace-row-"]')).toHaveCount(0);
 });

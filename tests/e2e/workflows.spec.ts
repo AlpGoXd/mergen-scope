@@ -169,7 +169,7 @@ test("reference-line placement creates, edits, and deletes sidebar state", async
   await refLine.getByRole("textbox").press("Enter");
   await expect(refLine.getByRole("textbox")).toHaveValue(/1\.420|1420400000/);
 
-  await refLine.getByRole("button", { name: "Remove V1" }).click();
+  await refLine.getByRole("button", { name: "Delete V1" }).click();
   await expect(page.getByTestId("ref-line-row-V1")).toHaveCount(0);
 });
 

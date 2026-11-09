@@ -5,6 +5,7 @@ import { FileRow as KitFileRow, Info, Matrix } from '../left-panel/FileRow';
 import type { FileFormat, MatrixView } from '../left-panel/types';
 import { Popover } from '../shared/Controls';
 import { Menu as KitMenu } from '../left-panel/Menu';
+import type { ToastKind } from '../../stores/toast-store';
 import { makeTraceColorResolver } from '../../domain/trace-colors';
 import { canPlaceMembership } from '../../domain/pane-placement';
 import { useMemo, useRef, useState, type ReactNode } from 'react';
@@ -30,7 +31,7 @@ import type { InterpolationStrategy } from '../../types/interpolation';
 import { TouchstoneMatrixPicker } from '../sidebar/TouchstoneMatrixPicker';
 import { TraceRow } from '../sidebar/LiveTraceRow';
 import { MarkerItem } from '../sidebar/LiveMarkerItem';
-import { RefLineItem } from '../sidebar/LiveRefLineItem';
+import { LiveLineRow } from '../sidebar/LiveLineRow';
 import { formatWithUnit } from '../sidebar/live-row-helpers';
 
 export interface SidebarProps {
@@ -47,7 +48,7 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
   const { files, rawFileData } = useFileState();
   const { allTraces, allKnownTraces, allDisplayTraces, vis } = useTraceState();
   const { markers, selectedMkrIdx } = useMarkerState();
-  const { refLines, selectedRefLineId } = useRefLineState();
+  const { refLines, selectedRefLineId, hoveredRefLineId, paneViews } = useRefLineState();
   const { selectedTraceName, showSidebar, traceColors } = useUiState();
   const { panes, activePaneId, tracePaneMap, zoomAll, sharedZoom, paneXZooms } = usePaneState();
 
@@ -93,12 +94,12 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
 
   // Removed toggleMetadata usage
 
-  const changeMarker = (action: MarkerAction, message: string) => {
-    if (aggregate) aggregate.historyDispatch({ type: 'change', toastMessage: message, command: { slice: 'markers', action } });
+  const changeMarker = (action: MarkerAction, message: string, toastKind?: ToastKind) => {
+    if (aggregate) aggregate.historyDispatch({ type: 'change', ...(toastKind ? { toastMessage: message, toastKind } : {}), command: { slice: 'markers', action } });
     else markerDispatch(action);
   };
-  const changeLine = (action: RefLineAction, message: string) => {
-    if (aggregate) aggregate.historyDispatch({ type: 'change', toastMessage: message, command: { slice: 'lines', action } });
+  const changeLine = (action: RefLineAction, message: string, toastKind?: ToastKind) => {
+    if (aggregate) aggregate.historyDispatch({ type: 'change', ...(toastKind ? { toastMessage: message, toastKind } : {}), command: { slice: 'lines', action } });
     else refLineDispatch(action);
   };
 
@@ -148,7 +149,7 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
     <LeftPanel width={effectiveWidth}>
         <PanelSection title="Files" count={files.length} actions={[{ label: 'Close all files…', disabled: !files.length, run: () => {
           const actions = files.map(file => ({ slice: 'files' as const, action: { type: 'REMOVE_FILE' as const, payload: { fileId: String(file.id) } } }));
-          if (aggregate) aggregate.historyDispatch({ type: 'change', toastMessage: `Closed ${files.length} files`, command: { slice: 'transaction', actions } });
+          if (aggregate) aggregate.historyDispatch({ type: 'change', toastMessage: `Closed ${files.length} files`, toastKind: 'close', command: { slice: 'transaction', actions } });
           else actions.forEach(item => fileDispatch(item.action));
         } }]} rightElement={
           <OpenButton onOpen={() => onOpenFiles?.()} />
@@ -178,14 +179,14 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
                           const entries = allKnownTraces.map(item => ({ trace: item, paneIds: tracePaneMap[item.name] ?? [], displayTrace: allDisplayTraces.find(itemDisplay => itemDisplay.id === item.id) }));
                           const result = canPlaceMembership({ trace: created, paneIds: [], displayTrace: added }, paneId, panes, entries);
                           if (!result.allowed) { uiDispatch({ type: 'SET', payload: { key: 'paneAssignmentWarning', value: { message: result.reason, paneId, traceName: created.name } } }); return; }
-                          if (aggregate) aggregate.historyDispatch({ type: 'change', toastMessage: 'Added trace', command: { slice: 'transaction', actions: [{ slice: 'files', action: fileAction }, { slice: 'panes', action: paneAction, limit }] } });
+                          if (aggregate) aggregate.historyDispatch({ type: 'change', command: { slice: 'transaction', actions: [{ slice: 'files', action: fileAction }, { slice: 'panes', action: paneAction, limit }] } });
                           else { appendCell(fileId, activeFamily, row + 1, col + 1, view); paneDispatch(paneAction); }
                           return;
                         }
                         const action = (tracePaneMap[trace.name] ?? []).includes(paneId)
                           ? { type: 'REMOVE_MEMBERSHIP' as const, payload: { traceName: trace.name, paneId } }
                           : { type: 'ADD_MEMBERSHIP' as const, payload: { trace, targetPaneId: paneId, allTraces: allKnownTraces, displayTraces: allDisplayTraces } };
-                        if (aggregate) aggregate.historyDispatch({ type: 'change', toastMessage: 'Updated trace panes', command: { slice: 'panes', action, limit } });
+                        if (aggregate) aggregate.historyDispatch({ type: 'change', command: { slice: 'panes', action, limit } });
                         else paneDispatch(action);
             };
 
@@ -213,7 +214,7 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
                   onReplace={onReplaceFile ? () => onReplaceFile(fileId) : undefined}
                   onRename={onRenameFile ? () => onRenameFile(fileId) : undefined}
                   onEdit={file.format === 'tabular' ? () => onEditColumns ? onEditColumns(fileId) : fileDispatch({ type: 'RERUN_WIZARD', payload: { fileId, fileName: file.fileName } }) : undefined}
-                  onVisibility={(visible) => { const traces = allTraces.filter(item => displayTraceLocationByLegacyName.get(item.name)?.fileId === fileId); const actions = traces.map(item => ({ slice: 'traces' as const, action: { type: 'SET_VISIBILITY' as const, name: item.name, visible } })); if (aggregate) aggregate.historyDispatch({ type: 'change', toastMessage: visible ? 'Showed file traces' : 'Hid file traces', command: { slice: 'transaction', actions } }); else actions.forEach(item => traceDispatch(item.action)); }}
+                  onVisibility={(visible) => { const traces = allTraces.filter(item => displayTraceLocationByLegacyName.get(item.name)?.fileId === fileId); const actions = traces.map(item => ({ slice: 'traces' as const, action: { type: 'SET_VISIBILITY' as const, name: item.name, visible } })); if (aggregate) aggregate.historyDispatch({ type: 'change', command: { slice: 'transaction', actions } }); else actions.forEach(item => traceDispatch(item.action)); }}
                   onInfo={() => setExpandedByFileId(prev => ({ ...prev, [fileId]: { ...prev[fileId], meta: !prev[fileId]?.meta } }))}
                   compact={compactSidebar}
                   showSummary={isMatrixTab || isMetaTab}
@@ -225,7 +226,7 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
                     const names = new Set([...file.traces.map(trace => trace.name), ...(file.displayTraces ?? []).map(display => display.compat?.legacyTraceName ?? display.id)]);
                     if (((file.displayTraces?.length ?? file.traces.length) > 1 || markers.some(marker => names.has(marker.trace))) && !window.confirm(`Remove ${file.fileName} and its traces?`)) return;
                     const action = {type:'REMOVE_FILE' as const,payload:{fileId}};
-                    if (aggregate) aggregate.historyDispatch({type:'change',toastMessage:`Removed ${file.fileName}`,command:{slice:'files',action}});
+                    if (aggregate) aggregate.historyDispatch({type:'change',toastMessage:`Closed ${file.fileName}`,toastKind:'close',command:{slice:'files',action}});
                     else fileDispatch(action);
                   }}
                 />
@@ -285,7 +286,7 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
                           }
                           if (trace) apply({ slice: 'panes', limit, action: { type: 'ADD_MEMBERSHIP', payload: { trace, targetPaneId: paneId, allTraces: currentView.allKnownTraces, displayTraces: currentView.allDisplayTraces } } });
                         }
-                        if (actions.length) aggregate.historyDispatch({ type: 'change', toastMessage: `${pick} matrix views`, command: { slice: 'transaction', actions } });
+                        if (actions.length) aggregate.historyDispatch({ type: 'change', command: { slice: 'transaction', actions } });
                       }} disabled={!aggregate} title={!aggregate ? 'Batch actions require workspace history' : pick}>{pick === 'Lower' ? 'Lower \u25e3' : pick}</button>)}
                     </div>}
                       grid={<div style={{ marginLeft: file.touchstoneNetwork.portCount <= 2 ? 51 : 0, maxWidth: file.touchstoneNetwork.portCount <= 2 ? 168 : undefined }}><TouchstoneMatrixPicker
@@ -340,7 +341,7 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
 
         {files.length > 0 && <>
         <PanelSection title="Traces" count={allTraces.length} actions={[
-          ...([true, false] as const).map(visible => ({ label: visible ? 'Show all' : 'Hide all', disabled: !allTraces.length, run: () => { const actions = allTraces.map(trace => ({ slice: 'traces' as const, action: { type: 'SET_VISIBILITY' as const, name: trace.name, visible } })); if (aggregate) aggregate.historyDispatch({ type: 'change', toastMessage: visible ? 'Showed all traces' : 'Hid all traces', command: { slice: 'transaction', actions } }); else actions.forEach(item => traceDispatch(item.action)); } })),
+          ...([true, false] as const).map(visible => ({ label: visible ? 'Show all' : 'Hide all', disabled: !allTraces.length, run: () => { const actions = allTraces.map(trace => ({ slice: 'traces' as const, action: { type: 'SET_VISIBILITY' as const, name: trace.name, visible } })); if (aggregate) aggregate.historyDispatch({ type: 'change', command: { slice: 'transaction', actions } }); else actions.forEach(item => traceDispatch(item.action)); } })),
         ]}>
           <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 2, minWidth: 0 }}>
             {allTraces.length > 0 && <TraceColumnsHeader />}
@@ -376,7 +377,7 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
                   else if (location) actions.push({ slice: 'files', action: { type: 'SET_DISPLAY_TRACE_INTERPOLATION', payload: { ...location, interpolation } } });
                 }
                 if (!actions.length) return;
-                if (aggregate) aggregate.historyDispatch({ type: 'change', toastMessage: 'Changed interpolation', command: { slice: 'transaction', actions } });
+                if (aggregate) aggregate.historyDispatch({ type: 'change', ...(allFile ? { toastMessage: 'Applied interpolation to all traces of the file', toastKind: 'apply-all' as const } : {}), command: { slice: 'transaction', actions } });
                 else actions.forEach(item => { if (item.slice === 'markers') markerDispatch(item.action); else if (item.slice === 'traces') traceDispatch(item.action); else if (item.slice === 'files') fileDispatch(item.action); });
               };
               const sourceFile = displayTraceLocation ? files.find(file => String(file.id) === displayTraceLocation.fileId) : undefined;
@@ -399,14 +400,14 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
                   newPaneDisabledReason={panes.length >= limit ? `The current limit is ${limit} panes.` : undefined}
                   onNewPane={() => {
                     const action = { type: 'CREATE_PANE_WITH_TRACE' as const, payload: { trace, allTraces: allKnownTraces, displayTraces: allDisplayTraces } };
-                    if (aggregate) aggregate.historyDispatch({ type: 'change', toastMessage: 'Added pane with trace', command: { slice: 'panes', action, limit } });
+                    if (aggregate) aggregate.historyDispatch({ type: 'change', toastMessage: 'Added pane with trace', toastKind: 'moved', command: { slice: 'panes', action, limit } });
                     else paneDispatch(action);
                   }}
                   onTogglePane={(paneId) => {
                     const action = (tracePaneMap[trace.name] ?? []).includes(paneId)
                       ? { type: 'REMOVE_MEMBERSHIP' as const, payload: { traceName: trace.name, paneId } }
                       : { type: 'ADD_MEMBERSHIP' as const, payload: { trace, targetPaneId: paneId, allTraces: allKnownTraces, displayTraces: allDisplayTraces } };
-                    if (aggregate) aggregate.historyDispatch({ type: 'change', toastMessage: 'Updated trace panes', command: { slice: 'panes', action, limit } });
+                    if (aggregate) aggregate.historyDispatch({ type: 'change', command: { slice: 'panes', action, limit } });
                     else paneDispatch(action);
                   }}
                   traceColor={traceColor}
@@ -416,10 +417,10 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
                     if (!label || label === trace.dn) return;
                     if (trace.kind === 'derived') {
                       const action = { type: 'RENAME_DERIVED' as const, payload: { traceId: trace.id, label } };
-                      if (aggregate) aggregate.historyDispatch({ type: 'change', toastMessage: 'Renamed trace', command: { slice: 'traces', action } }); else traceDispatch(action);
+                      if (aggregate) aggregate.historyDispatch({ type: 'change', command: { slice: 'traces', action } }); else traceDispatch(action);
                     } else if (displayTraceLocation) {
                       const action = { type: 'RENAME_DISPLAY_TRACE' as const, payload: { ...displayTraceLocation, label } };
-                      if (aggregate) aggregate.historyDispatch({ type: 'change', toastMessage: 'Renamed trace', command: { slice: 'files', action } }); else fileDispatch(action);
+                      if (aggregate) aggregate.historyDispatch({ type: 'change', command: { slice: 'files', action } }); else fileDispatch(action);
                     }
                   }}
                   onRemove={() => { if (markers.some(marker => marker.trace === trace.name) && !window.confirm(`Remove ${trace.dn} and its markers?`)) return; removeTrace(trace); }}
@@ -427,7 +428,7 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
                   onColorChange={(color) => {
                     const next = { ...traceColors, [trace.name]: color };
                     const action = { type: 'SET' as const, payload: { key: 'traceColors' as const, value: next } };
-                    if (aggregate) aggregate.historyDispatch({ type: 'change', toastMessage: 'Changed trace color', command: { slice: 'ui', action } }); else uiDispatch(action);
+                    if (aggregate) aggregate.historyDispatch({ type: 'change', command: { slice: 'ui', action } }); else uiDispatch(action);
                   }}
                   interpolation={effectiveInterpolation}
                   sincDisabledReason={sincDisabledReason}
@@ -451,7 +452,7 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
           <PanelSection 
             title="Markers" 
             count={markers.length}
-            actions={[{ label: 'Remove all', disabled: !markers.length, run: () => { const action = { type: 'CLEAR_ALL' as const }; if (aggregate) aggregate.historyDispatch({ type: 'change', toastMessage: 'Removed all markers', command: { slice: 'markers', action } }); else markerDispatch(action); } }]}
+            actions={[{ label: 'Remove all', disabled: !markers.length, run: () => { const action = { type: 'CLEAR_ALL' as const }; if (aggregate) aggregate.historyDispatch({ type: 'change', toastMessage: 'Removed all markers', toastKind: 'delete', command: { slice: 'markers', action } }); else markerDispatch(action); } }]}
           >
             <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: '4px', minWidth: 0 }}>
               {markers.map((marker, index) => {
@@ -479,7 +480,7 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
                     onHover={(hovered) => setHoveredMarkerId(hovered ? marker.id : null)}
                     paneNumbers={(tracePaneMap[marker.trace] ?? []).map(id => panes.findIndex(pane => pane.id === id) + 1).filter(n => n > 0)}
                     onSelect={() => { markerDispatch({ type: 'SET_SELECTED_IDX', payload: index }); selectTrace(marker.trace); }}
-                    onRemove={() => changeMarker({ type: 'REMOVE_MARKER', payload: index }, 'Removed marker')}
+                    onRemove={() => changeMarker({ type: 'REMOVE_MARKER', payload: index }, 'Removed marker', 'delete')}
                     compact={compactSidebar}
                     paneNumber={paneNumber}
                     refMarker={refMarker}
@@ -520,7 +521,7 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
 
           <PanelSection title="Lines" count={refLines.length} actions={[{ label: 'Remove all', disabled: !refLines.length, run: () => {
             const actions = refLines.map(line => ({ slice: 'lines' as const, action: { type: 'REMOVE_LINE' as const, payload: line.id } }));
-            if (aggregate) aggregate.historyDispatch({ type: 'change', toastMessage: 'Removed all lines', command: { slice: 'transaction', actions } });
+            if (aggregate) aggregate.historyDispatch({ type: 'change', toastMessage: 'Removed all lines', toastKind: 'delete', command: { slice: 'transaction', actions } });
             else actions.forEach(item => refLineDispatch(item.action));
           } }]}>
             <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: '4px', minWidth: 0 }}>
@@ -531,32 +532,23 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
                     const paneTraces = allTraces.filter(t => tracePaneMap[t.name]?.some(id => refLine.paneIds.includes(id)));
                     const intersections = computeLineIntersections(refLine, refLines, allTraces, tracePaneMap, vis);
                     return (
-                      <RefLineItem
+                      <LiveLineRow
                         key={refLine.id}
                         refLine={refLine}
-                        isSelected={selectedRefLineId === refLine.id}
+                        lit={(hoveredRefLineId ?? selectedRefLineId) === refLine.id}
+                        onHover={hovered => refLineDispatch({ type: 'SET_HOVERED', payload: hovered ? refLine.id : null })}
                         intersections={intersections}
-                        allPanes={panes}
-                        linkedPaneIds={[...refLine.paneIds]}
-                        onList={onThresholdCrossings ? () => onThresholdCrossings(refLine.id) : undefined}
+                        panes={panes}
+                        paneViews={paneViews}
+                        entries={allKnownTraces.map(trace => ({ trace, paneIds: tracePaneMap[trace.name] ?? [], displayTrace: allDisplayTraces.find(display => display.id === trace.id || display.id === trace.parameters?.['displayTraceId']) }))}
+                        onList={() => onThresholdCrossings?.(refLine.id)}
                         onSelect={() => {
                           refLineDispatch({ type: 'SET_SELECTED', payload: refLine.id });
                           markerDispatch({ type: 'SET_SELECTED_IDX', payload: -1 });
                         }}
-                        onRemove={() => changeLine({ type: 'REMOVE_LINE', payload: refLine.id }, 'Removed line')}
-                        onUpdateValue={(value) => {
-                          changeLine({ type: 'UPDATE_LINE', payload: { id: refLine.id, updates: { value } } }, 'Moved line');
-                        }}
-                        siblingLines={refLines.filter(l => l.type === refLine.type && l.paneIds.some(id => refLine.paneIds.includes(id)) && l.id !== refLine.id)}
-                        onUpdateDeltaPartner={(partnerId) => refLineDispatch({ type: 'UPDATE_LINE', payload: { id: refLine.id, updates: { deltaPartnerId: partnerId } } })}
+                        changeLine={changeLine}
                         selectedTrace={paneTraces.find(trace => trace.name === selectedTraceName) ?? paneTraces[0] ?? selectedTrace}
                         xSpan={getVisibleXSpanForPaneId(refLine.paneIds[0] ?? null)}
-                        compact={compactSidebar}
-                        colors={colors}
-                        resolveTraceColor={(name) => {
-                          const t = allTraces.find((tr) => tr.name === name);
-                          return t ? resolveTraceColor(t, allTraces.indexOf(t)) : 'var(--accent)';
-                        }}
                       />
                     );
                   });

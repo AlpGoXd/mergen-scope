@@ -11,7 +11,8 @@ import { useAnalysisDispatch } from '../../../stores/analysis-store';
 import { AnalysisFeatureCard } from '../AnalysisFeatureCard';
 import { CrossingsView } from './CrossingsView';
 
-export const LineCrossingsContext = createContext<{ lineId: number | null; setLineId: (id: number | null) => void }>({ lineId: null, setLineId: () => {} });
+/** `listCrossings` opens the "V1 crossings" card for a line (App provides it; used by the sidebar row and the chart's context menu). */
+export const LineCrossingsContext = createContext<{ lineId: number | null; setLineId: (id: number | null) => void; listCrossings?: (lineId: number) => void }>({ lineId: null, setLineId: () => {} });
 
 export function ThresholdCrossingsCard() {
   const { lineId, setLineId } = useContext(LineCrossingsContext);

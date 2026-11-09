@@ -173,9 +173,28 @@ Done and verified: `RefLine.paneIds[]` replaces `paneId` / `paneless` / `groupId
 
 | Item | Class | Target |
 | --- | --- | --- |
-| Pane removal (the "remove last pane" command) moves a line's only membership to a compatible pane with the same X unit instead of leaving it "not in a pane"; board 37-P4c step 07 says a line whose last pane is closed stays and says "Not in a pane". The relocation matches the earlier reviewed behaviour and the trace relocation rule. Decision needed: relocate (current) or leave unplaced | Product question | Before the lines kit lands |
+| Closing a pane: **decided (10 November) — a line behaves like a trace.** Its copy in the closed pane is dropped; if that was its only pane, the line moves to the nearest compatible pane (same X unit for V lines, same Y unit for H lines; visual order, previous pane first) and is "Not in a pane" only when none exists. Board 37-P4c step 07 ("not in a pane" when its last pane is closed) is read as the no-compatible-pane case. Implemented in `planLastPaneLines` / `remove-last-pane`; covered by `toolbar-pane-removal` tests | Decided, done | Phase 3 data model |
 | Undo/Redo restores lines but not which line was selected (selection resets to none) | Deferred | Phase 5C |
 | A v5 line carrying both old and new fields, or a crafted legacy horizontal group, or an old group member naming a removed pane, is rejected or only partly merged; labels of merged groups are not de-duplicated; `paneIds` order follows the `panes` array, not `layout.paneOrder`, and adding a pane appends | Edge cases, deferred | Phase 8 audit |
 | The legacy `restoreSnapshot` helper (unused by the app) does not remap the selected line id | Deferred | Phase 8 audit |
 | `src/components/sidebar/RefLineItem.tsx` is dead code that still contains link UI strings; remove it with the line row kit | Cleanup | With the lines kit |
 | Multi-pane Show-in editing UI (badges menu), removal of one copy, "V1 · 2" label, edge tag and right-click menu have no UI yet; the reducer actions `ADD_LINE_PANE`, `REMOVE_LINE_PANE`, `SET_LINE_PANES` exist and are unit-tested | Waiting for the kit | Phase 4 / 5C |
+
+## Lines presentation (kit/lines, 10 November)
+
+Integrated: the kit's `LineRow` in the Lines section (`LiveLineRow`), Show in (shared checklist, `PopoverAt`), right-click menu on a line or its label, `ChartLine` / `CrossingDot` / `EdgeTag` in every pane (`LinesLayer.tsx`), one hovered-or-selected line id (`hoveredRefLineId`, transient, never undone or saved) that lights every copy, its edge tags and its row, drag of any copy, Undo toasts, per-pane visible ranges (`paneViews`) feeding "off view" text and edge tags. Differences against the kit demo and board 37-P4c are in [lines-evidence](lines-evidence/README.md). Open:
+
+| Remaining work | Target phase | Status |
+| --- | --- | --- |
+| Stack or avoid overlapping labels of close V lines; ΔX / ΔY delta brackets between lines; "Edit value..." when the left panel is hidden | Phase 5C | Deferred |
+| "V1 crossings" grouped by pane with the current-row dot highlight | Phase 7C | Deferred |
+| Screenshot of the not-in-a-pane row state and the invalid-value tint | Phase 8 audit | Deferred |
+
+## Bug and rule fixes after testing (10 November)
+
+Done and covered by tests: a line is placed only in the clicked pane (no X-link rule, nothing added automatically, not even to new panes; `line-membership.spec.ts`, `line-membership.test.ts`); lines land at the cursor in any pane and view (`line-cursor.spec.ts`: V and H, pane 1 and 2, auto and zoomed). Root cause of the H-line miss: pixel to value maths in `ChartPane.tsx` used fixed layout constants (margins, a 35 px x-axis height) and, for auto scale, a padded estimate of the Y domain; it now uses the plot rectangle and scale domains the lines layer reports. Right-click: a line or its label opens its own menu, an empty chart cancels an armed tool, the browser menu never shows on a chart (`line-context-menu.spec.ts`). Toast policy (spec-v3, Toasts): only delete, closing a file, Apply to all, moved traces and opened files; one toast at a time; no history notices (`toast-policy.test.tsx`, `toasts.spec.ts`). Open:
+
+| Remaining work | Target phase | Status |
+| --- | --- | --- |
+| A right-click that starts on a line after a drag (right-drag X zoom released over a line) would also open the line menu | Phase 5C | Deferred; not reproduced |
+| `historyNotice` ('pruned', 'oversized') is still computed in the engine for tests but never shown; remove it when the history work is next touched | Phase 8 audit | Deferred |

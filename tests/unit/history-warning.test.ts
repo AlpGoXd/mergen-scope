@@ -17,7 +17,7 @@ describe('history notices', () => {
     expect(engine.history.future).toHaveLength(0);
     expect(engine.history.past).toHaveLength(2);
     expect(engine.historyNotice).toBeNull();
-    expect(engine.toastMessage).toBe('Updated trace panes');
+    expect(engine.toastMessage).toBeUndefined(); // a toggle-like change has no toast kind, so it stays silent
     engine = workspaceEngineReducer(engine, { type: 'undo' });
     expect(engine.present.ui.ip3Gain).toBe('1');
   });

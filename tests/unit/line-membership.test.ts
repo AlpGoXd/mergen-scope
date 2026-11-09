@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addLinePane, linePlacementPanes, removeLinePane } from '../../src/domain/ref-lines';
+import { addLinePane, removeLinePane } from '../../src/domain/ref-lines';
 import { defaultPaneSettings } from '../../src/types/pane';
 import type { RefLine } from '../../src/types/ref-line';
 import { initialWorkspaceEngine, workspaceEngineReducer } from '../../src/stores/aggregate-workspace-store';
@@ -12,10 +12,13 @@ const entries = [{ trace: hz, paneIds: ['pane-1', 'pane-2'] }, { trace: time, pa
 const line: RefLine = { id: 1, type: 'v', value: 5, label: 'V1', paneIds: ['pane-1'] };
 
 describe('line pane memberships', () => {
-  it('places V lines in shared X groups only when X zoom is shared', () => {
-    expect(linePlacementPanes('v', 'pane-1', panes, entries, true)).toEqual(['pane-1', 'pane-2']);
-    expect(linePlacementPanes('v', 'pane-1', panes, entries, false)).toEqual(['pane-1']);
-    expect(linePlacementPanes('h', 'pane-1', panes, entries, true)).toEqual(['pane-1']);
+  it('never adds a line to other panes by itself: a new pane gets no lines and a line keeps only the pane it was placed in', () => {
+    let state = initialWorkspaceEngine().present;
+    state = workspaceEngineReducer({ ...initialWorkspaceEngine(), present: state }, { type: 'change', command: { slice: 'panes', limit: 4, action: { type: 'SET_PANE_COUNT', payload: 2, limit: 4 } } }).present;
+    const placed = workspaceEngineReducer({ ...initialWorkspaceEngine(), present: state }, { type: 'change', command: { slice: 'lines', action: { type: 'ADD_LINE', payload: { id: 1, type: 'v', value: 5, label: 'V1', paneIds: ['pane-1'] } } } }).present;
+    const more = workspaceEngineReducer({ ...initialWorkspaceEngine(), present: placed }, { type: 'change', command: { slice: 'panes', limit: 4, action: { type: 'SET_PANE_COUNT', payload: 4, limit: 4 } } }).present;
+    expect(more.panes.panes).toHaveLength(4);
+    expect(more.lines.refLines.map(item => item.paneIds)).toEqual([['pane-1']]);
   });
 
   it('rejects incompatible panes and horizontal extensions with a reason', () => {

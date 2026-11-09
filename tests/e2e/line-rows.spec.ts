@@ -1,0 +1,34 @@
+import { expect, test } from '@playwright/test';
+import { resolve } from 'path';
+
+test('line pane membership and deletion can be undone', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/app.html');
+  await page.getByTestId('empty-chart-file-input').setInputFiles(resolve('test files/cascade_ip3_-12dBm.DAT'));
+  await page.getByRole('button', { name: '+ Pane', exact: true }).click();
+  const trace = page.locator('[data-testid^="trace-row-"]').first();
+  await trace.getByTitle('Show in panes').click();
+  await trace.getByRole('menu', { name: 'Show in' }).getByRole('menuitemcheckbox', { name: /Pane 2/ }).click();
+  await page.keyboard.press('Escape');
+  await page.getByRole('button', { name: 'V-Line' }).click();
+  await page.getByTestId('chart-plot-pane-1').click({ position: { x: 260, y: 60 } });
+  const row = page.getByTestId('ref-line-row-V1');
+  await expect(row).toContainText('Shown in P1');
+  await expect(row).not.toContainText('P2');
+  await row.getByRole('button', { name: 'V1: Show in…' }).click();
+  await row.getByRole('menuitemcheckbox', { name: /Pane 2/ }).click();
+  await page.keyboard.press('Escape');
+  await expect(row).toContainText('Shown in P1, P2');
+  await row.getByRole('button', { name: 'V1: Show in…' }).click();
+  await row.getByRole('menuitemcheckbox', { name: /Pane 2/ }).click();
+  await expect(row).toContainText('Shown in P1 ·');
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Control+z');
+  await expect(row).toContainText('Shown in P1, P2');
+  await row.getByRole('button', { name: 'Delete V1' }).click();
+  await expect(row).toHaveCount(0);
+  await page.getByRole('button', { name: 'Undo', exact: true }).last().click();
+  await expect(row).toBeVisible();
+  await row.hover();
+  await expect(row.locator('.ln-row')).toHaveClass(/is-lit/);
+});

@@ -125,7 +125,7 @@ export function ToolbarStrip() {
     {
       const destinations = [...new Set(moved.map(move => panes.find(pane => pane.id === move.to)?.title || move.to))];
       const message = moved.length ? `${moved.length} trace${moved.length === 1 ? '' : 's'} moved to ${destinations.join(', ')}` : 'Pane removed';
-      aggregate.historyDispatch({ type: 'change', command: { slice: 'remove-last-pane', targetPaneId: removed.id, expectedRevision: aggregate.state.revision, confirmed: unplaced.length > 0 || linePlan.length > 0, limit }, toastMessage: message });
+      aggregate.historyDispatch({ type: 'change', command: { slice: 'remove-last-pane', targetPaneId: removed.id, expectedRevision: aggregate.state.revision, confirmed: unplaced.length > 0 || linePlan.length > 0, limit }, ...(moved.length ? { toastMessage: message, toastKind: 'moved' as const } : {}) });
     }
   };
   return <div onKeyDown={event => {

@@ -25,7 +25,7 @@ for (const theme of ['light', 'dark'] as const) {
     if (process.env.PANE_MENU_CAPTURE) await menu.screenshot({ path: `docs/redesign/pane-menu-evidence/${theme}.png`, scale: 'device', animations: 'disabled' });
     await page.keyboard.press('Escape');
     await expect(menu).toHaveCount(0);
-    await page.getByRole('button', { name: 'Undo' }).last().click();
+    await page.keyboard.press('Control+z');
     await row.getByTitle('Show in panes').click();
     await expect(pane2).not.toBeChecked();
   });

@@ -67,6 +67,37 @@ export function Popover({ label, children }: { label: string; children: React.Re
   useEffect(() => { if (!open || !ref.current || !popup.current) return; const position = () => { if (ref.current && popup.current) placePopup(ref.current, popup.current); }; position(); window.addEventListener('resize', position); window.addEventListener('scroll', position, true); const close = (e: PointerEvent) => { if (!root.current?.contains(e.target as Node)) setOpen(false); }; document.addEventListener('pointerdown', close); return () => { document.removeEventListener('pointerdown', close); window.removeEventListener('resize', position); window.removeEventListener('scroll', position, true); }; }, [open]);
   return <div ref={root} className="ui-menu-root" onKeyDown={e => { if (e.key === 'Escape' && open) { e.preventDefault(); e.stopPropagation(); setOpen(false); ref.current?.focus(); } }}><button type="button" ref={ref} className="ui-btn ui-btn--neutral" aria-expanded={open} onClick={() => setOpen(!open)}>{label}</button>{open && <div ref={popup} className="ui-popover">{children}</div>}</div>;
 }
+/**
+ * Controlled popup at an anchor element or a pointer position (context menus, badge menus).
+ * Same surface, positioning and dismissal as Popover: outside press, Escape, resize and scroll close it.
+ */
+export function PopoverAt({ label, at, onClose, children }: { label: string; at: HTMLElement | { x: number; y: number }; onClose: () => void; children: React.ReactNode }) {
+  const popup = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = popup.current; if (!el) return;
+    el.style.maxWidth = `${Math.max(0, window.innerWidth - 8)}px`; el.style.maxHeight = `${Math.max(0, window.innerHeight - 8)}px`;
+    if (at instanceof HTMLElement) { placePopup(at, el); }
+    else {
+      const p = el.getBoundingClientRect();
+      el.style.left = `${Math.max(4, Math.min(at.x, window.innerWidth - p.width - 4))}px`;
+      el.style.top = `${Math.max(4, Math.min(at.y, window.innerHeight - p.height - 4))}px`;
+    }
+    el.querySelector<HTMLElement>('[role^=menuitem]:not([aria-disabled=true])')?.focus({ preventScroll: true });
+  }, [at]);
+  useEffect(() => {
+    const press = (e: PointerEvent) => { if (!popup.current?.contains(e.target as Node)) onClose(); };
+    const key = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); onClose(); } };
+    document.addEventListener('pointerdown', press, true); document.addEventListener('keydown', key, true);
+    // An anchored popup follows its anchor; a pointer-placed one closes when the page moves under it.
+    const move = (e: Event) => {
+      if (popup.current?.contains(e.target as Node)) return;
+      if (at instanceof HTMLElement && popup.current) placePopup(at, popup.current); else onClose();
+    };
+    window.addEventListener('resize', move); window.addEventListener('scroll', move, true);
+    return () => { document.removeEventListener('pointerdown', press, true); document.removeEventListener('keydown', key, true); window.removeEventListener('resize', move); window.removeEventListener('scroll', move, true); };
+  }, [onClose, at]);
+  return <div ref={popup} className="ui-popover" role="presentation" aria-label={label}>{children}</div>;
+}
 export function MessageBar({ status, children }: { status: 'danger' | 'warning' | 'success' | 'info'; children: React.ReactNode }) { const icon = status === 'danger' ? 'error' : status === 'success' ? 'check' : status; return <div className={`ui-message ui-message--${status}`} role={status === 'danger' ? 'alert' : 'status'}><Icon name={icon} /><span>{children}</span></div>; }
 
 export function Dialog({ open, title, children, confirmLabel, onConfirm, onClose, secondary, danger = false }: { open: boolean; title: string; children: React.ReactNode; confirmLabel: string; onConfirm: () => void; onClose: () => void; secondary?: { label: string; onClick: () => void }; danger?: boolean }) {

@@ -1,6 +1,6 @@
 // Trace row (C02), marker item (C01) and line row (L1).
 import type { CSSProperties, ReactElement } from 'react';
-import type { LineRowProps, MarkerItemProps, TraceRowProps } from './types';
+import type { MarkerItemProps, TraceRowProps } from './types';
 
 const hueStyle = (hue: number): CSSProperties => ({ ['--h' as string]: hue }) as CSSProperties;
 
@@ -14,7 +14,6 @@ export function TraceColumnsHeader(): ReactElement {
     </div>
   );
 }
-
 export function TraceRow(p: TraceRowProps): ReactElement {
   const unplaced = p.panes.length === 0;
   const cls = ['lp-trace', p.selected ? 'is-selected' : '', p.visible ? '' : 'is-hidden', unplaced ? 'is-unplaced' : '', p.created ? 'is-created' : ''].join(' ').replace(/\s+/g, ' ').trim();
@@ -43,7 +42,6 @@ export function TraceRow(p: TraceRowProps): ReactElement {
     </div>
   );
 }
-
 export function MarkerItem(p: MarkerItemProps): ReactElement {
   const cls = ['lp-marker', p.delta ? 'is-delta' : '', p.selected ? 'is-selected' : '', p.related ? 'is-related' : ''].join(' ').replace(/\s+/g, ' ').trim();
   return (
@@ -74,19 +72,3 @@ export function MarkerItem(p: MarkerItemProps): ReactElement {
   );
 }
 
-export function LineRow(p: LineRowProps): ReactElement {
-  return (
-    <div className="lp-line">
-      <div className="lp-row">
-        <span className="lp-tag lp-tag--line">{p.label}</span>
-        <input className={`lp-input${p.invalid ? ' is-invalid' : ''}`} aria-invalid={p.invalid || undefined} defaultValue={p.value} aria-label={`${p.label} value`}
-          onKeyDown={(e) => { if (e.key === 'Enter') p.onValue(e.currentTarget.value); }} />
-        <button type="button" className="lp-icon-btn" aria-label={`Remove ${p.label}`} onClick={p.onRemove}>×</button>
-      </div>
-      <div className="lp-sub">
-        <span className="lp-sub__text">{p.summary}</span>
-        <button type="button" className="lp-link" style={{ fontSize: 10.5 }} onClick={p.onListCrossings}>List…</button>
-      </div>
-    </div>
-  );
-}

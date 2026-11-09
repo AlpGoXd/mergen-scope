@@ -9,7 +9,7 @@ test('apply interpolation to a file is one undoable change', async ({ page }) =>
  await page.getByRole('menuitemcheckbox', { name: /Previous/ }).click();
  await page.getByRole('button', { name: 'Apply to all traces from this file' }).click();
  await expect(rows.nth(1).getByRole('button', { name: 'Prev', exact: true })).toBeVisible();
- await page.getByRole('button', { name: 'Undo' }).last().click();
+ await page.keyboard.press('Control+z');
  await expect(rows.nth(1).getByRole('button', { name: 'Lin', exact: true })).toBeVisible();
  await expect(rows.first().getByRole('button', { name: 'Prev', exact: true })).toBeVisible();
 });

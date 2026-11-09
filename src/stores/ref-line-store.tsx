@@ -3,10 +3,17 @@ import type { RefLine } from '../types/ref-line';
 import { addLinePane, removeLinePane, setLinePanes } from '../domain/ref-lines';
 import type { PlacementPane, PlacementTrace } from '../domain/pane-placement';
 
+/** Visible range of one pane in axis units (null = unknown). Published by the pane for line views; never saved or undone. */
+export interface PaneView { x: readonly [number, number] | null; y: readonly [number, number] | null }
+
 export interface RefLineState {
   refLines: RefLine[];
   refMode: "h" | "v" | null;
   selectedRefLineId: number | null;
+  /** The one line (hovered row, chart copy or edge tag) that lights every copy, its edge tags and its row. Transient. */
+  hoveredRefLineId: number | null;
+  /** Transient: current visible ranges per pane. */
+  paneViews: Readonly<Record<string, PaneView>>;
 }
 
 export type RefLineAction =
@@ -15,6 +22,8 @@ export type RefLineAction =
   | { type: 'UPDATE_LINE'; payload: { id: number; updates: Partial<RefLine> } }
   | { type: 'SET_MODE'; payload: "h" | "v" | null }
   | { type: 'SET_SELECTED'; payload: number | null }
+  | { type: 'SET_HOVERED'; payload: number | null }
+  | { type: 'SET_PANE_VIEW'; payload: { paneId: string; view: PaneView | null } }
   | { type: 'CLEANUP_ORPHANED_LINES'; payload: { paneIds: string[] } }
   | { type: 'ADD_LINE_PANE'; payload: { lineId: number; paneId: string; panes: readonly PlacementPane[]; entries: readonly PlacementTrace[] } }
   | { type: 'REMOVE_LINE_PANE'; payload: { lineId: number; paneId: string; axisUnit?: string | null } }
@@ -25,6 +34,8 @@ export const defaultRefLineState: RefLineState = {
   refLines: [],
   refMode: null,
   selectedRefLineId: null,
+  hoveredRefLineId: null,
+  paneViews: {},
 };
 
 export const RefLineStateContext = createContext<RefLineState | null>(null);
@@ -62,6 +73,21 @@ export function refLineReducer(state: RefLineState, action: RefLineAction): RefL
     }
     case 'SET_SELECTED': {
       return { ...state, selectedRefLineId: action.payload };
+    }
+    case 'SET_HOVERED': {
+      return state.hoveredRefLineId === action.payload ? state : { ...state, hoveredRefLineId: action.payload };
+    }
+    case 'SET_PANE_VIEW': {
+      const { paneId, view } = action.payload;
+      const old = state.paneViews[paneId];
+      const same = (a: readonly [number, number] | null | undefined, b: readonly [number, number] | null | undefined) => (a ?? null) === (b ?? null) || (!!a && !!b && a[0] === b[0] && a[1] === b[1]);
+      if (view === null) {
+        if (!old) return state;
+        const { [paneId]: _removed, ...rest } = state.paneViews;
+        return { ...state, paneViews: rest };
+      }
+      if (old && same(old.x, view.x) && same(old.y, view.y)) return state;
+      return { ...state, paneViews: { ...state.paneViews, [paneId]: view } };
     }
     case 'CLEANUP_ORPHANED_LINES': {
       const activePanes = new Set(action.payload.paneIds);

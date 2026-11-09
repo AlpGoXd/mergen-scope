@@ -3,7 +3,7 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import { expect, it } from 'vitest';
 import { AggregateWorkspaceProvider, initialWorkspaceState, snapshotFromWorkspace, workspaceFromSnapshot, workspaceReducer, useAggregateWorkspace } from '../../src/stores/aggregate-workspace-store';
 import { Sidebar } from '../../src/components/layout/Sidebar';
-import { RefLineItem } from '../../src/components/sidebar/LiveRefLineItem';
+import { LiveLineRow } from '../../src/components/sidebar/LiveLineRow';
 import { makeTestTrace } from './helpers';
 
 it('edits and removes paneless linked rows independently with undo, and preserves them when removing the placed group', async () => {
@@ -23,11 +23,11 @@ it('edits and removes paneless linked rows independently with undo, and preserve
   await waitFor(()=>expect(workspace.state.lines.refLines.map(line=>line.value)).toEqual([1,3]));
   act(()=>workspace.historyDispatch({type:'undo'}));
   await waitFor(()=>expect(workspace.state.lines.refLines.map(line=>line.value)).toEqual([1,2]));
-  fireEvent.click(within(screen.getByTestId('ref-line-row-V2')).getByRole('button',{name:'Remove V2'}));
+  fireEvent.click(within(screen.getByTestId('ref-line-row-V2')).getByRole('button',{name:'Delete V2'}));
   await waitFor(()=>expect(workspace.state.lines.refLines.map(line=>line.id)).toEqual([1]));
   act(()=>workspace.historyDispatch({type:'undo'}));
   await waitFor(()=>expect(workspace.state.lines.refLines.map(line=>line.id)).toEqual([1,2]));
-  fireEvent.click(within(screen.getByTestId('ref-line-row-V1')).getByRole('button',{name:'Remove V1'}));
+  fireEvent.click(within(screen.getByTestId('ref-line-row-V1')).getByRole('button',{name:'Delete V1'}));
   await waitFor(()=>expect(workspace.state.lines.refLines).toMatchObject([{id:2,value:2,paneIds:[]}]));
   act(()=>workspace.historyDispatch({type:'change',command:{slice:'panes',limit:4,action:{type:'SET_PANE_TITLE',payload:{paneId:'pane-1',title:'Changed'}}}}));
   expect(workspace.state.lines.refLines).toMatchObject([{id:2,value:2,paneIds:[]}]);
@@ -47,7 +47,7 @@ it('edits and removes paneless linked rows independently with undo, and preserve
 it('formats and parses a paneless saved frequency unit independently of the selected time trace', () => {
   const time=makeTestTrace({domain:'time',units:{x:'s',y:'V'}});
   let value=0;
-  render(React.createElement(RefLineItem,{refLine:{id:9,type:'v',value:100,paneIds:[],axisUnit:'Hz:Hz',label:'V9'},isSelected:false,intersections:[],allPanes:[{id:'pane-1',title:'time'}],linkedPaneIds:[],siblingLines:[],onSelect:()=>{},onRemove:()=>{},onUpdateValue:(next:number)=>{value=next;},onUpdateDeltaPartner:()=>{},selectedTrace:time,xSpan:20,resolveTraceColor:()=>''}));
+  render(React.createElement(LiveLineRow,{refLine:{id:9,type:'v',value:100,paneIds:[],axisUnit:'Hz:Hz',label:'V9'},lit:false,intersections:[],panes:[],entries:[],paneViews:{},onSelect:()=>{},onHover:()=>{},onList:()=>{},changeLine:(action)=>{if(action.type==='UPDATE_LINE') value=action.payload.updates.value ?? value;},selectedTrace:time,xSpan:20}));
   const input=within(screen.getByTestId('ref-line-row-V9')).getByRole('textbox');
   expect(input).toHaveValue('100 Hz');
   fireEvent.change(input,{target:{value:'2 kHz'}}); fireEvent.keyDown(input,{key:'Enter'});

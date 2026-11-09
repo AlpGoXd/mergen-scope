@@ -2,13 +2,16 @@ import React, { createContext, useCallback, useContext, useRef, useState } from 
 import { Btn } from '../components/shared/Btn';
 import { Icon } from '../components/shared/Controls';
 
+/** The only changes that may raise a toast: delete, closing a file, Apply to all, moved traces, opened files. */
+export type ToastKind = 'delete' | 'close' | 'apply-all' | 'moved' | 'opened';
 export interface ToastInput { message: string; kind?: 'info' | 'error'; undo?: () => void }
 interface Toast extends ToastInput { id: number }
 interface ToastContextValue { show: (toast: ToastInput) => void }
 const ToastContext = createContext<ToastContextValue | null>(null);
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]); const next = useRef(0);
-  const show = useCallback((toast: ToastInput) => setToasts(current => [...current, { ...toast, id: ++next.current }]), []);
+  // One toast at a time: a new one replaces the current one, never a stack.
+  const show = useCallback((toast: ToastInput) => setToasts([{ ...toast, id: ++next.current }]), []);
   const dismiss = useCallback((id: number) => setToasts(current => current.filter(t => t.id !== id)), []);
   return <ToastContext.Provider value={{ show }}>{children}<div className="ui-toast-host" aria-live="polite" aria-relevant="additions">{toasts.map(toast => <ToastItem key={toast.id} toast={toast} dismiss={dismiss} />)}</div></ToastContext.Provider>;
 }

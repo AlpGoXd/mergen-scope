@@ -128,3 +128,14 @@ it('keeps colon-containing unit groups on their compatible pane and preserves ID
   expect(state.lines.refLines.map(line=>line.id)).toEqual([71]);
   expect(state.lines.refLines[0]?.paneIds).toEqual(['pane-2']);
 });
+
+it('closing the last pane moves a line to the nearest compatible pane, like a trace (previous pane first)', () => {
+  const trace=makeTestTrace({name:'same',id:'same',units:{x:'Hz',y:'dB'}});
+  let state=initialWorkspaceEngine().present;
+  state=workspaceReducer(state,{slice:'files',action:{type:'ADD_PARSED_FILE',payload:{id:'f',fileName:'one.dat',text:'source',parsed:{format:'rs-dat',meta:{},traces:[trace]}}}});
+  state=workspaceReducer(state,{slice:'panes',limit:4,action:{type:'SET_PANE_COUNT',payload:3}});
+  for(const targetPaneId of ['pane-1','pane-2','pane-3']) state=workspaceReducer(state,{slice:'panes',limit:4,action:{type:'ASSIGN_TRACE_TO_PANE',payload:{trace,targetPaneId,allTraces:[trace]}}});
+  state=workspaceReducer(state,{slice:'lines',action:{type:'ADD_LINE',payload:{id:81,type:'v',value:1,paneIds:['pane-3'],label:'V1'}}});
+  const next=workspaceReducer(state,{slice:'remove-last-pane',targetPaneId:'pane-3',expectedRevision:state.revision,confirmed:true,limit:4});
+  expect(next.lines.refLines.map(line => [line.id, line.paneIds])).toEqual([[81, ['pane-2']]]);
+});

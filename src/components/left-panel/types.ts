@@ -20,7 +20,6 @@ export interface MatrixCell {
   /** Tooltip text, e.g. "S11 · dB is in Pane 1. Click to add it to Pane 2 (target)". */
   title: string;
 }
-
 export interface MatrixProps {
   grid?: ReactNode;
   quickControl?: ReactNode;
@@ -75,7 +74,6 @@ export interface FileRowProps {
   headerOnly?: boolean;
   onRemove: () => void;
 }
-
 export interface TraceRowProps {
   hue: Hue;
   color?: string;
@@ -121,13 +119,3 @@ export interface MarkerItemProps {
   onRemove: () => void;
 }
 
-export interface LineRowProps {
-  label: string; // "V1", "H1"
-  value: string;
-  /** One summary, never a list: "P1 + P2 (Hz) · 4 crossings". */
-  summary: string;
-  invalid?: boolean;
-  onValue: (text: string) => void;
-  onListCrossings: () => void;
-  onRemove: () => void;
-}

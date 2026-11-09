@@ -28,6 +28,7 @@ import { placeMarker } from '../domain/markers';
 import { createTransactionHistory, recordTransaction, undoTransaction, redoTransaction } from '../domain/transaction-history';
 import type { TransactionHistory } from '../domain/transaction-history';
 import { useOptionalToast } from './toast-store';
+import type { ToastKind } from './toast-store';
 
 export interface WorkspaceState {
   files: FileState; traces: TraceState; panes: PaneState; markers: MarkerState;
@@ -373,7 +374,7 @@ export interface WorkspaceEngine {
   readonly present: WorkspaceState; readonly history: TransactionHistory<WorkspaceMemento>;
   readonly gesture: WorkspaceMemento | null; readonly historyNotice: 'oversized' | 'pruned' | null; readonly toastMessage?: string;
 }
-export type WorkspaceEngineAction = {type:'change';command:WorkspaceAction;record?:boolean;toastMessage?:string} | {type:'undo'|'redo'|'begin-gesture'|'commit-gesture'|'cancel-gesture'|'clear-notice'};
+export type WorkspaceEngineAction = {type:'change';command:WorkspaceAction;record?:boolean;toastMessage?:string;toastKind?:ToastKind} | {type:'undo'|'redo'|'begin-gesture'|'commit-gesture'|'cancel-gesture'|'clear-notice'};
 export function initialWorkspaceEngine(): WorkspaceEngine { return {present:initialWorkspaceState(),history:createTransactionHistory<WorkspaceMemento>(),gesture:null,historyNotice:null}; }
 
 /** Recursive comparison short-circuits structurally shared samples and handles no-op wrapper copies. */
@@ -391,7 +392,7 @@ function recordable(command: WorkspaceAction): boolean {
   if (command.slice === 'traces') return command.action.type !== 'RECONCILE';
   if (command.slice === 'panes') return command.action.type !== 'RECONCILE';
   if (command.slice === 'markers') return !['ARM','SET_TRACE','SET_SELECTED_IDX'].includes(command.action.type);
-  if (command.slice === 'lines') return !['SET_MODE','SET_SELECTED','CLEANUP_ORPHANED_LINES'].includes(command.action.type);
+  if (command.slice === 'lines') return !['SET_MODE','SET_SELECTED','SET_HOVERED','SET_PANE_VIEW','CLEANUP_ORPHANED_LINES'].includes(command.action.type);
   if (command.slice === 'analysis') return true;
   if (command.slice === 'ui') return command.action.type === 'SET' && ['traceColors','traceInterpolations','noiseFilter','noiseSource','ip3Gain','selectedTraceName'].includes(command.action.payload.key);
   return false;
@@ -416,7 +417,8 @@ export function workspaceEngineReducer(engine: WorkspaceEngine, action: Workspac
   if (next === engine.present) return engine;
   if (engine.gesture || !(action.record ?? recordable(action.command))) return {...engine,present:next};
   const result = recordTransaction(engine.history,captureWorkspace(engine.present),captureWorkspace(next),sameValue);
-  let toastMessage = action.toastMessage;
+  // A toast is raised only for the kinds in the toast policy; any other change stays silent.
+  let toastMessage = action.toastKind ? action.toastMessage : undefined;
   if (action.command.slice === 'open-data') {
     const ids = new Set(action.command.inputs.map(input => input.id));
     const opened = next.files.files.filter(file => ids.has(String(file.id)) && !file.error).length;
@@ -435,8 +437,9 @@ export function AggregateWorkspaceProvider({ children }: { children: React.React
   const show = useOptionalToast()?.show;
   useEffect(() => {
     if ((!engine.historyNotice && !engine.toastMessage) || !show) return;
-    const detail = engine.historyNotice === 'oversized' ? 'This change is too large to undo; history was cleared.' : engine.historyNotice === 'pruned' ? 'Undo or redo history was removed to stay within the history limit.' : '';
-    show({message:[engine.toastMessage, detail].filter(Boolean).join(' - '), ...(engine.toastMessage && engine.historyNotice !== 'oversized' ? {undo:() => historyDispatch({type:'undo'})} : {})});
+    // History notices (pruned, too large) never raise a toast: the oldest step is dropped silently.
+    if (!engine.toastMessage) { historyDispatch({type:'clear-notice'}); return; }
+    show({message:engine.toastMessage, ...(engine.historyNotice !== 'oversized' ? {undo:() => historyDispatch({type:'undo'})} : {})});
     historyDispatch({type:'clear-notice'});
   }, [engine.historyNotice, engine.toastMessage, show]);
   const state = engine.present;

@@ -26,7 +26,7 @@ export function useTraceActions() {
 
   const removeTrace = useCallback((trace: Trace) => {
     if (aggregate) {
-      aggregate.historyDispatch({type:'change',toastMessage:'Removed trace',command:{slice:'deleteTrace',traceId:trace.id}});
+      aggregate.historyDispatch({type:'change',toastMessage:'Removed trace',toastKind:'delete',command:{slice:'deleteTrace',traceId:trace.id}});
     }
     else if (trace.kind === 'derived') traceDispatch({ type: 'REMOVE_DERIVED', payload: trace.id });
   }, [aggregate, traceDispatch]);
