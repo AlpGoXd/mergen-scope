@@ -107,3 +107,11 @@ Light and dark populated network, CSV and error captures and comparisons are in 
 | Wire sidebar file Drop, Load demo, Replace, Edit columns, file Rename and Threshold crossings through App and verify recovery and Undo. | Phase 7D / 7E | Sidebar accepts callbacks; App currently supplies Open only. Do not treat placeholder callbacks as connected. |
 | Complete matrix cell placement/action tooltips, greater-than-eight-port cross-view chips, grid focus and outside dismissal, and verify full narrow-panel and unusual states. | Phase 7E / Phase 8 | Matrix keyboard navigation and target-pane batch Undo are covered; tooltip, list and visual details remain open. |
 | Audit shared popover focus and keyboard behavior for kit menus and verify all marker/line edit invalid and cancellation paths. | Phase 8 | Shared popover and kit menu are connected; focused coverage does not establish every keyboard and invalid-input path. |
+
+## Smith numerical foundation follow-up
+
+| Remaining work | Target phase | Status |
+| --- | --- | --- |
+| Connect the pure plot contract and G/Z/Y calculations to pane traces, per-port impedances, marker identities, settings and export. | 5E2–5E3 | Foundation only; legacy renderer remains active. |
+| Build and validate responsive grid, active-load display, interactions, linked frequency and readout; compare light and dark with the written specification and supplied reference. | 5E2–5E4 | No visual changes in 5E1; 2x reference pending. |
+| Handle the explicit ambiguous-boundary and singular numerical results in presentation, including series L/C and DC. | 5E3–5E4 | Numerical status is explicit; presentation and end-to-end behavior remain open. |
