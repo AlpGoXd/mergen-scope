@@ -3,6 +3,8 @@ import { TopBar } from './components/layout/TopBar';
 import { ToolbarStrip } from './components/layout/ToolbarStrip';
 import { Sidebar } from './components/layout/Sidebar';
 import { ChartWorkspace } from './components/chart/ChartWorkspace';
+import { LineCrossingsContext } from './components/analysis/shared/ThresholdCrossingsCard';
+import { useAnalysisDispatch } from './stores/analysis-store';
 import { RightPanelStack } from './components/layout/RightPanelStack';
 import { FooterBar } from './components/layout/FooterBar';
 import { ImportWizardModal } from './components/wizard/ImportWizardModal';
@@ -39,6 +41,8 @@ export function App() {
     showRightPanel,
   } = useUiState();
   const uiDispatch = useUiDispatch();
+  const analysisDispatch = useAnalysisDispatch();
+  const [crossingsLineId, setCrossingsLineId] = useState<number | null>(null);
   const importFiles = useFileImport();
   const sidebarFileInput = useRef<HTMLInputElement>(null);
   const { activePaneId } = usePaneState();
@@ -203,11 +207,17 @@ export function App() {
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minWidth: 0 }}>
         {/* Always mounted (renders nothing when hidden): it owns the Touchstone trace reconciliation. */}
         <input ref={sidebarFileInput} type="file" accept={DATA_FILE_ACCEPT} multiple hidden onChange={event => { if (event.target.files?.length) void importFiles(event.target.files); event.target.value = ''; }} />
-        <Sidebar width={leftPanelWidth} onOpenFiles={() => sidebarFileInput.current?.click()} />
+        <Sidebar width={leftPanelWidth} onOpenFiles={() => sidebarFileInput.current?.click()} onThresholdCrossings={lineId => {
+          setCrossingsLineId(lineId);
+          uiDispatch({ type: 'SET', payload: { key: 'showRightPanel', value: true } });
+          uiDispatch({ type: 'SET', payload: { key: 'showAnalysisPanel', value: true } });
+          uiDispatch({ type: 'SET', payload: { key: 'showDT', value: false } });
+          analysisDispatch({ type: 'TOGGLE_PANEL', payload: { id: 'threshold-crossings', forceValue: true } });
+        }} />
         {showSidebar && <PanelResizeHandle side="left" onMouseDown={startResize('left')} />}
         <ChartWorkspace />
         {showRightPanel && <PanelResizeHandle side="right" onMouseDown={startResize('right')} />}
-        <RightPanelStack width={rightPanelWidth} />
+        <LineCrossingsContext.Provider value={{ lineId: crossingsLineId, setLineId: setCrossingsLineId }}><RightPanelStack width={rightPanelWidth} /></LineCrossingsContext.Provider>
       </div>
 
       <FooterBar />

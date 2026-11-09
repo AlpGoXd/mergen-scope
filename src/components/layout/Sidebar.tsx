@@ -8,8 +8,7 @@ import { Menu as KitMenu } from '../left-panel/Menu';
 import { makeTraceColorResolver } from '../../domain/trace-colors';
 import { canPlaceMembership, traceXGroup } from '../../domain/pane-placement';
 import { useMemo, useRef, useState, type ReactNode } from 'react';
-import { computeVerticalIntersections, computeHorizontalIntersections } from '../../domain/ref-lines';
-import type { LineIntersection } from '../../domain/ref-lines';
+import { computeLineIntersections } from '../../domain/ref-lines';
 import { getInterpolationOptionDisabledReason, getResolvedInterpolationStrategy } from '../../domain/interpolation';
 import { placeMarker } from '../../domain/markers';
 import { appendTouchstoneDisplayTrace, makeDefaultTouchstoneState } from '../../domain/touchstone/selections';
@@ -531,23 +530,8 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
                     return true;
                   })
                   .map((refLine) => {
-                    // Collect traces for this line's pane
-                    const paneTraces = allTraces.filter((t) => tracePaneMap[t.name]?.includes(refLine.paneId ?? ''));
-                    // For locked lines, also collect intersections from all panes in the group
-                    let intersections: LineIntersection[];
-                    if (refLine.groupId) {
-                      const groupLines = refLines.filter((l) => l.groupId === refLine.groupId);
-                      intersections = groupLines.flatMap((gl) => {
-                        const gTraces = allTraces.filter((t) => tracePaneMap[t.name]?.includes(gl.paneId ?? ''));
-                        return gl.type === 'v'
-                          ? computeVerticalIntersections(gl.value, gTraces, gl.paneId ?? 'pane-1')
-                          : computeHorizontalIntersections(gl.value, gTraces, gl.paneId ?? 'pane-1');
-                      });
-                    } else {
-                      intersections = refLine.type === 'v'
-                        ? computeVerticalIntersections(refLine.value, paneTraces, refLine.paneId ?? 'pane-1')
-                        : computeHorizontalIntersections(refLine.value, paneTraces, refLine.paneId ?? 'pane-1');
-                    }
+                    const paneTraces = allTraces.filter(t => tracePaneMap[t.name]?.includes(refLine.paneId ?? ''));
+                    const intersections = computeLineIntersections(refLine, refLines, allTraces, tracePaneMap, vis);
                     return (
                       <RefLineItem
                         key={refLine.id}

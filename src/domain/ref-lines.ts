@@ -4,6 +4,7 @@
 
 import { placeMarker } from './markers';
 import type { Trace } from '../types/trace';
+import type { RefLine } from '../types/ref-line';
 
 export interface LineIntersection {
   traceName: string;
@@ -27,6 +28,9 @@ export function computeVerticalIntersections(
   const results: LineIntersection[] = [];
   for (const trace of traces) {
     if (!trace.data?.length) continue;
+    const first = trace.data[0]!;
+    const last = trace.data[trace.data.length - 1]!;
+    if (value < Math.min(first.freq, last.freq) || value > Math.max(first.freq, last.freq)) continue;
     // placeMarker respects trace interpolation strategy:
     // snap → snaps to nearest sample; linear/sinc → interpolates at value
     const placement = placeMarker(trace, value);
@@ -75,4 +79,19 @@ export function computeHorizontalIntersections(
     }
   }
   return results;
+}
+
+/** Compute the same visible pane intersections used by chart reference-line markers. */
+export function computeLineIntersections(
+  line: RefLine, lines: readonly RefLine[], traces: readonly Trace[],
+  tracePaneMap: Readonly<Record<string, readonly string[]>>, vis: Readonly<Record<string, boolean>>,
+): LineIntersection[] {
+  const members = line.groupId ? lines.filter(item => item.groupId === line.groupId) : [line];
+  return members.flatMap(member => {
+    const paneId = member.paneId ?? 'pane-1';
+    const paneTraces = traces.filter(trace => vis[trace.name] && tracePaneMap[trace.name]?.includes(paneId));
+    return member.type === 'v'
+      ? computeVerticalIntersections(member.value, paneTraces, paneId)
+      : computeHorizontalIntersections(member.value, paneTraces, paneId);
+  });
 }
