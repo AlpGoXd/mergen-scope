@@ -27,6 +27,7 @@ export interface PaneSettings {
   gridDashStyle: string;       // strokeDasharray value, e.g. "3 3" or "solid"
 
   // Display toggles
+  showSampleDots: boolean;
   showMarkers: boolean;
   showReferenceLines: boolean;
   showLineLabels: boolean;
@@ -42,6 +43,7 @@ export function defaultPaneSettings(): PaneSettings {
     gridMajorOpacity: 0.25,
     gridMinorOpacity: 0.15,
     gridDashStyle: '3 3',
+    showSampleDots: false,
     showMarkers: true,
     showReferenceLines: true,
     showLineLabels: true,
