@@ -7,6 +7,7 @@ import { useRefLineState, useRefLineDispatch } from '../../stores/ref-line-store
 import { findAbsoluteMax, findAbsoluteMin, findNextLocalExtremum } from '../../domain/markers';
 import { useInteractionMode } from '../../hooks/use-interaction-mode';
 import { Btn } from '../shared/Btn';
+import { planLastPaneLines, planLastPaneRemoval, useOptionalAggregateWorkspace } from '../../stores/aggregate-workspace-store';
 
 /**
  * ToolbarStrip component for chart-local actions in the active pane.
@@ -23,6 +24,7 @@ export function ToolbarStrip() {
   } = useUiState();
 
   const { allTraces, vis } = useTraceState();
+  const aggregate = useOptionalAggregateWorkspace();
   const { markers, selectedMkrIdx, armed } = useMarkerState();
   const { panes, activePaneId, tracePaneMap, paneActiveTraceMap } = usePaneState();
   const { refMode, refLines, selectedRefLineId } = useRefLineState();
@@ -108,6 +110,25 @@ export function ToolbarStrip() {
     markerDispatch({ type: 'ARM', payload: { kind: 'delta', refId } });
   };
   const canSearch = !!activeTr?.data.length;
+  const removeLastPane = () => {
+    if (panes.length <= 1) return;
+    const removed = panes[panes.length - 1];
+    if (!removed) return;
+    if (!aggregate) return;
+    const result = planLastPaneRemoval(aggregate.state, removed.id);
+    if (!result.ok) { window.alert(result.reason); return; }
+    const { moved, unplaced } = result.plan;
+    const linePlan = planLastPaneLines(aggregate.state, removed.id, result.plan.memberships);
+    if (unplaced.length || linePlan.length) {
+      const lines = [...moved.map(move => `${move.traceName} -> ${panes.find(pane => pane.id === move.to)?.title || move.to}`), ...unplaced.map(name => `${name} -> not in a pane`), ...linePlan.map(move => `${move.line.label || `Line ${move.line.id}`} -> ${move.to ? (panes.find(pane => pane.id === move.to)?.title || move.to) : 'not in a pane'}`)];
+      if (!window.confirm(`Remove the last pane? Traces will remain available.\n\n${lines.join('\n')}`)) return;
+    }
+    {
+      const destinations = [...new Set(moved.map(move => panes.find(pane => pane.id === move.to)?.title || move.to))];
+      const message = moved.length ? `${moved.length} trace${moved.length === 1 ? '' : 's'} moved to ${destinations.join(', ')}` : 'Pane removed';
+      aggregate.historyDispatch({ type: 'change', command: { slice: 'remove-last-pane', targetPaneId: removed.id, expectedRevision: aggregate.state.revision, confirmed: unplaced.length > 0 || linePlan.length > 0, limit }, toastMessage: message });
+    }
+  };
   return <div onKeyDown={event => {
     // The global shortcut intentionally ignores native controls; let Escape
     // cancel placement when focus remains on a toolbar button.
@@ -128,7 +149,6 @@ export function ToolbarStrip() {
           <Btn small disabled={!selected || selected.type === 'delta'} title={!selected || selected.type === 'delta' ? 'Select a normal marker first' : 'Place delta from selected marker (Shift+N)'} onClick={e => { if (selected) armDelta(selected.id); e.currentTarget.closest('details')?.removeAttribute('open'); }}>+ Δ from selected</Btn>
         </div>
       </details>
-      {hintSlot('Click to place a delta marker', armed ? hint : null)}
     </>)}
     {showSearchTools && group('Search', 'search', <>
       <Btn small disabled={!canSearch} title={canSearch ? 'Find peak' : 'Select a trace with data'} onClick={handlePeak}>Peak</Btn>
@@ -141,12 +161,13 @@ export function ToolbarStrip() {
       <Btn small variant="slate" active={refMode === 'v'} aria-pressed={refMode === 'v'} aria-label="V-Line" title="Place vertical line" onClick={() => toggleRefPlacement('v')}>V line</Btn>
       <Btn small variant="slate" active={refMode === 'h'} aria-pressed={refMode === 'h'} aria-label="H-Line" title="Place horizontal line" onClick={() => toggleRefPlacement('h')}>H line</Btn>
       <Btn small variant="chip" tone="lines" active={!!selectedLine?.groupId} disabled={!selectedLine || selectedLine.type !== 'v'} title={!selectedLine ? 'Select a vertical line first' : selectedLine.type !== 'v' ? 'Only vertical lines can be linked' : 'Link selected line across panes'} onClick={() => { if (!selectedLine) return; refDispatch(selectedLine.groupId ? { type: 'UNLOCK_LINE', payload: { lineId: selectedLine.id } } : { type: 'LOCK_LINE', payload: { lineId: selectedLine.id, allPaneIds: panes.map(pane => pane.id) } }); }}>Link</Btn>
-      {hintSlot('Click to place V-line', refMode ? hint : null)}
     </>)}
     {showPaneTools && group('Pane', 'pane', <>
       <Btn small disabled title="Layout presets will be available after integration">Layout: Rows ▾</Btn>
       <Btn small disabled={panes.length >= limit} title={panes.length >= limit ? `Maximum ${limit} panes` : 'Add a pane'} onClick={() => paneDispatch({ type: 'SET_PANE_COUNT', payload: panes.length + 1, limit })}>+ Pane</Btn>
+      <Btn small disabled={panes.length <= 1 || !aggregate} title={panes.length <= 1 ? "At least one pane must remain" : !aggregate ? "Pane removal requires workspace history" : "Remove the last pane"} onClick={removeLastPane}>- Pane</Btn>
       <Btn small title="Fit all panes" onClick={() => paneDispatch({ type: 'CLEAR_ALL_ZOOMS' })}>Fit all</Btn>
     </>)}
+    {(showMarkerTools || showLineTools) && hintSlot('Click to place a delta marker', (showMarkerTools && armed) || (showLineTools && refMode) ? hint : null)}
   </div>;
 }

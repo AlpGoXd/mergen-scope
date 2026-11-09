@@ -120,3 +120,9 @@ Light and dark populated network, CSV and error captures and comparisons are in 
 
 | Remaining work | Target phase | Status |
 | --- | --- | --- |
+
+## Toolbar pane feedback follow-up
+
+| Remaining work | Target | Status |
+| --- | --- | --- |
+| Compare toolbar zones and the consolidated hint position to the requested 2x toolbar reference; review bound pane removal, line migration, and history. | Current feedback review | Pending reference and independent history/migration review. |

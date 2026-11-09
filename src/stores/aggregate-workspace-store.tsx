@@ -17,6 +17,7 @@ import { adaptDisplayTracesToLegacyTraces } from '../domain/display-trace-adapte
 import { migrateWorkspaceV5 } from '../domain/workspace-migrate-v5';
 import { canPlaceMembership, planPaneRemoval, planPaneTypeChange, traceXGroup } from '../domain/pane-placement';
 import type { PlacementTrace } from '../domain/pane-placement';
+import { decodeXAxisUnit, encodeXAxisUnit } from '../types/ref-line';
 import type { WorkspaceSnapshotV5 } from '../types/workspace-v5';
 import type { RawFileRecord } from '../types/file';
 import type { OpenData, OpenMember } from '../types/open-files-plan';
@@ -38,7 +39,7 @@ type SliceAction =
   | { slice: 'lines'; action: RefLineAction } | { slice: 'analysis'; action: AnalysisAction }
   | { slice: 'ui'; action: UiAction };
 export type OpenDataCommand = PendingOpenInput;
-export type WorkspaceAction = {slice:'open-data'; inputs:readonly OpenDataCommand[]; targetPaneId?:string; limit:4|8; resolveWizardId?:string; resolveBatchId?:string; workspace?:{readonly snapshot:WorkspaceSnapshotV5;readonly legacy:boolean;readonly choice?:'replace'|'cancel'}} | SliceAction | { slice: 'restore'; state: WorkspaceState } | { slice: 'transaction'; actions: readonly SliceAction[] } | { slice: 'deleteTrace'; traceId: string } | { slice: 'load'; snapshot: WorkspaceSnapshotV5; legacy: boolean };
+export type WorkspaceAction = {slice:'remove-last-pane'; targetPaneId:string; expectedRevision:number; confirmed:boolean; limit:4|8} | {slice:'open-data'; inputs:readonly OpenDataCommand[]; targetPaneId?:string; limit:4|8; resolveWizardId?:string; resolveBatchId?:string; workspace?:{readonly snapshot:WorkspaceSnapshotV5;readonly legacy:boolean;readonly choice?:'replace'|'cancel'}} | SliceAction | { slice: 'restore'; state: WorkspaceState } | { slice: 'transaction'; actions: readonly SliceAction[] } | { slice: 'deleteTrace'; traceId: string } | { slice: 'load'; snapshot: WorkspaceSnapshotV5; legacy: boolean };
 
 export function initialWorkspaceState(): WorkspaceState {
   return { files: defaultFileState, traces: defaultTraceState, panes: defaultPaneState, markers: defaultMarkerState, lines: defaultRefLineState, analysis: defaultAnalysisState, ui: getInitialUiState(readThemePreference()), layout: {preset:'rows',paneOrder:['pane-1'],sizes:{}}, revision: 0 };
@@ -65,10 +66,17 @@ function reconcileLinkedLines(state: WorkspaceState): RefLineState {
   let nextId = Math.max(0, ...state.lines.refLines.map(line => line.id)) + 1;
   const replacements = new Map<string, RefLineState['refLines']>();
   for (const [id, lines] of groups) {
-    const anchor = lines[0]; if (!anchor) continue;
-    const unit = groupFor(anchor.paneId);
+    // Paneless members are retained independently; they cannot revive a deleted group.
+    const anchor = lines.find(line => !line.paneless && line.paneId); if (!anchor) continue;
+    const encodedUnit = lines.find(line => line.axisUnit)?.axisUnit;
+    const savedUnit = encodedUnit ? decodeXAxisUnit(encodedUnit)[0] : null;
+    const unit = savedUnit ?? groupFor(anchor.paneId);
     const destinations = unit ? state.panes.panes.filter(pane => groupFor(pane.id) === unit).map(pane => pane.id) : (anchor.paneId ? [anchor.paneId] : []);
-    replacements.set(id, destinations.map(paneId => lines.find(line => line.paneId === paneId) ?? {...anchor, id: nextId++, paneId}));
+    const preserved = lines.some(line => line.axisUnit !== undefined);
+    const adjusted = preserved ? lines.map(line => !line.paneless && line.paneId && !destinations.includes(line.paneId) ? {...line, paneId:null, paneless:true, axisUnit:line.axisUnit ?? null} : line) : [];
+    replacements.set(id, preserved
+      ? [...adjusted, ...destinations.filter(paneId => !adjusted.some(line => !line.paneless && line.paneId === paneId)).map(paneId => ({...anchor, id: nextId++, paneId, paneless: false}))]
+      : destinations.map(paneId => lines.find(line => line.paneId === paneId) ?? {...anchor, id: nextId++, paneId}));
   }
   const emitted = new Set<string>();
   const lines = state.lines.refLines.flatMap(line => {
@@ -243,8 +251,47 @@ function openData(state: WorkspaceState, command: Extract<WorkspaceAction,{slice
   return next;
 }
 
+/** The same projection is used for preview and execution. */
+export function planLastPaneRemoval(state: WorkspaceState, targetPaneId: string) {
+  const pane = state.panes.panes.at(-1);
+  if (state.panes.panes.length <= 1 || pane?.id !== targetPaneId) return { ok: false as const, reason: 'The last pane changed; try again.' };
+  const view = traceView(state.files, state.traces);
+  const entries = view.allKnownTraces.map(trace => ({ trace, paneIds: state.panes.tracePaneMap[trace.name] ?? [], displayTrace: view.allDisplayTraces.find(display => display.id === trace.id || display.id === trace.parameters?.['displayTraceId']) }));
+  return planPaneRemoval(state.panes.panes, entries, [targetPaneId]);
+}
+
+/** Preview line destinations using pre-removal source units and planned trace memberships. */
+export function planLastPaneLines(state: WorkspaceState, targetPaneId: string, memberships: Record<string, readonly string[]>) {
+  const traces = traceView(state.files, state.traces).allKnownTraces;
+  const unitFor = (paneId: string, type: 'h' | 'v', map: Record<string, readonly string[]>) => {
+    const members = traces.filter(trace => map[trace.name]?.includes(paneId));
+    const units = members.map(trace => type === 'v' ? (trace.units.x && traceXGroup(trace) ? encodeXAxisUnit(traceXGroup(trace)!, trace.units.x) : null) : trace.units.y);
+    return units.length && units[0] && units.every(unit => unit === units[0]) ? units[0] : null;
+  };
+  const remaining = state.panes.panes.filter(pane => pane.id !== targetPaneId).reverse();
+  return state.lines.refLines.filter(line => line.paneId === targetPaneId && !line.paneless).map(line => {
+    const axisUnit = unitFor(targetPaneId, line.type, state.panes.tracePaneMap);
+    const destination = axisUnit ? remaining.find(pane => unitFor(pane.id, line.type, memberships) === axisUnit) : undefined;
+    return { line, to: destination?.id ?? null, axisUnit };
+  });
+}
+
 /** One reducer owns every workspace slice. Reconciliation runs inside the same transition. */
 export function workspaceReducer(state: WorkspaceState, command: WorkspaceAction): WorkspaceState {
+  if (command.slice === 'remove-last-pane') {
+    if (state.revision !== command.expectedRevision) return state;
+    const result = planLastPaneRemoval(state, command.targetPaneId);
+    if (!result.ok || (result.plan.unplaced.length > 0 && !command.confirmed)) return state;
+    const linePlan = planLastPaneLines(state, command.targetPaneId, result.plan.memberships);
+    if (linePlan.length && !command.confirmed) return state;
+    const byId = new Map(linePlan.map(item => [item.line.id, item]));
+    const refLines = state.lines.refLines.map(line => {
+      const move = byId.get(line.id);
+      return move ? { ...line, paneId: move.to, paneless: !move.to, axisUnit: move.axisUnit } : line;
+    });
+    const prepared = { ...state, lines: { ...state.lines, refLines } };
+    return workspaceReducer(prepared, { slice: 'panes', limit: command.limit, action: { type: 'SET_PANE_COUNT', payload: state.panes.panes.length - 1, limit: command.limit, confirmed: command.confirmed } });
+  }
   if (command.slice === 'open-data') return openData(state,command);
   if (command.slice === 'files' && command.action.type === 'RESOLVE_WIZARD') {
     const {id,config,decisions,workspaceChoice}=command.action.payload;
@@ -310,7 +357,7 @@ export function workspaceReducer(state: WorkspaceState, command: WorkspaceAction
         next = { ...state, panes: paneReducer(state.panes, action) }; break;
       }
       const view = traceView(state.files, state.traces);
-      const entries = view.allKnownTraces.map(trace => ({ trace, paneIds: state.panes.tracePaneMap[trace.name] ?? [], displayTrace: view.allDisplayTraces.find(display => display.id === trace.id) }));
+      const entries = view.allKnownTraces.map(trace => ({ trace, paneIds: state.panes.tracePaneMap[trace.name] ?? [], displayTrace: view.allDisplayTraces.find(display => display.id === trace.id || display.id === trace.parameters?.['displayTraceId']) }));
       const refusal = (message: string, paneId: string | null): WorkspaceState => ({...state,ui:uiReducer(state.ui,{type:'SET',payload:{key:'paneAssignmentWarning',value:{message,paneId,traceName:null}}}),revision:state.revision+1});
       if (action.type === 'SET_PANE_COUNT' && action.payload < state.panes.panes.length && !action.confirmed) {
         const plan=planPaneRemoval(state.panes.panes,entries,state.panes.panes.slice(action.payload).map(pane => pane.id));
@@ -375,7 +422,7 @@ function sameValue(a: unknown, b: unknown, seen = new WeakMap<object, object>())
   return keysA.length === keysB.length && keysA.every(key => Object.prototype.hasOwnProperty.call(b,key) && sameValue((a as Record<string,unknown>)[key],(b as Record<string,unknown>)[key],seen));
 }
 function recordable(command: WorkspaceAction): boolean {
-  if (command.slice === 'open-data' || command.slice === 'transaction' || command.slice === 'restore' || command.slice === 'deleteTrace' || command.slice === 'load') return true;
+  if (command.slice === 'remove-last-pane' || command.slice === 'open-data' || command.slice === 'transaction' || command.slice === 'restore' || command.slice === 'deleteTrace' || command.slice === 'load') return true;
   if (command.slice === 'files') return true;
   if (command.slice === 'traces') return command.action.type !== 'RECONCILE';
   if (command.slice === 'panes') return command.action.type !== 'RECONCILE';

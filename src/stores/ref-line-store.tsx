@@ -31,12 +31,17 @@ export const RefLineDispatchContext = createContext<React.Dispatch<RefLineAction
 export function refLineReducer(state: RefLineState, action: RefLineAction): RefLineState {
   switch (action.type) {
     case 'ADD_LINE': {
-      return { ...state, refLines: [...state.refLines, action.payload] };
+      const incoming = action.payload;
+      const prefix = incoming.type === 'v' ? 'V' : 'H';
+      const duplicate = incoming.label && state.refLines.some(line => line.label === incoming.label && (!incoming.groupId || line.groupId !== incoming.groupId));
+      const used = state.refLines.flatMap(line => line.type === incoming.type && line.label?.startsWith(prefix) && /^\d+$/.test(line.label.slice(1)) ? [Number(line.label.slice(1))] : []);
+      const label = duplicate ? `${prefix}${Math.max(0, ...used) + 1}` : incoming.label;
+      return { ...state, refLines: [...state.refLines, { ...incoming, label }] };
     }
     case 'REMOVE_LINE': {
       const target = state.refLines.find(line => line.id === action.payload);
       if (!target) return state;
-      const refLines = state.refLines.filter(line => target.groupId ? line.groupId !== target.groupId : line.id !== target.id);
+      const refLines = state.refLines.filter(line => target.groupId && !target.paneless ? line.groupId !== target.groupId || !!line.paneless : line.id !== target.id);
       return {...state, refLines, selectedRefLineId:refLines.some(line => line.id === state.selectedRefLineId) ? state.selectedRefLineId : null};
     }
     case 'UPDATE_LINE': {
@@ -72,7 +77,7 @@ export function refLineReducer(state: RefLineState, action: RefLineAction): RefL
     case 'LOCK_LINE': {
       const { lineId, allPaneIds } = action.payload;
       const line = state.refLines.find(l => l.id === lineId);
-      if (!line || line.type !== 'v') return state;
+      if (!line || line.type !== 'v' || line.paneless) return state;
       // If already locked, no-op
       if (line.groupId) return state;
       const now = Math.max(0, ...state.refLines.map(item => item.id));
@@ -102,7 +107,24 @@ export function refLineReducer(state: RefLineState, action: RefLineAction): RefL
       const line = state.refLines.find(l => l.id === lineId);
       if (!line?.groupId) return state;
       const gid = line.groupId;
-      return { ...state, refLines: state.refLines.flatMap(item => item.groupId !== gid ? [item] : item.id === lineId ? [{...item, groupId:null}] : []), selectedRefLineId: state.selectedRefLineId === null || state.refLines.some(item => item.id === state.selectedRefLineId && item.groupId !== gid) ? state.selectedRefLineId : lineId };
+      const labels = new Set(state.refLines.filter(item => item.groupId !== gid || item.id === lineId).map(item => item.label));
+      const occupied = new Set(line.paneId && !line.paneless ? [line.paneId] : []);
+      const refLines = state.refLines.flatMap(item => {
+        if (item.groupId !== gid) return [item];
+        if (item.id !== lineId && !item.paneless && item.axisUnit === undefined) return [];
+        if (item.id === lineId) return [{...item, groupId:null}];
+        let label = item.label;
+        if (label && labels.has(label)) {
+          const prefix = item.type === 'v' ? 'V' : 'H';
+          let serial = 1; while (labels.has(`${prefix}${serial}`)) serial++;
+          label = `${prefix}${serial}`;
+        }
+        labels.add(label);
+        const duplicatePane = !!item.paneId && !item.paneless && occupied.has(item.paneId);
+        if (item.paneId && !item.paneless) occupied.add(item.paneId);
+        return [{...item, groupId:null, label, ...(duplicatePane ? {paneId:null, paneless:true} : {})}];
+      });
+      return { ...state, refLines, selectedRefLineId: state.selectedRefLineId === null || refLines.some(item => item.id === state.selectedRefLineId) ? state.selectedRefLineId : lineId };
 
     }
     case 'MOVE_GROUP': {
@@ -110,7 +132,7 @@ export function refLineReducer(state: RefLineState, action: RefLineAction): RefL
       return {
         ...state,
         refLines: state.refLines.map(l =>
-          l.groupId === groupId ? { ...l, value } : l
+          l.groupId === groupId && !l.paneless ? { ...l, value } : l
         ),
       };
     }
@@ -148,4 +170,22 @@ export function useRefLineDispatch(): React.Dispatch<RefLineAction> {
     throw new Error('useRefLineDispatch must be used within a RefLineStoreProvider');
   }
   return context;
+}
+
+/** Scope chart rendering and hit testing to placed and legacy global lines. */
+export function VisibleRefLinesProvider({ children }: { children: React.ReactNode }) {
+  const state = useRefLineState();
+  const value = React.useMemo(() => {
+    const seen = new Set<string>();
+    const refLines = state.refLines.filter(line => {
+      if (line.paneless) return false;
+      if (!line.groupId || !line.paneId) return true;
+      const key = `${line.groupId}\0${line.paneId}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    return { ...state, refLines };
+  }, [state]);
+  return <RefLineStateContext.Provider value={value}>{children}</RefLineStateContext.Provider>;
 }

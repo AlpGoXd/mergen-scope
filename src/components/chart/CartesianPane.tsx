@@ -1,3 +1,4 @@
+import { VisibleRefLinesProvider } from '../../stores/ref-line-store';
 import { ChartPane } from './ChartPane';
 
 export interface CartesianPaneProps {
@@ -5,5 +6,5 @@ export interface CartesianPaneProps {
 }
 
 export function CartesianPane({ paneId }: CartesianPaneProps) {
-	return <ChartPane paneId={paneId} />;
+	return <VisibleRefLinesProvider><ChartPane paneId={paneId} /></VisibleRefLinesProvider>;
 }
