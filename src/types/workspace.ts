@@ -256,7 +256,6 @@ export interface WorkspaceUiState {
   readonly showDots: boolean;
   readonly showDT: boolean;
   readonly theme: "dark" | "light" | "glass";
-  readonly lockLinesAcrossPanes: boolean;
   readonly searchDirection: "left" | "right";
   readonly newMarkerArmed: boolean;
   readonly markerTrace: string;

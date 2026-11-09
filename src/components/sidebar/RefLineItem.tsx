@@ -62,7 +62,7 @@ export function RefLineItem({
   resolveColor,
   compact,
 }: RefLineItemProps) {
-  const isLocked = line.groupId != null;
+  const isLocked = line.paneIds.length > 1;
 
   const formatVal = (v: number) => {
     if (line.type === 'v') {

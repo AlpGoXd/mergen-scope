@@ -56,17 +56,17 @@ it('moves compatible lines, preserves incompatible lines paneless, and round tri
   change({slice:'files',action:{type:'ADD_PARSED_FILE',payload:{id:'f',fileName:'both.dat',text:'source',parsed:{format:'rs-dat',meta:{},traces:[freq,time]}}}});
   change({slice:'panes',limit:4,action:{type:'SET_PANE_COUNT',payload:2}});
   for (const [trace,targetPaneId] of [[freq,'pane-1'],[time,'pane-2']] as const) change({slice:'panes',limit:4,action:{type:'ASSIGN_TRACE_TO_PANE',payload:{trace,targetPaneId,allTraces:[freq,time]}}});
-  change({slice:'lines',action:{type:'ADD_LINE',payload:{id:41,type:'v',value:5,paneId:'pane-2',groupId:null,label:'V1'}}});
-  change({slice:'lines',action:{type:'ADD_LINE',payload:{id:42,type:'h',value:1,paneId:'pane-2',groupId:null,label:'H1'}}});
+  change({slice:'lines',action:{type:'ADD_LINE',payload:{id:41,type:'v',value:5,paneIds:['pane-2'],label:'V1'}}});
+  change({slice:'lines',action:{type:'ADD_LINE',payload:{id:42,type:'h',value:1,paneIds:['pane-2'],label:'H1'}}});
   change({slice:'panes',limit:4,action:{type:'SET_ACTIVE_PANE',payload:'pane-1'}});
   change({slice:'remove-last-pane',targetPaneId:'pane-2',expectedRevision:engine.present.revision,confirmed:true,limit:4});
-  expect(engine.present.lines.refLines.map(line => [line.id,line.paneless,line.paneId])).toEqual([[41,true,null],[42,true,null]]);
+  expect(engine.present.lines.refLines.map(line => [line.id,line.paneIds])).toEqual([[41,[]],[42,[]]]);
   const snapshot=snapshotFromWorkspace(engine.present); expect(snapshot).not.toBeNull();
   const parsed=migrateWorkspaceV5(JSON.parse(JSON.stringify(snapshot))); expect(parsed).not.toBeNull();
   const loaded=parsed && workspaceFromSnapshot(initialWorkspaceEngine().present,parsed);
   expect(loaded?.lines.refLines).toEqual(engine.present.lines.refLines);
-  engine=workspaceEngineReducer(engine,{type:'undo'}); expect(engine.present.lines.refLines.map(line=>line.paneId)).toEqual(['pane-2','pane-2']);
-  engine=workspaceEngineReducer(engine,{type:'redo'}); expect(engine.present.lines.refLines.every(line=>line.paneless)).toBe(true);
+  engine=workspaceEngineReducer(engine,{type:'undo'}); expect(engine.present.lines.refLines.map(line=>line.paneIds)).toEqual([['pane-2'],['pane-2']]);
+  engine=workspaceEngineReducer(engine,{type:'redo'}); expect(engine.present.lines.refLines.every(line=>line.paneIds.length === 0)).toBe(true);
 });
 
 it('moves a compatible pane line while preserving its identity', () => {
@@ -75,9 +75,9 @@ it('moves a compatible pane line while preserving its identity', () => {
   state=workspaceReducer(state,{slice:'files',action:{type:'ADD_PARSED_FILE',payload:{id:'f',fileName:'one.dat',text:'source',parsed:{format:'rs-dat',meta:{},traces:[trace]}}}});
   state=workspaceReducer(state,{slice:'panes',limit:4,action:{type:'SET_PANE_COUNT',payload:2}});
   for(const targetPaneId of ['pane-1','pane-2']) state=workspaceReducer(state,{slice:'panes',limit:4,action:{type:'ASSIGN_TRACE_TO_PANE',payload:{trace,targetPaneId,allTraces:[trace]}}});
-  state=workspaceReducer(state,{slice:'lines',action:{type:'ADD_LINE',payload:{id:71,type:'h',value:1,paneId:'pane-2',groupId:null,label:'H1'}}});
+  state=workspaceReducer(state,{slice:'lines',action:{type:'ADD_LINE',payload:{id:71,type:'h',value:1,paneIds:['pane-2'],label:'H1'}}});
   const next=workspaceReducer(state,{slice:'remove-last-pane',targetPaneId:'pane-2',expectedRevision:state.revision,confirmed:true,limit:4});
-  expect(next.lines.refLines).toEqual([{id:71,type:'h',value:1,paneId:'pane-1',groupId:null,label:'H1',paneless:false,axisUnit:'dB'}]);
+  expect(next.lines.refLines).toEqual([{id:71,type:'h',value:1,paneIds:['pane-1'],label:'H1',axisUnit:'dB'}]);
 });
 
 it('retains linked member IDs when a compatible pane is removed', async () => {
@@ -86,13 +86,12 @@ it('retains linked member IDs when a compatible pane is removed', async () => {
   state=workspaceReducer(state,{slice:'files',action:{type:'ADD_PARSED_FILE',payload:{id:'f',fileName:'one.dat',text:'source',parsed:{format:'rs-dat',meta:{},traces:[trace]}}}});
   state=workspaceReducer(state,{slice:'panes',limit:4,action:{type:'SET_PANE_COUNT',payload:2}});
   for(const targetPaneId of ['pane-1','pane-2']) state=workspaceReducer(state,{slice:'panes',limit:4,action:{type:'ASSIGN_TRACE_TO_PANE',payload:{trace,targetPaneId,allTraces:[trace]}}});
-  state=workspaceReducer(state,{slice:'lines',action:{type:'ADD_LINE',payload:{id:71,type:'v',value:1,paneId:'pane-1',groupId:null,label:'V1'}}});
-  state=workspaceReducer(state,{slice:'lines',action:{type:'LOCK_LINE',payload:{lineId:71,allPaneIds:['pane-1','pane-2']}}});
+  state=workspaceReducer(state,{slice:'lines',action:{type:'ADD_LINE',payload:{id:71,type:'v',value:1,paneIds:['pane-1','pane-2'],label:'V1'}}});
   const ids=state.lines.refLines.map(line=>line.id).sort();
-  expect(ids).toHaveLength(2);
+  expect(ids).toHaveLength(1);
   const next=workspaceReducer(state,{slice:'remove-last-pane',targetPaneId:'pane-2',expectedRevision:state.revision,confirmed:true,limit:4});
   expect(next.lines.refLines.map(line=>line.id).sort()).toEqual(ids);
-  expect(next.lines.refLines.every(line=>line.groupId===state.lines.refLines[0]?.groupId)).toBe(true);
+  expect(next.lines.refLines[0]?.paneIds).toEqual(['pane-1']);
   const { snapshotFromWorkspace, workspaceFromSnapshot } = await import('../../src/stores/aggregate-workspace-store');
   const { migrateWorkspaceV5 } = await import('../../src/domain/workspace-migrate-v5');
   const snapshot = snapshotFromWorkspace(next);
@@ -102,20 +101,19 @@ it('retains linked member IDs when a compatible pane is removed', async () => {
   expect(loaded?.lines.refLines.map(line=>line.id).sort()).toEqual(ids);
   const changed = workspaceReducer(next,{slice:'panes',limit:4,action:{type:'REMOVE_MEMBERSHIP',payload:{traceName:'same',paneId:'pane-1'}}});
   expect(changed.lines.refLines.map(line=>line.id).sort()).toEqual(ids);
-  expect(changed.lines.refLines.every(line=>line.paneless)).toBe(true);
+  expect(changed.lines.refLines[0]?.paneIds).toEqual(['pane-1']);
 });
 
-it('reserves paneless labels and keeps paneless group members fixed and available on unlink', async () => {
+it('reserves unplaced labels and updates only the selected line', async () => {
   const { refLineReducer, defaultRefLineState } = await import('../../src/stores/ref-line-store');
-  let state = refLineReducer(defaultRefLineState,{type:'ADD_LINE',payload:{id:1,type:'v',value:1,paneId:null,paneless:true,axisUnit:'Hz:Hz',groupId:'g',label:'V1'}});
-  state = refLineReducer(state,{type:'ADD_LINE',payload:{id:2,type:'v',value:1,paneId:'pane-1',groupId:'g',label:'V1'}});
-  state = refLineReducer(state,{type:'ADD_LINE',payload:{id:3,type:'v',value:2,paneId:'pane-1',groupId:null,label:'V1'}});
-  expect(state.refLines[2]?.label).toBe('V2');
-  state=refLineReducer(state,{type:'MOVE_GROUP',payload:{groupId:'g',value:7}});
+  let state = refLineReducer(defaultRefLineState,{type:'ADD_LINE',payload:{id:1,type:'v',value:1,paneIds:[],axisUnit:'Hz:Hz',label:'V1'}});
+  state = refLineReducer(state,{type:'ADD_LINE',payload:{id:2,type:'v',value:1,paneIds:['pane-1'],label:'V2'}});
+  state = refLineReducer(state,{type:'ADD_LINE',payload:{id:3,type:'v',value:2,paneIds:['pane-1'],label:'V1'}});
+  expect(state.refLines[2]?.label).toBe('V3');
+  state=refLineReducer(state,{type:'UPDATE_LINE',payload:{id:2,updates:{value:7}}});
   expect(state.refLines.map(line=>line.value)).toEqual([1,7,2]);
-  state=refLineReducer(state,{type:'UNLOCK_LINE',payload:{lineId:2}});
   expect(state.refLines.map(line=>line.id)).toEqual([1,2,3]);
-  expect(state.refLines.every(line=>line.groupId===null)).toBe(true);
+  expect(state.refLines[0]?.paneIds).toEqual([]);
 });
 
 it('keeps colon-containing unit groups on their compatible pane and preserves IDs when unlinked', () => {
@@ -125,13 +123,8 @@ it('keeps colon-containing unit groups on their compatible pane and preserves ID
   state=workspaceReducer(state,{slice:'files',action:{type:'ADD_PARSED_FILE',payload:{id:'f',fileName:'one.dat',text:'source',parsed:{format:'rs-dat',meta:{},traces:[original,other]}}}});
   state=workspaceReducer(state,{slice:'panes',limit:4,action:{type:'SET_PANE_COUNT',payload:3}});
   for(const [trace,targetPaneId] of [[other,'pane-1'],[original,'pane-2'],[original,'pane-3']] as const) state=workspaceReducer(state,{slice:'panes',limit:4,action:{type:'ASSIGN_TRACE_TO_PANE',payload:{trace,targetPaneId,allTraces:[original,other]}}});
-  state=workspaceReducer(state,{slice:'lines',action:{type:'ADD_LINE',payload:{id:71,type:'v',value:1,paneId:'pane-2',groupId:null,label:'V1'}}});
-  state=workspaceReducer(state,{slice:'lines',action:{type:'LOCK_LINE',payload:{lineId:71,allPaneIds:['pane-2','pane-3']}}});
+  state=workspaceReducer(state,{slice:'lines',action:{type:'ADD_LINE',payload:{id:71,type:'v',value:1,paneIds:['pane-2','pane-3'],label:'V1'}}});
   state=workspaceReducer(state,{slice:'remove-last-pane',targetPaneId:'pane-3',expectedRevision:state.revision,confirmed:true,limit:4});
-  expect(state.lines.refLines.map(line=>line.paneId)).toEqual(['pane-2','pane-2']);
-  state=workspaceReducer(state,{slice:'lines',action:{type:'UNLOCK_LINE',payload:{lineId:71}}});
-  expect(state.lines.refLines.map(line=>line.id)).toEqual([71,72]);
-  expect(state.lines.refLines.map(line=>line.label)).toEqual(['V1','V2']);
-  expect(state.lines.refLines.map(line=>line.paneId)).toEqual(['pane-2',null]);
-  expect(state.lines.refLines[1]?.paneless).toBe(true);
+  expect(state.lines.refLines.map(line=>line.id)).toEqual([71]);
+  expect(state.lines.refLines[0]?.paneIds).toEqual(['pane-2']);
 });

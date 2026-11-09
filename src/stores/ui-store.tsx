@@ -43,7 +43,6 @@ export const defaultUiState: UiState = {
   showViewTools: true,
   showDT: false,
   theme: 'dark',
-  lockLinesAcrossPanes: false,
   searchDirection: 'right',
   newMarkerArmed: false,
   markerTrace: '__auto__',

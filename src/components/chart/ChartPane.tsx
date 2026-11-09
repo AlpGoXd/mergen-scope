@@ -25,7 +25,7 @@ import { checkPaneAssignment } from '../../domain/pane-placement';
 import { formatAdaptiveXAxisTickLabels, formatAdaptiveXAxisValue, formatPerDivision, formatScalarWithUnit, makeYAxisTickFormatter } from '../../domain/format';
 import { getResolvedInterpolationStrategy } from '../../domain/interpolation';
 import { placeMarker, nearestIndexByFreq } from '../../domain/markers';
-import { computeVerticalIntersections, computeHorizontalIntersections } from '../../domain/ref-lines';
+import { computeVerticalIntersections, computeHorizontalIntersections, linePlacementPanes } from '../../domain/ref-lines';
 import { makeNiceTicks, NICE_TICK_COUNT } from '../../domain/trace-math';
 import { Btn } from '../shared/Btn';
 import { EmptyChartPane } from './EmptyChartPane';
@@ -47,19 +47,12 @@ function markerGlyphPolygonPoints(type: 'normal' | 'delta' | 'peak', cx: number,
 }
 
 /** Next label for a new line (V1, V2, … / H1, H2, …).
- *  Deduplicates locked mirrors by groupId so locking doesn't skip numbers. */
+ */
 function nextLineLabel(type: 'v' | 'h', lines: readonly RefLine[]): string {
   const prefix = type === 'v' ? 'V' : 'H';
-  const seenGroups = new Set<string>();
   const nums = lines
     .filter((l) => l.type === type && l.label?.startsWith(prefix))
-    .filter((l) => {
-      if (!l.groupId) return true;
-      if (seenGroups.has(l.groupId)) return false;
-      seenGroups.add(l.groupId);
-      return true;
-    })
-    .map((l) => parseInt(l.label!.slice(prefix.length), 10))
+    .map((l) => parseInt((l.label ?? '').slice(prefix.length), 10))
     .filter((n) => Number.isFinite(n) && n > 0);
   return `${prefix}${nums.length ? Math.max(...nums) + 1 : 1}`;
 }
@@ -95,7 +88,7 @@ export function ChartPane({ paneId }: ChartPaneProps) {
   const uiDispatch = useUiDispatch();
   const paneDispatch = usePaneDispatch();
   const importFiles = useFileImport();
-  const { allTraces, allDisplayTraces, vis } = useTraceState();
+  const { allTraces, allKnownTraces, allDisplayTraces, vis } = useTraceState();
   const { colors } = useTheme();
 
   const pane = panes.find((item) => item.id === paneId) || panes[0];
@@ -177,7 +170,7 @@ export function ChartPane({ paneId }: ChartPaneProps) {
     : Math.max((mergedData[mergedData.length - 1]?.fs ?? 0) - (mergedData[0]?.fs ?? 0), 1e-12);
 
   const paneRefLines = useMemo(() => {
-    return refLines.filter(l => !l.paneId || l.paneId === paneId);
+    return refLines.filter(l => l.paneIds.includes(paneId));
   }, [refLines, paneId]);
 
   const paneVLines = useMemo(() => paneRefLines.filter(l => l.type === 'v'), [paneRefLines]);
@@ -537,7 +530,8 @@ export function ChartPane({ paneId }: ChartPaneProps) {
 
     if (refMode === 'v') {
       const newId = Date.now();
-      refLineDispatch({ type: 'ADD_LINE', payload: { id: newId, type: 'v', value: freq, paneId, groupId: null, label: nextLineLabel('v', refLines) } });
+      const entries = allKnownTraces.map(trace => ({ trace, paneIds: tracePaneMap[trace.name] ?? [] }));
+      refLineDispatch({ type: 'ADD_LINE', payload: { id: newId, type: 'v', value: freq, paneIds: linePlacementPanes('v', paneId, panes, entries, zoomAll), label: nextLineLabel('v', refLines) } });
       refLineDispatch({ type: 'SET_MODE', payload: null });
       refLineDispatch({ type: 'SET_SELECTED', payload: newId });
       markerDispatch({ type: 'SET_SELECTED_IDX', payload: -1 });
@@ -546,7 +540,7 @@ export function ChartPane({ paneId }: ChartPaneProps) {
     if (refMode === 'h') {
       const yVal = resolveEventAmp(e) ?? 0;
       const newId = Date.now();
-      refLineDispatch({ type: 'ADD_LINE', payload: { id: newId, type: 'h', value: yVal, paneId, groupId: null, label: nextLineLabel('h', refLines) } });
+      refLineDispatch({ type: 'ADD_LINE', payload: { id: newId, type: 'h', value: yVal, paneIds: [paneId], label: nextLineLabel('h', refLines) } });
       refLineDispatch({ type: 'SET_MODE', payload: null });
       refLineDispatch({ type: 'SET_SELECTED', payload: newId });
       markerDispatch({ type: 'SET_SELECTED_IDX', payload: -1 });
@@ -582,31 +576,21 @@ export function ChartPane({ paneId }: ChartPaneProps) {
     }
 
     // Drag already-selected line — takes priority over placing markers.
-    // For locked lines, also allows dragging from any pane in the group.
     if (selectedRefLineId !== null) {
       const selLine = refLines.find(l => l.id === selectedRefLineId);
       if (selLine) {
-        const inThisPane = !selLine.paneId || selLine.paneId === paneId;
+        const inThisPane = selLine.paneIds.includes(paneId);
         if (inThisPane) {
           historyDispatch?.({type:'begin-gesture'});
           setDraggingRefLineId(selectedRefLineId);
           return;
-        }
-        // Locked: find this pane's mirror line and drag that instead
-        if (selLine.groupId) {
-          const mirror = refLines.find(l => l.groupId === selLine.groupId && (!l.paneId || l.paneId === paneId));
-          if (mirror) {
-            historyDispatch?.({type:'begin-gesture'});
-          setDraggingRefLineId(mirror.id);
-            return;
-          }
         }
       }
     }
 
 
     const lineHit = refLines
-      .filter((line) => line.type === 'v' && (!line.paneId || line.paneId === paneId))
+      .filter((line) => line.type === 'v' && line.paneIds.includes(paneId))
       .find((line) => Math.abs(line.value - freq) < tol);
     if (lineHit) {
       markerDispatch({ type: 'SET_SELECTED_IDX', payload: -1 });
@@ -620,7 +604,7 @@ export function ChartPane({ paneId }: ChartPaneProps) {
     const yTol = computeRefLineYTolerance();
     const hLineHit = cursorAmp != null && yTol > 0
       ? refLines
-          .filter((line) => line.type === 'h' && (!line.paneId || line.paneId === paneId))
+          .filter((line) => line.type === 'h' && line.paneIds.includes(paneId))
           .find((line) => Math.abs(cursorAmp - line.value) < yTol)
       : null;
     if (hLineHit) {
@@ -643,7 +627,7 @@ export function ChartPane({ paneId }: ChartPaneProps) {
       const tol = computeMarkerHitTolerance();
       const yTol = computeRefLineYTolerance();
       const amp = resolveEventAmp(e);
-      const paneLines = refLines.filter(l => !l.paneId || l.paneId === paneId);
+      const paneLines = refLines.filter(l => l.paneIds.includes(paneId));
       const hovered = paneLines.find(l =>
         l.type === 'v'
           ? Math.abs(l.value - freq) < tol
@@ -669,11 +653,7 @@ export function ChartPane({ paneId }: ChartPaneProps) {
         const newValue = draggingLine.type === 'h'
           ? (resolveEventAmp(e) ?? draggingLine.value)
           : freq;
-        if (draggingLine.groupId) {
-          refLineDispatch({ type: 'MOVE_GROUP', payload: { groupId: draggingLine.groupId, value: newValue } });
-        } else {
-          refLineDispatch({ type: 'UPDATE_LINE', payload: { id: draggingRefLineId, updates: { value: newValue } } });
-        }
+        refLineDispatch({ type: 'UPDATE_LINE', payload: { id: draggingRefLineId, updates: { value: newValue } } });
       }
       return;
     }
@@ -1294,23 +1274,20 @@ export function ChartPane({ paneId }: ChartPaneProps) {
                   );
                 })}
                 {settings.showReferenceLines && (() => {
-                  const selectedLineObj = selectedRefLineId != null ? refLines.find(l => l.id === selectedRefLineId) : null;
                   return paneRefLines.map((line) => {
-                    const isSelected = selectedRefLineId === line.id ||
-                      (line.groupId != null && selectedLineObj?.groupId === line.groupId);
+                    const isSelected = selectedRefLineId === line.id;
                     const isHovered = hoveredRefLineId === line.id;
-                    const isLocked = line.groupId != null;
                     const lineColor = line.type === 'v' ? (colors?.refV ?? '#d48a2b') : (colors?.refH ?? '#2b9ab7');
                     const strokeWidth = isSelected ? 2 : isHovered ? 1.5 : 1;
-                    const strokeDasharray = isLocked ? '2 5' : isSelected ? '6 3' : '4 4';
+                    const strokeDasharray = isSelected ? '6 3' : '4 4';
                     const strokeOpacity = isSelected ? 1 : isHovered ? 0.9 : 0.65;
 
                     const formattedValue = line.type === 'v'
                       ? formatAdaptiveXAxisValue(line.value, visibleXSpan, { domain: axisInfo.axisDomain, unit: axisInfo.axisDomain === 'time' ? 's' : 'Hz' })
                       : formatScalarWithUnit(line.value, axisInfo.yUnit, { digits: 4 });
                     const labelText = line.label
-                      ? `${line.label}  ${formattedValue}${isLocked ? ' 🔒' : ''}`
-                      : `${formattedValue}${isLocked ? ' 🔒' : ''}`;
+                      ? `${line.label}  ${formattedValue}`
+                      : formattedValue;
                     const yOff = line.type === 'v' ? (vLabelYOffset[line.id] ?? 0) : 0;
 
                     const labelEl = settings.showLineLabels ? (props: { viewBox?: { x: number; y: number; width: number; height: number } }) => {

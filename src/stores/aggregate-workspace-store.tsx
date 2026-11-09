@@ -17,7 +17,7 @@ import { adaptDisplayTracesToLegacyTraces } from '../domain/display-trace-adapte
 import { migrateWorkspaceV5 } from '../domain/workspace-migrate-v5';
 import { canPlaceMembership, planPaneRemoval, planPaneTypeChange, traceXGroup } from '../domain/pane-placement';
 import type { PlacementTrace } from '../domain/pane-placement';
-import { decodeXAxisUnit, encodeXAxisUnit } from '../types/ref-line';
+import { encodeXAxisUnit } from '../types/ref-line';
 import type { WorkspaceSnapshotV5 } from '../types/workspace-v5';
 import type { RawFileRecord } from '../types/file';
 import type { OpenData, OpenMember } from '../types/open-files-plan';
@@ -48,44 +48,6 @@ export function traceView(files: FileState, traces: TraceState): TraceContextVal
   const rawKnown = files.files.flatMap(file => file.datasets?.length && file.displayTraces ? adaptDisplayTracesToLegacyTraces(file.datasets, file.displayTraces, file) : file.traces);
   const hidden = new Set(files.files.flatMap(file => (file.displayTraces ?? []).filter(display => display.hidden).map(display => display.id)));
   return { ...traces, allKnownTraces: [...rawKnown, ...traces.derivedTraces], allTraces: [...rawKnown.filter(trace => !hidden.has(trace.id)), ...traces.derivedTraces], allDatasets: files.files.flatMap(file => file.datasets ?? []), allDisplayTraces: files.files.flatMap(file => file.displayTraces ?? []) };
-}
-
-/** Keep each linked vertical line synchronized with its anchor pane's current X group. */
-function reconcileLinkedLines(state: WorkspaceState): RefLineState {
-  const traces = traceView(state.files, state.traces).allKnownTraces;
-  const groupFor = (paneId: string | null): string | null => {
-    if (!paneId) return null;
-    const groups = traces.filter(trace => state.panes.tracePaneMap[trace.name]?.includes(paneId)).map(traceXGroup);
-    return groups.length && groups[0] && groups.every(group => group === groups[0]) ? groups[0] : null;
-  };
-  const groups = new Map<string, RefLineState['refLines']>();
-  for (const line of state.lines.refLines) if (line.groupId && line.type === 'v') {
-    const list = groups.get(line.groupId) ?? []; list.push(line); groups.set(line.groupId, list);
-  }
-  if (!groups.size) return state.lines;
-  let nextId = Math.max(0, ...state.lines.refLines.map(line => line.id)) + 1;
-  const replacements = new Map<string, RefLineState['refLines']>();
-  for (const [id, lines] of groups) {
-    // Paneless members are retained independently; they cannot revive a deleted group.
-    const anchor = lines.find(line => !line.paneless && line.paneId); if (!anchor) continue;
-    const encodedUnit = lines.find(line => line.axisUnit)?.axisUnit;
-    const savedUnit = encodedUnit ? decodeXAxisUnit(encodedUnit)[0] : null;
-    const unit = savedUnit ?? groupFor(anchor.paneId);
-    const destinations = unit ? state.panes.panes.filter(pane => groupFor(pane.id) === unit).map(pane => pane.id) : (anchor.paneId ? [anchor.paneId] : []);
-    const preserved = lines.some(line => line.axisUnit !== undefined);
-    const adjusted = preserved ? lines.map(line => !line.paneless && line.paneId && !destinations.includes(line.paneId) ? {...line, paneId:null, paneless:true, axisUnit:line.axisUnit ?? null} : line) : [];
-    replacements.set(id, preserved
-      ? [...adjusted, ...destinations.filter(paneId => !adjusted.some(line => !line.paneless && line.paneId === paneId)).map(paneId => ({...anchor, id: nextId++, paneId, paneless: false}))]
-      : destinations.map(paneId => lines.find(line => line.paneId === paneId) ?? {...anchor, id: nextId++, paneId}));
-  }
-  const emitted = new Set<string>();
-  const lines = state.lines.refLines.flatMap(line => {
-    if (!line.groupId || !replacements.has(line.groupId) || line.type !== 'v') return [line];
-    if (emitted.has(line.groupId)) return [];
-    emitted.add(line.groupId); return replacements.get(line.groupId) ?? [];
-  });
-  if (lines.length === state.lines.refLines.length && lines.every((line, index) => line === state.lines.refLines[index])) return state.lines;
-  return {...state.lines, refLines:lines, selectedRefLineId:lines.some(line => line.id === state.lines.selectedRefLineId) ? state.lines.selectedRefLineId : null};
 }
 
 /** A history entry retains real immutable slices, without browser preferences or transient tools. */
@@ -123,7 +85,7 @@ export function snapshotFromWorkspace(state: WorkspaceState): WorkspaceSnapshotV
     derivedTraces: traces.derivedTraces, vis: traces.vis, panes: panes.panes, paneMode: panes.panes.length,
     activePaneId: panes.activePaneId, traceAssignments: panes.tracePaneMap, paneActiveTraceMap: panes.paneActiveTraceMap,
     xZoomState: {zoomAll:panes.zoomAll,sharedZoom:panes.sharedZoom,paneXZooms:panes.paneXZooms}, yZoomState:{paneYZooms:panes.paneYZooms},
-    markers:markers.markers, refLines:lines.refLines, ui, analysisOpenState:analysis.analysisOpenState,
+    markers:markers.markers, refLines:lines.refLines, ui:{...ui, selectedRefLineId:lines.selectedRefLineId}, analysisOpenState:analysis.analysisOpenState,
     analysisResults: {noiseResults:analysis.noiseResults,ip3Results:analysis.ip3Results,peakResults:analysis.peakResults,bandwidthResults:analysis.bandwidthResults,rippleResults:analysis.rippleResults,rangeStatsResults:analysis.rangeStatsResults},
     savedNoise:[], savedIP3:[], selectedTraceName:ui.selectedTraceName, layout,
   };
@@ -158,7 +120,7 @@ export function workspaceFromSnapshot(current: WorkspaceState, snapshot: Workspa
     ...current, files:fileState, traces:traceState,
     panes:{...current.panes, panes:orderedPanes, tracePaneMap:safeAssignments, issuedPaneIds:orderedPanes.map(p => p.id), paneActiveTraceMap:safeActive, activePaneId:snapshot.activePaneId, zoomAll:snapshot.xZoomState.zoomAll, sharedZoom:snapshot.xZoomState.sharedZoom, paneXZooms:{...snapshot.xZoomState.paneXZooms}, paneYZooms:{...snapshot.yZoomState.paneYZooms}},
     markers:{...current.markers, markers:[...snapshot.markers], selectedMkrIdx:-1, armed:null, nextMarkerSerial:1},
-    lines:{...current.lines, refLines:[...snapshot.refLines], refMode:null, selectedRefLineId:null},
+    lines:{...current.lines, refLines:[...snapshot.refLines], refMode:null, selectedRefLineId:(snapshot.ui as typeof snapshot.ui & {selectedRefLineId?: number | null}).selectedRefLineId ?? null},
     analysis:{...snapshot.analysisResults, analysisOpenState:snapshot.analysisOpenState},
     ui:{...current.ui, ...snapshot.ui, selectedTraceName:snapshot.selectedTraceName, paneAssignmentWarning:null, activeWizard:null},
     layout:snapshot.layout,
@@ -269,7 +231,7 @@ export function planLastPaneLines(state: WorkspaceState, targetPaneId: string, m
     return units.length && units[0] && units.every(unit => unit === units[0]) ? units[0] : null;
   };
   const remaining = state.panes.panes.filter(pane => pane.id !== targetPaneId).reverse();
-  return state.lines.refLines.filter(line => line.paneId === targetPaneId && !line.paneless).map(line => {
+  return state.lines.refLines.filter(line => line.paneIds.includes(targetPaneId)).map(line => {
     const axisUnit = unitFor(targetPaneId, line.type, state.panes.tracePaneMap);
     const destination = axisUnit ? remaining.find(pane => unitFor(pane.id, line.type, memberships) === axisUnit) : undefined;
     return { line, to: destination?.id ?? null, axisUnit };
@@ -287,7 +249,10 @@ export function workspaceReducer(state: WorkspaceState, command: WorkspaceAction
     const byId = new Map(linePlan.map(item => [item.line.id, item]));
     const refLines = state.lines.refLines.map(line => {
       const move = byId.get(line.id);
-      return move ? { ...line, paneId: move.to, paneless: !move.to, axisUnit: move.axisUnit } : line;
+      if (!move) return line;
+      const remaining = line.paneIds.filter(id => id !== command.targetPaneId);
+      const paneIds = remaining.length || !move.to ? remaining : [move.to];
+      return { ...line, paneIds, axisUnit: move.axisUnit ?? line.axisUnit };
     });
     const prepared = { ...state, lines: { ...state.lines, refLines } };
     return workspaceReducer(prepared, { slice: 'panes', limit: command.limit, action: { type: 'SET_PANE_COUNT', payload: state.panes.panes.length - 1, limit: command.limit, confirmed: command.confirmed } });
@@ -401,7 +366,6 @@ export function workspaceReducer(state: WorkspaceState, command: WorkspaceAction
     if (!next.ui.selectedTraceName || !visible.some(trace => trace.name === next.ui.selectedTraceName && next.traces.vis[trace.name])) { const first=visible.find(trace => next.traces.vis[trace.name]); next={...next,ui:{...next.ui,selectedTraceName:first?.name ?? null}}; }
   }
   if (next.panes.panes !== state.panes.panes) next = { ...next, lines: refLineReducer(next.lines, { type: 'CLEANUP_ORPHANED_LINES', payload: { paneIds: next.panes.panes.map(p => p.id) } }) };
-  if (next.files !== state.files || next.traces !== state.traces || next.panes !== state.panes || next.lines !== state.lines) next = {...next, lines:reconcileLinkedLines(next)};
   return { ...next, revision: state.revision + 1 };
 }
 

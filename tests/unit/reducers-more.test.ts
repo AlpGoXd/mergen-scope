@@ -66,31 +66,23 @@ describe("additional reducer behavior", () => {
     expect(removedRef.selectedMkrIdx).toBe(0);
   });
 
-  it("ref-line reducer locks, moves, unlocks, and cleans pane-scoped lines", () => {
+  it("ref-line reducer moves one record and removes orphaned memberships", () => {
     const added = refLineReducer(defaultRefLineState, {
       type: "ADD_LINE",
-      payload: { id: 1, type: "v", paneId: "pane-1", groupId: null, value: 10, label: "V1" },
+      payload: { id: 1, type: "v", paneIds: ["pane-1", "pane-2"], value: 10, label: "V1" },
     });
-    const locked = refLineReducer(added, {
-      type: "LOCK_LINE",
-      payload: { lineId: 1, allPaneIds: ["pane-1", "pane-2", "pane-3"] },
+    const moved = refLineReducer(added, {
+      type: "UPDATE_LINE",
+      payload: { id: 1, updates: { value: 20 } },
     });
-    const moved = refLineReducer(locked, {
-      type: "MOVE_GROUP",
-      payload: { groupId: locked.refLines[0]?.groupId ?? "", value: 20 },
-    });
-    const unlocked = refLineReducer(moved, {
-      type: "UNLOCK_LINE",
-      payload: { lineId: 1 },
-    });
-    const cleaned = refLineReducer(unlocked, {
+    const cleaned = refLineReducer(moved, {
       type: "CLEANUP_ORPHANED_LINES",
       payload: { paneIds: ["pane-1"] },
     });
 
-    expect(locked.refLines).toHaveLength(3);
-    expect(moved.refLines.every((line) => line.value === 20)).toBe(true);
-    expect(unlocked.refLines.every((line) => line.groupId === null)).toBe(true);
+    expect(moved.refLines).toHaveLength(1);
+    expect(moved.refLines[0]?.value).toBe(20);
+    expect(cleaned.refLines[0]?.paneIds).toEqual(["pane-1"]);
     expect(cleaned.refLines).toHaveLength(1);
   });
 });

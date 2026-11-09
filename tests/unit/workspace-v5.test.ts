@@ -99,10 +99,7 @@ describe('v5 migration boundary', () => {
     expect(delta?.requestedFreq).toBe(source.markers.find(marker => marker.refIdx === 0)?.requestedFreq);
     expect(delta?.freq).toBe(source.markers.find(marker => marker.refIdx === 0)?.freq);
 
-    expect(migrated.refLines).toHaveLength(source.refLines.length);
-    expect(migrated.refLines.map(line => ({ id: line.id, type: line.type, value: line.value, paneId: line.paneId, groupId: line.groupId, label: line.label }))).toEqual(source.refLines);
-    expect(migrated.refLines.every(line => line.type === 'v' && (line.paneId === 'pane-a' || line.paneId === 'pane-k') && line.paneId !== 'pane-z')).toBe(true);
-    expect(new Set(migrated.refLines.map(line => line.groupId))).toEqual(new Set(['legacy-link-9']));
+    expect(migrated.refLines).toEqual([{ id: 101, type: 'v', value: 1500000000, paneIds: ['pane-a', 'pane-k'], label: 'V1' }]);
     expect(migrated.panes.every(pane => pane.settings.showSampleDots === source.ui.showDots)).toBe(true);
     expect(migrated.ui).not.toHaveProperty('theme');
   });

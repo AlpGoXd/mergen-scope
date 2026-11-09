@@ -3,6 +3,9 @@
 // ============================================================================
 
 import { placeMarker } from './markers';
+import { traceXGroup } from './pane-placement';
+import type { PlacementPane, PlacementResult, PlacementTrace } from './pane-placement';
+import { decodeXAxisUnit } from '../types/ref-line';
 import type { Trace } from '../types/trace';
 import type { RefLine } from '../types/ref-line';
 
@@ -11,6 +14,49 @@ export interface LineIntersection {
   paneId: string;
   freq: number;
   amp: number;
+}
+
+/** X groups use the same exact-unit normalization as trace placement. */
+export function linePaneXGroup(paneId: string, entries: readonly PlacementTrace[]): string | null {
+  const groups = entries.filter(entry => entry.paneIds.includes(paneId)).map(entry => traceXGroup(entry.trace));
+  const first = groups[0];
+  return first && groups.every(group => group === first) ? first : null;
+}
+
+export function linePlacementPanes(type: 'h' | 'v', paneId: string, panes: readonly PlacementPane[], entries: readonly PlacementTrace[], zoomAll: boolean): string[] {
+  const group = linePaneXGroup(paneId, entries);
+  if (type === 'h' || !zoomAll || !group) return [paneId];
+  return panes.filter(pane => pane.id === paneId || linePaneXGroup(pane.id, entries) === group).map(pane => pane.id);
+}
+
+export function canSetLinePanes(line: RefLine, paneIds: readonly string[], panes: readonly PlacementPane[], entries: readonly PlacementTrace[]): PlacementResult {
+  if (new Set(paneIds).size !== paneIds.length) return { allowed: false, reason: 'A pane may only be listed once.' };
+  if (line.type === 'h' && paneIds.length > 1) return { allowed: false, reason: 'H lines belong to one pane.' };
+  if (paneIds.some(id => !panes.some(pane => pane.id === id))) return { allowed: false, reason: 'The target pane no longer exists.' };
+  if (paneIds.some(id => panes.find(pane => pane.id === id)?.renderMode === 'table')) return { allowed: false, reason: 'The target pane has no chart axis.' };
+  if (line.type === 'v') {
+    const anchor = line.axisUnit ? decodeXAxisUnit(line.axisUnit)[0] : line.paneIds.map(id => linePaneXGroup(id, entries)).find(Boolean);
+    const groups = paneIds.map(id => linePaneXGroup(id, entries));
+    const known = anchor ?? groups.find(Boolean);
+    if (known && groups.some(group => group !== null && group !== known)) return { allowed: false, reason: 'The line and pane must have the same known X unit.' };
+    if (groups.filter(group => group === null).length && paneIds.length > 1) return { allowed: false, reason: 'The line and pane must have the same known X unit.' };
+  }
+  return { allowed: true };
+}
+
+export function setLinePanes(line: RefLine, paneIds: readonly string[], panes: readonly PlacementPane[], entries: readonly PlacementTrace[]): { line: RefLine; result: PlacementResult } {
+  const result = canSetLinePanes(line, paneIds, panes, entries);
+  const unchanged = paneIds.length === line.paneIds.length && paneIds.every((id, index) => line.paneIds[index] === id);
+  return { line: result.allowed && !unchanged ? { ...line, paneIds: [...paneIds] } : line, result };
+}
+
+export function addLinePane(line: RefLine, paneId: string, panes: readonly PlacementPane[], entries: readonly PlacementTrace[]): { line: RefLine; result: PlacementResult } {
+  return setLinePanes(line, line.paneIds.includes(paneId) ? line.paneIds : [...line.paneIds, paneId], panes, entries);
+}
+
+export function removeLinePane(line: RefLine, paneId: string, axisUnit?: string | null): RefLine {
+  const paneIds = line.paneIds.filter(id => id !== paneId);
+  return paneIds.length === line.paneIds.length ? line : { ...line, paneIds, ...(paneIds.length === 0 && axisUnit !== undefined ? { axisUnit } : {}) };
 }
 
 /**
@@ -83,16 +129,13 @@ export function computeHorizontalIntersections(
 
 /** Compute the same visible pane intersections used by chart reference-line markers. */
 export function computeLineIntersections(
-  line: RefLine, lines: readonly RefLine[], traces: readonly Trace[],
+  line: RefLine, _lines: readonly RefLine[], traces: readonly Trace[],
   tracePaneMap: Readonly<Record<string, readonly string[]>>, vis: Readonly<Record<string, boolean>>,
 ): LineIntersection[] {
-  const members = line.groupId ? lines.filter(item => item.groupId === line.groupId) : [line];
-  return members.flatMap(member => {
-    if (member.paneless) return [];
-    const paneId = member.paneId ?? 'pane-1';
+  return line.paneIds.flatMap(paneId => {
     const paneTraces = traces.filter(trace => vis[trace.name] && tracePaneMap[trace.name]?.includes(paneId));
-    return member.type === 'v'
-      ? computeVerticalIntersections(member.value, paneTraces, paneId)
-      : computeHorizontalIntersections(member.value, paneTraces, paneId);
+    return line.type === 'v'
+      ? computeVerticalIntersections(line.value, paneTraces, paneId)
+      : computeHorizontalIntersections(line.value, paneTraces, paneId);
   });
 }

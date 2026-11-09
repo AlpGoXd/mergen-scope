@@ -430,7 +430,6 @@ function defaultUiState(): WorkspaceSnapshot['ui'] {
     showDots: false,
     showDT: false,
     theme: 'dark',
-    lockLinesAcrossPanes: false,
     searchDirection: 'left',
     newMarkerArmed: false,
     markerTrace: '',

@@ -33,16 +33,10 @@ export interface RefLine {
   /** Orientation: "h" for horizontal, "v" for vertical. */
   readonly type: RefLineType;
 
-  /** The pane this line belongs to, or `null` for all panes. */
-  readonly paneId: string | null;
-
-  /** Explicitly unplaced; unlike legacy null paneId, this line is not global. */
-  readonly paneless?: boolean;
+  /** Panes in which this line is shown; an empty list means unplaced. */
+  readonly paneIds: readonly string[];
   /** Axis unit recorded when the original pane was removed, when known. */
   readonly axisUnit?: string | null;
-
-  /** Group ID for locking lines across panes. */
-  readonly groupId: string | null;
 
   /** The value (Y for horizontal, X for vertical) in axis units. */
   readonly value: number;

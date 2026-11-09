@@ -18,6 +18,7 @@ import type { Pane } from "../types/pane.ts";
 import type { RefLine } from "../types/ref-line.ts";
 import type { RawFileRecord } from "../types/file.ts";
 import { migrateWorkspaceSnapshot } from "./workspace-migrate-v4.ts";
+import { migrateLines } from "./workspace-migrate-v5.ts";
 
 // ---------------------------------------------------------------------------
 // Version
@@ -103,7 +104,10 @@ export function restoreSnapshot(json: string): WorkspaceSnapshot | null {
     const body = raw && raw.kind === "mergen-scope-workspace" && raw.snapshot ? raw.snapshot : raw;
     // Arbitrary JSON (null, arrays, unrelated objects) must not replace the open workspace with an empty one.
     if (!looksLikeWorkspace(body)) return null;
-    return normalizeSnapshot(body);
+    // Legacy v4-shaped envelope: only the reference lines change shape (paneIds membership); everything else stays as written.
+    const paneIds = Array.isArray(body.panes) ? body.panes.flatMap(pane => typeof pane?.id === "string" ? [pane.id] : []) : [];
+    const refLines = migrateLines(body.refLines ?? [], paneIds);
+    return refLines ? normalizeSnapshot({ ...body, refLines }) : null;
   } catch {
     return null;
   }
@@ -156,8 +160,11 @@ export function buildExportPackage(
   });
   const rebuilt = normalizeSnapshot({ ...snapshot, datasets: [], displayTraces: [] });
   const { datasets, displayTraces, ...rest } = snapshot;
+  const refLines = migrateLines(snapshot.refLines, snapshot.panes.map(pane => pane.id));
+  if (!refLines) throw new Error('Invalid reference line memberships');
   const compactSnapshot = {
     ...rest,
+    refLines,
     files,
     ...(JSON.stringify(datasets) === JSON.stringify(rebuilt.datasets) ? {} : { datasets }),
     ...(JSON.stringify(displayTraces) === JSON.stringify(rebuilt.displayTraces) ? {} : { displayTraces }),

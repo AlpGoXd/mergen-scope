@@ -13,8 +13,8 @@ it('edits and removes paneless linked rows independently with undo, and preserve
   const trace=makeTestTrace({id:"one",name:"one"});
   const initial=workspaceReducer(initialWorkspaceState(),{slice:"files",action:{type:"ADD_PARSED_FILE",payload:{id:"f",fileName:"one.dat",text:"source",parsed:{format:"rs-dat",meta:{},traces:[trace]}}}});
   const state={...initial,panes:{...initial.panes,tracePaneMap:{one:['pane-1']}},lines:{...initial.lines,refLines:[
-    {id:1,type:'v' as const,value:1,paneId:'pane-1',groupId:'g',label:'V1'},
-    {id:2,type:'v' as const,value:2,paneId:null,paneless:true,axisUnit:'Hz:Hz',groupId:'g',label:'V2'},
+    {id:1,type:'v' as const,value:1,paneIds:['pane-1'],label:'V1'},
+    {id:2,type:'v' as const,value:2,paneIds:[],axisUnit:'Hz:Hz',label:'V2'},
   ]}};
   act(()=>workspace.historyDispatch({type:'change',command:{slice:'restore',state}}));
   const paneless=await screen.findByTestId('ref-line-row-V2');
@@ -28,26 +28,26 @@ it('edits and removes paneless linked rows independently with undo, and preserve
   act(()=>workspace.historyDispatch({type:'undo'}));
   await waitFor(()=>expect(workspace.state.lines.refLines.map(line=>line.id)).toEqual([1,2]));
   fireEvent.click(within(screen.getByTestId('ref-line-row-V1')).getByRole('button',{name:'Remove V1'}));
-  await waitFor(()=>expect(workspace.state.lines.refLines).toMatchObject([{id:2,value:2,paneless:true,paneId:null}]));
+  await waitFor(()=>expect(workspace.state.lines.refLines).toMatchObject([{id:2,value:2,paneIds:[]}]));
   act(()=>workspace.historyDispatch({type:'change',command:{slice:'panes',limit:4,action:{type:'SET_PANE_TITLE',payload:{paneId:'pane-1',title:'Changed'}}}}));
-  expect(workspace.state.lines.refLines).toMatchObject([{id:2,value:2,paneless:true,paneId:null}]);
+  expect(workspace.state.lines.refLines).toMatchObject([{id:2,value:2,paneIds:[]}]);
   const snapshot=snapshotFromWorkspace(workspace.state);
   expect(snapshot).not.toBeNull();
-  expect(workspaceFromSnapshot(initialWorkspaceState(),snapshot!)?.lines.refLines).toMatchObject([{id:2,value:2,paneless:true,paneId:null}]);
+  expect(workspaceFromSnapshot(initialWorkspaceState(),snapshot!)?.lines.refLines).toMatchObject([{id:2,value:2,paneIds:[]}]);
   act(()=>workspace.historyDispatch({type:'undo'})); // title
   expect(workspace.state.lines.refLines.map(line=>line.id)).toEqual([2]);
   act(()=>workspace.historyDispatch({type:'undo'}));
   await waitFor(()=>expect(workspace.state.lines.refLines.map(line=>line.id)).toEqual([1,2]));
   act(()=>workspace.historyDispatch({type:'redo'}));
-  await waitFor(()=>expect(workspace.state.lines.refLines).toMatchObject([{id:2,value:2,paneless:true,paneId:null}]));
+  await waitFor(()=>expect(workspace.state.lines.refLines).toMatchObject([{id:2,value:2,paneIds:[]}]));
   act(()=>workspace.historyDispatch({type:'redo'}));
-  expect(workspace.state.lines.refLines).toMatchObject([{id:2,value:2,paneless:true,paneId:null}]);
+  expect(workspace.state.lines.refLines).toMatchObject([{id:2,value:2,paneIds:[]}]);
 });
 
 it('formats and parses a paneless saved frequency unit independently of the selected time trace', () => {
   const time=makeTestTrace({domain:'time',units:{x:'s',y:'V'}});
   let value=0;
-  render(React.createElement(RefLineItem,{refLine:{id:9,type:'v',value:100,paneId:null,paneless:true,axisUnit:'Hz:Hz',groupId:null,label:'V9'},isSelected:false,intersections:[],allPanes:[{id:'pane-1',title:'time'}],linkedPaneIds:[],siblingLines:[],onSelect:()=>{},onRemove:()=>{},onLock:()=>{},onUnlock:()=>{},onUpdateValue:(next:number)=>{value=next;},onUpdateDeltaPartner:()=>{},selectedTrace:time,xSpan:20,resolveTraceColor:()=>''}));
+  render(React.createElement(RefLineItem,{refLine:{id:9,type:'v',value:100,paneIds:[],axisUnit:'Hz:Hz',label:'V9'},isSelected:false,intersections:[],allPanes:[{id:'pane-1',title:'time'}],linkedPaneIds:[],siblingLines:[],onSelect:()=>{},onRemove:()=>{},onUpdateValue:(next:number)=>{value=next;},onUpdateDeltaPartner:()=>{},selectedTrace:time,xSpan:20,resolveTraceColor:()=>''}));
   const input=within(screen.getByTestId('ref-line-row-V9')).getByRole('textbox');
   expect(input).toHaveValue('100 Hz');
   fireEvent.change(input,{target:{value:'2 kHz'}}); fireEvent.keyDown(input,{key:'Enter'});

@@ -3,7 +3,7 @@ import { computeHorizontalIntersections, computeLineIntersections, computeVertic
 import type { RefLine } from '../../src/types/ref-line';
 import { makeTestTrace } from './helpers';
 
-const line = (updates: Partial<RefLine> = {}): RefLine => ({ id: 1, type: 'v', value: 5, paneId: 'pane-1', groupId: null, label: null, ...updates });
+const line = (updates: Partial<RefLine> = {}): RefLine => ({ id: 1, type: 'v', value: 5, paneIds: ['pane-1'], label: null, ...updates });
 
 describe('reference line crossings', () => {
   it('respects interpolation and data bounds for vertical lines', () => {
@@ -19,16 +19,15 @@ describe('reference line crossings', () => {
   it('includes visible members in linked panes and updates with membership, visibility and line value', () => {
     const a = makeTestTrace({ name: 'a', interpolation: 'linear' });
     const b = makeTestTrace({ name: 'b', interpolation: 'linear' });
-    const first = line({groupId: 'g'});
-    const second = line({id: 2, paneId: 'pane-2', groupId: 'g'});
+    const first = line({paneIds: ['pane-1', 'pane-2']});
     const map = { a: ['pane-1', 'pane-2'], b: ['pane-2'] };
-    expect(computeLineIntersections(first, [first, second], [a, b], map, {a: true, b: false}).map(p => p.paneId)).toEqual(['pane-1', 'pane-2']);
-    expect(computeLineIntersections({...first, value: 10}, [{...first, value: 10}, second], [a, b], map, {a: true, b: true}).map(p => [p.traceName, p.paneId, p.freq])).toEqual([['a', 'pane-1', 10], ['a', 'pane-2', 5], ['b', 'pane-2', 5]]);
+    expect(computeLineIntersections(first, [first], [a, b], map, {a: true, b: false}).map(p => p.paneId)).toEqual(['pane-1', 'pane-2']);
+    expect(computeLineIntersections({...first, value: 10}, [first], [a, b], map, {a: true, b: true}).map(p => [p.traceName, p.paneId, p.freq])).toEqual([['a', 'pane-1', 10], ['a', 'pane-2', 10], ['b', 'pane-2', 10]]);
     expect(computeLineIntersections(line({type: 'h'}), [line({type: 'h'})], [a, b], map, {a: true, b: true}).map(p => p.freq)).toEqual([5, 15]);
   });
   it('reports no crossings for a line whose pane was removed (paneless)', () => {
     const a = makeTestTrace({ name: 'a', interpolation: 'linear' });
-    const orphan = line({ paneId: null, paneless: true });
+    const orphan = line({ paneIds: [] });
     expect(computeLineIntersections(orphan, [orphan], [a], { a: ['pane-1'] }, { a: true })).toEqual([]);
   });
 });

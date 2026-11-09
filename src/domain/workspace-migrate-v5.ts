@@ -3,6 +3,7 @@ import { adaptDisplayTraceToLegacyTrace } from './display-trace-adapter';
 import { migrateWorkspaceSnapshot } from './workspace-migrate-v4';
 import { defaultPaneSettings } from '../types/pane';
 import type { WorkspacePaneV5, WorkspaceSnapshotV5 } from '../types/workspace-v5';
+import type { RefLine } from '../types/ref-line';
 
 const object = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === 'object' && !Array.isArray(value);
 const version = (value: unknown): boolean => value === undefined || (Number.isInteger(value) && Number(value) >= 1 && Number(value) <= 5);
@@ -11,6 +12,65 @@ const finite = (v: unknown): v is number => typeof v === 'number' && Number.isFi
 const stringMap = (v: unknown): boolean => object(v) && Object.values(v).every(x => typeof x === 'string');
 const boolMap = (v: unknown): boolean => object(v) && Object.values(v).every(x => typeof x === 'boolean');
 const strings = (v: unknown): v is string[] => Array.isArray(v) && v.every(x => typeof x === 'string');
+
+/** Legacy null meant global; horizontal lines retain the first pane because Y is local. */
+export function migrateLines(raw: unknown, paneOrder: readonly string[]): RefLine[] | null {
+  if (!Array.isArray(raw)) return null;
+  const paneSet = new Set(paneOrder);
+  const ids = new Set<number>();
+  const groups = new Map<string, Record<string, unknown>[]>();
+  const items: { first: Record<string, unknown>; members: Record<string, unknown>[] }[] = [];
+  for (const value of raw) {
+    if (!object(value) || !finite(value.id) || ids.has(value.id) || !['h', 'v'].includes(String(value.type)) || !finite(value.value) || !nullableString(value.label) || !(value.axisUnit === undefined || nullableString(value.axisUnit)) || !(value.deltaPartnerId === undefined || value.deltaPartnerId === null || finite(value.deltaPartnerId))) return null;
+    ids.add(value.id);
+    if ('paneIds' in value) {
+      if (!strings(value.paneIds) || new Set(value.paneIds).size !== value.paneIds.length || value.paneIds.some(id => !paneSet.has(id)) || (value.type === 'h' && value.paneIds.length > 1)) return null;
+      items.push({ first: value, members: [value] });
+    } else {
+      if (!optionalBoolean(value.paneless) || (value.paneless === true && value.paneId !== null) || !(value.paneId === null || (typeof value.paneId === 'string' && paneSet.has(value.paneId))) || !(value.groupId === null || typeof value.groupId === 'string') || (value.type === 'h' && value.groupId !== null)) return null;
+      const key = typeof value.groupId === 'string' ? value.groupId : null;
+      const members = key === null ? undefined : groups.get(key);
+      if (members) { members.push(value); continue; }
+      const next = [value];
+      if (key !== null) groups.set(key, next);
+      items.push({ first: value, members: next });
+    }
+  }
+  const remap = new Map<number, number>();
+  for (const { members } of items) {
+    const survivor = Math.min(...members.map(member => Number(member.id)));
+    for (const member of members) remap.set(Number(member.id), survivor);
+  }
+  return items.map(({ first, members }) => {
+    const membership = new Set<string>();
+    for (const member of members) {
+      if (strings(member.paneIds)) member.paneIds.forEach(id => membership.add(id));
+      else if (!member.paneless && member.paneId === null) (member.type === 'h' ? paneOrder.slice(0, 1) : paneOrder).forEach(id => membership.add(id));
+      else if (!member.paneless && typeof member.paneId === 'string') membership.add(member.paneId);
+    }
+    const axisUnit = members.find(member => member.axisUnit !== undefined)?.axisUnit;
+    const survivorId = remap.get(Number(first.id)) ?? Number(first.id);
+    const partnerSource = members.map(member => member.deltaPartnerId).find(value => value !== undefined);
+    const remappedPartner = typeof partnerSource === 'number' ? remap.get(partnerSource) ?? partnerSource : partnerSource;
+    // A delta partner that points into the merged group would become a self-reference: drop it.
+    const partner = remappedPartner === survivorId ? undefined : remappedPartner;
+    return { id: remap.get(Number(first.id)) ?? Number(first.id), type: first.type as 'h' | 'v', value: Number(first.value), label: first.label as string | null,
+      paneIds: strings(first.paneIds) ? [...first.paneIds] : paneOrder.filter(id => membership.has(id)), ...(axisUnit !== undefined ? { axisUnit: axisUnit as string | null } : {}), ...(partner !== undefined ? { deltaPartnerId: partner as number | null } : {}) };
+  });
+}
+
+function selectedLineId(ui: unknown, raw: unknown, lines: readonly RefLine[]): number | null | undefined {
+  if (!object(ui) || ui.selectedRefLineId === undefined) return undefined;
+  if (ui.selectedRefLineId === null) return null;
+  if (!finite(ui.selectedRefLineId) || !Array.isArray(raw)) return null;
+  const selected = raw.find(item => object(item) && item.id === ui.selectedRefLineId);
+  if (!object(selected)) return null;
+  if (typeof selected.groupId === 'string') {
+    const ids = raw.filter(item => object(item) && item.groupId === selected.groupId && finite(item.id)).map(item => Number(item.id));
+    return ids.length ? Math.min(...ids) : null;
+  }
+  return lines.some(line => line.id === selected.id) ? Number(selected.id) : null;
+}
 
 const point = (v: unknown): boolean => object(v) && finite(v.freq) && finite(v.amp);
 const numericFields = (v: unknown, keys: string[]): boolean => object(v) && keys.every(key => finite(v[key]));
@@ -181,7 +241,7 @@ function validCurrent(body: Record<string, unknown>): boolean {
   for (const marker of markerIds.values()) if (marker.type === 'delta' ? typeof marker.refId !== 'string' || marker.refId === marker.id || !markerIds.has(marker.refId) || markerIds.get(marker.refId)?.type === 'delta' : marker.refId !== null) return false;
   const lineIds = new Set<number>();
   for (const line of body.refLines) {
-    if (!object(line) || !optionalBoolean(line.paneless) || (line.paneless === true && line.paneId !== null) || !(line.axisUnit === undefined || nullableString(line.axisUnit)) || !finite(line.id) || lineIds.has(line.id) || !['h','v'].includes(String(line.type)) || !finite(line.value) || !(line.paneId === null || (typeof line.paneId === 'string' && paneIds.has(line.paneId))) || !(line.groupId === null || typeof line.groupId === 'string') || !(line.label === null || typeof line.label === 'string') || (line.type === 'h' && line.groupId !== null)) return false;
+    if (!object(line) || !(line.axisUnit === undefined || nullableString(line.axisUnit)) || !finite(line.id) || lineIds.has(line.id) || !['h','v'].includes(String(line.type)) || !finite(line.value) || !strings(line.paneIds) || new Set(line.paneIds).size !== line.paneIds.length || line.paneIds.some(id => !paneIds.has(id)) || (line.type === 'h' && line.paneIds.length > 1) || !(line.label === null || typeof line.label === 'string')) return false;
     lineIds.add(line.id);
   }
   return body.datasets.every(validDataset) && body.displayTraces.every(validDisplay) && (body.selectedTraceName === null || (typeof body.selectedTraceName === 'string' && traceNames.has(body.selectedTraceName)));
@@ -201,11 +261,14 @@ export function migrateWorkspaceV5(raw: unknown): WorkspaceSnapshotV5 | null {
   if (body.panes !== undefined && (!Array.isArray(body.panes) || body.panes.length < 1 || body.panes.length > 8 || body.panes.some(p => !object(p) || typeof p.id !== 'string' || !p.id))) return null;
   if (body.traceAssignments !== undefined && !object(body.traceAssignments)) return null;
   if (body.version === 5) {
-    if (!validCurrent(body)) return null;
-    const snapshot = body as unknown as WorkspaceSnapshotV5;
+    const paneOrder = Array.isArray(body.panes) ? body.panes.flatMap(pane => object(pane) && typeof pane.id === 'string' ? [pane.id] : []) : [];
+    const refLines = migrateLines(body.refLines, paneOrder);
+    if (!refLines || !validCurrent({ ...body, refLines })) return null;
+    const snapshot = { ...body, refLines } as unknown as WorkspaceSnapshotV5;
     // Browser preferences and other transient UI keys are not workspace state.
     const { traceColors, traceInterpolations, noiseFilter, noiseSource, ip3Gain } = snapshot.ui;
-    return { ...snapshot, ui: { traceColors, traceInterpolations, noiseFilter, noiseSource, ip3Gain } };
+    const selectedRefLineId = selectedLineId(body.ui, body.refLines, refLines);
+    return { ...snapshot, ui: { traceColors, traceInterpolations, noiseFilter, noiseSource, ip3Gain, ...(selectedRefLineId !== undefined ? { selectedRefLineId } : {}) } };
   }
   try {
     let normalized = migrateWorkspaceSnapshot(body);
@@ -305,11 +368,13 @@ export function migrateWorkspaceV5(raw: unknown): WorkspaceSnapshotV5 | null {
     const layout = object(body.layout) ? body.layout : {};
     const order = Array.isArray(layout.paneOrder) ? layout.paneOrder.filter((id): id is string => typeof id === 'string' && valid.has(id)) : [];
     const paneOrder = [...new Set([...order, ...panes.map(p => p.id)])];
+    const refLines = migrateLines(body.refLines ?? [], panes.map(pane => pane.id));
+    if (!refLines) return null;
     const preset = layout.preset === 'columns' || layout.preset === 'grid' || layout.preset === 'one-side' ? layout.preset : 'rows';
     const { paneMode: _paneMode, paneRenderModes: _paneRenderModes, ...base } = legacy;
     const results = object(body.analysisResults) ? body.analysisResults : {};
     return {
-      ...base, version: 5, panes, traceAssignments, paneActiveTraceMap,
+      ...base, version: 5, panes, traceAssignments, paneActiveTraceMap, refLines,
       analysisResults: {
         noiseResults: object(results.noiseResults) ? results.noiseResults as WorkspaceSnapshotV5['analysisResults']['noiseResults'] : {},
         ip3Results: object(results.ip3Results) ? results.ip3Results as WorkspaceSnapshotV5['analysisResults']['ip3Results'] : {},
@@ -320,7 +385,7 @@ export function migrateWorkspaceV5(raw: unknown): WorkspaceSnapshotV5 | null {
       },
       activePaneId: typeof body.activePaneId === 'string' && valid.has(body.activePaneId) ? body.activePaneId : panes[0]?.id ?? 'pane-1',
       layout: { preset, paneOrder, sizes: object(layout.sizes) ? Object.fromEntries(Object.entries(layout.sizes).filter(([,v]) => typeof v === 'number' && Number.isFinite(v))) as Record<string, number> : {} },
-      ui: { traceColors: legacy.ui.traceColors, traceInterpolations: legacy.ui.traceInterpolations, noiseFilter: legacy.ui.noiseFilter, noiseSource: legacy.ui.noiseSource, ip3Gain: legacy.ui.ip3Gain },
+      ui: { traceColors: legacy.ui.traceColors, traceInterpolations: legacy.ui.traceInterpolations, noiseFilter: legacy.ui.noiseFilter, noiseSource: legacy.ui.noiseSource, ip3Gain: legacy.ui.ip3Gain, ...(selectedLineId(body.ui, body.refLines, refLines) !== undefined ? { selectedRefLineId: selectedLineId(body.ui, body.refLines, refLines) } : {}) },
     };
   } catch {
     return null;

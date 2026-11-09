@@ -6,7 +6,7 @@ import type { FileFormat, MatrixView } from '../left-panel/types';
 import { Popover } from '../shared/Controls';
 import { Menu as KitMenu } from '../left-panel/Menu';
 import { makeTraceColorResolver } from '../../domain/trace-colors';
-import { canPlaceMembership, traceXGroup } from '../../domain/pane-placement';
+import { canPlaceMembership } from '../../domain/pane-placement';
 import { useMemo, useRef, useState, type ReactNode } from 'react';
 import { computeLineIntersections } from '../../domain/ref-lines';
 import { getInterpolationOptionDisabledReason, getResolvedInterpolationStrategy } from '../../domain/interpolation';
@@ -518,7 +518,7 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
             {markers.length === 0 && <SidebarEmpty text={EMPTY_TEXT.markers} />}
           </PanelSection>
 
-          <PanelSection title="Lines" count={refLines.filter((line, index) => !line.groupId || refLines.findIndex((other) => other.groupId === line.groupId) === index).length} actions={[{ label: 'Remove all', disabled: !refLines.length, run: () => {
+          <PanelSection title="Lines" count={refLines.length} actions={[{ label: 'Remove all', disabled: !refLines.length, run: () => {
             const actions = refLines.map(line => ({ slice: 'lines' as const, action: { type: 'REMOVE_LINE' as const, payload: line.id } }));
             if (aggregate) aggregate.historyDispatch({ type: 'change', toastMessage: 'Removed all lines', command: { slice: 'transaction', actions } });
             else actions.forEach(item => refLineDispatch(item.action));
@@ -526,43 +526,31 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
             <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: '4px', minWidth: 0 }}>
               {(() => {
                 const selectedTrace = selectedTraceName ? allTraces.find((t) => t.name === selectedTraceName) ?? null : null;
-                // Deduplicate locked groups: show only one entry per groupId (the selected one or first)
-                const seenGroups = new Set<string>();
                 return refLines
-                  .filter((refLine) => {
-                    if (!refLine.groupId || refLine.paneless) return true;
-                    if (seenGroups.has(refLine.groupId)) return false;
-                    seenGroups.add(refLine.groupId);
-                    return true;
-                  })
                   .map((refLine) => {
-                    const paneTraces = refLine.paneless ? [] : allTraces.filter(t => tracePaneMap[t.name]?.includes(refLine.paneId ?? ''));
+                    const paneTraces = allTraces.filter(t => tracePaneMap[t.name]?.some(id => refLine.paneIds.includes(id)));
                     const intersections = computeLineIntersections(refLine, refLines, allTraces, tracePaneMap, vis);
                     return (
                       <RefLineItem
                         key={refLine.id}
                         refLine={refLine}
-                        isSelected={selectedRefLineId === refLine.id ||
-                          (refLine.groupId != null && refLines.some((l) => l.groupId === refLine.groupId && l.id === selectedRefLineId))}
+                        isSelected={selectedRefLineId === refLine.id}
                         intersections={intersections}
                         allPanes={panes}
-                        linkedPaneIds={refLine.groupId ? refLines.filter(line => line.groupId === refLine.groupId).map(line => line.paneId).filter((id): id is string => !!id) : refLine.paneId ? [refLine.paneId] : []}
+                        linkedPaneIds={[...refLine.paneIds]}
                         onList={onThresholdCrossings ? () => onThresholdCrossings(refLine.id) : undefined}
                         onSelect={() => {
                           refLineDispatch({ type: 'SET_SELECTED', payload: refLine.id });
                           markerDispatch({ type: 'SET_SELECTED_IDX', payload: -1 });
                         }}
                         onRemove={() => changeLine({ type: 'REMOVE_LINE', payload: refLine.id }, 'Removed line')}
-                        onLock={() => { const groupFor = (paneId: string) => { const members=allKnownTraces.filter(trace=>tracePaneMap[trace.name]?.includes(paneId)); const groups=members.map(traceXGroup); return groups.length && groups[0] && groups.every(group=>group===groups[0]) ? groups[0] : null; }; const group=refLine.paneId ? groupFor(refLine.paneId) : null; if (group) changeLine({ type: 'LOCK_LINE', payload: { lineId: refLine.id, allPaneIds: panes.filter(pane=>groupFor(pane.id)===group).map(pane=>pane.id) } }, 'Linked line'); }}
-                        onUnlock={() => changeLine({ type: 'UNLOCK_LINE', payload: { lineId: refLine.id } }, 'Unlinked line')}
                         onUpdateValue={(value) => {
-                          if (refLine.groupId && !refLine.paneless) changeLine({ type: 'MOVE_GROUP', payload: { groupId: refLine.groupId, value } }, 'Moved line');
-                          else changeLine({ type: 'UPDATE_LINE', payload: { id: refLine.id, updates: { value } } }, 'Moved line');
+                          changeLine({ type: 'UPDATE_LINE', payload: { id: refLine.id, updates: { value } } }, 'Moved line');
                         }}
-                        siblingLines={refLines.filter(l => l.type === refLine.type && l.paneId === refLine.paneId && l.id !== refLine.id)}
+                        siblingLines={refLines.filter(l => l.type === refLine.type && l.paneIds.some(id => refLine.paneIds.includes(id)) && l.id !== refLine.id)}
                         onUpdateDeltaPartner={(partnerId) => refLineDispatch({ type: 'UPDATE_LINE', payload: { id: refLine.id, updates: { deltaPartnerId: partnerId } } })}
                         selectedTrace={paneTraces.find(trace => trace.name === selectedTraceName) ?? paneTraces[0] ?? selectedTrace}
-                        xSpan={getVisibleXSpanForPaneId(refLine.paneId)}
+                        xSpan={getVisibleXSpanForPaneId(refLine.paneIds[0] ?? null)}
                         compact={compactSidebar}
                         colors={colors}
                         resolveTraceColor={(name) => {

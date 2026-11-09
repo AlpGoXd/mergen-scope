@@ -156,3 +156,26 @@ Evidence and the full difference list are in [ac3-size-evidence](ac3-size-eviden
 | Searchable Add analysis menu, kebab items (Create trace, Copy results), per-tool kind icons, short-name source rule, collapse and drag reorder, restyle of Peak Table / Noise PSD / IP3 / Trace Ops bodies, R1 / R8 right-panel frame | Phase 7C | Cards share the AC-3 shell and key/value rows; the rest is open. |
 | Size setting: adopt the size tokens in components with hard-coded px (top bar and strip, chart overlays, inline-styled cards); check both 1280 px sides at Large | Phase 7A / 7B adoption; Phase 8 audit | Tokens, setting, persistence and default are done. |
 | Pane header Hz chip and full P3 header | Phase 5C | Scale text and trace count hide in order without wrapping. |
+
+## Lines like traces (LL-2, 10 November)
+
+Board [37-P4c](referance/37-P4c-lines-like-traces.png) replaces line linking with "Show in". The link icon and the Lines strip's Link button are removed; the data model moves to `paneIds[]` (see plan 3C). Open presentation work, waiting for the kit in `docs/redesign/kit/lines/`:
+
+| Remaining work | Target phase | Status |
+| --- | --- | --- |
+| Line row with Show-in badges and the "Shown in P1, P2 · 3 crossings · List..." line, H-line tooltip, "not in a pane" state | Phase 4 / 5 (with the kit) | Waiting for the kit; the row keeps its current look without the link icon. |
+| Chart: "V1 · 2" label, shared hover/selection highlight across copies, edge tag with click-to-pan, right-click menu (Show in, Edit value, List crossings, Remove from Pane N, Delete) | Phase 5C | Waiting for the kit; `ChartPane.tsx` changes in small steps with e2e. |
+| "V1 crossings" card grouped by pane; toasts "V1 also shown in Pane 2" / "Deleted V1 from 2 panes" with Undo | Phase 5C / 7C | Data counts per pane are done; card grouping and toasts are not. |
+
+### Lines like traces: data model done (10 November), review follow-ups
+
+Done and verified: `RefLine.paneIds[]` replaces `paneId` / `paneless` / `groupId`; placing adds the clicked pane plus X-linked panes (V lines, same normalized X unit group with shared X zoom `zoomAll`); H lines keep one pane; new panes get nothing; crossings per pane; migration of every old link group into one line (snapshot stays v5, reader accepts both shapes, writer writes the new one); link icon and Link button removed. Tests: `line-membership.test.ts`, `line-membership-migration.test.ts`, `line-membership.spec.ts` plus updated older tests. Independent Terra review of the migration found no defect in ordinary V groups; open follow-ups (none blocks the data model, all are edge cases or product questions):
+
+| Item | Class | Target |
+| --- | --- | --- |
+| Pane removal (the "remove last pane" command) moves a line's only membership to a compatible pane with the same X unit instead of leaving it "not in a pane"; board 37-P4c step 07 says a line whose last pane is closed stays and says "Not in a pane". The relocation matches the earlier reviewed behaviour and the trace relocation rule. Decision needed: relocate (current) or leave unplaced | Product question | Before the lines kit lands |
+| Undo/Redo restores lines but not which line was selected (selection resets to none) | Deferred | Phase 5C |
+| A v5 line carrying both old and new fields, or a crafted legacy horizontal group, or an old group member naming a removed pane, is rejected or only partly merged; labels of merged groups are not de-duplicated; `paneIds` order follows the `panes` array, not `layout.paneOrder`, and adding a pane appends | Edge cases, deferred | Phase 8 audit |
+| The legacy `restoreSnapshot` helper (unused by the app) does not remap the selected line id | Deferred | Phase 8 audit |
+| `src/components/sidebar/RefLineItem.tsx` is dead code that still contains link UI strings; remove it with the line row kit | Cleanup | With the lines kit |
+| Multi-pane Show-in editing UI (badges menu), removal of one copy, "V1 · 2" label, edge tag and right-click menu have no UI yet; the reducer actions `ADD_LINE_PANE`, `REMOVE_LINE_PANE`, `SET_LINE_PANES` exist and are unit-tested | Waiting for the kit | Phase 4 / 5C |
