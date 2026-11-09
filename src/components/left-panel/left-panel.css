@@ -57,7 +57,7 @@
   position: sticky;
   top: 0;
   z-index: 2;
-  height: 26px;
+  height: var(--row-height);
   display: flex;
   align-items: center;
   gap: 6px;
@@ -73,7 +73,7 @@
 .lp-head.is-stuck { box-shadow: 0 1px 0 var(--border), 0 4px 8px -6px oklch(0.2 0.02 255 / 0.3); }
 .lp-head__toggle {
   display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0;
-  height: 26px; padding: 0; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; text-align: left;
+  height: var(--row-height); padding: 0; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; text-align: left;
 }
 .lp-head__chev { width: 10px; font-size: 10px; color: var(--text-muted); }
 .lp-head__title { font-size: 12px; font-weight: 700; }
@@ -129,8 +129,8 @@
 .lp-file.is-error .lp-badge { border-color: var(--danger-line); color: var(--danger-ink); }
 .lp-file.is-parsing { position: relative; overflow: hidden; }
 .lp-file__progress { position: absolute; left: 0; bottom: 0; height: 2px; background: var(--accent); }
-.lp-row { height: 26px; display: flex; align-items: center; gap: 5px; }
-.lp-file__summary { margin-top: -4px; padding-bottom: 4px; font-family: var(--font-mono); font-size: 10.5px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lp-row { height: var(--row-height); display: flex; align-items: center; gap: 5px; }
+.lp-file__summary { margin-top: 1px; padding-bottom: 6px; font-family: var(--font-mono); font-size: 10.5px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .lp-file__fix { flex: none; padding: 0; border: 0; background: none; color: inherit; font: inherit; font-size: 11px; text-decoration: underline; cursor: pointer; }
 .lp-file__pct { flex: none; font-family: var(--font-mono); font-size: 10.5px; color: var(--text-muted); }
 .lp-columns { display: flex; flex-direction: column; gap: 2px; padding: 0 0 6px 36px; font-size: 11px; }
@@ -196,7 +196,7 @@
 .lp-trace.is-hidden .lp-swatch { background: none; border: 1.5px solid var(--trace); }
 .lp-trace__fx { flex: none; font-family: Georgia, 'Times New Roman', serif; font-style: italic; font-weight: 700; color: var(--analysis-ink); }
 .lp-trace__child { flex: none; margin-left: 6px; color: var(--text-muted); }
-.lp-sub { display: flex; align-items: center; gap: 6px; margin-top: -5px; padding: 0 0 4px 22px; font-size: 10.5px; color: var(--text-muted); }
+.lp-sub { display: flex; align-items: center; gap: 6px; margin-top: 1px; padding: 0 0 6px 22px; font-size: 10.5px; color: var(--text-muted); }
 .lp-sub__text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ---------- marker item (C01) ---------- */

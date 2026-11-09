@@ -4,6 +4,7 @@ import { useTraceState } from '../../../stores/trace-store';
 import { useUiState } from '../../../stores/ui-store';
 import { usePaneState } from '../../../stores/pane-store';
 import { AnalysisFeatureCard } from '../AnalysisFeatureCard';
+import { MR } from '../../shared/MR';
 import { Btn } from '../../shared/Btn';
 import { computeRangeStats } from '../../../domain/analysis/range-stats';
 import { fmtF } from '../../../domain/format';
@@ -34,6 +35,7 @@ export function RangeStatsCard() {
 
   return (
     <AnalysisFeatureCard 
+      source={trace ? `${trace.dn || trace.name} · ${trace.file}` : undefined}
       title="Range Statistics" 
       description="Calculate basic statistics (min, max, average) for the selected trace."
       onClose={() => analysisDispatch({ type: 'TOGGLE_PANEL', payload: { id: 'range-stats', forceValue: false } })}
@@ -58,28 +60,12 @@ export function RangeStatsCard() {
         </Btn>
 
         {result && (
-          <div style={{ marginTop: '12px', padding: '10px', background: 'var(--bg-soft)', borderRadius: '6px', border: '1px solid var(--border)' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', fontSize: 'var(--font-label)', lineHeight: 'var(--lh-label)' }}>
-              <div>
-                <div style={{ color: 'var(--dim)', fontSize: 'var(--font-caption)' }}>Maximum</div>
-                <div style={{ color: 'var(--text)', fontWeight: 'bold' }}>{result.max.amp.toFixed(2)} dB</div>
-                <div style={{ color: 'var(--dim)', fontSize: 'var(--font-caption)' }}>@ {fmtF(result.max.freq)}</div>
-              </div>
-              <div>
-                <div style={{ color: 'var(--dim)', fontSize: 'var(--font-caption)' }}>Minimum</div>
-                <div style={{ color: 'var(--text)', fontWeight: 'bold' }}>{result.min.amp.toFixed(2)} dB</div>
-                <div style={{ color: 'var(--dim)', fontSize: 'var(--font-caption)' }}>@ {fmtF(result.min.freq)}</div>
-              </div>
-              <div style={{ borderTop: '1px solid var(--border)', paddingTop: '8px', gridColumn: 'span 2' }}>
-                <div style={{ color: 'var(--dim)', fontSize: 'var(--font-caption)' }}>Average Amplitude</div>
-                <div style={{ color: 'var(--text)', fontSize: 'var(--font-emphasis)', lineHeight: 'var(--lh-body)' }}>{result.average.toFixed(3)} dB</div>
-              </div>
-              <div style={{ borderTop: '1px solid var(--border)', paddingTop: '8px', gridColumn: 'span 2' }}>
-                <div style={{ color: 'var(--dim)', fontSize: 'var(--font-caption)' }}>Frequency Span</div>
-                <div style={{ color: 'var(--text)' }}>{fmtF(result.spanHz)}</div>
-                <div style={{ color: 'var(--dim)', fontSize: 'var(--font-caption)' }}>{result.count} samples analyzed</div>
-              </div>
-            </div>
+          <div className="ac-kvs">
+            <MR label="Maximum" value={`${result.max.amp.toFixed(2)} dB @ ${fmtF(result.max.freq)}`} />
+            <MR label="Minimum" value={`${result.min.amp.toFixed(2)} dB @ ${fmtF(result.min.freq)}`} />
+            <MR label="Average Amplitude" value={`${result.average.toFixed(3)} dB`} />
+            <MR label="Frequency Span" value={fmtF(result.spanHz)} />
+            <div className="ac-note">{result.count} samples analyzed</div>
           </div>
         )}
       </div>

@@ -152,7 +152,7 @@ test("analysis panels compute visible results for imported spectrum data", async
   await expect(page.getByText("Peak-to-Peak Ripple")).toBeVisible();
 
   await page.getByRole("button", { name: "Threshold Crossings" }).click();
-  await expect(page.getByText(/Found \d+ crossing/)).toBeVisible();
+  await expect(page.getByTestId("analysis-card-threshold-crossings").locator(".ac-result")).toContainText(/\d+\s*crossings?/);
 });
 
 test("reference-line placement creates, edits, and deletes sidebar state", async ({ page }) => {

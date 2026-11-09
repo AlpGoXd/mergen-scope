@@ -3,6 +3,8 @@ import { computeOccupiedBandwidth } from '../../../domain/analysis/channel-power
 import { useUiState } from '../../../stores/ui-store';
 import { useTraceState } from '../../../stores/trace-store';
 import { AnalysisFeatureCard } from '../AnalysisFeatureCard';
+import { formatEng } from '../../../domain/format';
+import { significantStep } from '../../../domain/analysis/crossing-rows';
 
 export function OccupiedBandwidthCard() {
 	const { allTraces } = useTraceState();
@@ -25,16 +27,14 @@ export function OccupiedBandwidthCard() {
 
 	return (
 		<AnalysisFeatureCard title="Occupied Bandwidth" description="Find bandwidth that contains a percentage of total power.">
-			<div style={{ display: 'grid', gap: '8px' }}>
-				<label style={{ display: 'grid', gap: '4px', fontSize: 'var(--font-label)' }}>
+			<div className="ac-kvs">
+				<label className="ac-field">
 					Occupied power (%)
 					<input value={percentText} onChange={(event) => setPercentText(event.target.value)} />
 				</label>
-				<div style={{ fontSize: 'var(--font-label)', lineHeight: 'var(--lh-label)' }}>
-					{result?.supported && typeof result.bandwidth === 'number'
-						? `${result.bandwidth.toExponential(4)} Hz`
-						: 'Select a trace with power units (dBm or dBW).'}
-				</div>
+				{result?.supported && typeof result.bandwidth === 'number'
+					? <div className="ac-result">{formatEng(result.bandwidth, 'Hz', significantStep(result.bandwidth, 6))}</div>
+					: <div className="ac-note">Select a trace with power units (dBm or dBW).</div>}
 			</div>
 		</AnalysisFeatureCard>
 	);

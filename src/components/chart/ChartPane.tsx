@@ -1082,16 +1082,17 @@ export function ChartPane({ paneId }: ChartPaneProps) {
       onDragLeave={(e) => { if (!(e.relatedTarget instanceof Node) || !e.currentTarget.contains(e.relatedTarget)) setPaneDragOver(false); }}
       onDrop={handlePaneDrop}
     >
-      <div data-testid={`chart-pane-header-${paneId}`} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 10px', background: isActive ? `color-mix(in srgb, ${colors?.accent || 'var(--accent)'} 8%, var(--card))` : 'color-mix(in srgb, var(--card) 96%, white)', borderBottom: '1px solid var(--border)', borderLeft: isActive ? `3px solid ${colors?.accent || 'var(--accent)'}` : '3px solid transparent', cursor: isActive ? 'default' : 'pointer' }} onClick={() => !isActive && paneDispatch({ type: 'SET_ACTIVE_PANE', payload: paneId })}>
-        <span style={{ fontSize: 'var(--font-label)', fontWeight: 500, color: isActive ? colors?.accent : 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+      <div data-testid={`chart-pane-header-${paneId}`} className="ph" style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 10px', background: isActive ? `color-mix(in srgb, ${colors?.accent || 'var(--accent)'} 8%, var(--card))` : 'color-mix(in srgb, var(--card) 96%, white)', borderBottom: '1px solid var(--border)', borderLeft: isActive ? `3px solid ${colors?.accent || 'var(--accent)'}` : '3px solid transparent', cursor: isActive ? 'default' : 'pointer' }} onClick={() => !isActive && paneDispatch({ type: 'SET_ACTIVE_PANE', payload: paneId })}>
+        <span className="ph-title" style={{ fontSize: 'var(--font-label)', fontWeight: 500, color: isActive ? colors?.accent : 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
           {pane.title || `Pane ${paneId.split('-')[1]}`}{isActive && <span style={{ fontWeight: 400, opacity: 0.8 }}> · Target</span>}
         </span>
+        {paneTraces.length > 0 && <span className="ph-count">{paneTraces.length} {paneTraces.length === 1 ? 'trace' : 'traces'}</span>}
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '4px' }}>
           {/* X/div and Y/div displays */}
           {paneTraces.length > 0 && (
             <>
-              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--font-caption)', color: 'var(--muted)', padding: '0.1rem 0.35rem', whiteSpace: 'nowrap' }}>X: {xDiv}</span>
-              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--font-caption)', color: 'var(--muted)', padding: '0.1rem 0.35rem', whiteSpace: 'nowrap' }}>Y: {yDiv}</span>
+              <span className="ph-scale" style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--font-caption)', color: 'var(--muted)', padding: '0.1rem 0.35rem', whiteSpace: 'nowrap' }}>X: {xDiv}</span>
+              <span className="ph-scale" style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--font-caption)', color: 'var(--muted)', padding: '0.1rem 0.35rem', whiteSpace: 'nowrap' }}>Y: {yDiv}</span>
             </>
           )}
           {/* Fit split button */}

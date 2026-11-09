@@ -25,16 +25,14 @@ export function ChannelPowerCard() {
 
 	return (
 		<AnalysisFeatureCard title="Channel Power" description="Integrate selected trace power over channel bandwidth.">
-			<div style={{ display: 'grid', gap: '8px' }}>
-				<label style={{ display: 'grid', gap: '4px', fontSize: 'var(--font-label)' }}>
+			<div className="ac-kvs">
+				<label className="ac-field">
 					Bandwidth (Hz)
 					<input value={bandwidthHzText} onChange={(event) => setBandwidthHzText(event.target.value)} />
 				</label>
-				<div style={{ fontSize: 'var(--font-label)', lineHeight: 'var(--lh-label)' }}>
-					{result?.supported && typeof result.powerDbm === 'number'
-						? `${result.powerDbm.toFixed(4)} dBm`
-						: 'Select a trace with spectral density units (dBm/Hz or dBW/Hz).'}
-				</div>
+				{result?.supported && typeof result.powerDbm === 'number'
+					? <div className="ac-result">{result.powerDbm.toFixed(4)}<small>dBm</small></div>
+					: <div className="ac-note">Select a trace with spectral density units (dBm/Hz or dBW/Hz).</div>}
 			</div>
 		</AnalysisFeatureCard>
 	);

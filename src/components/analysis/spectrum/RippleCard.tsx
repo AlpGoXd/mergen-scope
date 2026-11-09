@@ -4,6 +4,7 @@ import { useTraceState } from '../../../stores/trace-store';
 import { useUiState } from '../../../stores/ui-store';
 import { usePaneState } from '../../../stores/pane-store';
 import { AnalysisFeatureCard } from '../AnalysisFeatureCard';
+import { MR } from '../../shared/MR';
 import { Btn } from '../../shared/Btn';
 import { computeRipple } from '../../../domain/analysis/ripple';
 import { fmtF } from '../../../domain/format';
@@ -34,6 +35,7 @@ export function RippleCard() {
 
   return (
     <AnalysisFeatureCard 
+      source={trace ? `${trace.dn || trace.name} · ${trace.file}` : undefined}
       title="Ripple / Flatness" 
       description="Measure peak-to-peak variation and flatness across the entire trace."
       onClose={() => analysisDispatch({ type: 'TOGGLE_PANEL', payload: { id: 'ripple-flatness', forceValue: false } })}
@@ -58,29 +60,17 @@ export function RippleCard() {
         </Btn>
 
         {result && (
-          <div style={{ marginTop: '12px', padding: '10px', background: 'var(--bg-soft)', borderRadius: '6px', border: '1px solid var(--border)' }}>
-            <div style={{ textAlign: 'center', marginBottom: '8px' }}>
-              <div style={{ fontSize: 'var(--font-caption)', color: 'var(--dim)' }}>Peak-to-Peak Ripple</div>
-              <div style={{ fontSize: 'var(--font-display)', lineHeight: 1.1, fontWeight: 'bold', color: 'var(--accent)' }}>{result.ripple.toFixed(3)} dB</div>
+          <>
+            <div>
+              <div className="ac-kv-k">Peak-to-Peak Ripple</div>
+              <div className="ac-result">{result.ripple.toFixed(3)}<small>dB</small></div>
             </div>
-            
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: 'var(--font-label)', lineHeight: 'var(--lh-label)', borderTop: '1px solid var(--border)', paddingTop: '8px' }}>
-              <div>
-                <div style={{ color: 'var(--dim)', fontSize: 'var(--font-caption)' }}>Max Amp</div>
-                <div style={{ color: 'var(--text)' }}>{result.max.amp.toFixed(2)} dB</div>
-                <div style={{ color: 'var(--dim)', fontSize: 'var(--font-caption)' }}>@ {fmtF(result.max.freq)}</div>
-              </div>
-              <div>
-                <div style={{ color: 'var(--dim)', fontSize: 'var(--font-caption)' }}>Min Amp</div>
-                <div style={{ color: 'var(--text)' }}>{result.min.amp.toFixed(2)} dB</div>
-                <div style={{ color: 'var(--dim)', fontSize: 'var(--font-caption)' }}>@ {fmtF(result.min.freq)}</div>
-              </div>
-              <div style={{ gridColumn: 'span 2', marginTop: '4px' }}>
-                <div style={{ color: 'var(--dim)', fontSize: 'var(--font-caption)' }}>Span</div>
-                <div style={{ color: 'var(--text)' }}>{fmtF(result.spanHz)}</div>
-              </div>
+            <div className="ac-kvs">
+              <MR label="Max Amp" value={`${result.max.amp.toFixed(2)} dB @ ${fmtF(result.max.freq)}`} />
+              <MR label="Min Amp" value={`${result.min.amp.toFixed(2)} dB @ ${fmtF(result.min.freq)}`} />
+              <MR label="Span" value={fmtF(result.spanHz)} />
             </div>
-          </div>
+          </>
         )}
       </div>
     </AnalysisFeatureCard>

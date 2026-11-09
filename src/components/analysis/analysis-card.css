@@ -1,0 +1,67 @@
+/*
+ * Analysis cards, AC-3 (board X1 = right column of referance/03; spec 5.5). Tokens only, no hex.
+ * Neutral card: 1 px border, radius 6, raised background, no side stripe.
+ * Header band: 26 px, faint Analysis tint (hue 310), 1 px bottom border.
+ * Body padding 6 x 8. Key/value rows: label caption (11 px at Compact) muted, value body (12 px) / 600 in full ink.
+ * Result: mono, body + 3 px (15 px at Compact), weight 600, unit muted.
+ */
+.ac {
+  display: flex; flex-direction: column;
+  background: var(--raised); border: 1px solid var(--border); border-radius: 6px;
+  overflow: hidden; margin: 0;
+}
+.ac-head {
+  display: flex; align-items: center; gap: 6px;
+  height: 26px; min-height: 26px; padding: 0 4px 0 8px;
+  background: var(--analysis-tint); border-bottom: 1px solid var(--analysis-line);
+}
+.ac-icon { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 14px; color: var(--analysis-ink); }
+.ac-icon--fx { font-family: Georgia, 'Times New Roman', serif; font-style: italic; font-weight: 700; font-size: var(--font-title); line-height: 1; }
+.ac-title { flex: none; font-size: var(--font-label); line-height: var(--lh-label); font-weight: 700; color: var(--text); white-space: nowrap; }
+.ac-source {
+  flex: 1; min-width: 0; font-size: var(--font-caption); line-height: var(--lh-caption); color: var(--text-muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ac-head .ui-menu-root { flex: none; }
+.ac-head .ac-btn, .ac-head .ac-btn:hover:not(:disabled) {
+  flex: none; width: 20px; min-height: 20px; height: 20px; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 0; border-radius: var(--radius-badge); background: transparent; color: var(--text-muted); cursor: pointer;
+}
+.ac-head .ac-btn:hover:not(:disabled) { background: var(--analysis-fill); color: var(--text); }
+.ac-head .ac-btn svg { width: 14px; height: 14px; }
+.ac-body { display: flex; flex-direction: column; gap: 6px; padding: 6px 8px; }
+
+.ac-note { font-size: var(--font-caption); line-height: var(--lh-caption); color: var(--text-muted); }
+.ac-kv { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0 8px; padding: 1px 0; }
+.ac-kv-k { white-space: nowrap; font-size: var(--font-caption); line-height: var(--lh-caption); color: var(--text-muted); }
+.ac-kv-v { font-family: var(--font-mono); font-size: var(--font-body); line-height: var(--lh-body); font-weight: 600; color: var(--text); text-align: right; margin-left: auto; }
+.ac-kv-u { font-family: var(--font-sans); font-weight: 400; color: var(--text-muted); }
+.ac-result { font-family: var(--font-mono); font-size: calc(var(--font-body) + 3px); line-height: var(--lh-title); font-weight: 600; color: var(--text); }
+.ac-result small { font-family: var(--font-sans); font-size: var(--font-body); font-weight: 400; color: var(--text-muted); margin-left: var(--space-1); }
+
+.ac-field { display: grid; grid-template-columns: minmax(72px, auto) 1fr; align-items: center; gap: var(--space-2); font-size: var(--font-caption); line-height: var(--lh-caption); color: var(--text-muted); }
+.ac-field input {
+  height: var(--input-height); min-width: 0; padding: 0 6px; border: 1px solid var(--border-strong); border-radius: var(--radius-input);
+  background: var(--input-bg); color: var(--text); font: inherit; font-family: var(--font-mono); font-size: var(--font-body);
+}
+.ac-field input[aria-invalid="true"] { border-color: var(--danger-line); }
+
+/* Crossing rows: one item each: trace · pane on the first line, x and y below. */
+.ac-list { max-height: 160px; overflow: auto; border: 1px solid var(--border); border-radius: var(--radius-badge); }
+.ac-row { display: grid; grid-template-columns: auto 1fr; align-items: baseline; gap: 0 12px; padding: 3px 8px; border-top: 1px solid var(--border); }
+.ac-row:first-child { border-top: 0; }
+.ac-row-name { grid-column: 1 / -1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--font-caption); line-height: var(--lh-caption); color: var(--text-muted); }
+.ac-row-val { font-family: var(--font-mono); font-size: var(--font-body); line-height: var(--lh-body); font-weight: 600; color: var(--text); white-space: nowrap; }
+.ac-empty { padding: 4px 8px; font-size: var(--font-caption); line-height: var(--lh-caption); color: var(--text-muted); }
+
+/* Panel header (32 px bar): Analysis · count · + Add analysis, above the chooser. */
+.ac-panel { display: flex; flex-direction: column; background: var(--raised); border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+.ac-panel-head { display: flex; align-items: center; gap: 8px; height: var(--top-row-height); padding: 0 6px 0 8px; border-bottom: 1px solid var(--border); }
+.ac-panel-head.is-collapsed { border-bottom: 0; }
+.ac-panel-title { font-size: var(--font-title); line-height: var(--lh-title); font-weight: 700; color: var(--analysis-ink); }
+.ac-panel-count { font-family: var(--font-mono); font-size: var(--font-caption); color: var(--text-muted); }
+.ac-panel-head .ui-btn { margin-left: auto; }
+.ac-panel-body { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px 8px; }
+.ac-panel-body .ui-btn { flex: 1 1 130px; }
+.ac-kvs { display: flex; flex-direction: column; gap: 2px; }

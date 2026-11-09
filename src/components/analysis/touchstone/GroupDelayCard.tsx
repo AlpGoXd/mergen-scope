@@ -3,6 +3,7 @@ import { computeGroupDelay } from '../../../domain/analysis/touchstone';
 import { useAnalysisDispatch } from '../../../stores/analysis-store';
 import { useAnalysisTarget } from '../../../hooks/use-analysis-target';
 import { AnalysisFeatureCard } from '../AnalysisFeatureCard';
+import { MR } from '../../shared/MR';
 import { fmtF, formatScalarWithUnit } from '../../../domain/format';
 
 export function GroupDelayCard() {
@@ -16,13 +17,13 @@ export function GroupDelayCard() {
 			description="Group delay from unwrapped phase derivative."
 			onClose={() => analysisDispatch({ type: 'TOGGLE_PANEL', payload: { id: 'group-delay', forceValue: false } })}
 		>
-			{!result && <div style={{ fontSize: 'var(--font-label)', lineHeight: 'var(--lh-label)', color: 'var(--muted)' }}>Not enough Touchstone samples for group delay.</div>}
+			{!result && <div className="ac-note">Not enough Touchstone samples for group delay.</div>}
 			{result && (
-				<div style={{ display: 'grid', gap: '6px', fontSize: 'var(--font-label)', lineHeight: 'var(--lh-label)' }}>
-					<div>Min: <strong>{formatScalarWithUnit(result.min.value, 's')}</strong> @ {fmtF(result.min.freq)}</div>
-					<div>Max: <strong>{formatScalarWithUnit(result.max.value, 's')}</strong> @ {fmtF(result.max.freq)}</div>
-					<div>Average: <strong>{formatScalarWithUnit(result.average, 's')}</strong></div>
-					<div style={{ color: 'var(--muted)' }}>{result.count} samples</div>
+				<div className="ac-kvs">
+					<MR label="Min" value={`${formatScalarWithUnit(result.min.value, 's')} @ ${fmtF(result.min.freq)}`} />
+					<MR label="Max" value={`${formatScalarWithUnit(result.max.value, 's')} @ ${fmtF(result.max.freq)}`} />
+					<MR label="Average" value={`${formatScalarWithUnit(result.average, 's')}`} />
+					<div className="ac-note">{result.count} samples</div>
 				</div>
 			)}
 		</AnalysisFeatureCard>

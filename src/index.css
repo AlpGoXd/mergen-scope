@@ -262,3 +262,11 @@ table {
 .ui-btn--solid.is-danger:hover:not(:disabled) { background: var(--solid-danger); border-color: var(--solid-danger); color: var(--solid-ink); }
 .ui-toast .ui-btn:hover:not(:disabled) { background: oklch(.31 .016 255); color: oklch(.93 .01 255); border-color: oklch(.50 .016 255); }
 .ui-popover [role=menuitem][aria-disabled=true] { opacity: .45; cursor: not-allowed; }
+
+/* Pane header (board P3): never wraps; when narrow the scale text (X/Y per division) hides first, then the trace count. */
+.ph { container-type: inline-size; flex-wrap: nowrap; min-width: 0; overflow: hidden; white-space: nowrap; }
+.ph > * { flex: none; }
+.ph .ph-title { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.ph-count { font-size: var(--font-caption); line-height: var(--lh-caption); color: var(--text-muted); }
+@container (max-width: 520px) { .ph .ph-scale { display: none; } }
+@container (max-width: 400px) { .ph .ph-count { display: none; } }

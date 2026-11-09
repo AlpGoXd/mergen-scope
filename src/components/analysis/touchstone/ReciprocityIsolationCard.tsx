@@ -3,6 +3,7 @@ import { computeReciprocityIsolation } from '../../../domain/analysis/touchstone
 import { useAnalysisDispatch } from '../../../stores/analysis-store';
 import { useAnalysisTarget } from '../../../hooks/use-analysis-target';
 import { AnalysisFeatureCard } from '../AnalysisFeatureCard';
+import { MR } from '../../shared/MR';
 import { fmtF } from '../../../domain/format';
 
 export function ReciprocityIsolationCard() {
@@ -18,13 +19,13 @@ export function ReciprocityIsolationCard() {
 				analysisDispatch({ type: 'TOGGLE_PANEL', payload: { id: 'reciprocity-isolation', forceValue: false } })
 			}
 		>
-			{!result && <div style={{ fontSize: 'var(--font-label)', lineHeight: 'var(--lh-label)', color: 'var(--muted)' }}>Requires a 2-port Touchstone network.</div>}
+			{!result && <div className="ac-note">Requires a 2-port Touchstone network.</div>}
 			{result && (
-				<div style={{ display: 'grid', gap: '6px', fontSize: 'var(--font-label)', lineHeight: 'var(--lh-label)' }}>
-					<div>Worst reciprocity error: <strong>{result.reciprocityError.value.toFixed(3)} dB</strong> @ {fmtF(result.reciprocityError.freq)}</div>
-					<div>Average reciprocity error: <strong>{result.averageReciprocityErrorDb.toFixed(3)} dB</strong></div>
-					<div>Worst isolation: <strong>{result.worstIsolationDb.value.toFixed(3)} dB</strong> @ {fmtF(result.worstIsolationDb.freq)}</div>
-					<div style={{ color: 'var(--muted)' }}>{result.count} samples</div>
+				<div className="ac-kvs">
+					<MR label="Worst reciprocity error" value={`${result.reciprocityError.value.toFixed(3)} dB @ ${fmtF(result.reciprocityError.freq)}`} />
+					<MR label="Average reciprocity error" value={`${result.averageReciprocityErrorDb.toFixed(3)} dB`} />
+					<MR label="Worst isolation" value={`${result.worstIsolationDb.value.toFixed(3)} dB @ ${fmtF(result.worstIsolationDb.freq)}`} />
+					<div className="ac-note">{result.count} samples</div>
 				</div>
 			)}
 		</AnalysisFeatureCard>
