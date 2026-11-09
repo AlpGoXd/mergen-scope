@@ -115,3 +115,8 @@ Light and dark populated network, CSV and error captures and comparisons are in 
 | Connect the pure plot contract and G/Z/Y calculations to pane traces, per-port impedances, marker identities, settings and export. | 5E2–5E3 | Foundation only; legacy renderer remains active. |
 | Build and validate responsive grid, active-load display, interactions, linked frequency and readout; compare light and dark with the written specification and supplied reference. | 5E2–5E4 | No visual changes in 5E1; 2x reference pending. |
 | Handle the explicit ambiguous-boundary and singular numerical results in presentation, including series L/C and DC. | 5E3–5E4 | Numerical status is explicit; presentation and end-to-end behavior remain open. |
+
+## Show in checklist follow-up
+
+| Remaining work | Target phase | Status |
+| --- | --- | --- |

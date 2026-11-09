@@ -14,7 +14,7 @@ for (const dataset of datasets) {
     await page.keyboard.press('4');
     const row = page.locator('[data-testid^="trace-row-"]').first();
     await row.getByTitle('Show in panes').click();
-    for (const n of [2, 3, 4]) await row.getByRole('checkbox', { name: `Pane ${n}` }).check();
+    for (const n of [2, 3, 4]) await row.getByRole('menuitemcheckbox', { name: `Pane ${n}` }).click();
     await page.keyboard.press('Escape');
     const plots = page.locator('[data-testid^="chart-plot-"]');
     await expect(plots).toHaveCount(4);
@@ -48,7 +48,7 @@ for (const theme of ['light', 'dark'] as const) {
     await page.keyboard.press('4');
     const row = page.locator('[data-testid^="trace-row-"]').first();
     await row.getByTitle('Show in panes').click();
-    for (const n of [2, 3, 4]) await row.getByRole('checkbox', { name: `Pane ${n}` }).check();
+    for (const n of [2, 3, 4]) await row.getByRole('menuitemcheckbox', { name: `Pane ${n}` }).click();
     await row.getByTitle('Show in panes').click();
     await expect(page.locator('[data-testid^="chart-plot-"]')).toHaveCount(4);
     await expect(page.getByText('Updated trace panes')).toHaveCount(0, { timeout: 10000 });

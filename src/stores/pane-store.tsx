@@ -4,7 +4,7 @@ import type { Trace } from '../types/trace';
 import type { DisplayTrace } from '../types/display';
 import type { ZoomWindow } from '../types/marker';
 import { buildPanes } from '../domain/pane-math';
-import { canPlaceMembership, normalizeMemberships, planPaneRemoval, planPaneTypeChange } from '../domain/pane-placement';
+import { canPlaceMembership, canRenderInPane, normalizeMemberships, planPaneRemoval, planPaneTypeChange } from '../domain/pane-placement';
 import type { PlacementTrace } from '../domain/pane-placement';
 import { useTraceState } from './trace-store';
 import { useUiDispatch } from './ui-store';
@@ -25,6 +25,7 @@ export interface PaneState {
 
 export type PaneAction =
   | { type: 'SET_PANE_COUNT'; payload: number; traces?: PlacementTrace[]; limit?: 4 | 8; confirmed?: boolean }
+  | { type: 'CREATE_PANE_WITH_TRACE'; payload: { trace: Trace; allTraces: Trace[]; displayTraces?: readonly DisplayTrace[] }; limit?: 4 | 8 }
   | { type: 'ADD_MEMBERSHIP'; payload: { trace: Trace; targetPaneId: string; allTraces: Trace[]; displayTraces?: readonly DisplayTrace[] } }
   | { type: 'MOVE_MEMBERSHIP'; payload: { trace: Trace; fromPaneId: string; targetPaneId: string; allTraces: Trace[]; displayTraces?: readonly DisplayTrace[] } }
   | { type: 'REMOVE_MEMBERSHIP'; payload: { traceName: string; paneId: string } }
@@ -76,6 +77,20 @@ export function paneReducer(state: PaneState, action: PaneAction): PaneState {
       const panes = state.panes.filter(p => !removed.includes(p.id)); const valid = new Set(panes.map(p => p.id));
       const keep = <T,>(map: Record<string,T>) => Object.fromEntries(Object.entries(map).filter(([id]) => valid.has(id)));
       return { ...state, panes, tracePaneMap: Object.fromEntries(Object.entries({...state.tracePaneMap,...plan.plan.memberships}).map(([name, ids]) => [name, [...ids]])), activePaneId: state.activePaneId && valid.has(state.activePaneId) ? state.activePaneId : panes[0]?.id ?? null, paneActiveTraceMap: keep(state.paneActiveTraceMap), paneXZooms: keep(state.paneXZooms), paneYZooms: keep(state.paneYZooms) };
+    }
+    case 'CREATE_PANE_WITH_TRACE': {
+      const { trace, allTraces, displayTraces = [] } = action.payload;
+      if (state.panes.length >= (action.limit ?? 4) || !allTraces.some(item => item.id === trace.id && item.name === trace.name)) return state;
+      const created = paneReducer(state, { type: 'SET_PANE_COUNT', payload: state.panes.length + 1, limit: action.limit });
+      const pane = created.panes.find(candidate => !state.panes.some(existing => existing.id === candidate.id));
+      if (!pane) return state;
+      const displayTrace = displayTraces.find(display => display.id === trace.id || trace.parameters?.['displayTraceId'] === display.id);
+      const entry: PlacementTrace = { trace, paneIds: state.tracePaneMap[trace.name] ?? [], displayTrace };
+      const compatible = canRenderInPane(entry, pane).allowed ? created : {
+        ...created, panes: created.panes.map(candidate => candidate.id === pane.id ? { ...candidate, renderMode: 'cartesian' as const } : candidate),
+      };
+      const assigned = paneReducer(compatible, { type: 'ADD_MEMBERSHIP', payload: { trace, targetPaneId: pane.id, allTraces, displayTraces } });
+      return assigned.tracePaneMap[trace.name]?.includes(pane.id) ? assigned : state;
     }
     case 'ASSIGN_TRACE_TO_PANE':
     case 'ADD_MEMBERSHIP':
@@ -198,6 +213,7 @@ export function PaneStoreProvider({ children }: { children: React.ReactNode }) {
       }
       rawDispatch({...action,limit,traces});
     }
+    else if (action.type === 'CREATE_PANE_WITH_TRACE') rawDispatch({ ...action, limit, payload: { ...action.payload, allTraces: allKnownTraces, displayTraces: traceState.allDisplayTraces } });
     else if (action.type === 'ASSIGN_TRACE_TO_PANE') rawDispatch({type:action.type,payload:{...action.payload,allTraces:allKnownTraces,displayTraces:traceState.allDisplayTraces}});
     else if (action.type === 'ADD_MEMBERSHIP') rawDispatch({type:action.type,payload:{...action.payload,allTraces:allKnownTraces,displayTraces:traceState.allDisplayTraces}});
     else if (action.type === 'MOVE_MEMBERSHIP') rawDispatch({type:action.type,payload:{...action.payload,allTraces:allKnownTraces,displayTraces:traceState.allDisplayTraces}});
