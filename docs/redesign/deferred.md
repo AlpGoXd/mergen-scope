@@ -173,7 +173,7 @@ Done and verified: `RefLine.paneIds[]` replaces `paneId` / `paneless` / `groupId
 
 | Item | Class | Target |
 | --- | --- | --- |
-| Pane removal (the "remove last pane" command) moves a line's only membership to a compatible pane with the same X unit instead of leaving it "not in a pane"; board 37-P4c step 07 says a line whose last pane is closed stays and says "Not in a pane". The relocation matches the earlier reviewed behaviour and the trace relocation rule. Decision needed: relocate (current) or leave unplaced | Product question | Before the lines kit lands |
+| Closing a pane: **decided (10 November) — a line behaves like a trace.** Its copy in the closed pane is dropped; if that was its only pane, the line moves to the nearest compatible pane (same X unit for V lines, same Y unit for H lines; visual order, previous pane first) and is "Not in a pane" only when none exists. Board 37-P4c step 07 ("not in a pane" when its last pane is closed) is read as the no-compatible-pane case. Implemented in `planLastPaneLines` / `remove-last-pane`; covered by `toolbar-pane-removal` tests | Decided, done | Phase 3 data model |
 | Undo/Redo restores lines but not which line was selected (selection resets to none) | Deferred | Phase 5C |
 | A v5 line carrying both old and new fields, or a crafted legacy horizontal group, or an old group member naming a removed pane, is rejected or only partly merged; labels of merged groups are not de-duplicated; `paneIds` order follows the `panes` array, not `layout.paneOrder`, and adding a pane appends | Edge cases, deferred | Phase 8 audit |
 | The legacy `restoreSnapshot` helper (unused by the app) does not remap the selected line id | Deferred | Phase 8 audit |

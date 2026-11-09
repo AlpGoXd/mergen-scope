@@ -391,7 +391,7 @@ function recordable(command: WorkspaceAction): boolean {
   if (command.slice === 'traces') return command.action.type !== 'RECONCILE';
   if (command.slice === 'panes') return command.action.type !== 'RECONCILE';
   if (command.slice === 'markers') return !['ARM','SET_TRACE','SET_SELECTED_IDX'].includes(command.action.type);
-  if (command.slice === 'lines') return !['SET_MODE','SET_SELECTED','CLEANUP_ORPHANED_LINES'].includes(command.action.type);
+  if (command.slice === 'lines') return !['SET_MODE','SET_SELECTED','SET_HOVERED','SET_PANE_VIEW','CLEANUP_ORPHANED_LINES'].includes(command.action.type);
   if (command.slice === 'analysis') return true;
   if (command.slice === 'ui') return command.action.type === 'SET' && ['traceColors','traceInterpolations','noiseFilter','noiseSource','ip3Gain','selectedTraceName'].includes(command.action.payload.key);
   return false;
