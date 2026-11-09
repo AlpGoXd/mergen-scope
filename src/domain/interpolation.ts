@@ -151,6 +151,30 @@ function resolveSincComplex(points: readonly ComplexDisplayPoint[], targetX: num
   return { x: targetX, re: reSum / weightSum, im: imSum / weightSum };
 }
 
+// Natural cubic spline with zero curvature at the endpoints.
+function cubicValue(points: readonly { x: number; y: number }[], target: number): number {
+  const n = points.length;
+  const lower = new Array<number>(n).fill(0), diag = new Array<number>(n).fill(1), upper = new Array<number>(n).fill(0), rhs = new Array<number>(n).fill(0);
+  for (let i = 1; i < n - 1; i++) {
+    const a = points[i - 1]!, b = points[i]!, c = points[i + 1]!;
+    const left = b.x - a.x, right = c.x - b.x;
+    if (left <= 0 || right <= 0) {
+      const rightIndex = points.findIndex(point => point.x >= target);
+      const lo = points[Math.max(0, rightIndex - 1)]!, hi = points[Math.max(0, rightIndex)]!;
+      return hi.x > lo.x ? lo.y + (hi.y - lo.y) * (target - lo.x) / (hi.x - lo.x) : lo.y;
+    }
+    lower[i] = left; diag[i] = 2 * (left + right); upper[i] = right;
+    rhs[i] = 6 * ((c.y - b.y) / right - (b.y - a.y) / left);
+  }
+  for (let i = 1; i < n; i++) { const factor = lower[i]! / diag[i - 1]!; diag[i] = diag[i]! - factor * upper[i - 1]!; rhs[i] = rhs[i]! - factor * rhs[i - 1]!; }
+  const second = new Array<number>(n).fill(0);
+  for (let i = n - 2; i >= 0; i--) second[i] = (rhs[i]! - upper[i]! * second[i + 1]!) / diag[i]!;
+  const rightIndex = points.findIndex(p => p.x >= target), i = Math.max(0, rightIndex - 1);
+  const a = points[i]!, b = points[i + 1]!, h = b.x - a.x;
+  const u = (b.x - target) / h, v = (target - a.x) / h;
+  return u * a.y + v * b.y + ((u ** 3 - u) * second[i]! + (v ** 3 - v) * second[i + 1]!) * h * h / 6;
+}
+
 export function isUniformSpacing(
   xs: readonly number[],
   toleranceRatio = DEFAULT_UNIFORMITY_TOLERANCE,
@@ -254,8 +278,8 @@ export function resolveValue(
     return { x: exact.freq, y: exact.amp };
   }
 
-  const resolvedStrategy = strategy === 'sinc' && !isUniform ? 'linear' : strategy;
-  if (resolvedStrategy === 'snap') {
+  const resolvedStrategy = strategy === 'auto' || (strategy === 'sinc' && !isUniform) ? 'linear' : strategy;
+  if (resolvedStrategy === 'snap' || resolvedStrategy === 'exact' || resolvedStrategy === 'nearest' || resolvedStrategy === 'previous' || resolvedStrategy === 'next') {
     const insertionIndex = findLowerBound(points, targetX);
     const right = points[Math.min(points.length - 1, insertionIndex)]!;
     const left = points[Math.max(0, insertionIndex - 1)]!;
@@ -263,13 +287,15 @@ export function resolveValue(
       Math.abs(targetX - left.freq) <= Math.abs(right.freq - targetX)
         ? left
         : right;
-    return { x: nearest.freq, y: nearest.amp };
+    const chosen = resolvedStrategy === 'previous' ? left : resolvedStrategy === 'next' ? right : nearest;
+    return { x: resolvedStrategy === 'snap' || resolvedStrategy === 'exact' ? chosen.freq : targetX, y: chosen.amp };
   }
 
   if (resolvedStrategy === 'linear') {
     return resolveLinearScalar(points, targetX);
   }
 
+  if (resolvedStrategy === 'cubic') return { x: targetX, y: cubicValue(points.map(p => ({ x: p.freq, y: p.amp })), targetX) };
   return resolveSincScalar(points, targetX);
 }
 
@@ -301,8 +327,8 @@ export function resolveComplex(
     return { x: exact.x, re: exact.re, im: exact.im };
   }
 
-  const resolvedStrategy = strategy === 'sinc' && !isUniform ? 'linear' : strategy;
-  if (resolvedStrategy === 'snap') {
+  const resolvedStrategy = strategy === 'auto' || (strategy === 'sinc' && !isUniform) ? 'linear' : strategy;
+  if (resolvedStrategy === 'snap' || resolvedStrategy === 'exact' || resolvedStrategy === 'nearest' || resolvedStrategy === 'previous' || resolvedStrategy === 'next') {
     const insertionIndex = findLowerBound(points.map((point) => ({ freq: point.x })), targetX);
     const right = points[Math.min(points.length - 1, insertionIndex)]!;
     const left = points[Math.max(0, insertionIndex - 1)]!;
@@ -310,12 +336,14 @@ export function resolveComplex(
       Math.abs(targetX - left.x) <= Math.abs(right.x - targetX)
         ? left
         : right;
-    return { x: nearest.x, re: nearest.re, im: nearest.im };
+    const chosen = resolvedStrategy === 'previous' ? left : resolvedStrategy === 'next' ? right : nearest;
+    return { x: resolvedStrategy === 'snap' || resolvedStrategy === 'exact' ? chosen.x : targetX, re: chosen.re, im: chosen.im };
   }
 
   if (resolvedStrategy === 'linear') {
     return resolveLinearComplex(points, targetX);
   }
 
+  if (resolvedStrategy === 'cubic') return { x: targetX, re: cubicValue(points.map(p => ({ x: p.x, y: p.re })), targetX), im: cubicValue(points.map(p => ({ x: p.x, y: p.im })), targetX) };
   return resolveSincComplex(points, targetX);
 }

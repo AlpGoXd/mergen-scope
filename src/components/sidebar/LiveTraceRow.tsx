@@ -1,6 +1,8 @@
 ﻿import type { InterpolationStrategy } from '../../types/interpolation';
 import type { Trace } from '../../types/trace';
-import { badgeStyle, sidebarButtonStyle } from './live-row-helpers';
+import { TraceRow as KitTrace } from '../left-panel/Rows';
+import { Popover } from '../shared/Controls';
+import { Menu as KitMenu } from '../left-panel/Menu';
 
 export function TraceRow(props: {
   trace: Trace;
@@ -14,156 +16,32 @@ export function TraceRow(props: {
   traceColor: string;
   onSelect: () => void;
   onRemove: () => void;
+  onRename: () => void;
   onToggle: () => void;
   onColorChange: (color: string) => void;
   interpolation: InterpolationStrategy;
   sincDisabledReason: string;
   onInterpolationChange: (interpolation: InterpolationStrategy) => void;
+  onApplyInterpolation: (interpolation: InterpolationStrategy) => void;
   compact?: boolean;
   removeLabel: string;
 }) {
-  const {
-    trace,
-    displayName,
-    subtitle,
-    isVisible,
-    isSelected,
-    paneIds,
-    panes,
-    onTogglePane,
-    traceColor,
-    onSelect,
-    onRemove,
-    onToggle,
-    onColorChange,
-    interpolation,
-    sincDisabledReason,
-    onInterpolationChange,
-    compact = false,
-    removeLabel,
-  } = props;
-  const selectTitle = sincDisabledReason || 'Trace interpolation';
-
-  return (
-    <div
-      data-testid={`trace-row-${trace.name}`}
-      draggable
-      onDragStart={(e) => {
-        e.dataTransfer.setData('application/x-mergen-trace', trace.name);
-        e.dataTransfer.setData('text/plain', trace.name);
-        e.dataTransfer.effectAllowed = 'move';
-      }}
-      style={{
-        display: 'grid',
-        gridColumn: '1 / -1',
-        gridTemplateColumns: 'auto auto minmax(0, 1fr) auto auto auto',
-        gap: '4px',
-        alignItems: 'center',
-        minWidth: 0,
-        padding: compact ? '2px 5px' : '3px 6px',
-        borderRadius: compact ? '7px' : '8px',
-        border: `1px solid ${isSelected ? traceColor : 'var(--border)'}`,
-        background: isSelected
-          ? `color-mix(in srgb, ${traceColor} 10%, var(--card))`
-          : 'var(--card)',
-        opacity: isVisible ? 1 : 0.55,
-        cursor: 'grab',
-      }}
-      onClick={onSelect}
-      title={trace.dn}
-    >
-      <input
-        type="checkbox"
-        checked={isVisible}
-        onChange={(event) => {
-          event.stopPropagation();
-          onToggle();
-        }}
-        title={isVisible ? 'Hide trace' : 'Show trace'}
-      />
-      <input
-        type="color"
-        value={traceColor}
-        onClick={(event) => event.stopPropagation()}
-        onChange={(event) => onColorChange(event.target.value)}
-        title="Trace color"
-        style={{
-          width: compact ? '12px' : '14px',
-          height: compact ? '12px' : '14px',
-          border: trace.kind === 'derived' ? '1px dashed var(--muted)' : '1px solid var(--border)',
-          borderRadius: '4px',
-          padding: 0,
-          background: 'transparent',
-          cursor: 'pointer',
-        }}
-      />
-      <div style={{ minWidth: 0, overflow: 'hidden', display: 'flex', alignItems: 'center', gap: '4px' }}>
-        <span
-          title={trace.dn}
-          style={{
-            fontSize: 'var(--font-label)',
-            color: traceColor,
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-            minWidth: 0,
-            flex: 1,
-          }}
-        >
-          {displayName.length > 24 ? `${displayName.slice(0, 12)}…${displayName.slice(-9)}` : displayName}
-        </span>
-        {trace.kind === 'derived' && (
-          <span style={{ ...badgeStyle, borderColor: `color-mix(in srgb, ${traceColor} 30%, var(--border))`, color: traceColor, flexShrink: 0 }}>
-            fx
-          </span>
-        )}
-      </div>
-      
-      <select
-        value={interpolation}
-        onClick={(event) => event.stopPropagation()}
-        onChange={(event) => onInterpolationChange(event.target.value as InterpolationStrategy)}
-        title={selectTitle}
-        style={{
-          background: 'var(--raised)',
-          color: 'var(--text)',
-          border: '1px solid var(--border)',
-          borderRadius: '5px',
-          fontSize: 'var(--font-caption)',
-          lineHeight: 'var(--lh-caption)',
-          minWidth: 0,
-          width: '52px',
-          padding: '1px',
-        }}
-      >
-        <option value="snap">Snap</option>
-        <option value="linear">Linear</option>
-        <option value="sinc" disabled={!!sincDisabledReason}>
-          Sinc
-        </option>
-      </select>
-      <details onClick={(event) => event.stopPropagation()} style={{ position: 'relative' }}>
-        <summary title="Show in panes" style={{ ...badgeStyle, cursor: 'pointer', whiteSpace: 'nowrap' }}>{paneIds.length ? paneIds.map(id => id.replace('pane-', 'P')).join(' ') : '—'}</summary>
-        <div style={{ position: 'absolute', zIndex: 5, right: 0, minWidth: 150, padding: 6, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--raised)', boxShadow: '0 4px 12px oklch(0 0 0 / .15)' }}>
-          <strong>Show in</strong>
-          {panes.map(pane => <label key={pane.id} title={pane.disabledReason} style={{ display: 'flex', gap: 4, alignItems: 'center', whiteSpace: 'nowrap', opacity: pane.disabledReason ? .45 : 1 }}>
-            <input type="checkbox" checked={paneIds.includes(pane.id)} disabled={!!pane.disabledReason} onChange={() => onTogglePane(pane.id)} />{pane.title}
-          </label>)}
-        </div>
-      </details>
-      <button
-        type="button"
-        onClick={(event) => {
-          event.stopPropagation();
-          onRemove();
-        }}
-        style={sidebarButtonStyle('var(--text-muted)', false, compact)}
-        title={removeLabel}
-      >
-        x
-      </button>
-      {subtitle && <span style={{ gridColumn: '3 / -1', color: 'var(--text-muted)', fontSize: 'var(--font-caption)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{subtitle}</span>}
-    </div>
-  );
+  const { trace, displayName, subtitle, isVisible, isSelected, paneIds, panes, onTogglePane, traceColor, onSelect, onRemove, onRename, onToggle, onColorChange, interpolation, sincDisabledReason, onInterpolationChange, onApplyInterpolation, removeLabel } = props;
+  const labels: Record<InterpolationStrategy, string> = { auto: 'Auto', exact: 'Exact', snap: 'Exact', linear: 'Lin', nearest: 'Near', previous: 'Prev', next: 'Next', cubic: 'Cub', sinc: 'Sinc' };
+  const choices: { value: InterpolationStrategy; label: string; note: string }[] = [
+    { value: 'auto', label: 'Auto', note: 'Exact where samples exist, linear between' },
+    { value: 'exact', label: 'Exact only', note: 'No in-between values; markers always snap' },
+    { value: 'linear', label: 'Linear', note: 'Straight line between samples' },
+    { value: 'nearest', label: 'Nearest', note: 'Value of the closest sample' },
+    { value: 'previous', label: 'Previous', note: 'Holds the sample to the left' },
+    { value: 'next', label: 'Next', note: 'Holds the sample to the right' },
+    { value: 'cubic', label: 'Cubic spline', note: 'Smooth curve through samples' },
+    { value: 'sinc', label: 'Sinc', note: 'Band-limited interpolation on uniform samples' },
+  ];
+  const interpControl = <span onClick={event => event.stopPropagation()}><Popover label={labels[interpolation]}><KitMenu label="Interpolation" title="Interpolation" checklist entries={choices.map(choice => ({ label: choice.label, note: choice.note, noteBelow: true, checked: interpolation === choice.value || (interpolation === 'snap' && choice.value === 'exact'), disabledReason: choice.value === 'sinc' ? sincDisabledReason || undefined : undefined, onSelect: () => onInterpolationChange(choice.value) }))} footer={<button type="button" className="lp-link" onClick={() => onApplyInterpolation(interpolation)}>Apply to all traces from this file</button>} /></Popover></span>;
+  const panesControl = <span className="lp-pane-trigger" style={{ width: Math.max(20, paneIds.length * 19 - 3) }} title="Show in panes" onClick={event => event.stopPropagation()}><Popover label={paneIds.length ? paneIds.map(id => id.replace('pane-', 'P')).join(' ') : '\u2014'}><strong>Show in</strong>{panes.map(pane => <label key={pane.id} title={pane.disabledReason} style={{ display: 'flex', gap: 4, whiteSpace: 'nowrap' }}><input type="checkbox" checked={paneIds.includes(pane.id)} disabled={!!pane.disabledReason} onChange={() => onTogglePane(pane.id)} />{pane.title}</label>)}</Popover><span className="lp-pane-trigger__face" aria-hidden="true">{paneIds.length ? paneIds.map(id => <span className="lp-pane" key={id}>{id.replace('pane-', 'P')}</span>) : <span className="lp-pane lp-pane--none">&#8212;</span>}</span></span>;
+  return <div data-testid={`trace-row-${trace.name}`} draggable onDragStart={event => { event.dataTransfer.setData('application/x-mergen-trace', trace.name); event.dataTransfer.setData('text/plain', trace.name); event.dataTransfer.effectAllowed = 'move'; }} title={removeLabel}>
+    <KitTrace hue={270} color={traceColor} name={displayName} subline={subtitle} interp={labels[interpolation] as 'Auto' | 'Exact' | 'Lin' | 'Near' | 'Prev' | 'Next' | 'Cub' | 'Sinc'} panes={paneIds.map(id => id.replace('pane-', 'P'))} visible={isVisible} selected={isSelected} created={trace.kind === 'derived'} child={trace.kind === 'derived'} onVisible={onToggle} onSelect={onSelect} onInterp={() => {}} onPanes={() => {}} onRename={onRename} onRemove={onRemove} interpControl={interpControl} panesControl={panesControl}
+      swatch={<span className="lp-swatch lp-color-control" style={{ background: isVisible ? traceColor : 'transparent', border: isVisible ? undefined : `1.5px solid ${traceColor}` }}><input type="color" value={traceColor} title="Trace color" onClick={event => event.stopPropagation()} onChange={event => onColorChange(event.target.value)} /></span>} />
+  </div>;
 }
-

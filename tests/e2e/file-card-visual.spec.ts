@@ -4,8 +4,8 @@ import { resolve } from 'node:path';
 test('network matrix and info remain open together', async ({ page }) => {
   await page.goto('/app.html');
   await page.getByTestId('empty-chart-file-input').setInputFiles(resolve('test files/cascaded chain.s2p'));
-  await page.getByLabel('Actions for cascaded chain.s2p').click();
-  await page.getByRole('button', { name: 'Info', exact: true }).click();
+  await page.getByRole('button', { name: 'Actions for cascaded chain.s2p' }).click();
+  await page.getByRole('menuitem', { name: 'Info', exact: true }).click();
   await expect(page.getByTestId('touchstone-cell-S11')).toBeVisible();
   await expect(page.getByText('Port Count', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Matrix', exact: true }).click();

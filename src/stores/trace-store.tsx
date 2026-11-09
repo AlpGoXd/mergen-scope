@@ -24,6 +24,7 @@ export type TraceAction =
   | { type: 'REMOVE_DERIVED'; payload: string }
   | { type: 'REMOVE_MULTIPLE_DERIVED'; payload: string[] }
   | { type: 'RECONCILE'; payload: Trace[] }
+  | { type: 'RENAME_DERIVED'; payload: { traceId: string; label: string } }
   | { type: 'SET_DERIVED_INTERPOLATION'; payload: { traceId: string; interpolation: InterpolationStrategy } }
   | { type: 'SET_VISIBILITY'; name: string; visible: boolean }
   | { type: 'SET_ALL_VISIBILITY'; visible: boolean }
@@ -66,6 +67,9 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
       const derivedTraces = recomputeDerivedTraces(rawTraces, result.kept);
       if (result.removed.length === 0 && derivedTraces.every((trace, index) => trace === state.derivedTraces[index])) return state;
       return { ...state, derivedTraces };
+    }
+    case 'RENAME_DERIVED': {
+      return { ...state, derivedTraces: state.derivedTraces.map(trace => trace.id === action.payload.traceId ? { ...trace, dn: action.payload.label } : trace) };
     }
     case 'SET_DERIVED_INTERPOLATION': {
       const { traceId, interpolation } = action.payload;

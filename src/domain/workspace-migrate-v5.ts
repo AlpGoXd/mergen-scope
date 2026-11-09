@@ -18,7 +18,7 @@ const matrix = (v: unknown, ports: number): boolean => Array.isArray(v) && v.len
 const references = (v: unknown, ports: number): boolean => Array.isArray(v) && v.length === ports && v.every(ref => finite(ref) && ref > 0);
 const sample = (v: unknown): boolean => numericFields(v, ['x','y']);
 const optionalBoolean = (v: unknown): boolean => v === undefined || typeof v === 'boolean';
-const interpolation = (v: unknown): boolean => v === undefined || v === 'snap' || v === 'linear' || v === 'sinc';
+const interpolation = (v: unknown): boolean => v === undefined || ['auto', 'exact', 'linear', 'nearest', 'previous', 'next', 'cubic', 'snap', 'sinc'].includes(String(v));
 const nullableString = (v: unknown): boolean => v === null || typeof v === 'string';
 const validNetwork = (v: unknown): boolean => object(v) && ['S','Y','Z','G','H'].includes(String(v.parameterType)) && Number.isInteger(v.portCount) && Number(v.portCount) > 0 && references(v.referenceOhms, Number(v.portCount)) && typeof v.freqUnit === 'string' && ['MA','DB','RI'].includes(String(v.dataFormat)) && strings(v.comments) && Array.isArray(v.samples) && v.samples.every(item => object(item) && finite(item.freq) && matrix(item.sMatrix, Number(v.portCount))) && ['full','upper','lower'].includes(String(v.matrixFormat)) && finite(v.version);
 const validDataset = (v: unknown): boolean => {

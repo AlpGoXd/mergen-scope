@@ -1,0 +1,58 @@
+import { test, expect } from '@playwright/test';
+import { resolve } from 'node:path';
+
+test('trace rename preserves placement and marker association and is undoable', async ({ page }) => {
+  await page.goto('/app.html');
+  await page.getByTestId('empty-chart-file-input').setInputFiles(resolve('test files/cascaded chain.s2p'));
+  const row = page.locator('[data-testid^="trace-row-"]').first();
+  const original = await row.getAttribute('data-testid');
+  await page.getByRole('button', { name: 'New Marker', exact: true }).click();
+  await page.getByTestId('chart-plot-pane-1').click({ position: { x: 100, y: 100 } });
+  await expect(page.locator('[data-testid^="marker-row-"]')).toHaveCount(1);
+  page.once('dialog', dialog => dialog.accept('Renamed trace'));
+  await row.locator('.lp-name').dblclick();
+  await expect(row.locator('.lp-name')).toHaveText('Renamed trace');
+  await expect(row.locator('.lp-sub')).toContainText('S11');
+  await expect(row.locator('.lp-sub')).toContainText('dB');
+  await expect(row).toHaveAttribute('data-testid', original!);
+  await expect(row.getByTitle('Show in panes')).toContainText('P1');
+  await expect(page.locator('[data-testid^="marker-row-"]')).toHaveCount(1);
+  await page.getByRole('button', { name: 'Undo' }).last().click();
+  await expect(row.locator('.lp-name')).not.toHaveText('Renamed trace');
+  await expect(row).toHaveAttribute('data-testid', original!);
+  await expect(page.locator('[data-testid^="marker-row-"]')).toHaveCount(1);
+  await page.keyboard.press('Control+Shift+z');
+  await expect(row.locator('.lp-name')).toHaveText('Renamed trace');
+  await expect(row).toHaveAttribute('data-testid', original!);
+  const download = page.waitForEvent('download');
+  await page.getByTitle('Save Workspace JSON').click();
+  const path = await (await download).path();
+  await page.getByRole('button', { name: 'Clear All' }).click();
+  await page.getByTestId('topbar-workspace-input').setInputFiles(path!);
+  await expect(page.locator('[data-testid^="trace-row-"]').first().locator('.lp-name')).toHaveText('Renamed trace');
+  await expect(page.locator('[data-testid^="trace-row-"]').first()).toHaveAttribute('data-testid', original!);
+  await expect(page.locator('[data-testid^="marker-row-"]')).toHaveCount(1);
+});
+
+
+test('derived trace rename is undoable and keeps its identity', async ({ page }) => {
+  await page.goto('/app.html');
+  await page.getByTestId('empty-chart-file-input').setInputFiles(resolve('test files/cascade_ip3_-12dBm.DAT'));
+  await page.getByRole('button', { name: 'Right' }).click();
+  await page.getByRole('button', { name: 'Trace Ops' }).click();
+  await page.getByRole('button', { name: 'Offset' }).click();
+  await page.getByLabel('Source trace').selectOption({ index: 1 });
+  await page.getByRole('spinbutton', { name: 'dB' }).fill('3');
+  await page.getByRole('button', { name: 'Create Offset Trace' }).click();
+  const initial = page.locator('[data-testid^="trace-row-"]').filter({ hasText: 'Offset' }).first();
+  const id = await initial.getAttribute('data-testid');
+  const row = page.getByTestId(id!);
+  page.once('dialog', dialog => dialog.accept('Custom derived'));
+  await row.locator('.lp-name').dblclick();
+  await expect(row.locator('.lp-name')).toHaveText('Custom derived');
+  await expect(row).toHaveAttribute('data-testid', id!);
+  await page.getByRole('button', { name: 'Undo' }).last().click();
+  await expect(row.locator('.lp-name')).not.toHaveText('Custom derived');
+  await page.keyboard.press('Control+Shift+z');
+  await expect(row.locator('.lp-name')).toHaveText('Custom derived');
+});

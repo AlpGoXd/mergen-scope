@@ -10,6 +10,7 @@ test('changing trace placement after undo does not claim undo history reached it
   const pane2 = row.getByRole('checkbox', { name: 'Pane 2' });
   await pane2.check();
   await page.getByRole('button', { name: 'Undo' }).last().click();
+  await row.getByTitle('Show in panes').click();
   await expect(pane2).not.toBeChecked();
   await pane2.check();
   await expect(pane2).toBeChecked();

@@ -85,7 +85,7 @@ export function placeMarker(
   const strategy = getResolvedInterpolationStrategy(trace.family, trace.interpolation, isUniform);
   const nearestIndex = nearestIndexByFreq(traceData, targetFreq);
   const nearestPoint = nearestIndex >= 0 ? traceData[nearestIndex]! : null;
-  const shouldMagnetSnap = strategy === "snap"
+  const shouldMagnetSnap = (strategy === "snap" || strategy === "exact")
     || (
       nearestPoint != null
       && Number.isFinite(magneticSnap?.nearestPointPixelDistance)
@@ -99,7 +99,7 @@ export function placeMarker(
     requestedFreq: targetFreq,
     freq: resolved.x,
     amp: resolved.y,
-    interpolated: !exactHit && strategy !== "snap" && resolved.x === targetFreq,
+    interpolated: !exactHit && strategy !== "snap" && strategy !== "exact" && resolved.x === targetFreq,
   };
 }
 

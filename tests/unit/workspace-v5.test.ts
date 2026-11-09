@@ -222,7 +222,7 @@ describe('v5 migration boundary', () => {
     expect(migrateWorkspaceV5(failed)?.files[0]).toHaveProperty('error', 'read failed');
     expect(migrateWorkspaceV5({ ...valid, datasets: valid.datasets.map((d, i) => i ? d : { ...d, hidden: 'yes' }) })).toBeNull();
     expect(migrateWorkspaceV5({ ...valid, displayTraces: valid.displayTraces.map((d, i) => i ? d : { ...d, interpolation: 'cubic' }) })).toBeNull();
-    expect(migrateWorkspaceV5({ ...valid, ui: { ...valid.ui, traceInterpolations: { x: 'cubic' } } })).toBeNull();
+    expect(migrateWorkspaceV5({ ...valid, ui: { ...valid.ui, traceInterpolations: { x: 'unsupported' } } })).toBeNull();
     const badSeries = { ...display, source: { sourceType: 'series', datasetFamily: display.family, seriesId: 'missing' } };
     expect(migrateWorkspaceV5({ ...valid, displayTraces: valid.displayTraces.map((d, i) => i ? d : badSeries) })).toBeNull();
   });
