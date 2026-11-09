@@ -22,14 +22,16 @@ export function useKeyboard() {
       // Native controls, open modal dialogs and menus own their keyboard input.
       if (ev.defaultPrevented || document.querySelector('[role="dialog"][aria-modal="true"]')) return;
       const target = ev.target instanceof HTMLElement ? ev.target : null;
-      if (target && (target.isContentEditable || target.closest('input, textarea, select, button, [contenteditable="true"], [role="menu"], [role="menuitem"]'))) return;
 
-      if ((ev.ctrlKey || ev.metaKey) && !ev.altKey && historyDispatch) {
+      // Undo / redo work while a button, checkbox or menu has focus; only text fields keep their native undo.
+      if ((ev.ctrlKey || ev.metaKey) && !ev.altKey && historyDispatch && !isTextEntry(target)) {
         const key=ev.key.toLowerCase();
         if (key === 'z' || key === 'y') {
           historyDispatch({type:key === 'y' || ev.shiftKey ? 'redo' : 'undo'}); ev.preventDefault(); return;
         }
       }
+
+      if (target && (target.isContentEditable || target.closest('input, textarea, select, button, [contenteditable="true"], [role="menu"], [role="menuitem"]'))) return;
 
       // Delete / Backspace: Remove selected marker
       if (ev.key === 'Delete' || ev.key === 'Backspace') {
@@ -75,4 +77,13 @@ export function useKeyboard() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [selectedMkrIdx, markers, markerDispatch, paneDispatch, refLineDispatch, uiDispatch, showMarkers, historyDispatch]);
+}
+
+const NON_TEXT_INPUTS = new Set(['checkbox', 'radio', 'button', 'submit', 'reset', 'range', 'color', 'file', 'image']);
+/** True when the focused element edits text, so Ctrl+Z belongs to it rather than to workspace history. */
+export function isTextEntry(target: HTMLElement | null): boolean {
+  if (!target) return false;
+  if (target.isContentEditable || target.closest('textarea, select, [contenteditable="true"]')) return true;
+  const input = target.closest('input');
+  return input instanceof HTMLInputElement && !NON_TEXT_INPUTS.has(input.type);
 }

@@ -1,3 +1,4 @@
+import { VisibleRefLinesProvider } from '../../stores/ref-line-store';
 import { useFileDispatch, useFileState } from '../../stores/file-store';
 import { usePaneState } from '../../stores/pane-store';
 import { useUiDispatch, useUiState } from '../../stores/ui-store';
@@ -38,7 +39,7 @@ export function ChartWorkspace() {
         />
       )}
       {panes.map((pane) => (
-        <ChartPane key={pane.id} paneId={pane.id} />
+        <VisibleRefLinesProvider key={pane.id}><ChartPane paneId={pane.id} /></VisibleRefLinesProvider>
       ))}
     </div>
   );

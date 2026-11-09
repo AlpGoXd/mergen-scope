@@ -21,7 +21,7 @@ test('active and danger hover retain their roles and toast undo stays legible', 
 test('long menus stay visible and track their anchor on resize and scroll', async ({page}) => {
  await page.goto('/tests/fixtures/phase2/'); const trigger=page.getByRole('button',{name:'Long menu'}); await trigger.click(); const menu=page.getByRole('menu'); await expect(menu).toBeVisible();
  let box=await menu.boundingBox(); expect(box).not.toBeNull(); expect(box!.height).toBeLessThanOrEqual(712); expect(box!.y).toBeGreaterThanOrEqual(0);
- await page.setViewportSize({width:800,height:500}); box=await menu.boundingBox(); expect(box!.height).toBeLessThanOrEqual(492); expect(box!.y+box!.height).toBeLessThanOrEqual(500);
+ await page.setViewportSize({width:800,height:500}); await expect.poll(async () => { const b=await menu.boundingBox(); return b!.height <= 492 && b!.y+b!.height <= 500; }).toBe(true);
  await trigger.evaluate(el => { (el as HTMLElement).style.transform='translateX(100px)'; window.dispatchEvent(new Event('scroll')); }); const triggerBox=await trigger.boundingBox(); box=await menu.boundingBox(); expect(Math.abs(box!.x-triggerBox!.x)).toBeLessThan(2);
  for (const y of [-1000, 2000]) { await trigger.evaluate((el, top) => { const e=el as HTMLElement; e.style.position='fixed'; e.style.top=`${top}px`; window.dispatchEvent(new Event('scroll')); },y); box=await menu.boundingBox(); expect(box!.y).toBeGreaterThanOrEqual(0); expect(box!.y+box!.height).toBeLessThanOrEqual(500); }
 });

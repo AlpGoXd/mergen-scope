@@ -38,10 +38,11 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
   );
 }
 
-function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
+function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label?: string }) {
   return (
     <input
       type="checkbox"
+      aria-label={label}
       checked={checked}
       onChange={e => onChange(e.target.checked)}
       style={{ cursor: 'pointer', accentColor: 'var(--accent)', width: 14, height: 14 }}
@@ -185,14 +186,6 @@ export function PaneSettingsPopover({
             <Row label="Major grid">
               <Toggle checked={settings.gridMajor} onChange={v => patch({ gridMajor: v })} />
             </Row>
-            <Row label="Minor grid">
-              <Toggle checked={settings.gridMinor} onChange={v => patch({ gridMinor: v })} />
-            </Row>
-            {settings.gridMinor && (
-              <div style={{ fontSize: '11px', color: 'var(--muted)', paddingLeft: 2 }}>
-                Minor grid not supported yet
-              </div>
-            )}
             <Row label="Opacity">
               <NumInput value={settings.gridMajorOpacity} min={0} max={1} step={0.05} onChange={v => patch({ gridMajorOpacity: v })} />
             </Row>
@@ -214,6 +207,9 @@ export function PaneSettingsPopover({
           </Section>
 
           <Section title="Display">
+            <Row label="Sample dots">
+              <Toggle label="Sample dots" checked={settings.showSampleDots} onChange={v => patch({ showSampleDots: v })} />
+            </Row>
             <Row label="Show markers">
               <Toggle checked={settings.showMarkers} onChange={v => patch({ showMarkers: v })} />
             </Row>

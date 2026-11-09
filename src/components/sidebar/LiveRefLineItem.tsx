@@ -1,9 +1,11 @@
 import React from 'react';
 import type { LineIntersection } from '../../domain/ref-lines';
+import { decodeXAxisUnit } from '../../types/ref-line';
 import type { RefLine } from '../../types/ref-line';
 import type { ThemeColors } from '../../types/theme';
 import type { Trace } from '../../types/trace';
-import { formatRefLineValue, parseEngineeringInput } from './live-row-helpers';
+import { formatRefLineValue, formatWithUnit, parseEngineeringInput } from './live-row-helpers';
+import { parseEngInput } from '../../domain/units';
 import { LineRow } from '../left-panel/Rows';
 
 export function RefLineItem(props: {
@@ -30,14 +32,15 @@ export function RefLineItem(props: {
   const [invalid, setInvalid] = React.useState(false);
   const isLocked = refLine.groupId != null;
   const label = refLine.label ?? (refLine.type === 'v' ? 'V' : 'H');
-  const value = formatRefLineValue(refLine, selectedTrace, xSpan);
-  const summary = `${linkedPaneIds.map(id => { const index = allPanes.findIndex(pane => pane.id === id); return index >= 0 ? `P${index + 1}` : id; }).join(' + ') || '\u2014'}${isLocked ? ' (linked, ' : ' ('}${refLine.type === 'v' ? selectedTrace?.units.x ?? 'X' : selectedTrace?.units.y ?? 'Y'}) \u00b7 ${intersections.length} ${intersections.length === 1 ? 'crossing' : 'crossings'}`;
-  const unavailable = refLine.type === 'h' || (!isLocked && allPanes.length < 2);
+  const savedUnit = refLine.paneless && refLine.axisUnit ? (refLine.type === 'v' ? decodeXAxisUnit(refLine.axisUnit)[1] : refLine.axisUnit) : null;
+  const value = savedUnit ? formatWithUnit(refLine.value, savedUnit) : formatRefLineValue(refLine, selectedTrace, xSpan);
+  const summary = refLine.paneless ? 'Not in a pane' : `${linkedPaneIds.map(id => { const index = allPanes.findIndex(pane => pane.id === id); return index >= 0 ? `P${index + 1}` : id; }).join(' + ') || '\u2014'}${isLocked ? ' (linked, ' : ' ('}${refLine.type === 'v' ? selectedTrace?.units.x ?? 'X' : selectedTrace?.units.y ?? 'Y'}) \u00b7 ${intersections.length} ${intersections.length === 1 ? 'crossing' : 'crossings'}`;
+  const unavailable = refLine.paneless || refLine.type === 'h' || (!isLocked && allPanes.length < 2);
   return <div data-testid={`ref-line-row-${refLine.label ?? refLine.id}`} onClick={onSelect}>
     <LineRow key={`${refLine.id}:${value}`} label={label} value={value} summary={summary} invalid={invalid}
       link={unavailable ? 'na' : isLocked ? 'on' : 'off'}
       linkReason={refLine.type === 'h' ? 'Only vertical lines can be linked.' : 'Add another compatible pane to link.'}
-      onValue={text => { const parsed = parseEngineeringInput(text, selectedTrace); if (parsed == null || !Number.isFinite(parsed)) setInvalid(true); else { setInvalid(false); onUpdateValue(parsed); } }}
+      onValue={text => { let result = savedUnit ? parseEngInput(text, {baseUnit:savedUnit}) : null; if (result && !result.ok && result.reason === 'unknown-unit' && savedUnit && text.trim().endsWith(savedUnit)) result = parseEngInput(text.trim().slice(0, -savedUnit.length)); const parsed = result ? (result.ok ? result.value : null) : parseEngineeringInput(text, selectedTrace); if (parsed == null || !Number.isFinite(parsed)) setInvalid(true); else { setInvalid(false); onUpdateValue(parsed); } }}
       onLink={() => isLocked ? onUnlock() : onLock()} onListCrossings={() => onList?.()} onRemove={onRemove} />
   </div>;
 }

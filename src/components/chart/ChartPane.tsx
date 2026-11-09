@@ -91,7 +91,7 @@ export function ChartPane({ paneId }: ChartPaneProps) {
   const markerDispatch = useMarkerDispatch();
   const { refLines, refMode, selectedRefLineId } = useRefLineState();
   const refLineDispatch = useRefLineDispatch();
-  const { selectedTraceName, showDots, traceColors, markerTrace } = useUiState();
+  const { selectedTraceName, traceColors, markerTrace } = useUiState();
   const uiDispatch = useUiDispatch();
   const paneDispatch = usePaneDispatch();
   const importFiles = useFileImport();
@@ -1198,7 +1198,7 @@ export function ChartPane({ paneId }: ChartPaneProps) {
                 />
                 <Tooltip isAnimationActive={false} cursor={false} content={() => null} />
                 {paneTraces.map((trace) => (
-                  <Line key={trace.name} type="linear" dataKey={trace.name} name={trace.dn || trace.name} stroke={resolveTraceColor(trace.name)} strokeDasharray={trace.kind === 'derived' ? '5 3' : undefined} dot={showDots ? { r: 2, fill: resolveTraceColor(trace.name), stroke: resolveTraceColor(trace.name) } : false} activeDot={false} isAnimationActive={false} connectNulls strokeWidth={selectedTraceName === trace.name ? 2 : 1.5} />
+                  <Line key={trace.name} type="linear" dataKey={trace.name} name={trace.dn || trace.name} stroke={resolveTraceColor(trace.name)} strokeDasharray={trace.kind === 'derived' ? '5 3' : undefined} dot={settings.showSampleDots ? { r: 2, fill: resolveTraceColor(trace.name), stroke: resolveTraceColor(trace.name) } : false} activeDot={false} isAnimationActive={false} connectNulls strokeWidth={selectedTraceName === trace.name ? 2 : 1.5} />
                 ))}
                 {hoverFreq != null && Number.isFinite(hoverFreq) && <ReferenceLine x={hoverFreq} stroke="color-mix(in srgb, var(--accent) 60%, white)" strokeDasharray="4 4" strokeWidth={1} />}
                 {settings.showMarkers && paneMarkers.map(({ marker, index }) => {

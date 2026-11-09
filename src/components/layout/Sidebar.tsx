@@ -8,8 +8,7 @@ import { Menu as KitMenu } from '../left-panel/Menu';
 import { makeTraceColorResolver } from '../../domain/trace-colors';
 import { canPlaceMembership, traceXGroup } from '../../domain/pane-placement';
 import { useMemo, useRef, useState, type ReactNode } from 'react';
-import { computeVerticalIntersections, computeHorizontalIntersections } from '../../domain/ref-lines';
-import type { LineIntersection } from '../../domain/ref-lines';
+import { computeLineIntersections } from '../../domain/ref-lines';
 import { getInterpolationOptionDisabledReason, getResolvedInterpolationStrategy } from '../../domain/interpolation';
 import { placeMarker } from '../../domain/markers';
 import { appendTouchstoneDisplayTrace, makeDefaultTouchstoneState } from '../../domain/touchstone/selections';
@@ -531,29 +530,14 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
                 const seenGroups = new Set<string>();
                 return refLines
                   .filter((refLine) => {
-                    if (!refLine.groupId) return true;
+                    if (!refLine.groupId || refLine.paneless) return true;
                     if (seenGroups.has(refLine.groupId)) return false;
                     seenGroups.add(refLine.groupId);
                     return true;
                   })
                   .map((refLine) => {
-                    // Collect traces for this line's pane
-                    const paneTraces = allTraces.filter((t) => tracePaneMap[t.name]?.includes(refLine.paneId ?? ''));
-                    // For locked lines, also collect intersections from all panes in the group
-                    let intersections: LineIntersection[];
-                    if (refLine.groupId) {
-                      const groupLines = refLines.filter((l) => l.groupId === refLine.groupId);
-                      intersections = groupLines.flatMap((gl) => {
-                        const gTraces = allTraces.filter((t) => tracePaneMap[t.name]?.includes(gl.paneId ?? ''));
-                        return gl.type === 'v'
-                          ? computeVerticalIntersections(gl.value, gTraces, gl.paneId ?? 'pane-1')
-                          : computeHorizontalIntersections(gl.value, gTraces, gl.paneId ?? 'pane-1');
-                      });
-                    } else {
-                      intersections = refLine.type === 'v'
-                        ? computeVerticalIntersections(refLine.value, paneTraces, refLine.paneId ?? 'pane-1')
-                        : computeHorizontalIntersections(refLine.value, paneTraces, refLine.paneId ?? 'pane-1');
-                    }
+                    const paneTraces = refLine.paneless ? [] : allTraces.filter(t => tracePaneMap[t.name]?.includes(refLine.paneId ?? ''));
+                    const intersections = computeLineIntersections(refLine, refLines, allTraces, tracePaneMap, vis);
                     return (
                       <RefLineItem
                         key={refLine.id}
@@ -572,7 +556,7 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
                         onLock={() => { const groupFor = (paneId: string) => { const members=allKnownTraces.filter(trace=>tracePaneMap[trace.name]?.includes(paneId)); const groups=members.map(traceXGroup); return groups.length && groups[0] && groups.every(group=>group===groups[0]) ? groups[0] : null; }; const group=refLine.paneId ? groupFor(refLine.paneId) : null; if (group) changeLine({ type: 'LOCK_LINE', payload: { lineId: refLine.id, allPaneIds: panes.filter(pane=>groupFor(pane.id)===group).map(pane=>pane.id) } }, 'Linked line'); }}
                         onUnlock={() => changeLine({ type: 'UNLOCK_LINE', payload: { lineId: refLine.id } }, 'Unlinked line')}
                         onUpdateValue={(value) => {
-                          if (refLine.groupId) changeLine({ type: 'MOVE_GROUP', payload: { groupId: refLine.groupId, value } }, 'Moved line');
+                          if (refLine.groupId && !refLine.paneless) changeLine({ type: 'MOVE_GROUP', payload: { groupId: refLine.groupId, value } }, 'Moved line');
                           else changeLine({ type: 'UPDATE_LINE', payload: { id: refLine.id, updates: { value } } }, 'Moved line');
                         }}
                         siblingLines={refLines.filter(l => l.type === refLine.type && l.paneId === refLine.paneId && l.id !== refLine.id)}

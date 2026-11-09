@@ -181,7 +181,7 @@ function validCurrent(body: Record<string, unknown>): boolean {
   for (const marker of markerIds.values()) if (marker.type === 'delta' ? typeof marker.refId !== 'string' || marker.refId === marker.id || !markerIds.has(marker.refId) || markerIds.get(marker.refId)?.type === 'delta' : marker.refId !== null) return false;
   const lineIds = new Set<number>();
   for (const line of body.refLines) {
-    if (!object(line) || !finite(line.id) || lineIds.has(line.id) || !['h','v'].includes(String(line.type)) || !finite(line.value) || !(line.paneId === null || (typeof line.paneId === 'string' && paneIds.has(line.paneId))) || !(line.groupId === null || typeof line.groupId === 'string') || !(line.label === null || typeof line.label === 'string') || (line.type === 'h' && line.groupId !== null)) return false;
+    if (!object(line) || !optionalBoolean(line.paneless) || (line.paneless === true && line.paneId !== null) || !(line.axisUnit === undefined || nullableString(line.axisUnit)) || !finite(line.id) || lineIds.has(line.id) || !['h','v'].includes(String(line.type)) || !finite(line.value) || !(line.paneId === null || (typeof line.paneId === 'string' && paneIds.has(line.paneId))) || !(line.groupId === null || typeof line.groupId === 'string') || !(line.label === null || typeof line.label === 'string') || (line.type === 'h' && line.groupId !== null)) return false;
     lineIds.add(line.id);
   }
   return body.datasets.every(validDataset) && body.displayTraces.every(validDisplay) && (body.selectedTraceName === null || (typeof body.selectedTraceName === 'string' && traceNames.has(body.selectedTraceName)));
