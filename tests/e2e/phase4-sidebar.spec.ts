@@ -15,11 +15,11 @@ test('sidebar sections remember collapse and trace membership can be changed', a
   await page.getByRole('button', { name: '+ Pane', exact: true }).click();
   const row = page.locator('[data-testid^="trace-row-"]').first();
   await row.getByTitle('Show in panes').click();
-  const pane2 = row.getByRole('checkbox', { name: 'Pane 2' });
+  const pane2 = row.getByRole('menuitemcheckbox', { name: 'Pane 2' });
   await expect(pane2).not.toBeChecked();
-  await pane2.check();
+  await pane2.click();
   await expect(pane2).toBeChecked();
-  await pane2.uncheck();
+  await pane2.click();
   await expect(pane2).not.toBeChecked();
 });
 

@@ -7,12 +7,12 @@ test('changing trace placement after undo does not claim undo history reached it
   await page.getByRole('button', { name: '+ Pane', exact: true }).click();
   const row = page.locator('[data-testid^="trace-row-"]').first();
   await row.getByTitle('Show in panes').click();
-  const pane2 = row.getByRole('checkbox', { name: 'Pane 2' });
-  await pane2.check();
+  const pane2 = row.getByRole('menuitemcheckbox', { name: 'Pane 2' });
+  await pane2.click();
   await page.getByRole('button', { name: 'Undo' }).last().click();
   await row.getByTitle('Show in panes').click();
   await expect(pane2).not.toBeChecked();
-  await pane2.check();
+  await pane2.click();
   await expect(pane2).toBeChecked();
   await expect(page.getByText('Updated trace panes')).toBeVisible();
   await expect(page.getByText(/history was removed to stay within the history limit/)).toHaveCount(0);

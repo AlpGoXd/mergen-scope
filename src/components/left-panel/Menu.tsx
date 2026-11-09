@@ -3,6 +3,8 @@
 import type { CSSProperties, ReactElement, ReactNode } from 'react';
 
 export interface MenuItem {
+  /** Stable identity when labels can repeat or change. */
+  id?: string;
   label: string;
   /** Small muted text after the label (e.g. "(CSV only)") or under it when `noteBelow`. */
   note?: string;
@@ -10,6 +12,8 @@ export interface MenuItem {
   /** Right-aligned text (shortcut, "Hz ≠ s"). */
   aside?: string;
   checked?: boolean;
+  /** A command inside a checklist, with the same alignment but no checkbox role. */
+  command?: boolean;
   danger?: boolean;
   /** Disabled items stay visible with the reason as tooltip. */
   disabledReason?: string;
@@ -36,10 +40,11 @@ export function Menu({ title, entries, checklist, footer, style, label }: MenuPr
           <div key={`sep-${i}`} className="lp-menu__sep" role="separator" />
         ) : (
           <button
-            key={e.label}
+            key={e.id ?? e.label}
             type="button"
-            role={checklist ? 'menuitemcheckbox' : 'menuitem'}
-            aria-checked={checklist ? Boolean(e.checked) : undefined}
+            style={e.command && checklist ? { display: 'flex' } : undefined}
+            role={checklist && !e.command ? 'menuitemcheckbox' : 'menuitem'}
+            aria-checked={checklist && !e.command ? Boolean(e.checked) : undefined}
             aria-disabled={e.disabledReason ? true : undefined}
             title={e.disabledReason}
             className={`lp-menu__item${e.danger ? ' lp-menu__item--danger' : ''}`}

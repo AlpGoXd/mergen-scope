@@ -395,8 +395,14 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
                     const entries = allKnownTraces.map(item => ({ trace: item, paneIds: tracePaneMap[item.name] ?? [], displayTrace: allDisplayTraces.find(display => display.id === item.id) }));
                     const entry = entries.find(item => item.trace.name === trace.name);
                     const result = entry && canPlaceMembership(entry, pane.id, panes, entries);
-                    return { id: pane.id, title: pane.title || `Pane ${paneIndex + 1}`, disabledReason: !(tracePaneMap[trace.name] ?? []).includes(pane.id) && result && !result.allowed ? result.reason : undefined };
+                    return { id: pane.id, title: pane.title || `Pane ${paneIndex + 1}`, type: pane.renderMode, disabledReason: !(tracePaneMap[trace.name] ?? []).includes(pane.id) && result && !result.allowed ? result.reason : undefined };
                   })}
+                  newPaneDisabledReason={panes.length >= limit ? `The current limit is ${limit} panes.` : undefined}
+                  onNewPane={() => {
+                    const action = { type: 'CREATE_PANE_WITH_TRACE' as const, payload: { trace, allTraces: allKnownTraces, displayTraces: allDisplayTraces } };
+                    if (aggregate) aggregate.historyDispatch({ type: 'change', toastMessage: 'Added pane with trace', command: { slice: 'panes', action, limit } });
+                    else paneDispatch(action);
+                  }}
                   onTogglePane={(paneId) => {
                     const action = (tracePaneMap[trace.name] ?? []).includes(paneId)
                       ? { type: 'REMOVE_MEMBERSHIP' as const, payload: { traceName: trace.name, paneId } }

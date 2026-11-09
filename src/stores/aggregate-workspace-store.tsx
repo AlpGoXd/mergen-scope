@@ -306,7 +306,7 @@ export function workspaceReducer(state: WorkspaceState, command: WorkspaceAction
     case 'ui': next = { ...state, ui: uiReducer(state.ui, command.action) }; break;
     case 'panes': {
       let action = command.action;
-      if (!['SET_PANE_COUNT','SET_RENDER_MODE','ASSIGN_TRACE_TO_PANE','ADD_MEMBERSHIP','MOVE_MEMBERSHIP'].includes(action.type)) {
+      if (!['SET_PANE_COUNT','SET_RENDER_MODE','CREATE_PANE_WITH_TRACE','ASSIGN_TRACE_TO_PANE','ADD_MEMBERSHIP','MOVE_MEMBERSHIP'].includes(action.type)) {
         next = { ...state, panes: paneReducer(state.panes, action) }; break;
       }
       const view = traceView(state.files, state.traces);
@@ -322,7 +322,12 @@ export function workspaceReducer(state: WorkspaceState, command: WorkspaceAction
       }
       if (action.type === 'SET_PANE_COUNT') action = { ...action, limit: command.limit, traces: entries };
       else if (action.type === 'SET_RENDER_MODE') action = { ...action, payload: { ...action.payload, traces: entries } };
-      if (action.type === 'ASSIGN_TRACE_TO_PANE') next = { ...state, panes: paneReducer(state.panes, { type: 'ASSIGN_TRACE_TO_PANE', payload: { ...action.payload, allTraces: view.allKnownTraces, displayTraces: view.allDisplayTraces } }) };
+      if (action.type === 'CREATE_PANE_WITH_TRACE') {
+        const trace = view.allKnownTraces.find(item => item.id === action.payload.trace.id && item.name === action.payload.trace.name);
+        if (!trace) return state;
+        next = { ...state, panes: paneReducer(state.panes, { type: 'CREATE_PANE_WITH_TRACE', limit: command.limit, payload: { trace, allTraces: view.allKnownTraces, displayTraces: view.allDisplayTraces } }) };
+      }
+      else if (action.type === 'ASSIGN_TRACE_TO_PANE') next = { ...state, panes: paneReducer(state.panes, { type: 'ASSIGN_TRACE_TO_PANE', payload: { ...action.payload, allTraces: view.allKnownTraces, displayTraces: view.allDisplayTraces } }) };
       else if (action.type === 'ADD_MEMBERSHIP') next = { ...state, panes: paneReducer(state.panes, { type: 'ADD_MEMBERSHIP', payload: { ...action.payload, allTraces: view.allKnownTraces, displayTraces: view.allDisplayTraces } }) };
       else if (action.type === 'MOVE_MEMBERSHIP') next = { ...state, panes: paneReducer(state.panes, { type: 'MOVE_MEMBERSHIP', payload: { ...action.payload, allTraces: view.allKnownTraces, displayTraces: view.allDisplayTraces } }) };
       else next = { ...state, panes: paneReducer(state.panes, action) };
