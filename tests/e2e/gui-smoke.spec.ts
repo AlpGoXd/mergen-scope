@@ -15,7 +15,7 @@ test("imports data, uses marker/search tools, exports CSV, and reloads a workspa
   await page.goto("/app.html");
 
   await page.getByTestId("empty-chart-file-input").setInputFiles(datFixture);
-  await expect(page.getByText("cascade_ip3_-12dBm.DAT")).toBeVisible();
+  await expect(page.locator(".lp-file--header .lp-name").filter({ hasText: "cascade_ip3_-12dBm.DAT" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Peak", exact: true })).toBeVisible();
 
   await page.getByRole("button", { name: "Peak", exact: true }).click();
@@ -42,7 +42,7 @@ test("imports data, uses marker/search tools, exports CSV, and reloads a workspa
   await expect(page.getByTestId("empty-chart-dropzone")).toBeVisible();
 
   await page.getByTestId("topbar-workspace-input").setInputFiles(workspacePath!);
-  await expect(page.getByText("cascade_ip3_-12dBm.DAT")).toBeVisible();
+  await expect(page.locator(".lp-file--header .lp-name").filter({ hasText: "cascade_ip3_-12dBm.DAT" })).toBeVisible();
 });
 
 test("routes ambiguous CSV imports through the import wizard", async ({ page }) => {
@@ -56,7 +56,7 @@ test("routes ambiguous CSV imports through the import wizard", async ({ page }) 
 
   await expect(page.getByRole("dialog", { name: "Import table" })).toBeVisible();
   await page.getByRole("button", { name: "Confirm" }).click();
-  await expect(page.getByText("ambiguous.csv", { exact: true })).toBeVisible();
+  await expect(page.locator(".lp-file--header .lp-name").filter({ hasText: "ambiguous.csv" })).toBeVisible();
 });
 
 test("import wizard shows which rows and columns its settings select", async ({ page }) => {

@@ -1,6 +1,13 @@
+import '../left-panel/left-panel.css';
+import { LeftPanel, Section, DropZone, OpenButton, EMPTY_TEXT } from '../left-panel/LeftPanel';
+import { TraceColumnsHeader } from '../left-panel/Rows';
+import { FileRow as KitFileRow, Info, Matrix } from '../left-panel/FileRow';
+import type { FileFormat, MatrixView } from '../left-panel/types';
+import { Popover } from '../shared/Controls';
+import { Menu as KitMenu } from '../left-panel/Menu';
 import { makeTraceColorResolver } from '../../domain/trace-colors';
 import { canPlaceMembership, traceXGroup } from '../../domain/pane-placement';
-import { useMemo, useState, type CSSProperties, type ReactNode } from 'react';
+import { useMemo, useRef, useState, type ReactNode } from 'react';
 import { computeVerticalIntersections, computeHorizontalIntersections } from '../../domain/ref-lines';
 import type { LineIntersection } from '../../domain/ref-lines';
 import { getInterpolationOptionDisabledReason, getResolvedInterpolationStrategy } from '../../domain/interpolation';
@@ -18,35 +25,14 @@ import { useRefLineDispatch, useRefLineState, type RefLineAction } from '../../s
 import { useTraceDispatch, useTraceState } from '../../stores/trace-store';
 import { useUiDispatch, useUiState } from '../../stores/ui-store';
 import type { FileMetadata, MetadataEntry } from '../../types/file';
-import type { TouchstoneFamily, TouchstoneView } from '../../types/touchstone';
+import type { TouchstoneView } from '../../types/touchstone';
 import type { Trace } from '../../types/trace';
-import { PretextLabel } from '../shared/PretextLabel';
+import type { InterpolationStrategy } from '../../types/interpolation';
 import { TouchstoneMatrixPicker } from '../sidebar/TouchstoneMatrixPicker';
 import { TraceRow } from '../sidebar/LiveTraceRow';
 import { MarkerItem } from '../sidebar/LiveMarkerItem';
 import { RefLineItem } from '../sidebar/LiveRefLineItem';
-import { badgeStyle, formatWithUnit } from '../sidebar/live-row-helpers';
-
-const MATRIX_VIEWS_BY_FAMILY: Record<TouchstoneFamily, readonly TouchstoneView[]> = {
-  S: ['dB', 'Mag', 'Phase', 'Real', 'Imag'],
-  Y: ['Mag', 'Phase', 'Real', 'Imag'],
-  Z: ['Mag', 'Phase', 'Real', 'Imag'],
-  ABCD: ['Mag', 'Phase', 'Real', 'Imag'],
-};
-
-const headerCellStyle: CSSProperties = {
-  fontSize: 'var(--font-caption)',
-  lineHeight: 'var(--lh-caption)',
-  color: 'var(--muted)',
-  userSelect: 'none',
-};
-
-const subsectionLabelStyle: CSSProperties = {
-  fontSize: 'var(--font-caption)',
-  fontWeight: 500,
-  color: 'var(--muted)',
-  whiteSpace: 'nowrap',
-};
+import { formatWithUnit } from '../sidebar/live-row-helpers';
 
 export interface SidebarProps {
   width?: number;
@@ -82,10 +68,6 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
   const [expandedByFileId, setExpandedByFileId] = useState<Record<string, { columns?: boolean; meta?: boolean }>>({});
   const compactSidebar = files.length <= 1 && allTraces.length <= 1 && markers.length === 0 && refLines.length === 0;
   const effectiveWidth = width;
-  const sidebarMinWidth = '220px';
-  const sidebarMaxWidth = 'min(45vw, 420px)';
-  const sidebarInnerGap = compactSidebar ? '5px' : '7px';
-  const sidebarInnerPadding = compactSidebar ? '4px 4px 6px' : '5px 5px 7px';
   const fileCardRadius = '6px';
 
   const visibleDisplayTraces = allDisplayTraces.filter((displayTrace) => !displayTrace.hidden);
@@ -164,36 +146,13 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
   }
 
   return (
-    <div
-      style={{
-        width: `${effectiveWidth}px`,
-        minWidth: sidebarMinWidth,
-        maxWidth: sidebarMaxWidth,
-        background: 'var(--card)',
-        borderRight: '1px solid var(--border)',
-        display: 'flex',
-        flexDirection: 'column',
-        overflow: 'hidden',
-        flexShrink: 0,
-      }}
-    >
-      <div
-        style={{
-          padding: sidebarInnerPadding,
-          overflowY: 'auto',
-          flex: 1,
-          minWidth: 0,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: sidebarInnerGap,
-        }}
-      >
+    <LeftPanel width={effectiveWidth}>
         <PanelSection title="Files" count={files.length} actions={[{ label: 'Close all files…', disabled: !files.length, run: () => {
           const actions = files.map(file => ({ slice: 'files' as const, action: { type: 'REMOVE_FILE' as const, payload: { fileId: String(file.id) } } }));
           if (aggregate) aggregate.historyDispatch({ type: 'change', toastMessage: `Closed ${files.length} files`, command: { slice: 'transaction', actions } });
           else actions.forEach(item => fileDispatch(item.action));
         } }]} rightElement={
-          <button type="button" className="btn" onClick={onOpenFiles} disabled={!onOpenFiles} title={onOpenFiles ? 'Open files' : 'Open files is available from the top bar'} style={{ gap: 4, color: "var(--text)", background: "var(--raised)" }}><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="M8 1v9m-3-3 3 3 3-3M2 11v3h12v-3" /></svg>{"Open\u2026"}</button>
+          <OpenButton onOpen={() => onOpenFiles?.()} />
         }>
           {files.map((file) => {
             const fileId = String(file.id);
@@ -204,7 +163,6 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
             const activeFamily = touchstoneState.activeFamily;
             const activeView = touchstoneState.activeViewByFamily[activeFamily];
             const hiddenViewCount = (file.displayTraces ?? []).filter((displayTrace) => displayTrace.hidden).length;
-            const availableViews = MATRIX_VIEWS_BY_FAMILY[activeFamily];
 
             const toggleMatrix = (row: number, col: number, view: TouchstoneView) => {
                         const component = ({ dB: 'magnitude-db', Mag: 'magnitude-linear', Phase: 'phase', Real: 'real', Imag: 'imag', VSWR: 'vswr', 'Return loss': 'return-loss', 'Group delay': 'group-delay' } as const)[view];
@@ -284,42 +242,14 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
                       padding: '2px 0 5px',
                     }}
                   >
-                    <div style={{ display: 'flex', gap: 0, alignItems: 'center' }}>
-                      <span style={{ ...subsectionLabelStyle, width: 50, flexShrink: 0 }}>Family</span>
-                      {(['S', 'Y', 'Z', 'ABCD'] as const).map((family) => (
-                        <button
-                          key={family}
-                          type="button"
-                          disabled={family === 'ABCD' && file.touchstoneNetwork?.portCount !== 2}
-                          title={family === 'ABCD' && file.touchstoneNetwork?.portCount !== 2 ? '2-port only' : family}
-                          onClick={() => setActiveFamily(fileId, family)}
-                          className={touchstoneState.activeFamily === family ? 'btn-active' : 'btn'}
-                          style={{ padding: '0 5px', minHeight: 20, borderRadius: 0, fontSize: 'var(--font-caption)', lineHeight: '16px', minWidth: 0, marginRight: -1, ...(theme === 'dark' && touchstoneState.activeFamily === family ? { background: 'color-mix(in srgb, var(--accent) 20%, var(--panel))', borderColor: 'var(--border)' } : {}) }}
-                        >
-                          {family}
-                        </button>
-                      ))}
-                    </div>
-
-                    <div style={{ display: 'flex', gap: 0, alignItems: 'center', minWidth: 0 }}>
-                      <span style={{ ...subsectionLabelStyle, width: 50, flexShrink: 0 }}>Plot as</span>
-                      <div style={{ display: 'flex', columnGap: 0, rowGap: 4, flexWrap: 'wrap', alignItems: 'center', minWidth: 0 }}>
-                        {availableViews.map((view) => (
-                          <button
-                            key={view}
-                            type="button"
-                            onClick={() => setActiveView(fileId, activeFamily, view)}
-                            className={activeView === view ? 'btn-active' : 'btn'}
-                            style={{ padding: '0 5px', minHeight: 20, borderRadius: 0, fontSize: 'var(--font-caption)', lineHeight: '16px', minWidth: 0, marginRight: -1, ...(theme === 'dark' && activeView === view ? { background: 'color-mix(in srgb, var(--accent) 20%, var(--panel))', borderColor: 'var(--border)' } : {}) }}
-                          >
-                            {view === 'Real' ? 'Re' : view === 'Imag' ? 'Im' : view}
-                          </button>
-                        ))}
-                        <span style={{ position: 'relative', display: 'inline-flex', marginLeft: 4 }}><select style={{ appearance: 'none', minWidth: 0, width: 54, height: 20, padding: '0 16px 0 5px', fontSize: 'var(--font-body)', background: 'var(--raised)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: 4 }} aria-label="More network views" value={['VSWR', 'Return loss', 'Group delay'].includes(activeView) ? activeView : ''} onChange={event => { if (event.target.value) setActiveView(fileId, activeFamily, event.target.value as TouchstoneView); }}><option value="">More</option><option value="VSWR" disabled={activeFamily !== 'S'}>VSWR</option><option value="Return loss" disabled={activeFamily !== 'S'}>Return loss</option><option value="Group delay">Group delay</option></select><span aria-hidden="true" style={{ position: 'absolute', right: 5, top: 1, pointerEvents: 'none', color: 'var(--text)' }}>{'\u25be'}</span></span>
-                      </div>
-                    </div>
-
-                    {file.touchstoneNetwork.portCount >= 3 && <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                    <Matrix ports={file.touchstoneNetwork.portCount} family={activeFamily}
+                      view={(activeView === 'Real' ? 'Re' : activeView === 'Imag' ? 'Im' : activeView) as MatrixView}
+                      abcdAllowed={file.touchstoneNetwork.portCount === 2} cells={[]} moreViews={[]}
+                      onFamily={family => setActiveFamily(fileId, family)}
+                      onView={view => setActiveView(fileId, activeFamily, view === 'Re' ? 'Real' : view === 'Im' ? 'Imag' : view)}
+                      onMore={() => {}} onToggleCell={(row, col) => toggleMatrix(row - 1, col - 1, activeView)}
+                      moreControl={<MoreViews family={activeFamily} view={activeView} onChange={view => setActiveView(fileId, activeFamily, view)} />}
+                      quickControl={file.touchstoneNetwork.portCount >= 3 && <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                       {(['All Sii', 'All Sij', 'Lower', 'Clear'] as const).map(pick => <button type="button" key={pick} onClick={() => {
                         const n = file.touchstoneNetwork?.portCount ?? 0;
                         if (!aggregate) return;
@@ -359,7 +289,7 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
                         if (actions.length) aggregate.historyDispatch({ type: 'change', toastMessage: `${pick} matrix views`, command: { slice: 'transaction', actions } });
                       }} disabled={!aggregate} title={!aggregate ? 'Batch actions require workspace history' : pick}>{pick === 'Lower' ? 'Lower \u25e3' : pick}</button>)}
                     </div>}
-                    <div style={{ marginLeft: file.touchstoneNetwork.portCount <= 2 ? 51 : 0, maxWidth: file.touchstoneNetwork.portCount <= 2 ? 168 : undefined }}><TouchstoneMatrixPicker
+                      grid={<div style={{ marginLeft: file.touchstoneNetwork.portCount <= 2 ? 51 : 0, maxWidth: file.touchstoneNetwork.portCount <= 2 ? 168 : undefined }}><TouchstoneMatrixPicker
                       portCount={file.touchstoneNetwork.portCount}
                       family={activeFamily}
                       view={activeView}
@@ -394,7 +324,7 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
                       })()}
                       disabledReason={(row, col) => (activeView === 'VSWR' || activeView === 'Return loss') && row !== col ? 'Reflection parameters only' : undefined}
                       onToggle={toggleMatrix}
-                    /></div>
+                    /></div>} />
                   </div>
                 )}
 
@@ -406,15 +336,15 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
               </div>
             );
           })}
-          {files.length === 0 && <div onDragOver={onDropFiles ? event => event.preventDefault() : undefined} onDrop={onDropFiles ? event => { event.preventDefault(); event.stopPropagation(); if (event.dataTransfer.files.length) onDropFiles(event.dataTransfer.files); } : undefined} style={{ minHeight: 210, border: '1px dashed var(--border-strong)', borderRadius: 6, padding: 12, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: 8, color: 'var(--text-muted)', textAlign: 'center' }}><strong style={{ color: 'var(--text)' }}>Drop files here</strong><span>.s1p ... .sNp ? .dat ? .csv ? .txt</span><div style={{ display: 'flex', gap: 4 }}><button type="button" disabled={!onOpenFiles} title={!onOpenFiles ? 'Open is available from the main file control' : 'Open files'} onClick={onOpenFiles}>Open…</button><button type="button" disabled={!onLoadDemo} title={!onLoadDemo ? 'Demo loading is not connected yet' : 'Load demo'} onClick={onLoadDemo}>Load demo</button></div><span>Files are read in this browser; nothing is uploaded.</span></div>}
+          {files.length === 0 && <div onDragOver={onDropFiles ? event => event.preventDefault() : undefined} onDrop={onDropFiles ? event => { event.preventDefault(); event.stopPropagation(); if (event.dataTransfer.files.length) onDropFiles(event.dataTransfer.files); } : undefined}><DropZone onOpen={() => onOpenFiles?.()} onDemo={() => onLoadDemo?.()} /></div>}
         </PanelSection>
 
         {files.length > 0 && <>
         <PanelSection title="Traces" count={allTraces.length} actions={[
           ...([true, false] as const).map(visible => ({ label: visible ? 'Show all' : 'Hide all', disabled: !allTraces.length, run: () => { const actions = allTraces.map(trace => ({ slice: 'traces' as const, action: { type: 'SET_VISIBILITY' as const, name: trace.name, visible } })); if (aggregate) aggregate.historyDispatch({ type: 'change', toastMessage: visible ? 'Showed all traces' : 'Hid all traces', command: { slice: 'transaction', actions } }); else actions.forEach(item => traceDispatch(item.action)); } })),
         ]}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'auto auto minmax(0, 1fr) auto auto auto auto', columnGap: '5px', rowGap: '2px' }}>
-            {allTraces.length > 0 && <div style={{ gridColumn: '1 / -1', display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 8, padding: '0 32px', ...headerCellStyle }}><span>Name</span><span>Interp</span><span>Pane</span></div>}
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 2, minWidth: 0 }}>
+            {allTraces.length > 0 && <TraceColumnsHeader />}
             {allTraces.map((trace, index) => {
               const traceColor = resolveTraceColor(trace, index);
               const isBackedByDisplayTrace = visibleDisplayTraces.some(
@@ -432,12 +362,32 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
                 trace.isUniform ?? false,
               );
 
+              const applyInterpolation = (interpolation: InterpolationStrategy, allFile: boolean) => {
+                const targets = allFile && displayTraceLocation ? allKnownTraces.filter(item => displayTraceLocationByLegacyName.get(item.name)?.fileId === displayTraceLocation.fileId) : [trace];
+                const actions: Extract<WorkspaceAction, { slice: 'transaction' }>['actions'][number][] = [];
+                for (const target of targets) {
+                  if (getInterpolationOptionDisabledReason(target.family, interpolation, target.isUniform ?? false)) continue;
+                  markers.forEach((marker, idx) => {
+                    if (marker.trace !== target.name) return;
+                    const placement = placeMarker({ ...target, interpolation }, marker.requestedFreq ?? marker.freq);
+                    actions.push({ slice: 'markers', action: { type: 'UPDATE_MARKER', payload: { idx, updates: { requestedFreq: placement.requestedFreq, freq: placement.freq, amp: placement.amp, interpolated: placement.interpolated } } } });
+                  });
+                  const location = displayTraceLocationByLegacyName.get(target.name);
+                  if (target.kind === 'derived') actions.push({ slice: 'traces', action: { type: 'SET_DERIVED_INTERPOLATION', payload: { traceId: target.id, interpolation } } });
+                  else if (location) actions.push({ slice: 'files', action: { type: 'SET_DISPLAY_TRACE_INTERPOLATION', payload: { ...location, interpolation } } });
+                }
+                if (!actions.length) return;
+                if (aggregate) aggregate.historyDispatch({ type: 'change', toastMessage: 'Changed interpolation', command: { slice: 'transaction', actions } });
+                else actions.forEach(item => { if (item.slice === 'markers') markerDispatch(item.action); else if (item.slice === 'traces') traceDispatch(item.action); else if (item.slice === 'files') fileDispatch(item.action); });
+              };
+              const sourceFile = displayTraceLocation ? files.find(file => String(file.id) === displayTraceLocation.fileId) : undefined;
+              const rowName = sourceFile && trace.dn.startsWith(sourceFile.fileName) ? sourceFile.fileName : trace.dn;
               return (
                 <TraceRow
                   key={trace.id || trace.name}
                   trace={trace}
-                  displayName={trace.dn}
-                  subtitle={(() => { const display = allDisplayTraces.find(item => (item.compat?.legacyTraceName ?? item.id) === trace.name); const source = display?.source; return source?.sourceType === 'network-parameter' ? `${source.parameterFamily}${source.row + 1}${source.col + 1} · ${display?.label.split(' ').pop() ?? ''}` : source?.sourceType === 'series' ? trace.dn : undefined; })()}
+                  displayName={rowName.length > 28 ? `${rowName.slice(0, 14)}\u2026${rowName.slice(-11)}` : rowName}
+                  subtitle={(() => { const display = allDisplayTraces.find(item => (item.compat?.legacyTraceName ?? item.id) === trace.name); const source = display?.source; return source?.sourceType === 'network-parameter' ? `${source.parameterFamily}${source.row + 1}${source.col + 1} · ${({ 'magnitude-db': 'dB', 'magnitude-linear': 'Mag', phase: 'Phase', real: 'Re', imag: 'Im', vswr: 'VSWR', 'return-loss': 'Return loss', 'group-delay': 'Group delay', complex: 'Complex', 'stability-k': 'K', 'stability-mu1': 'mu1', 'stability-mu2': 'mu2', 'stability-muprime': 'mu-prime' } as const)[source.component]}` : source?.sourceType === 'series' ? trace.dn : undefined; })()}
                   isVisible={!!vis[trace.name]}
                   isSelected={selectedTraceName === trace.name}
                   paneIds={tracePaneMap[trace.name] ?? []}
@@ -456,6 +406,17 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
                   }}
                   traceColor={traceColor}
                   onSelect={() => selectTrace(trace.name)}
+                  onRename={() => {
+                    const label = window.prompt('Rename trace', trace.dn)?.trim();
+                    if (!label || label === trace.dn) return;
+                    if (trace.kind === 'derived') {
+                      const action = { type: 'RENAME_DERIVED' as const, payload: { traceId: trace.id, label } };
+                      if (aggregate) aggregate.historyDispatch({ type: 'change', toastMessage: 'Renamed trace', command: { slice: 'traces', action } }); else traceDispatch(action);
+                    } else if (displayTraceLocation) {
+                      const action = { type: 'RENAME_DISPLAY_TRACE' as const, payload: { ...displayTraceLocation, label } };
+                      if (aggregate) aggregate.historyDispatch({ type: 'change', toastMessage: 'Renamed trace', command: { slice: 'files', action } }); else fileDispatch(action);
+                    }
+                  }}
                   onRemove={() => { if (markers.some(marker => marker.trace === trace.name) && !window.confirm(`Remove ${trace.dn} and its markers?`)) return; removeTrace(trace); }}
                   onToggle={() => toggleVisibility(trace.name)}
                   onColorChange={(color) => {
@@ -465,20 +426,8 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
                   }}
                   interpolation={effectiveInterpolation}
                   sincDisabledReason={sincDisabledReason}
-                  onInterpolationChange={(interpolation) => {
-                    const actions: Extract<WorkspaceAction, { slice: 'transaction' }>['actions'][number][] = [];
-                    const nextTrace = { ...trace, interpolation };
-                    markers.forEach((marker, idx) => {
-                      if (marker.trace !== trace.name) return;
-                      const placement = placeMarker(nextTrace, marker.requestedFreq ?? marker.freq);
-                      actions.push({ slice: 'markers', action: { type: 'UPDATE_MARKER', payload: { idx, updates: { requestedFreq: placement.requestedFreq, freq: placement.freq, amp: placement.amp, interpolated: placement.interpolated } } } });
-                    });
-                    if (trace.kind === 'derived') actions.push({ slice: 'traces', action: { type: 'SET_DERIVED_INTERPOLATION', payload: { traceId: trace.id, interpolation } } });
-                    else if (displayTraceLocation) actions.push({ slice: 'files', action: { type: 'SET_DISPLAY_TRACE_INTERPOLATION', payload: { fileId: displayTraceLocation.fileId, displayTraceId: displayTraceLocation.displayTraceId, interpolation } } });
-                    else return;
-                    if (aggregate) aggregate.historyDispatch({ type: 'change', toastMessage: 'Changed interpolation', command: { slice: 'transaction', actions } });
-                    else actions.forEach(item => { if (item.slice === 'markers') markerDispatch(item.action); else if (item.slice === 'traces') traceDispatch(item.action); else if (item.slice === 'files') fileDispatch(item.action); });
-                  }}
+                  onInterpolationChange={interpolation => applyInterpolation(interpolation, false)}
+                  onApplyInterpolation={interpolation => applyInterpolation(interpolation, true)}
                   compact={compactSidebar}
                   removeLabel={
                     trace.kind === 'derived'
@@ -490,7 +439,7 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
                 />
               );
             })}
-            {allTraces.length === 0 && <SidebarEmpty text="Open files to add traces." compact={compactSidebar} />}
+            {allTraces.length === 0 && <SidebarEmpty text={EMPTY_TEXT.traces} compact={compactSidebar} />}
           </div>
         </PanelSection>
 
@@ -499,7 +448,7 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
             count={markers.length}
             actions={[{ label: 'Remove all', disabled: !markers.length, run: () => { const action = { type: 'CLEAR_ALL' as const }; if (aggregate) aggregate.historyDispatch({ type: 'change', toastMessage: 'Removed all markers', command: { slice: 'markers', action } }); else markerDispatch(action); } }]}
           >
-            <div style={{ display: 'grid', gap: '4px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: '4px', minWidth: 0 }}>
               {markers.map((marker, index) => {
                 const trace = allTraces.find((item) => item.name === marker.trace) ?? null;
                 const traceIndex = trace ? allTraces.findIndex((item) => item.name === trace.name) : index;
@@ -561,7 +510,7 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
                 );
               })}
             </div>
-            {markers.length === 0 && <SidebarEmpty text="Use the Markers tools to add markers." />}
+            {markers.length === 0 && <SidebarEmpty text={EMPTY_TEXT.markers} />}
           </PanelSection>
 
           <PanelSection title="Lines" count={refLines.filter((line, index) => !line.groupId || refLines.findIndex((other) => other.groupId === line.groupId) === index).length} actions={[{ label: 'Remove all', disabled: !refLines.length, run: () => {
@@ -569,7 +518,7 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
             if (aggregate) aggregate.historyDispatch({ type: 'change', toastMessage: 'Removed all lines', command: { slice: 'transaction', actions } });
             else actions.forEach(item => refLineDispatch(item.action));
           } }]}>
-            <div style={{ display: 'grid', gap: '4px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: '4px', minWidth: 0 }}>
               {(() => {
                 const selectedTrace = selectedTraceName ? allTraces.find((t) => t.name === selectedTraceName) ?? null : null;
                 // Deduplicate locked groups: show only one entry per groupId (the selected one or first)
@@ -635,41 +584,22 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
                   });
               })()}
             </div>
-            {refLines.length === 0 && <SidebarEmpty text="Use the Lines tools to add lines." />}
+            {refLines.length === 0 && <SidebarEmpty text={EMPTY_TEXT.lines} />}
           </PanelSection>
         </>}
-      </div>
-    </div>
+    </LeftPanel>
   );
 }
 
-function FileTitleRow({ fileName, error, summary, matrixOpen, onMatrix, compact = false, showSummary, multiTrace, columnsOpen, onColumns, onPlot, onRemove, onInfo, onReplace, onRename, onEdit, onVisibility }: { fileName: string; error?: string; summary: string; matrixOpen?: boolean; onMatrix?: () => void; compact?: boolean; showSummary: boolean; multiTrace: boolean; columnsOpen?: boolean; onColumns?: () => void; onPlot?: () => void; onRemove: () => void; onInfo: () => void; onReplace?: () => void; onRename?: () => void; onEdit?: () => void; onVisibility: (visible: boolean) => void }) {
-  return (
-    <div
-      style={{
-        display: 'grid',
-        gridTemplateColumns: 'auto minmax(0, 1fr) auto auto auto',
-        gap: compact ? '4px' : '6px',
-        alignItems: 'center',
-        minHeight: 24,
-        minWidth: 0,
-      }}
-    >
-      <span style={{ ...badgeStyle, borderRadius: 4, fontFamily: 'var(--font-mono)', minWidth: 30, textAlign: 'center', padding: '1px 2px' }}>{fileName.split('.').pop()?.toUpperCase().slice(0, 4) ?? 'FILE'}</span>
-      <span title={error ?? `${fileName} \u00b7 ${summary}`} style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: matrixOpen ? 600 : 400 }}>{fileName.length > 28 ? `${fileName.slice(0, 14)}…${fileName.slice(-11)}` : fileName}</span>
-      {error ? <button type="button" onClick={onEdit ?? onReplace} disabled={!onEdit && !onReplace} title={error} style={{ border: 0, background: 'transparent', color: 'var(--danger-ink)', textDecoration: 'underline', cursor: 'pointer', padding: 0 }}>{'Fix\u2026'}</button> : onMatrix ? <button type="button" aria-label="Matrix" aria-expanded={matrixOpen} onClick={onMatrix} className={matrixOpen ? 'btn-active' : 'btn'} style={{ padding: '1px 3px', fontSize: 'var(--font-caption)', whiteSpace: 'nowrap' }}>Matrix {matrixOpen ? '\u25b4' : '\u25be'}</button> : onColumns ? <button type="button" aria-label="Columns" aria-expanded={columnsOpen} onClick={onColumns} className={columnsOpen ? 'btn-active' : 'btn'} style={{ padding: '1px 3px', fontSize: 'var(--font-caption)', whiteSpace: 'nowrap' }}>Columns {columnsOpen ? '\u25b4' : '\u25be'}</button> : onPlot ? <button type="button" className="btn" onClick={onPlot} style={{ padding: '1px 3px', fontSize: 'var(--font-caption)' }}>Plot</button> : <span />}
-      <ActionMenu label={`Actions for ${fileName}`} actions={[{ label: 'Info', run: onInfo }, { label: 'Replace file…', disabled: !onReplace, run: () => onReplace?.() }, ...(onEdit ? [{ label: 'Edit columns\u2026', note: 'CSV only', run: onEdit }] : []), { label: 'Rename', disabled: !onRename, run: () => onRename?.() }, ...(multiTrace ? [{ label: 'Show all', run: () => onVisibility(true) }, { label: 'Hide all', run: () => onVisibility(false) }] : []), { label: 'Remove file\u2026', danger: true, run: onRemove }]} />
-      <button
-        type="button"
-        onClick={onRemove}
-        style={{ border: 0, background: 'transparent', color: 'var(--text-muted)', padding: '0 2px', cursor: 'pointer', lineHeight: '1.2', flexShrink: 0 }}
-        title="Remove file"
-      >
-        {'\u00d7'}
-      </button>
-      {showSummary && <span style={{ gridColumn: '1 / -1', color: 'var(--dim)', fontSize: 11, fontFamily: 'var(--font-mono)', paddingBottom: 2, overflowWrap: 'anywhere' }}>{summary}</span>}
-    </div>
-  );
+function FileTitleRow({ fileName, error, summary, matrixOpen, onMatrix, compact: _compact = false, showSummary, multiTrace, columnsOpen, onColumns, onPlot, onRemove, onInfo, onReplace, onRename, onEdit, onVisibility }: { fileName: string; error?: string; summary: string; matrixOpen?: boolean; onMatrix?: () => void; compact?: boolean; showSummary: boolean; multiTrace: boolean; columnsOpen?: boolean; onColumns?: () => void; onPlot?: () => void; onRemove: () => void; onInfo: () => void; onReplace?: () => void; onRename?: () => void; onEdit?: () => void; onVisibility: (visible: boolean) => void }) {
+  const extension = fileName.split('.').pop()?.toUpperCase() ?? '';
+  const format: FileFormat = /^S[0-9]+P$/.test(extension) ? extension as FileFormat : extension === 'CSV' || extension === 'TXT' || extension === 'DAT' ? extension : 'DAT';
+  const actions: SidebarAction[] = [{ label: 'Info', run: onInfo }, { label: 'Replace file\u2026', disabled: !onReplace, run: () => onReplace?.() }, ...(onEdit ? [{ label: 'Edit columns\u2026', note: 'CSV only', run: onEdit }] : []), { label: 'Rename', disabled: !onRename, run: () => onRename?.() }, ...(multiTrace ? [{ label: 'Show all', run: () => onVisibility(true) }, { label: 'Hide all', run: () => onVisibility(false) }] : []), { label: 'Remove file\u2026', danger: true, run: onRemove }];
+  return <KitFileRow headerOnly format={format} name={fileName} title={`${fileName} \u00b7 ${summary}`} state={error ? 'error' : onPlot ? 'traceRemoved' : 'ready'} errorReason={error} summary={showSummary ? summary : undefined}
+    matrix={onMatrix ? { open: !!matrixOpen, onToggle: onMatrix } : undefined}
+    columns={onColumns ? { open: !!columnsOpen, onToggle: onColumns, items: [] } : undefined}
+    onPlot={onPlot} onFix={onEdit ?? onReplace} onMenu={() => {}} onRemove={onRemove}
+    menuControl={<ActionMenu label={`Actions for ${fileName}`} actions={actions} />} />;
 }
 
 function SidebarEmpty({ text, compact = false }: { text: string; compact?: boolean }) {
@@ -688,8 +618,15 @@ function SidebarEmpty({ text, compact = false }: { text: string; compact?: boole
 }
 
 type SidebarAction = { label: string; run: () => void; disabled?: boolean; note?: string; danger?: boolean };
+function MoreViews({ family, view, onChange }: { family: string; view: TouchstoneView; onChange: (view: TouchstoneView) => void }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const moreViews: TouchstoneView[] = ['VSWR', 'Return loss', 'Group delay'];
+  const text = moreViews.includes(view) ? view : 'More';
+  return <span ref={ref} className="lp-more-trigger"><Popover label="More network views"><KitMenu label="More network views" entries={moreViews.map(option => ({ label: option, disabledReason: option !== 'Group delay' && family !== 'S' ? 'S-parameter views only' : undefined, onSelect: () => { onChange(option); ref.current?.querySelector<HTMLButtonElement>('.ui-menu-root > button')?.click(); } }))} /></Popover><span className="lp-more-trigger__face" aria-hidden="true">{text} &#9662;</span></span>;
+}
 function ActionMenu({ label, actions }: { label: string; actions: SidebarAction[] }) {
-  return <details style={{ position: 'relative' }}><summary aria-label={label} title={label} style={{ cursor: 'pointer', listStyle: 'none', padding: '0 2px', color: 'var(--text-muted)', fontSize: 16, lineHeight: '20px' }}>{'\u22ef'}</summary><div style={{ position: 'absolute', zIndex: 10, right: 0, minWidth: 190, padding: 4, background: 'var(--raised)', border: '1px solid var(--border)', borderRadius: 8, boxShadow: '0 4px 12px oklch(0 0 0 / .15)' }}>{actions.map(action => <div key={action.label} style={action.danger ? { borderTop: '1px solid var(--border)', marginTop: 4, paddingTop: 4 } : undefined}><button type="button" disabled={action.disabled} title={action.disabled ? 'Unavailable until the required data or integration is present' : action.label} onClick={event => { action.run(); event.currentTarget.closest('details')?.removeAttribute('open'); }} style={{ display: 'block', width: '100%', textAlign: 'left', whiteSpace: 'nowrap', padding: '5px 8px', border: 0, background: 'transparent', color: action.danger ? 'var(--danger-ink)' : 'var(--text)', fontSize: 'var(--font-body)', cursor: action.disabled ? 'not-allowed' : 'pointer', opacity: action.disabled ? .5 : 1 }}>{action.label}{action.note && <span style={{ color: 'var(--text-muted)', fontSize: 'var(--font-caption)' }}> ({action.note})</span>}</button></div>)}</div></details>;
+  const ref = useRef<HTMLSpanElement>(null);
+  return <span ref={ref} className="lp-action-menu"><Popover label={label}><KitMenu label={label} entries={actions.map(action => ({ label: action.label, note: action.note, danger: action.danger, disabledReason: action.disabled ? 'Unavailable until the required data or integration is present' : undefined, onSelect: () => { action.run(); ref.current?.querySelector<HTMLButtonElement>('.ui-menu-root > button')?.click(); } }))} /></Popover></span>;
 }
 function PanelSection({ title, count, children, rightElement, actions = [] }: { title: string; count: number; children: ReactNode; rightElement?: ReactNode; actions?: SidebarAction[] }) {
   const key = `mergen.sidebar.collapsed.${title.toLowerCase()}`;
@@ -701,18 +638,7 @@ function PanelSection({ title, count, children, rightElement, actions = [] }: { 
     setCollapsed(next);
     try { localStorage.setItem(key, String(next)); } catch { /* Storage can be unavailable. */ }
   };
-  return (
-    <section style={{ minWidth: 0 }}>
-      <div style={{ position: 'sticky', top: 0, zIndex: 1, height: 26, display: 'flex', alignItems: 'center', gap: 4, background: 'var(--panel)', borderBottom: '1px solid var(--border)' }}>
-        <button type="button" onClick={toggle} aria-expanded={!collapsed} style={{ flex: 1, minWidth: 0, textAlign: 'left', border: 0, background: 'transparent', color: 'var(--text)', cursor: 'pointer', fontWeight: 700 }}>
-          {collapsed ? '▸' : '▾'} {title} <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>{count}</span>
-        </button>
-        {rightElement}
-        {actions.length > 0 && <ActionMenu label={`${title} actions`} actions={actions} />}
-      </div>
-      {!collapsed && <div style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '4px 0' }}>{children}</div>}
-    </section>
-  );
+  return <Section title={title} count={count} collapsed={collapsed} onToggle={toggle} action={rightElement} menu={<ActionMenu label={`${title} actions`} actions={actions} />} emptyText="">{children}</Section>;
 }
 
 function metadataEntryToDisplay(entry: MetadataEntry): string {
@@ -722,7 +648,7 @@ function metadataEntryToDisplay(entry: MetadataEntry): string {
   return formatWithUnit(entry.value, entry.unit);
 }
 
-function MetadataPanel({ meta, raw, compact = false, onClose }: { meta: FileMetadata; raw: string; compact?: boolean; onClose: () => void }) {
+function MetadataPanel({ meta, raw, compact: _compact = false, onClose }: { meta: FileMetadata; raw: string; compact?: boolean; onClose: () => void }) {
   const [mode, setMode] = useState<'table' | 'raw'>('table');
   const entries = useMemo(() => Object.entries(meta), [meta]);
   const rawHeader = useMemo(() => {
@@ -736,45 +662,7 @@ function MetadataPanel({ meta, raw, compact = false, onClose }: { meta: FileMeta
     return header.join('\n').trimEnd();
   }, [raw]);
 
-  return (
-    <div
-      style={{
-        borderTop: '1px solid var(--border)',
-        padding: compact ? '4px 0' : '5px 0',
-        background: 'transparent',
-        display: 'grid',
-        gap: compact ? '3px' : '4px',
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}><strong>Info</strong><button type="button" className={mode === 'table' ? 'btn-active' : 'btn'} style={{ padding: '0 5px', borderRadius: 3, fontSize: 'var(--font-caption)' }} aria-pressed={mode === 'table'} onClick={() => setMode('table')}>Table</button><button type="button" className={mode === 'raw' ? 'btn-active' : 'btn'} style={{ padding: '0 5px', borderRadius: 3, fontSize: 'var(--font-caption)', marginLeft: -4 }} aria-pressed={mode === 'raw'} onClick={() => setMode('raw')}>Raw</button><button type="button" style={{ marginLeft: 'auto', border: 0, padding: 0, background: 'transparent', color: 'var(--accent)', cursor: 'pointer' }} onClick={() => void navigator.clipboard.writeText(entries.map(([key, value]) => `${key}: ${metadataEntryToDisplay(value)}`).join('\n'))}>Copy</button><button type="button" aria-label="Close info" onClick={onClose} style={{ border: 0, background: 'transparent', color: 'var(--text-muted)', cursor: 'pointer' }}>{'\u00d7'}</button></div>
-      {mode === 'raw' ? <pre style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', maxHeight: 200, overflow: 'auto', margin: 0, padding: 5, borderRadius: 4, background: 'var(--panel)', fontFamily: 'var(--font-mono)' }}>{rawHeader || 'No header fields in this file'}</pre> : entries.length === 0 ? <SidebarEmpty text="No header fields in this file" /> : entries.map(([key, value]) => (
-        <div
-          key={key}
-          style={{
-            display: 'grid',
-            gridTemplateColumns: compact ? 'minmax(0, 64px) minmax(0, 1fr)' : 'minmax(0, 74px) minmax(0, 1fr)',
-            gap: compact ? '4px' : '5px',
-            alignItems: 'start',
-          }}
-        >
-          <PretextLabel
-            text={key}
-            font="400 var(--font-caption) system-ui"
-            lineHeight="var(--lh-caption)"
-            maxLines={4}
-            style={{ fontSize: 'var(--font-caption)', color: 'var(--muted)' }}
-            lineStyle={{ whiteSpace: 'normal' }}
-          />
-          <PretextLabel
-            text={metadataEntryToDisplay(value)}
-            font="400 var(--font-label) var(--font-mono)"
-            lineHeight="var(--lh-label)"
-            maxLines={4}
-            style={{ fontSize: 'var(--font-label)', color: 'var(--text)' }}
-            lineStyle={{ whiteSpace: 'normal' }}
-          />
-        </div>
-      ))}
-    </div>
-  );
+  const fields = entries.map(([key, value]) => ({ key, value: metadataEntryToDisplay(value) }));
+  return <Info mode={mode} fields={fields} raw={rawHeader || 'No header fields in this file'} onMode={setMode}
+    onCopy={() => void navigator.clipboard.writeText(fields.map(({ key, value }) => `${key}: ${value}`).join('\n'))} onClose={onClose} />;
 }

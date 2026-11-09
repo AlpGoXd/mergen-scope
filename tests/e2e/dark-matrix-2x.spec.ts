@@ -11,11 +11,11 @@ for (const theme of ['dark', 'light'] as const) {
     const empty = page.getByTestId('touchstone-cell-S12');
     await expect(selected).toHaveAttribute('aria-pressed', 'true');
     // Compare resolved CSS colors using a probe to accommodate oklch tokens.
-    const colors = await empty.evaluate((el, theme) => { const probe = document.createElement('span'); probe.style.backgroundColor = `var(${theme === 'dark' ? '--bg' : '--panel'})`; el.appendChild(probe); const result = [getComputedStyle(el).backgroundColor, getComputedStyle(probe).backgroundColor]; probe.remove(); return result; }, theme);
+    const colors = await empty.evaluate((el, theme) => { const probe = document.createElement('span'); probe.style.backgroundColor = `var(${'--bg'})`; el.appendChild(probe); const result = [getComputedStyle(el).backgroundColor, getComputedStyle(probe).backgroundColor]; probe.remove(); return result; }, theme);
     expect(colors[0]).toBe(colors[1]);
     await page.screenshot({ path: `docs/redesign/dark-matrix-2x-evidence/${theme}-app.png` });
     const matrix = page.getByTestId('matrix-controls');
-    const more = page.getByLabel('More network views');
+    const more = page.getByRole('button', { name: 'More network views' });
     await matrix.screenshot({ path: `docs/redesign/dark-matrix-2x-evidence/${theme}-matrix.png` });
     const isContained = () => more.evaluate(el => { const bounds = el.getBoundingClientRect(); const matrixBounds = el.closest('[data-testid=matrix-controls]')!.getBoundingClientRect(); return bounds.left >= matrixBounds.left && bounds.right <= matrixBounds.right && el.scrollWidth <= el.clientWidth; });
     expect(await isContained()).toBe(true);

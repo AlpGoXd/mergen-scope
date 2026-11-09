@@ -82,7 +82,7 @@ test("a file dropped onto an incompatible pane is refused", async ({ page }) => 
 
 test("multi-pane assignment survives workspace save and reload", async ({ page }) => {
   await importFromEmptyPane(page, datFixture);
-  await expect(page.getByText("cascade_ip3_-12dBm.DAT")).toBeVisible();
+  await expect(page.locator(".lp-file--header .lp-name").filter({ hasText: "cascade_ip3_-12dBm.DAT" })).toBeVisible();
 
   await page.getByRole("button", { name: "+ Pane" }).click();
   await expect(page.getByTestId("chart-pane-pane-2")).toBeVisible();
@@ -109,7 +109,7 @@ test("multi-pane assignment survives workspace save and reload", async ({ page }
 
 test("trace ops can create an offset trace and include it in CSV export", async ({ page }) => {
   await importFromEmptyPane(page, datFixture);
-  await expect(page.getByText("cascade_ip3_-12dBm.DAT")).toBeVisible();
+  await expect(page.locator(".lp-file--header .lp-name").filter({ hasText: "cascade_ip3_-12dBm.DAT" })).toBeVisible();
 
   await openRightPanelSection(page, "Trace Ops");
   await page.getByRole("button", { name: "Offset" }).click();
@@ -133,7 +133,7 @@ test("trace ops can create an offset trace and include it in CSV export", async 
 
 test("analysis panels compute visible results for imported spectrum data", async ({ page }) => {
   await importFromEmptyPane(page, datFixture);
-  await expect(page.getByText("cascade_ip3_-12dBm.DAT")).toBeVisible();
+  await expect(page.locator(".lp-file--header .lp-name").filter({ hasText: "cascade_ip3_-12dBm.DAT" })).toBeVisible();
 
   await openRightPanelSection(page, "Analysis");
 
@@ -157,7 +157,7 @@ test("analysis panels compute visible results for imported spectrum data", async
 
 test("reference-line placement creates, edits, and deletes sidebar state", async ({ page }) => {
   await importFromEmptyPane(page, datFixture);
-  await expect(page.getByText("cascade_ip3_-12dBm.DAT")).toBeVisible();
+  await expect(page.locator(".lp-file--header .lp-name").filter({ hasText: "cascade_ip3_-12dBm.DAT" })).toBeVisible();
 
   await page.getByRole("button", { name: "V-Line" }).click();
   await page.getByTestId("chart-plot-pane-1").click({ position: { x: 260, y: 120 } });
@@ -169,13 +169,13 @@ test("reference-line placement creates, edits, and deletes sidebar state", async
   await refLine.getByRole("textbox").press("Enter");
   await expect(refLine.getByRole("textbox")).toHaveValue(/1\.420|1420400000/);
 
-  await refLine.getByRole("button", { name: "x" }).click();
+  await refLine.getByRole("button", { name: "Remove V1" }).click();
   await expect(page.getByTestId("ref-line-row-V1")).toHaveCount(0);
 });
 
 test("Touchstone import exposes matrix controls and analysis cards without crashing", async ({ page }) => {
   await importFromEmptyPane(page, touchstoneFixture);
-  await expect(page.getByText("cascaded chain.s2p", { exact: true })).toBeVisible();
+  await expect(page.locator(".lp-file--header .lp-name").filter({ hasText: "cascaded chain.s2p" })).toBeVisible();
 
   await expect(page.getByTestId("touchstone-cell-S11")).toBeVisible();
   await page.getByTestId("touchstone-cell-S11").click();
@@ -196,7 +196,7 @@ test("Touchstone import exposes matrix controls and analysis cards without crash
 
 test("four empty panes fit without covering each other's headers", async ({ page }) => {
   await importFromEmptyPane(page, datFixture);
-  await expect(page.getByText("cascade_ip3_-12dBm.DAT")).toBeVisible();
+  await expect(page.locator(".lp-file--header .lp-name").filter({ hasText: "cascade_ip3_-12dBm.DAT" })).toBeVisible();
   await page.keyboard.press("4");
   await expect(page.getByTestId("chart-pane-pane-4")).toBeVisible();
   await expect(page.getByTestId("empty-trace-pane-dropzone")).toHaveCount(3);
@@ -211,7 +211,7 @@ test("four empty panes fit without covering each other's headers", async ({ page
 
 test("a multi-channel time CSV fills one new pane instead of one pane per channel", async ({ page }) => {
   await importFromEmptyPane(page, datFixture);
-  await expect(page.getByText("cascade_ip3_-12dBm.DAT")).toBeVisible();
+  await expect(page.locator(".lp-file--header .lp-name").filter({ hasText: "cascade_ip3_-12dBm.DAT" })).toBeVisible();
 
   const rows = ["Time (s),CH1 (V),CH2 (V),CH3 (V),CH4 (V)"];
   for (let i = 0; i < 20; i++) rows.push([i * 1e-6, Math.sin(i), Math.cos(i), i, -i].join(","));
@@ -233,9 +233,9 @@ test("a multi-channel time CSV fills one new pane instead of one pane per channe
 
 test("Touchstone traces load while the sidebar is hidden", async ({ page }) => {
   await importFromEmptyPane(page, datFixture);
-  await expect(page.getByText("cascade_ip3_-12dBm.DAT")).toBeVisible();
+  await expect(page.locator(".lp-file--header .lp-name").filter({ hasText: "cascade_ip3_-12dBm.DAT" })).toBeVisible();
   await page.getByRole("button", { name: "Left" }).click();
-  await expect(page.getByText("cascade_ip3_-12dBm.DAT")).toHaveCount(0);
+  await expect(page.locator(".lp-file--header .lp-name").filter({ hasText: "cascade_ip3_-12dBm.DAT" })).toHaveCount(0);
 
   await openRightPanelSection(page, "Import/Export");
   await page.getByTestId("import-export-data-input").setInputFiles(touchstoneFixture);
@@ -259,7 +259,7 @@ test("a broken file shows an import error instead of crashing the app", async ({
 });
 test("loading a workspace keeps traces in their saved pane even when another pane is the target", async ({ page }) => {
   await importFromEmptyPane(page, datFixture);
-  await expect(page.getByText("cascade_ip3_-12dBm.DAT")).toBeVisible();
+  await expect(page.locator(".lp-file--header .lp-name").filter({ hasText: "cascade_ip3_-12dBm.DAT" })).toBeVisible();
   await page.getByRole("button", { name: "+ Pane" }).click();
 
   await firstTraceRow(page).click();

@@ -29,8 +29,8 @@ test('section menu removes all markers with undo', async ({ page }) => {
   await page.getByRole('button', { name: 'New Marker', exact: true }).click();
   await page.getByTestId('chart-plot-pane-1').click({ position: { x: 100, y: 100 } });
   await expect(page.locator('[data-testid^="marker-row-"]')).toHaveCount(1);
-  await page.getByLabel('Markers actions').click();
-  await page.getByRole('button', { name: 'Remove all', exact: true }).click();
+  await page.getByRole('button', { name: 'Markers actions' }).click();
+  await page.getByRole('menuitem', { name: 'Remove all', exact: true }).click();
   await expect(page.locator('[data-testid^="marker-row-"]')).toHaveCount(0);
   await page.getByRole('button', { name: 'Undo' }).last().click();
   await expect(page.locator('[data-testid^="marker-row-"]')).toHaveCount(1);
@@ -57,7 +57,8 @@ test('matrix offers ABCD and reflection-only network views', async ({ page }) =>
   await page.getByTestId('touchstone-cell-ABCD11').click();
   await expect(page.locator('[data-testid^="trace-row-"]').filter({ hasText: 'ABCD11' })).toBeVisible();
   await page.getByRole('button', { name: 'S', exact: true }).click();
-  await page.getByLabel('More network views').selectOption('VSWR');
+  await page.getByRole('button', { name: 'More network views' }).click();
+  await page.getByRole('menuitem', { name: 'VSWR' }).click();
   await expect(page.getByTestId('touchstone-cell-S12')).toBeDisabled();
   await page.getByTestId('touchstone-cell-S11').click();
   await expect(page.locator('[data-testid^="trace-row-"]').filter({ hasText: 'VSWR' })).toBeVisible();

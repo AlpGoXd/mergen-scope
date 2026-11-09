@@ -23,7 +23,7 @@ See [Phase 1Ã¢â‚¬â€œ2 comparison](phase1-2-reference-comparison.md) an
 | --- | --- | --- | --- |
 | V01 | Replace the nearly white dark target header and Accent edge with Pane tint / Pane-hue 3 px edge; remove white chart-body gradient. | Phase 5 | Deferred; visible in both Phase 1 and Phase 2 evidence. |
 | V02 | Replace legacy top-bar/strip mixtures with explicit chip/Slate roles and semantic tint tokens; remove hard-coded direction colour. | Phase 7 | Deferred; shared primitives alone do not migrate these callers. |
-| V03 | Replace Sidebar white gradients, pale controls and hard-coded removal/border colours. Expose all eight trace palette slots through the shared resolver. | Phase 4 | Deferred. |
+| V03 | Verify the final integrated Sidebar palette and remaining contrast against the reference. | Phase 8 | Partial: the kit and identity-aware trace resolver are adopted; integrated-tree contrast audit remains. |
 | V04 | Implement AC-3 faint Analysis header bands, neutral bodies and no coloured stripes; capture open cards in both themes. | Phase 7 | Deferred; current app captures have Analysis closed. |
 | V05 | Capture all four message-status primitives in light/dark, then compare actual refusing-drop/wizard/settings messages where adopted. | Phase 2 evidence; Phases 5/7 adoption | Deferred; current gallery demonstrates warning only. |
 | V06 | Validate/document dark solid C .1136 vs nominal .12, light secondary fill .0241 vs .03, dark secondary ink .0596 vs .07; hue recipe gamut clamping is already intentional. | Phase 8 | Deferred literal-token audit; do not label exact equality. |
@@ -68,16 +68,16 @@ The candidate comparison is in [phase7b-evidence/comparison.html](phase7b-eviden
 | Remaining work | Target phase | Status |
 | --- | --- | --- |
 | Adopt the same trace-family color resolver in chart rendering and verify matching colors for source and created traces in both themes. Resolver allocation is recomputed from surviving traces; deleting an earlier source or sibling can shift later colors. Preserve allocation in a workspace-compatible identity contract if colors must remain fixed across deletion and reload. | Phase 5 | Sidebar adopts the resolver; chart adoption and persistent allocation remain open. |
-| Connect sidebar Open, Drop, Load demo, Replace, Edit columns, Rename and Threshold crossings callbacks to their shared workflows; verify the empty sidebar and file replacement end to end. | Phase 7E | Typed callbacks exist; App wiring remains open. |
+| Connect sidebar Drop, Load demo, Replace, Edit columns, file Rename and Threshold crossings callbacks to shared workflows; verify empty sidebar and replacement end to end. | Phase 7D / 7E | Open is wired in App; the other callbacks remain unwired. Trace-label rename is separately implemented with Undo. |
 | Complete large-port plotted chips across views, grid popover dismissal/focus, and verify all-panes/unplaced and marker/line states against board 42-L1. Replace heuristic raw-header extraction with retained parsed header boundaries. | Phase 7E / final visual audit | Current chips cover the selected view in the target pane; additional states and exact header fidelity remain open. |
-| Finish trace row naming, interpolation choices, nesting and visual sizing; verify Undo for all individual edits and failure paths. | Phase 4 continuation / Phase 8 audit | Partial implementation and focused tests exist; board fidelity and complete action coverage remain open. |
+| Verify trace nesting, visual sizing and Undo failure paths against integrated application states. | Phase 8 audit | Phase 4 kit work adds file-based row names, the seven interpolation choices, atomic apply-to-file and Undo; focused interpolation and rename tests pass. Complete action/failure-path coverage remains open. |
 
 
 ## Sidebar completion comparison follow-up
 
 | Remaining work | Target phase | Status and evidence |
 | --- | --- | --- |
-| Match compact control, cell and trace-row sizing and trace naming against board 42-L1; capture and compare the narrow 220 px sidebar and populated marker/line states in both themes. | Phase 8 visual audit | The 1440 px light/dark comparison in [sidebar completion evidence](sidebar-completion-evidence/comparison.md) fixes the file summary and matrix alignment, but those states and sizing remain open. |
+| Complete the integrated-tree narrow 220 px visual audit and verify remaining kit state variants. | Phase 8 visual audit | The kit is integrated; populated normal/delta markers and linked/unlinked lines are captured at 2x in both themes in [left-kit evidence](left-kit-evidence/comparison.md). Narrow matrix containment is covered by e2e; full narrow-panel visual comparison remains open. |
 | Provide matrix cell tooltips describing the target-pane add/remove action and existing placements. | Phase 8 | The current tooltip identifies the parameter and view but does not describe the action or pane placement. |
 
 ## File-card visual correction follow-up
@@ -89,7 +89,7 @@ The candidate comparison is in [phase7b-evidence/comparison.html](phase7b-eviden
 | Show the current view and existing pane placements in each matrix cell tooltip, including whether clicking adds to or removes from the target pane. | Phase 7E; verify in Phase 8 | Deferred: the current tooltip shows the parameter and view only. |
 | Finish the greater-than-eight-port picker: compare its row/column selectors, removable plotted chips and full-grid popover against board 23-C04, and complete cross-view chips plus popover focus and dismissal. | Phase 7E; visual audit in Phase 8 | Partial: the list picker and grid exist; the visual treatment and cross-view/focus behavior remain incomplete. |
 
-Light and dark populated network, CSV and error captures and comparisons are in [file-card visual evidence](file-card-visual-evidence/README.md). The native More selector and cell sizing also need final comparison against boards 00, 01 and 42 in the Phase 8 visual audit.
+Light and dark populated network, CSV and error captures and comparisons are in [file-card visual evidence](file-card-visual-evidence/README.md). The More control now uses the kit menu in the shared popover; complete the integrated-tree comparison against boards 00 and 01 in the Phase 8 visual audit.
 
 ## File-card 2x follow-up
 
@@ -97,3 +97,13 @@ Light and dark populated network, CSV and error captures and comparisons are in 
 | --- | --- | --- |
 | Wire Replace and Rename to their real workflows and verify their data preservation and undo behavior. | Phase 7D / 7E | Disabled with explanations; no placeholder behavior. |
 | Compare menu and card proportions in both themes against complete dark closeups; adjust as needed. | Phase 8 | Card and menu evidence remains in [file-card evidence](file-card-2x-evidence/comparison.md). The dark Matrix comparison is complete in [Matrix 2x evidence](dark-matrix-2x-evidence/comparison.md). |
+
+
+## Left-panel kit integration follow-up
+
+| Remaining work | Target phase | Status and evidence |
+| --- | --- | --- |
+| Capture real parsing-progress and recoverable-error rows in light and dark at 2x, and compare with the supplied kit and C03 board. | Phase 7D / 7E | Not captured: import records do not expose progress and error recovery depends on App workflow wiring. Existing populated network, normal/delta marker and linked-line captures are in [left-kit evidence](left-kit-evidence/comparison.md). |
+| Wire sidebar file Drop, Load demo, Replace, Edit columns, file Rename and Threshold crossings through App and verify recovery and Undo. | Phase 7D / 7E | Sidebar accepts callbacks; App currently supplies Open only. Do not treat placeholder callbacks as connected. |
+| Complete matrix cell placement/action tooltips, greater-than-eight-port cross-view chips, grid focus and outside dismissal, and verify full narrow-panel and unusual states. | Phase 7E / Phase 8 | Matrix keyboard navigation and target-pane batch Undo are covered; tooltip, list and visual details remain open. |
+| Audit shared popover focus and keyboard behavior for kit menus and verify all marker/line edit invalid and cancellation paths. | Phase 8 | Shared popover and kit menu are connected; focused coverage does not establish every keyboard and invalid-input path. |
