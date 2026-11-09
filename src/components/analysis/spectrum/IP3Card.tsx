@@ -41,7 +41,6 @@ export function IP3Card() {
   return (
     <AnalysisFeatureCard 
       title="IP3 / TOI" 
-      color="var(--ip3C)" 
       description="Calculate Third-Order Intercept point from placed markers. Assign marker roles (F1, F2, IM3L, IM3U) via the marker menu or auto-pick."
       onClose={() => analysisDispatch({ type: 'TOGGLE_PANEL', payload: { id: 'ip3', forceValue: false } })}
     >
@@ -89,7 +88,7 @@ export function IP3Card() {
         </div>
 
         <div style={{ padding: '8px', background: 'var(--da)', borderRadius: '8px', border: '1px solid var(--border)' }}>
-          <MR label="OIP3 avg" value={ip3Res ? `${ip3Res.oip3_avg.toFixed(2)} dBm` : '--'} vc="var(--ip3C)" />
+          <MR label="OIP3 avg" value={ip3Res ? `${ip3Res.oip3_avg.toFixed(2)} dBm` : '--'} />
           <MR label="OIP3 Lower" value={ip3Res ? `${ip3Res.oip3_l.toFixed(2)} dBm` : '--'} />
           <MR label="OIP3 Upper" value={ip3Res ? `${ip3Res.oip3_u.toFixed(2)} dBm` : '--'} />
           <div style={{ marginTop: '8px' }}>

@@ -124,13 +124,10 @@ export interface MarkerItemProps {
 export interface LineRowProps {
   label: string; // "V1", "H1"
   value: string;
-  /** One summary, never a list: "P1 + P2 (linked, Hz) · 4 crossings". */
+  /** One summary, never a list: "P1 + P2 (Hz) · 4 crossings". */
   summary: string;
-  link: 'on' | 'off' | 'na';
-  linkReason?: string;
   invalid?: boolean;
   onValue: (text: string) => void;
-  onLink: () => void;
   onListCrossings: () => void;
   onRemove: () => void;
 }

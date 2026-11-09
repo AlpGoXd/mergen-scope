@@ -1,7 +1,6 @@
 // Trace row (C02), marker item (C01) and line row (L1).
 import type { CSSProperties, ReactElement } from 'react';
 import type { LineRowProps, MarkerItemProps, TraceRowProps } from './types';
-import { IconLink } from './icons';
 
 const hueStyle = (hue: number): CSSProperties => ({ ['--h' as string]: hue }) as CSSProperties;
 
@@ -76,16 +75,12 @@ export function MarkerItem(p: MarkerItemProps): ReactElement {
 }
 
 export function LineRow(p: LineRowProps): ReactElement {
-  const tip = p.link === 'na' ? p.linkReason ?? 'H lines stay in their pane: Y is never linked' : p.link === 'on' ? 'Linked: shown in every pane of its X-unit group' : 'Link to the other panes with the same X unit';
   return (
     <div className="lp-line">
       <div className="lp-row">
         <span className="lp-tag lp-tag--line">{p.label}</span>
         <input className={`lp-input${p.invalid ? ' is-invalid' : ''}`} aria-invalid={p.invalid || undefined} defaultValue={p.value} aria-label={`${p.label} value`}
           onKeyDown={(e) => { if (e.key === 'Enter') p.onValue(e.currentTarget.value); }} />
-        <button type="button" className="lp-link-icon" aria-pressed={p.link === 'on'} disabled={p.link === 'na'} title={tip} aria-label={tip} onClick={p.onLink}>
-          <IconLink size={12} />
-        </button>
         <button type="button" className="lp-icon-btn" aria-label={`Remove ${p.label}`} onClick={p.onRemove}>×</button>
       </div>
       <div className="lp-sub">

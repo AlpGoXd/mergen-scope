@@ -68,7 +68,7 @@ export function TraceOpsCard() {
   };
 
   return (
-    <AnalysisFeatureCard title="Trace Ops" description="Create derived traces with offset, scale, smoothing, and trace math.">
+    <AnalysisFeatureCard kind="math" title="Trace Ops" description="Create derived traces with offset, scale, smoothing, and trace math.">
       <div style={{ display: 'grid', gap: '10px' }}>
         <CollapsibleSection title="Offset" open={traceOpsOpenSections.offset} onToggle={() => toggleSection('offset')}>
           <TraceSelect label="Source trace" value={offsetSource} onChange={setOffsetSource} traces={allTraces} />

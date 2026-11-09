@@ -6,7 +6,7 @@ import type { FileFormat, MatrixView } from '../left-panel/types';
 import { Popover } from '../shared/Controls';
 import { Menu as KitMenu } from '../left-panel/Menu';
 import { makeTraceColorResolver } from '../../domain/trace-colors';
-import { canPlaceMembership, traceXGroup } from '../../domain/pane-placement';
+import { canPlaceMembership } from '../../domain/pane-placement';
 import { useMemo, useRef, useState, type ReactNode } from 'react';
 import { computeLineIntersections } from '../../domain/ref-lines';
 import { getInterpolationOptionDisabledReason, getResolvedInterpolationStrategy } from '../../domain/interpolation';
@@ -553,8 +553,6 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
                           markerDispatch({ type: 'SET_SELECTED_IDX', payload: -1 });
                         }}
                         onRemove={() => changeLine({ type: 'REMOVE_LINE', payload: refLine.id }, 'Removed line')}
-                        onLock={() => { const groupFor = (paneId: string) => { const members=allKnownTraces.filter(trace=>tracePaneMap[trace.name]?.includes(paneId)); const groups=members.map(traceXGroup); return groups.length && groups[0] && groups.every(group=>group===groups[0]) ? groups[0] : null; }; const group=refLine.paneId ? groupFor(refLine.paneId) : null; if (group) changeLine({ type: 'LOCK_LINE', payload: { lineId: refLine.id, allPaneIds: panes.filter(pane=>groupFor(pane.id)===group).map(pane=>pane.id) } }, 'Linked line'); }}
-                        onUnlock={() => changeLine({ type: 'UNLOCK_LINE', payload: { lineId: refLine.id } }, 'Unlinked line')}
                         onUpdateValue={(value) => {
                           if (refLine.groupId && !refLine.paneless) changeLine({ type: 'MOVE_GROUP', payload: { groupId: refLine.groupId, value } }, 'Moved line');
                           else changeLine({ type: 'UPDATE_LINE', payload: { id: refLine.id, updates: { value } } }, 'Moved line');

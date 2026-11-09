@@ -4,6 +4,7 @@ import { useTraceState } from '../../../stores/trace-store';
 import { useUiState } from '../../../stores/ui-store';
 import { usePaneState } from '../../../stores/pane-store';
 import { AnalysisFeatureCard } from '../AnalysisFeatureCard';
+import { MR } from '../../shared/MR';
 import { Btn } from '../../shared/Btn';
 import { computeBandwidth } from '../../../domain/analysis/bandwidth';
 import { fmtF } from '../../../domain/format';
@@ -41,6 +42,7 @@ export function BandwidthHelperCard() {
 
   return (
     <AnalysisFeatureCard 
+      source={trace ? `${trace.dn || trace.name} · ${trace.file}` : undefined}
       title="Bandwidth Helper" 
       description="Calculate bandwidth at a specified dB drop from the peak."
       onClose={() => analysisDispatch({ type: 'TOGGLE_PANEL', payload: { id: 'bandwidth-helper', forceValue: false } })}
@@ -79,29 +81,18 @@ export function BandwidthHelperCard() {
         </Btn>
 
         {result && (
-          <div style={{ marginTop: '12px', padding: '8px', background: 'var(--bg-soft)', borderRadius: '6px', border: '1px solid var(--border)' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: 'var(--font-label)', lineHeight: 'var(--lh-label)' }}>
-              <div>
-                <div style={{ color: 'var(--dim)', fontSize: 'var(--font-caption)' }}>Bandwidth</div>
-                <div style={{ color: 'var(--accent)', fontWeight: 'bold' }}>{fmtF(result.bandwidth)}</div>
-              </div>
-              <div>
-                <div style={{ color: 'var(--dim)', fontSize: 'var(--font-caption)' }}>Center</div>
-                <div style={{ color: 'var(--text)' }}>{fmtF((result.left + result.right) / 2)}</div>
-              </div>
-              <div>
-                <div style={{ color: 'var(--dim)', fontSize: 'var(--font-caption)' }}>Left Edge</div>
-                <div style={{ color: 'var(--text)' }}>{fmtF(result.left)}</div>
-              </div>
-              <div>
-                <div style={{ color: 'var(--dim)', fontSize: 'var(--font-caption)' }}>Right Edge</div>
-                <div style={{ color: 'var(--text)' }}>{fmtF(result.right)}</div>
-              </div>
+          <>
+            <div>
+              <div className="ac-kv-k">Bandwidth</div>
+              <div className="ac-result">{fmtF(result.bandwidth)}</div>
             </div>
-            <div style={{ marginTop: '8px', fontSize: 'var(--font-caption)', lineHeight: 'var(--lh-caption)', color: 'var(--muted)', textAlign: 'right' }}>
-              Ref: {result.refAmp.toFixed(2)} dB @ {fmtF(result.refFreq)}
+            <div className="ac-kvs">
+              <MR label="Center" value={fmtF((result.left + result.right) / 2)} />
+              <MR label="Left Edge" value={fmtF(result.left)} />
+              <MR label="Right Edge" value={fmtF(result.right)} />
+              <div className="ac-note">Ref: {result.refAmp.toFixed(2)} dB @ {fmtF(result.refFreq)}</div>
             </div>
-          </div>
+          </>
         )}
       </div>
     </AnalysisFeatureCard>

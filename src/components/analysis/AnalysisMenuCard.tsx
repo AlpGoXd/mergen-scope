@@ -1,45 +1,35 @@
+import { useState } from 'react';
 import { ANALYSIS_ITEMS } from '../../domain/analysis/registry';
 import { useAnalysisDispatch, useAnalysisState } from '../../stores/analysis-store';
-import { AnalysisFeatureCard } from './AnalysisFeatureCard';
 import { Btn } from '../shared/Btn';
+import './analysis-card.css';
 
-const ANALYSIS_COLORS: Record<string, string> = {
-	'noise-psd': '#a8c8e8',
-	ip3: '#f3a6c8',
-	'peak-spur-table': '#e8c58e',
-	'channel-power': '#b7dfc8',
-	'occupied-bandwidth': '#bdd6ec',
-	'bandwidth-helper': '#b9e2dd',
-	'ripple-flatness': '#d7c2ef',
-	'range-stats': '#d9b8eb',
-	'threshold-crossings': '#eac6a1',
-	vswr: '#f0b39a',
-	'return-loss': '#b9d4ef',
-	'group-delay': '#bfe5cf',
-	'reciprocity-isolation': '#ecd4a7',
-	'touchstone-stability': '#d9c1ee',
-};
-
+/**
+ * Analysis panel header (32 px bar): "Analysis" · count · "+ Add analysis", above the chooser.
+ * The chooser is the existing toggle list; the searchable Add analysis menu arrives in Phase 7C.
+ */
 export function AnalysisMenuCard() {
 	const { analysisOpenState } = useAnalysisState();
 	const analysisDispatch = useAnalysisDispatch();
+	const [open, setOpen] = useState(true);
+	const count = ANALYSIS_ITEMS.filter((item) => analysisOpenState[item.id]).length;
 
 	return (
-		<AnalysisFeatureCard title="Analysis Menu" description="Enable and disable analysis cards.">
-			<div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-				{ANALYSIS_ITEMS.map((item) => (
-					<Btn
-						key={item.id}
-						active={Boolean(analysisOpenState[item.id])}
-						soft
-						color={ANALYSIS_COLORS[item.id] ?? 'var(--accent)'}
-						onClick={() => analysisDispatch({ type: 'TOGGLE_PANEL', payload: { id: item.id } })}
-						style={{ flex: '1 1 130px', justifyContent: 'center' }}
-					>
-						{item.title}
-					</Btn>
-				))}
+		<section className="ac-panel" data-testid="analysis-card-analysis-menu" aria-label="Analysis">
+			<div className={`ac-panel-head${open ? '' : ' is-collapsed'}`}>
+				<span className="ac-panel-title">Analysis</span>
+				<span className="ac-panel-count" aria-label={`${count} open`}>{count}</span>
+				<Btn small aria-expanded={open} aria-controls="analysis-chooser" onClick={() => setOpen(!open)}>+ Add analysis</Btn>
 			</div>
-		</AnalysisFeatureCard>
+			{open && (
+				<div className="ac-panel-body" id="analysis-chooser">
+					{ANALYSIS_ITEMS.map((item) => (
+						<Btn key={item.id} active={Boolean(analysisOpenState[item.id])} tone="analysis" small onClick={() => analysisDispatch({ type: 'TOGGLE_PANEL', payload: { id: item.id } })}>
+							{item.title}
+						</Btn>
+					))}
+				</div>
+			)}
+		</section>
 	);
 }

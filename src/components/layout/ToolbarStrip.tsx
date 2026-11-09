@@ -27,7 +27,7 @@ export function ToolbarStrip() {
   const aggregate = useOptionalAggregateWorkspace();
   const { markers, selectedMkrIdx, armed } = useMarkerState();
   const { panes, activePaneId, tracePaneMap, paneActiveTraceMap } = usePaneState();
-  const { refMode, refLines, selectedRefLineId } = useRefLineState();
+  const { refMode } = useRefLineState();
   const refDispatch = useRefLineDispatch();
   const { limit } = usePaneLimit();
 
@@ -90,7 +90,7 @@ export function ToolbarStrip() {
   };
 
   const group = (title: string, tone: string, children: React.ReactNode) => (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 8px', minHeight: 32, background: `var(--${tone}-tint)`, flex: '0 0 auto', whiteSpace: 'nowrap' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 8px', minHeight: 'var(--tool-row-height)', background: `var(--${tone}-tint)`, flex: '0 0 auto', whiteSpace: 'nowrap' }}>
       <span style={{ color: `var(--${tone}-ink)`, fontWeight: 700, marginRight: 4 }}>{title}</span>{children}
     </div>
   );
@@ -104,7 +104,6 @@ export function ToolbarStrip() {
   );
   const normalMarkers = markers.filter(marker => marker.type !== 'delta');
   const selected = markers[selectedMkrIdx];
-  const selectedLine = refLines.find(line => line.id === selectedRefLineId);
   const armDelta = (refId: string) => {
     refDispatch({ type: 'SET_MODE', payload: null });
     markerDispatch({ type: 'ARM', payload: { kind: 'delta', refId } });
@@ -160,7 +159,6 @@ export function ToolbarStrip() {
     {showLineTools && group('Lines', 'lines', <>
       <Btn small variant="slate" active={refMode === 'v'} aria-pressed={refMode === 'v'} aria-label="V-Line" title="Place vertical line" onClick={() => toggleRefPlacement('v')}>V line</Btn>
       <Btn small variant="slate" active={refMode === 'h'} aria-pressed={refMode === 'h'} aria-label="H-Line" title="Place horizontal line" onClick={() => toggleRefPlacement('h')}>H line</Btn>
-      <Btn small variant="chip" tone="lines" active={!!selectedLine?.groupId} disabled={!selectedLine || selectedLine.type !== 'v'} title={!selectedLine ? 'Select a vertical line first' : selectedLine.type !== 'v' ? 'Only vertical lines can be linked' : 'Link selected line across panes'} onClick={() => { if (!selectedLine) return; refDispatch(selectedLine.groupId ? { type: 'UNLOCK_LINE', payload: { lineId: selectedLine.id } } : { type: 'LOCK_LINE', payload: { lineId: selectedLine.id, allPaneIds: panes.map(pane => pane.id) } }); }}>Link</Btn>
     </>)}
     {showPaneTools && group('Pane', 'pane', <>
       <Btn small disabled title="Layout presets will be available after integration">Layout: Rows ▾</Btn>

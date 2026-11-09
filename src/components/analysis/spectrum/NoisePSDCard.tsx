@@ -34,7 +34,6 @@ export function NoisePSDCard() {
   return (
     <AnalysisFeatureCard 
       title="Noise PSD" 
-      color="var(--noiseTr)" 
       description="Calculate Power Spectral Density normalized to a user-defined filter bandwidth."
       onClose={() => analysisDispatch({ type: 'TOGGLE_PANEL', payload: { id: 'noise-psd', forceValue: false } })}
     >
@@ -88,10 +87,10 @@ export function NoisePSDCard() {
 
         {currentResult && (
           <div style={{ padding: '8px', background: 'var(--da)', borderRadius: '8px', border: '1px solid var(--border)' }}>
-            <MR label="Peak Density" value={`${currentResult.stats.peak?.amp.toFixed(3) ?? '--'}`} vc="var(--noiseTr)" />
-            <MR label="Avg Density" value={currentResult.stats.avg != null ? `${currentResult.stats.avg.toFixed(3)} dB` : '--'} vc="var(--noiseTr)" />
-            <MR label="Min Density" value={`${currentResult.stats.min?.amp.toFixed(3) ?? '--'}`} vc="var(--noiseTr)" />
-            <MR label="RBW" value={`${currentResult.stats.rbw.toFixed(3)} Hz`} vc="var(--noiseTr)" />
+            <MR label="Peak Density" value={`${currentResult.stats.peak?.amp.toFixed(3) ?? '--'}`} />
+            <MR label="Avg Density" value={currentResult.stats.avg != null ? `${currentResult.stats.avg.toFixed(3)} dB` : '--'} />
+            <MR label="Min Density" value={`${currentResult.stats.min?.amp.toFixed(3) ?? '--'}`} />
+            <MR label="RBW" value={`${currentResult.stats.rbw.toFixed(3)} Hz`} />
             <div style={{ marginTop: '8px' }}>
               <Btn soft color="var(--noiseTr)" style={{ width: '100%' }} onClick={handleSave}>
                 Save Result

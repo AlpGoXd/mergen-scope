@@ -132,3 +132,37 @@ Light and dark populated network, CSV and error captures and comparisons are in 
 | Remaining work | Target | Status |
 | --- | --- | --- |
 | Compare the Threshold Crossings line-list card in light and dark with the requested 2x analysis-card reference. | Phase 7C / reference delivery | Light and dark captures are in line-crossings-evidence; the requested reference was not supplied, so visual differences cannot yet be classified. |
+
+## Threshold crossings AC-3 follow-up (Step 1, 9 November)
+
+Evidence: [line-crossings-evidence](line-crossings-evidence/README.md), light and dark at 2x, line list and manual threshold. Compared with board 03 AC-3 (the 45-R1 board predates the band).
+
+| Difference | Class | Target |
+| --- | --- | --- |
+| 26 px Analysis-tint header band, 1 px neutral border, radius 6, no side stripe, mono result, values through `formatEng` with units | Fixed | Step 1 |
+| Header lacks the kebab menu (Create trace, Copy results, Remove), collapse-to-row summary and drag reorder | Deferred | Phase 7C |
+| Header shows a generic ruler icon, not a per-tool kind icon | Deferred | Phase 7C |
+| Other analysis cards keep the legacy stripe look (opt-in `variant="ac3"` on `AnalysisFeatureCard`) | Deferred | Phase 7C |
+| Board shows a source line "trace - file - pane"; manual mode shows trace and file, line mode shows the line and its value | Intentional: the line is the source in line mode; pane is shown per row | - |
+| No eye (show on chart) control for crossings | Deferred | Phase 7C |
+| Board 03 was only compared for header, result and body proportions; no pixel overlay was made | Deferred | Phase 8 visual audit |
+
+## AC-3 cards, row spacing and Size setting follow-up (10 November)
+
+Evidence and the full difference list are in [ac3-size-evidence](ac3-size-evidence/README.md). Open items:
+
+| Remaining work | Target phase | Status |
+| --- | --- | --- |
+| Searchable Add analysis menu, kebab items (Create trace, Copy results), per-tool kind icons, short-name source rule, collapse and drag reorder, restyle of Peak Table / Noise PSD / IP3 / Trace Ops bodies, R1 / R8 right-panel frame | Phase 7C | Cards share the AC-3 shell and key/value rows; the rest is open. |
+| Size setting: adopt the size tokens in components with hard-coded px (top bar and strip, chart overlays, inline-styled cards); check both 1280 px sides at Large | Phase 7A / 7B adoption; Phase 8 audit | Tokens, setting, persistence and default are done. |
+| Pane header Hz chip and full P3 header | Phase 5C | Scale text and trace count hide in order without wrapping. |
+
+## Lines like traces (LL-2, 10 November)
+
+Board [37-P4c](referance/37-P4c-lines-like-traces.png) replaces line linking with "Show in". The link icon and the Lines strip's Link button are removed; the data model moves to `paneIds[]` (see plan 3C). Open presentation work, waiting for the kit in `docs/redesign/kit/lines/`:
+
+| Remaining work | Target phase | Status |
+| --- | --- | --- |
+| Line row with Show-in badges and the "Shown in P1, P2 · 3 crossings · List..." line, H-line tooltip, "not in a pane" state | Phase 4 / 5 (with the kit) | Waiting for the kit; the row keeps its current look without the link icon. |
+| Chart: "V1 · 2" label, shared hover/selection highlight across copies, edge tag with click-to-pan, right-click menu (Show in, Edit value, List crossings, Remove from Pane N, Delete) | Phase 5C | Waiting for the kit; `ChartPane.tsx` changes in small steps with e2e. |
+| "V1 crossings" card grouped by pane; toasts "V1 also shown in Pane 2" / "Deleted V1 from 2 panes" with Undo | Phase 5C / 7C | Data counts per pane are done; card grouping and toasts are not. |
