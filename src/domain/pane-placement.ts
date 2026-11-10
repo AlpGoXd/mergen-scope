@@ -1,6 +1,8 @@
 import type { Pane } from '../types/pane';
 import type { Trace } from '../types/trace';
 import type { DisplayTrace } from '../types/display';
+import type { PaneTypeDefinition, PaneTypeId } from '../types/registry-contract';
+import { paneTypeOfMode, typeForTrace } from './pane-type-registry';
 
 export type PaneMemberships = Readonly<Record<string, readonly string[]>>;
 export interface PlacementTrace { readonly trace: Trace; readonly paneIds: readonly string[]; readonly displayTrace?: DisplayTrace }
@@ -22,6 +24,13 @@ export function traceXGroup(trace: Trace): string | null {
   return unit;
 }
 export type PlacementPane = Omit<Pane, 'renderMode'> & { readonly renderMode: Pane['renderMode'] | 'table' };
+
+/** Choose a compatible type for an empty destination without changing a populated pane. */
+export function planEmptyPaneType(registry: Readonly<Record<PaneTypeId, PaneTypeDefinition>>, pane: PlacementPane, trace: Trace, isEmpty: boolean): { readonly mode: Pane['renderMode'] | null; readonly reason?: string } {
+  if (!isEmpty) return { mode: pane.renderMode };
+  const choice = typeForTrace(registry, trace, paneTypeOfMode(pane.renderMode));
+  return { mode: choice.type?.renderMode ?? null, reason: choice.reason };
+}
 export function smithParameterCapability(family: string, row: number, col: number): PlacementResult {
   if (!Number.isInteger(row) || row < 0 || row !== col) return { allowed: false, reason: 'Smith panes require a diagonal reflection parameter.' };
   if (family !== 'S' && !((family === 'Y' || family === 'Z') && row === 0)) return { allowed: false, reason: 'Smith panes support Sii and converted Z11 or Y11.' };

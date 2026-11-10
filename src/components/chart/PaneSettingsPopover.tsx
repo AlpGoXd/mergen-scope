@@ -119,9 +119,11 @@ function NumInput({
 export function PaneSettingsPopover({
   paneId,
   settings,
+  sections,
 }: {
   paneId: string;
   settings: PaneSettings;
+  sections: readonly string[];
 }) {
   const [anchor, setAnchor] = React.useState<HTMLElement | null>(null);
   const paneDispatch = usePaneDispatch();
@@ -167,7 +169,8 @@ export function PaneSettingsPopover({
             Pane {paneNum} Settings
           </div>
 
-          <Section title="Display">
+          {sections.length === 0 && <div>No settings for this pane type yet.</div>}
+          {sections.includes('display') && <Section title="Display">
             <Btn variant="chip" tone="pane" active={settings.showSampleDots} aria-pressed={settings.showSampleDots} aria-label="Samples" data-testid="sample-dots-toggle" style={{ width: '100%' }} onClick={() => patch({ showSampleDots: !settings.showSampleDots })}>Samples</Btn>
             <Row label="Show markers">
               <Toggle checked={settings.showMarkers} onChange={v => patch({ showMarkers: v })} />
@@ -181,9 +184,9 @@ export function PaneSettingsPopover({
             <Row label="Line labels">
               <Toggle checked={settings.showLineLabels} onChange={v => patch({ showLineLabels: v })} />
             </Row>
-          </Section>
+          </Section>}
 
-          <Section title="Grid">
+          {sections.includes('grid') && <Section title="Grid">
             <Row label="Major grid">
               <Toggle checked={settings.gridMajor} onChange={v => patch({ gridMajor: v })} />
             </Row>
@@ -205,7 +208,7 @@ export function PaneSettingsPopover({
                 <option value="solid">Solid</option>
               </select>
             </Row>
-          </Section>
+          </Section>}
         </div>
       </PopoverAt>}
     </div>

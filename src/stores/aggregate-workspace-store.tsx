@@ -16,7 +16,8 @@ import type { UiAction, UiState } from './ui-store';
 import { adaptDisplayTracesToLegacyTraces } from '../domain/display-trace-adapter';
 import { allocateColourBlindCreated } from '../domain/trace-colors';
 import { migrateWorkspaceV5 } from '../domain/workspace-migrate-v5';
-import { canPlaceMembership, planPaneRemoval, planPaneTypeChange, traceXGroup } from '../domain/pane-placement';
+import { canPlaceMembership, canRenderInPane, planEmptyPaneType, planPaneRemoval, planPaneTypeChange, traceXGroup } from '../domain/pane-placement';
+import { createPaneTypeRegistry, paneTypeOfMode } from '../domain/pane-type-registry';
 import type { PlacementTrace } from '../domain/pane-placement';
 import { encodeXAxisUnit } from '../types/ref-line';
 import type { WorkspaceSnapshotV5 } from '../types/workspace-v5';
@@ -185,13 +186,24 @@ function openData(state: WorkspaceState, command: Extract<WorkspaceAction,{slice
       const actual = tracesById.get(trace.id); const target = paneById.get(pane.id);
       if (!actual || !target) return {allowed:false,reason:'The trace or target pane is no longer available.'};
       const entries: PlacementTrace[] = provisional.flatMap(member => {const item=tracesById.get(member.trace.id); return item ? [{trace:item,paneIds:member.paneIds,displayTrace:displays.find(display => display.id === item.id || item.parameters?.displayTraceId === display.id)}] : [];});
-      return canPlaceMembership({trace:actual,paneIds:[],displayTrace:displays.find(display => display.id === actual.id || actual.parameters?.displayTraceId === display.id)},pane.id,[...paneById.values()],entries);
+      const entry = {trace:actual,paneIds:[],displayTrace:displays.find(display => display.id === actual.id || actual.parameters?.displayTraceId === display.id)};
+      let candidate = target;
+      const registry = createPaneTypeRegistry({ smithCapability: () => canRenderInPane(entry, { ...target, renderMode: 'smith' }) });
+      const acceptsCurrent = target.renderMode === 'smith' || target.renderMode === 'smith-inverted' ? canRenderInPane(entry, target) : registry[paneTypeOfMode(target.renderMode)].appliesTo(actual);
+      if (!entries.some(member => member.paneIds.includes(target.id)) && !acceptsCurrent.allowed) {
+        const choice = planEmptyPaneType(registry, target, actual, true);
+        if (!choice.mode) return { allowed: false, reason: choice.reason ?? acceptsCurrent.reason };
+        candidate = { ...target, renderMode: choice.mode };
+      }
+      const result = canPlaceMembership(entry,pane.id,[...paneById.values()].map(item => item.id === pane.id ? candidate : item),entries);
+      if (result.allowed) paneById.set(pane.id, candidate);
+      return result;
     },
     newPane:(_trace,_panes,issued) => {const source=state.panes.panes.find(pane => pane.id===state.panes.activePaneId) ?? state.panes.panes[0]; if (!source) return null; let n=1; while(issued.includes(`pane-${n}`)) n++; const pane={...source,id:`pane-${n}`,title:'',settings:{...source.settings}}; paneById.set(pane.id,pane); return pane;},
   });
   if (!plan.ok) return {...state,ui:uiReducer(state.ui,{type:'SET',payload:{key:'paneAssignmentWarning',value:{message:plan.reason,paneId:command.targetPaneId ?? state.panes.activePaneId,traceName:null}}}),revision:state.revision+1};
   const replacedTraceNames = new Set<string>();
-  let files=[...state.files.files]; const raw={...state.files.rawFileData}; const memberships={...state.panes.tracePaneMap}; const panes=[...state.panes.panes]; const issued=[...state.panes.issuedPaneIds]; const errors: {fileName:string;message:string}[]=[];
+  let files=[...state.files.files]; const raw={...state.files.rawFileData}; const memberships={...state.panes.tracePaneMap}; const panes=state.panes.panes.map(pane => paneById.get(pane.id) ?? pane); const issued=[...state.panes.issuedPaneIds]; const errors: {fileName:string;message:string}[]=[];
   for (const step of plan.steps) {
     if (step.kind==='new-pane') {const pane=paneById.get(step.pane.id); if(pane){panes.push(pane);issued.push(pane.id);} continue;}
     if (step.kind==='error') {

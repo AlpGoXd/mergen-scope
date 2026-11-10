@@ -1,5 +1,7 @@
 ﻿import React, { useState, useRef, useCallback } from 'react';
 import { DATA_FILE_ACCEPT, useFileImport } from '../../hooks/use-file-import';
+import type { PaneTypeDefinition, PaneTypeId } from '../../types/registry-contract';
+import { PaneTypeIcon } from './pane-type-icons';
 
 export interface EmptyChartPaneProps {
   mode?: 'files' | 'traces';
@@ -7,9 +9,12 @@ export interface EmptyChartPaneProps {
   paneId?: string;
   /** Short panes (3–4 stacked): show only the headline so the box fits. */
   compact?: boolean;
+  types: readonly PaneTypeDefinition[];
+  currentType: PaneTypeId;
+  onSelectType: (type: PaneTypeDefinition) => void;
 }
 
-export function EmptyChartPane({ mode = 'files', paneId, compact = false }: EmptyChartPaneProps) {
+export function EmptyChartPane({ mode = 'files', paneId, compact = false, types, currentType, onSelectType }: EmptyChartPaneProps) {
   const [isDragOver, setIsDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const importFiles = useFileImport();
@@ -73,7 +78,7 @@ export function EmptyChartPane({ mode = 'files', paneId, compact = false }: Empt
           userSelect: 'none',
         }}
       >
-        <div style={{
+        <div className="pane-empty-card" style={{
           boxSizing: 'border-box',
           maxWidth: '760px',
           maxHeight: '100%',
@@ -89,21 +94,14 @@ export function EmptyChartPane({ mode = 'files', paneId, compact = false }: Empt
           gap: compact ? '2px' : '10px',
           justifyItems: 'center',
         }}>
-          {!compact && (
-            <div style={{
-              width: '54px',
-              height: '54px',
-              borderRadius: '999px',
-              display: 'grid',
-              placeItems: 'center',
-              background: isDragOver ? 'rgba(88,166,255,0.14)' : 'rgba(88,166,255,0.08)',
-              color: isDragOver ? 'var(--accent)' : 'var(--muted)',
-              fontSize: 'var(--font-display)',
-              lineHeight: 1,
-            }}>
-              +
-            </div>
-          )}
+          <div className="pane-type-tiles" style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 4 }}>
+            {types.map(type => <button key={type.id} type="button" role="button" data-testid={`pane-type-tile-${type.id}`}
+              aria-disabled={type.status === 'later'} aria-pressed={type.id === currentType} title={type.laterReason}
+              onClick={e => { e.stopPropagation(); if (type.status === 'available') onSelectType(type); }}
+              className="pane-type-tile" style={{ opacity: type.status === 'later' ? 0.45 : 1, color: 'var(--text)', background: type.id === currentType ? 'var(--accent-soft)' : 'var(--card)', border: '1px solid var(--border)', borderRadius: 6, fontSize: 'var(--font-label)' }}>
+              <PaneTypeIcon type={type.iconKey} size={compact ? 20 : 32}/><div>{type.title}</div>{type.status === 'later' && <small>later</small>}
+            </button>)}
+          </div>
           <div style={{ fontSize: compact ? 'var(--font-title)' : 'var(--font-display)', fontWeight: 400, letterSpacing: '-0.03em' }}>
             {isDragOver ? (isTraceMode ? 'Drop trace to move' : 'Drop to import') : (isTraceMode ? 'Drop traces here' : 'Drop files here')}
           </div>

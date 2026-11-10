@@ -2,6 +2,7 @@ import type { Trace } from './trace';
 import type { Marker } from './marker';
 import type { RefLine } from './ref-line';
 import type { TouchstoneContext } from './analysis';
+import type { PaneRenderMode } from './pane';
 
 /** A capability check either succeeds or explains why the operation is unavailable. */
 export type Capability =
@@ -18,12 +19,17 @@ export interface DataKindDefinition {
   readonly xUnit: 'Hz' | 's';
 }
 
-export type PaneTypeId = 'chart' | 'smith' | 'table';
+export type PaneTypeId = 'chart' | 'table' | 'smith' | 'polar' | 'eye' | 'spectrogram';
 
 export interface PaneTypeDefinition {
   readonly id: PaneTypeId;
   readonly title: string;
   readonly description: string;
+  readonly status: 'available' | 'later';
+  readonly laterReason?: string;
+  readonly iconKey: PaneTypeId;
+  readonly settings: readonly string[];
+  readonly renderMode: PaneRenderMode | null;
   readonly appliesTo: (trace: Trace) => Capability;
 }
 
