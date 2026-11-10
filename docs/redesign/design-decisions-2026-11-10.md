@@ -58,7 +58,7 @@ Put this file in `docs/redesign/`. It sits next to `spec-v3.md`: where they disa
   - When a colour repeats (9th source, 9th created trace), the trace gets a hollow symbol every ~90 px, in this order: ○ □ △ ◇ ▽ + × ☆.
   - The same symbol shows in its row swatch and in exports.
   - **Row swatch with a symbol:** it becomes a 16 × 12 px line sample: the line in the trace colour and width, the symbol centred on it and filled with the row background, never clipped.
-- **Sample dots and symbols together:** dots are filled, radius 2, on every sample; symbols are hollow, radius 3.6, every ~90 px. With both on, each symbol replaces the dot at the sample nearest its position, and no dot may overlap a symbol: every sample within 6.35 px of a symbol centre (symbol radius 3.6 + half stroke 0.75 + dot radius 2) loses its dot.
+- **Sample dots and symbols together:** dots are filled, radius 2, on every sample; symbols are hollow, radius 3.6, every ~90 px. Symbols never hide data: no sample dot is ever removed. With Samples on, each symbol snaps to the real sample nearest its ~90 px position and is drawn hollow with no fill (stroke only), so that sample's dot shows in its centre. With Samples off, symbols stay every ~90 px along the path with the background fill.
 - **Colour-blind palette** swaps the 8 source hues for the colour-blind set; all rules stay the same.
 
 ## Behaviour
@@ -134,7 +134,7 @@ Put this file in `docs/redesign/`. It sits next to `spec-v3.md`: where they disa
   - **Polar**, Eye, Constellation and Spectrogram are planned entries, added when a data kind needs them. Polar is not built now.
 - dB / linear is a Y-axis setting of a chart, not a pane type.
 - **A new empty pane shows the types as large icons** (Chart, Table; Smith when it is built). Dropping a file or a trace picks the type that fits. The pane header keeps a type menu.
-- **Sample dots:** the first section of pane settings is Display, with a labelled "Sample dots" on/off chip (Pane hue), and a "Sample dots" checkmark item in the pane's ⋯ menu; no header button. The minor-grid switch is gone.
+- **Samples:** a small text toggle labelled "Samples" (no icon) in the pane header next to the sliders button; pressed = on, filled in the Pane hue, `aria-pressed`, tooltip "Show the measured sample points". The first section of pane settings is Display, with a "Samples" chip that always matches the header button. No item in the pane's ⋯ menu. Narrow pane headers keep this button (they drop the scale text and the trace count first). The minor-grid switch is gone.
 
 ## Still open
 
