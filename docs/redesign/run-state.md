@@ -69,16 +69,25 @@ Gates on HEAD: typecheck pass; unit 277 passed + 4 todo (51 files); e2e 59 passe
 | 6A–6D export | not done | basic CSV export only (`workflows`, `gui-smoke`) |
 | 7A top bar, strip | partly (7E) | `marker-toolbar-visual.spec.ts`; Open/Export/Layout wiring and responsive evidence open |
 | 7B footer, help, settings | partly (7E) | no dedicated test; preference consumers, states, privacy open |
-| 7C right panel, Analysis cards | not done | `analysis-more.test.ts` (math only) |
+| 7C right panel, Analysis cards | done (10 Nov, `5c56fb4`) | `analysis-panel.spec`, `analysis-math*`, `analysis-shapes`, `peak-table-markers` and more |
 | 7D unified opening UI, wizard | partly | controller: `opening-controller-mounted`, `gui-smoke` wizard; UI not done |
 | 7E integration | not done | no test |
 | 8 consistency, adversarial review | not done | no test |
 
 `deferred.md` has mojibake (em dashes, multiplication sign); fix it with a UTF-8-safe edit when it is next touched.
 
-## Next step
+## Remaining work, in order (set by the user, 10 November)
 
-Lines work is committed (`f11625a`, on top of `2019cec`, `5b3bf2b`, `4bc4179`; nothing pushed). **Analysis overhaul, Part A (plan only) is below; no code was changed.** The updated analysis kit (`docs/redesign/kit/analysis/`, modified, not committed) was read as text only; no image was opened. Awaiting the user's answers to "Decisions needed" and the OK to start Part B.
+[design-decisions-2026-11-10.md](design-decisions-2026-11-10.md) holds every design decision from 9–10 Nov and wins over older boards and `spec-v3.md`; `spec-v3.md` and `plan.md` were updated to match it. Done and committed up to `5c56fb4`: lines (LL-2), Size setting, Analysis panel, Math define-then-create, units, trace math lining-up, measure outlines, Peak table rows (the Analysis overhaul, 7C, is finished).
+
+1. **Small rules** (one step): armed tools (one at a time, fills in its group colour, hint after the strip, footer sentence, Esc and empty-chart right-click cancel) · one selection in the whole left panel (marker, line or trace, one frame style) · toast policy check across the app · created-trace colours (the 8 in-between hues, one step forward then one back from the parent, created tone) and source-hue reuse · Settings › Colours › Trace symbols (Off · When colours repeat · Always; symbol every ~90 px, row swatch carries it) with family highlight · matrix add palette (the matrix only adds, count badge with hover list, duplicate highlights the existing trace, Smith target greys non-Sii, Traces list has no dots or "plotted" fill).
+2. **Text roles pass** (its own step): the seven roles, no font sizes typed in components, no bold mono.
+3. **Panes:** pane-type registry + empty-pane picker → Table pane → chart / header / layout (5A–5D) → Smith (5E) → Polar.
+4. **Export** (Phase 6). PDF needs a new library: bring a proposal at the start of this phase.
+5. **Frame and flows** (Phase 7: top bar, strip, footer, App settings, opening UI, wizard, empty app).
+6. **Final check** (Phase 8).
+
+Cleanup that rides along (listed in `deferred.md`): legacy analysis state still written to workspaces for the old reader; the kit's comments still mention Live/Freeze.
 
 ### Kit changes that matter (read from the updated README and types)
 
