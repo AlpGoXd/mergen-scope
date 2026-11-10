@@ -3,6 +3,8 @@ import { useTraceState, useTraceDispatch } from '../stores/trace-store';
 import { usePaneState, usePaneDispatch } from '../stores/pane-store';
 import { useUiDispatch } from '../stores/ui-store';
 import { useOptionalAggregateWorkspace } from '../stores/aggregate-workspace-store';
+import { useMarkerDispatch } from '../stores/marker-store';
+import { useRefLineDispatch } from '../stores/ref-line-store';
 import type { Trace } from '../types/trace';
 
 /**
@@ -15,14 +17,18 @@ export function useTraceActions() {
   const paneState = usePaneState();
   const paneDispatch = usePaneDispatch();
   const uiDispatch = useUiDispatch();
+  const markerDispatch = useMarkerDispatch();
+  const refLineDispatch = useRefLineDispatch();
   const aggregate = useOptionalAggregateWorkspace();
 
   const selectTrace = useCallback((traceName: string) => {
+    markerDispatch({ type: 'SET_SELECTED_IDX', payload: -1 });
+    refLineDispatch({ type: 'SET_SELECTED', payload: null });
     uiDispatch({ type: 'SET', payload: { key: 'selectedTraceName', value: traceName } });
 
     const paneId = paneState.tracePaneMap[traceName]?.[0];
     if (paneId) { paneDispatch({ type: 'SET_PANE_ACTIVE_TRACE', payload: { paneId, traceName } }); paneDispatch({ type: 'SET_ACTIVE_PANE', payload: paneId }); }
-  }, [uiDispatch, paneDispatch, paneState.tracePaneMap]);
+  }, [uiDispatch, paneDispatch, paneState.tracePaneMap, markerDispatch, refLineDispatch]);
 
   const removeTrace = useCallback((trace: Trace) => {
     if (aggregate) {
@@ -49,8 +55,10 @@ export function useTraceActions() {
       payload: { trace, fromPaneId: paneState.activePaneId && paneState.tracePaneMap[trace.name]?.includes(paneState.activePaneId) ? paneState.activePaneId : paneState.tracePaneMap[trace.name]?.[0] ?? '', targetPaneId: paneId, allTraces: traceState.allTraces },
     });
     if (paneId) { paneDispatch({ type: 'SET_PANE_ACTIVE_TRACE', payload: { paneId, traceName } }); paneDispatch({ type: 'SET_ACTIVE_PANE', payload: paneId }); }
+    markerDispatch({ type: 'SET_SELECTED_IDX', payload: -1 });
+    refLineDispatch({ type: 'SET_SELECTED', payload: null });
     uiDispatch({ type: 'SET', payload: { key: 'selectedTraceName', value: traceName } });
-  }, [traceState.allTraces, paneState.activePaneId, paneState.tracePaneMap, paneDispatch, uiDispatch]);
+  }, [traceState.allTraces, paneState.activePaneId, paneState.tracePaneMap, paneDispatch, uiDispatch, markerDispatch, refLineDispatch]);
 
   return {
     selectTrace,

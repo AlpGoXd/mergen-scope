@@ -22,6 +22,9 @@ export function useKeyboard() {
       // Native controls, open modal dialogs and menus own their keyboard input.
       if (ev.defaultPrevented || document.querySelector('[role="dialog"][aria-modal="true"]')) return;
       const target = ev.target instanceof HTMLElement ? ev.target : null;
+      if (ev.key === 'F2' && !isTextEntry(target) && !target?.closest('[role="menu"], [role="dialog"]')) {
+        window.dispatchEvent(new Event('mergen-rename-trace')); ev.preventDefault(); return;
+      }
 
       // Undo / redo work while a button, checkbox or menu has focus; only text fields keep their native undo.
       if ((ev.ctrlKey || ev.metaKey) && !ev.altKey && historyDispatch && !isTextEntry(target)) {
@@ -44,6 +47,7 @@ export function useKeyboard() {
       // Escape: Clear selections
       if (ev.key === 'Escape') {
         markerDispatch({ type: 'ARM', payload: null });
+        refLineDispatch({ type: 'SET_MODE', payload: null });
         markerDispatch({ type: 'SET_SELECTED_IDX', payload: -1 });
         refLineDispatch({ type: 'SET_SELECTED', payload: null });
         uiDispatch({ type: 'SET', payload: { key: 'selectedTraceName', value: null } });
@@ -52,8 +56,8 @@ export function useKeyboard() {
 
       if (ev.key.toLowerCase() === 'n' && !ev.ctrlKey && !ev.metaKey && !ev.altKey) {
         const selected=markers[selectedMkrIdx];
-        if (ev.shiftKey) { if (selected && selected.type !== 'delta') markerDispatch({type:'ARM',payload:{kind:'delta',refId:selected.id}}); }
-        else markerDispatch({type:'ARM',payload:{kind:'normal'}});
+        if (ev.shiftKey) { if (selected && selected.type !== 'delta') { refLineDispatch({type:'SET_MODE',payload:null}); markerDispatch({type:'ARM',payload:{kind:'delta',refId:selected.id}}); } }
+        else { refLineDispatch({type:'SET_MODE',payload:null}); markerDispatch({type:'ARM',payload:{kind:'normal'}}); }
         ev.preventDefault();
       }
 

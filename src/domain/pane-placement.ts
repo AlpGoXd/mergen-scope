@@ -22,14 +22,19 @@ export function traceXGroup(trace: Trace): string | null {
   return unit;
 }
 export type PlacementPane = Omit<Pane, 'renderMode'> & { readonly renderMode: Pane['renderMode'] | 'table' };
+export function smithParameterCapability(family: string, row: number, col: number): PlacementResult {
+  if (!Number.isInteger(row) || row < 0 || row !== col) return { allowed: false, reason: 'Smith panes require a diagonal reflection parameter.' };
+  if (family !== 'S' && !((family === 'Y' || family === 'Z') && row === 0)) return { allowed: false, reason: 'Smith panes support Sii and converted Z11 or Y11.' };
+  return { allowed: true };
+}
 /** Smith requires an explicitly complex diagonal S/Y/Z network projection. */
 export function canRenderInPane(entry: PlacementTrace, pane: PlacementPane): PlacementResult {
   if (pane.renderMode === 'cartesian' || pane.renderMode === 'table') return { allowed: true };
   const display = entry.displayTrace;
   if (!display || (display.id !== entry.trace.id && entry.trace.parameters?.['displayTraceId'] !== display.id) || (display.compat?.legacyTraceName !== undefined && display.compat.legacyTraceName !== entry.trace.name) || (entry.trace.parameters?.['datasetId'] !== undefined && entry.trace.parameters['datasetId'] !== display.datasetId) || display.source.sourceType !== 'network-parameter') return { allowed: false, reason: 'Smith panes require the matching network trace.' };
   const source = display.source;
-  if (!Number.isInteger(source.row) || source.row < 0 || source.row !== source.col) return { allowed: false, reason: 'Smith panes require a diagonal reflection parameter.' };
-  if (source.parameterFamily !== 'S' && !((source.parameterFamily === 'Y' || source.parameterFamily === 'Z') && source.row === 0)) return { allowed: false, reason: 'Smith panes support Sii and converted Z11 or Y11.' };
+  const parameter = smithParameterCapability(source.parameterFamily, source.row, source.col);
+  if (!parameter.allowed) return parameter;
   const trace = entry.trace;
   if (display.valueType === 'scalar') {
     const metadata = trace.kind === 'raw' ? trace.networkSource : undefined;

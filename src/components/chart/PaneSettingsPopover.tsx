@@ -2,6 +2,7 @@ import React from 'react';
 import type { PaneSettings } from '../../types/pane';
 import { usePaneDispatch } from '../../stores/pane-store';
 import { Btn } from '../shared/Btn';
+import { PopoverAt } from '../shared/Controls';
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -122,18 +123,8 @@ export function PaneSettingsPopover({
   paneId: string;
   settings: PaneSettings;
 }) {
-  const [open, setOpen] = React.useState(false);
+  const [anchor, setAnchor] = React.useState<HTMLElement | null>(null);
   const paneDispatch = usePaneDispatch();
-  const wrapperRef = React.useRef<HTMLDivElement>(null);
-
-  React.useEffect(() => {
-    if (!open) return;
-    const handler = (e: MouseEvent) => {
-      if (!wrapperRef.current?.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [open]);
 
   const patch = (p: Partial<PaneSettings>) =>
     paneDispatch({ type: 'SET_PANE_SETTINGS', payload: { paneId, patch: p } });
@@ -150,30 +141,24 @@ export function PaneSettingsPopover({
   };
 
   return (
-    <div ref={wrapperRef} style={{ position: 'relative' }}>
+    <div>
       <Btn
         soft
-        active={open}
+        active={anchor !== null}
+        aria-expanded={anchor !== null}
         style={{ padding: '0.2rem 0.45rem', fontSize: 'var(--font-caption)', minHeight: 'auto' }}
         title="Pane settings"
-        onClick={(e) => { e.stopPropagation(); setOpen(v => !v); }}
+        onClick={(e) => { e.stopPropagation(); setAnchor(anchor ? null : e.currentTarget); }}
       >
         ⚙
       </Btn>
 
-      {open && (
+      {anchor && <PopoverAt label={`Pane ${paneNum} settings`} at={anchor} onClose={() => setAnchor(null)}>
         <div
           style={{
-            position: 'absolute',
-            top: 'calc(100% + 4px)',
-            right: 0,
-            zIndex: 300,
             background: 'var(--card)',
-            border: '1px solid var(--border)',
-            borderRadius: 8,
             padding: '12px 14px',
             minWidth: 250,
-            boxShadow: '0 6px 20px rgba(0,0,0,0.3)',
             fontSize: 'var(--font-body)',
           }}
           onClick={e => e.stopPropagation()}
@@ -224,7 +209,7 @@ export function PaneSettingsPopover({
             </Row>
           </Section>
         </div>
-      )}
+      </PopoverAt>}
     </div>
   );
 }

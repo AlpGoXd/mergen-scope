@@ -3,8 +3,9 @@
 import type { AnalysisOutput } from '../../types/registry-contract';
 import type { AnalysisInstance } from '../../types/analysis-instance';
 import type { InstanceResult } from './instances';
-import type { Trace, OperationType } from '../../types/trace';
-import { traceMathUnit } from '../units';
+import type { Trace } from '../../types/trace';
+import type { TraceMathOp } from '../trace-math-units';
+import { traceMathUnit } from '../trace-math-units';
 import { formatCrossingValue, significantStep } from './crossing-rows';
 
 export interface CardUnits { x: string | null | undefined; y: string | null | undefined }
@@ -12,8 +13,8 @@ export interface CardRow { label: string; value: string }
 export interface CardResult { value: string; unit?: string; note?: string }
 export interface CardNumbersView { result?: CardResult; rows: CardRow[]; summary: string }
 
-export function traceMathAdvice(operation: OperationType, a: Trace, b: Trace): string | undefined {
-  return traceMathUnit(operation, a.units.y, b.units.y).warning;
+export function traceMathAdvice(operation: TraceMathOp, a: Trace, b: Trace): string | undefined {
+  return traceMathUnit(a.units.y, b.units.y, operation).warning;
 }
 
 const X_DIGITS = 6;

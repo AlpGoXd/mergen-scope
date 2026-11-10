@@ -9,7 +9,7 @@ for (const theme of ['light', 'dark'] as const) {
     await page.keyboard.press('2');
     const row = page.locator('[data-testid^="trace-row-"]').first();
     await row.getByTitle('Show in panes').click();
-    await row.getByRole('menu', { name: 'Show in' }).getByRole('menuitemcheckbox', { name: 'Pane 2' }).click();
+    await page.getByRole('menu', { name: 'Show in' }).getByRole('menuitemcheckbox', { name: 'Pane 2' }).click();
     await page.keyboard.press('Escape');
     const pane1 = page.getByTestId('chart-pane-pane-1');
     const pane2 = page.getByTestId('chart-pane-pane-2');

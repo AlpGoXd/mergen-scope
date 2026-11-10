@@ -5,8 +5,10 @@ import { usePaneState, usePaneDispatch, usePaneLimit } from '../../stores/pane-s
 import { useTraceState } from '../../stores/trace-store';
 import { useRefLineState, useRefLineDispatch } from '../../stores/ref-line-store';
 import { findAbsoluteMax, findAbsoluteMin, findNextLocalExtremum } from '../../domain/markers';
+import { defaultTraceForPane } from '../../domain/default-trace';
 import { useInteractionMode } from '../../hooks/use-interaction-mode';
 import { Btn } from '../shared/Btn';
+import { PopoverAt } from '../shared/Controls';
 import { planLastPaneLines, planLastPaneRemoval, useOptionalAggregateWorkspace } from '../../stores/aggregate-workspace-store';
 
 /**
@@ -14,6 +16,7 @@ import { planLastPaneLines, planLastPaneRemoval, useOptionalAggregateWorkspace }
  * Ported from legacy ToolbarStrip in app-shell-components.js.
  */
 export function ToolbarStrip() {
+  const [deltaAnchor, setDeltaAnchor] = React.useState<HTMLElement | null>(null);
   const {
     showPaneTools,
     showSearchTools,
@@ -21,12 +24,13 @@ export function ToolbarStrip() {
     showMarkerTools,
     searchDirection,
     markerTrace,
+    selectedTraceName,
   } = useUiState();
 
   const { allTraces, vis } = useTraceState();
   const aggregate = useOptionalAggregateWorkspace();
   const { markers, selectedMkrIdx, armed } = useMarkerState();
-  const { panes, activePaneId, tracePaneMap, paneActiveTraceMap } = usePaneState();
+  const { panes, activePaneId, tracePaneMap } = usePaneState();
   const { refMode } = useRefLineState();
   const refDispatch = useRefLineDispatch();
   const { limit } = usePaneLimit();
@@ -42,10 +46,7 @@ export function ToolbarStrip() {
   const visiblePaneTraces = allTraces.filter(t => paneTraceNames.includes(t.name) && vis[t.name] !== false);
 
   // --- Active trace resolution ---
-  const activeTraceName =
-    (activePaneId != null ? paneActiveTraceMap[activePaneId] : null)
-    ?? paneTraceNames[0]
-    ?? null;
+  const activeTraceName = defaultTraceForPane(allTraces, selectedTraceName, activePaneId, tracePaneMap, vis)?.name ?? null;
   const activeTr = allTraces.find(t => t.name === activeTraceName) ?? null;
 
   if (!showMarkerTools && !showSearchTools && !showLineTools && !showPaneTools) return null;
@@ -132,23 +133,25 @@ export function ToolbarStrip() {
   return <div onKeyDown={event => {
     // The global shortcut intentionally ignores native controls; let Escape
     // cancel placement when focus remains on a toolbar button.
-    if (event.key === 'Escape' && event.target instanceof HTMLButtonElement && (armed || refMode)) {
+    if (event.key === 'Escape' && event.target instanceof HTMLButtonElement) {
       markerDispatch({ type: 'ARM', payload: null });
       refDispatch({ type: 'SET_MODE', payload: null });
+      markerDispatch({ type: 'SET_SELECTED_IDX', payload: -1 });
+      refDispatch({ type: 'SET_SELECTED', payload: null });
+      uiDispatch({ type: 'SET', payload: { key: 'selectedTraceName', value: null } });
       event.preventDefault();
     }
   }} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'stretch', borderBottom: '1px solid var(--border)', background: 'var(--panel)', flexShrink: 0 }}>
     {showMarkerTools && group('Markers', 'marker', <>
-      <label>Trace: <select className="ui-select" style={{ minHeight: 20, height: 20, maxWidth: 110, padding: '0 4px' }} value={markerTrace} onChange={e => uiDispatch({ type: 'SET', payload: { key: 'markerTrace', value: e.target.value } })} title="Auto picks the trace nearest the click">
+      <label>Trace: <select className="ui-select" style={{ minHeight: 20, height: 20, maxWidth: 110, padding: '0 4px' }} value={markerTrace} onChange={e => uiDispatch({ type: 'SET', payload: { key: 'markerTrace', value: e.target.value } })} title="Auto picks the selected trace or first visible trace">
         <option value="__auto__">Auto</option>{visiblePaneTraces.map(trace => <option key={trace.name} value={trace.name}>{trace.dn || trace.name}</option>)}
       </select></label>
-      <Btn small variant="slate" active={!!armed} aria-pressed={!!armed} aria-label="New Marker" title="Place a marker (N)" onClick={selectNormal}>+ New</Btn>
-      <details style={{ position: 'relative' }}><summary aria-label="Choose a delta marker reference" title="Choose a delta marker reference" style={{ cursor: 'pointer', listStyle: 'none', padding: '0 4px', border: '1px solid var(--border)', borderRadius: 4 }}>▾</summary>
-        <div style={{ position: 'absolute', zIndex: 20, top: '100%', left: 0, minWidth: 170, background: 'var(--raised)', border: '1px solid var(--border)', padding: 4 }}>
-          {normalMarkers.map((marker, i) => <Btn key={marker.id} small onClick={e => { armDelta(marker.id); e.currentTarget.closest('details')?.removeAttribute('open'); }}>+ Δ from {marker.label || `M${i + 1}`}</Btn>)}
-          <Btn small disabled={!selected || selected.type === 'delta'} title={!selected || selected.type === 'delta' ? 'Select a normal marker first' : 'Place delta from selected marker (Shift+N)'} onClick={e => { if (selected) armDelta(selected.id); e.currentTarget.closest('details')?.removeAttribute('open'); }}>+ Δ from selected</Btn>
-        </div>
-      </details>
+      <Btn small variant="armed" tone="marker" active={!!armed} aria-pressed={!!armed} aria-label="New Marker" title="Place a marker (N)" onClick={selectNormal}>+ New</Btn>
+      <Btn small aria-label="Choose a delta marker reference" aria-expanded={deltaAnchor !== null} onClick={event => setDeltaAnchor(deltaAnchor ? null : event.currentTarget)}>▾</Btn>
+      {deltaAnchor && <PopoverAt label="Delta marker reference" at={deltaAnchor} onClose={() => setDeltaAnchor(null)}><div role="menu" aria-label="Delta marker reference" style={{ display: 'grid', minWidth: 170 }}>
+          {normalMarkers.map((marker, i) => <Btn role="menuitem" key={marker.id} small onClick={() => { armDelta(marker.id); setDeltaAnchor(null); }}>+ Δ from {marker.label || `M${i + 1}`}</Btn>)}
+          <Btn role="menuitem" small disabled={!selected || selected.type === 'delta'} title={!selected || selected.type === 'delta' ? 'Select a normal marker first' : 'Place delta from selected marker (Shift+N)'} onClick={() => { if (selected) armDelta(selected.id); setDeltaAnchor(null); }}>+ Δ from selected</Btn>
+      </div></PopoverAt>}
     </>)}
     {showSearchTools && group('Search', 'search', <>
       <Btn small disabled={!canSearch} title={canSearch ? 'Find peak' : 'Select a trace with data'} onClick={handlePeak}>Peak</Btn>
@@ -158,8 +161,8 @@ export function ToolbarStrip() {
       <Btn small style={{ borderStyle: 'dashed' }} title="Change search direction" onClick={() => uiDispatch({ type: 'SET', payload: { key: 'searchDirection', value: searchDirection === 'right' ? 'left' : 'right' } })}>{searchDirection === 'right' ? 'Dir L → R' : 'Dir L ← R'}</Btn>
     </>)}
     {showLineTools && group('Lines', 'lines', <>
-      <Btn small variant="slate" active={refMode === 'v'} aria-pressed={refMode === 'v'} aria-label="V-Line" title="Place vertical line" onClick={() => toggleRefPlacement('v')}>V line</Btn>
-      <Btn small variant="slate" active={refMode === 'h'} aria-pressed={refMode === 'h'} aria-label="H-Line" title="Place horizontal line" onClick={() => toggleRefPlacement('h')}>H line</Btn>
+      <Btn small variant="armed" tone="lines" active={refMode === 'v'} aria-pressed={refMode === 'v'} aria-label="V-Line" title="Place vertical line" onClick={() => toggleRefPlacement('v')}>V line</Btn>
+      <Btn small variant="armed" tone="lines" active={refMode === 'h'} aria-pressed={refMode === 'h'} aria-label="H-Line" title="Place horizontal line" onClick={() => toggleRefPlacement('h')}>H line</Btn>
     </>)}
     {showPaneTools && group('Pane', 'pane', <>
       <Btn small disabled title="Layout presets will be available after integration">Layout: Rows ▾</Btn>

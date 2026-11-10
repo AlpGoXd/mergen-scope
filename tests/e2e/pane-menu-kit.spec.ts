@@ -12,7 +12,7 @@ for (const theme of ['light', 'dark'] as const) {
     await page.getByRole('button', { name: '+ Pane', exact: true }).click();
     const row = page.locator('[data-testid^="trace-row-"]').first();
     await row.getByTitle('Show in panes').click();
-    const menu = row.getByRole('menu', { name: 'Show in' });
+    const menu = page.getByRole('menu', { name: 'Show in' });
     await expect(menu).toBeVisible();
     await expect(menu.locator('.lp-menu__title')).toHaveText('Show in');
     const pane1 = menu.getByRole('menuitemcheckbox', { name: 'Pane 1' });
@@ -46,7 +46,7 @@ for (const theme of ['light', 'dark'] as const) {
     const row = page.locator('[data-testid^="trace-row-"]').filter({ hasText: 'time.csv' }).first();
     await expect(page.getByTestId('chart-plot-pane-2')).toBeVisible();
     await row.getByTitle('Show in panes').click();
-    const menu = row.getByRole('menu', { name: 'Show in' });
+    const menu = page.getByRole('menu', { name: 'Show in' });
     const item = menu.getByRole('menuitemcheckbox').nth(1);
     const reason = 'Cannot assign a time-domain trace to a pane containing frequency-domain traces.';
     await expect(item).toHaveAttribute('aria-disabled', 'true');
@@ -65,7 +65,7 @@ test('New pane creates and assigns in one undoable action and respects the limit
   await page.getByTestId('empty-chart-file-input').setInputFiles(resolve('test files/cascaded chain.s2p'));
   const row = page.locator('[data-testid^="trace-row-"]').first();
   await row.getByTitle('Show in panes').click();
-  const menu = row.getByRole('menu', { name: 'Show in' });
+  const menu = page.getByRole('menu', { name: 'Show in' });
   await expect(menu.getByRole('menuitemcheckbox', { name: /Pane 1.*Chart/ })).toBeChecked();
   await menu.getByRole('menuitem', { name: 'New pane' }).click();
   await expect(page.getByTestId('chart-pane-pane-2')).toBeVisible();

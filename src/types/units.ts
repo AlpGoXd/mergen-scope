@@ -95,8 +95,6 @@ export type XUnit = FrequencyXUnit | TimeXUnit;
 
 /**
  * Classifies a unit by its physical dimension.
- * Used by `areUnitsCompatible()` to determine whether trace math
- * operations produce meaningful results.
  */
 export type PhysicalDimension =
   | "power"             // W, dBm, dBW
@@ -130,34 +128,6 @@ export interface UnitInfo {
   readonly dimension: PhysicalDimension;
 }
 
-// ---------------------------------------------------------------------------
-// Unit compatibility result
-// ---------------------------------------------------------------------------
-
-/**
- * Result of checking whether two units can participate in a trace math
- * operation. Returned by `areUnitsCompatible()` in domain/units.ts.
- */
-export interface UnitCompatibilityResult {
-  /** Whether the operation is physically meaningful. */
-  readonly compatible: boolean;
-
-  /**
-   * Warning or informational message for the user.
-   * Present when compatible is false (hard warning) or when the operation
-   * is technically valid but the user should be aware (soft note).
-   */
-  readonly warning?: string;
-
-  /**
-   * The resulting Y-unit for the derived trace.
-   * - Same-unit subtraction of log units → "dB"
-   * - Same-unit division of linear units → "Unitless"
-   * - Incompatible → "Unitless"
-   * - null if either input unit is null
-   */
-  readonly resultUnit: YUnit | null;
-}
 
 // ---------------------------------------------------------------------------
 // Axis info (derived from visible traces)

@@ -10,7 +10,7 @@ async function twoPanes(page: Page) {
   await page.getByRole('button', { name: '+ Pane', exact: true }).click();
   const trace = page.locator('[data-testid^="trace-row-"]').first();
   await trace.getByTitle('Show in panes').click();
-  await trace.getByRole('menu', { name: 'Show in' }).getByRole('menuitemcheckbox', { name: /Pane 2/ }).click();
+  await page.getByRole('menu', { name: 'Show in' }).getByRole('menuitemcheckbox', { name: /Pane 2/ }).click();
   await page.keyboard.press('Escape');
 }
 

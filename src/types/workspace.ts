@@ -180,6 +180,7 @@ export interface WorkspaceDisplayTraceBase {
   readonly compat?: {
     readonly legacyTraceName?: string;
     readonly legacyDisplayName?: string;
+    readonly automaticDisplayName?: string;
   };
 }
 

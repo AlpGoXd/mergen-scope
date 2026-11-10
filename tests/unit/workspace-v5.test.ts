@@ -16,9 +16,26 @@ it('accepts optional trace math alignment choices and rejects unknown choices', 
   const output = { ...makeTestTrace({ id: 'math-output', name: 'math-output' }), kind: 'derived', operationType: 'add', analysisId: instance.id };
   const saved = migrateWorkspaceV5({ ...base, derivedTraces: [...base.derivedTraces, output], analyses: [{ ...instance, outputTraceId: output.id }] });
   expect(saved?.analyses?.[0]?.outputTraceId).toBe(output.id);
+  const renamed = migrateWorkspaceV5({ ...base, derivedTraces: [...base.derivedTraces, { ...output, dn: 'Manual', automaticDisplayName: 'Automatic' }], analyses: [{ ...instance, outputTraceId: output.id, autoName: 'Automatic' }] });
+  expect(renamed?.analyses?.[0]?.autoName).toBe('Automatic');
+  expect(renamed?.derivedTraces.find(trace => trace.id === output.id)?.dn).toBe('Manual');
+  expect(migrateWorkspaceV5(renamed)?.analyses?.[0]?.autoName).toBe('Automatic');
 });
 
 const fixture = (name: string): unknown => JSON.parse(readFileSync(`tests/fixtures/phase3-preservation/${name}.json`, 'utf8'));
+it('preserves optional hue slots and accepts older snapshots', () => {
+  const base = migrateWorkspaceV5(fixture('workspace-v4-eight-pane-extension'));
+  if (!base) throw new Error('fixture');
+  expect(migrateWorkspaceV5(base)).not.toBeNull();
+  const slot = { palette: 'source', index: 0, round: 0, hue: 270 };
+  expect(migrateWorkspaceV5({ ...base, ui: { ...base.ui, traceHueSlots: { a: slot } } })?.ui.traceHueSlots).toEqual({ a: slot });
+  expect(migrateWorkspaceV5({ ...base, ui: { ...base.ui, traceHueSlots: { a: 270 } } })?.ui.traceHueSlots).toBeUndefined();
+  expect(migrateWorkspaceV5({ ...base, ui: { ...base.ui, traceHueSlots: { a: { ...slot, index: 9 } } } })).toBeNull();
+  const created = { palette: 'created', index: 0, round: 0, hue: 22.5, cbIndex: 7 };
+  expect(migrateWorkspaceV5({ ...base, ui: { ...base.ui, traceHueSlots: { a: created } } })?.ui.traceHueSlots).toEqual({ a: created });
+  expect(migrateWorkspaceV5({ ...base, ui: { ...base.ui, traceHueSlots: { a: { ...created, cbIndex: 8 } } } })).toBeNull();
+  expect(migrateWorkspaceV5({ ...base, ui: { ...base.ui, traceHueSlots: { a: { ...slot, cbIndex: 1 } } } })).toBeNull();
+});
 type LegacyTrace = { id: string; name: string; domain: string };
 type LegacyPane = {
   id: string; title: string; renderMode: string;
@@ -185,6 +202,9 @@ describe('v5 migration boundary', () => {
     const saved = snapshotFromWorkspace(restored);
     expect(saved?.paneActiveTraceMap[paneId]).toBeNull();
     expect(migrateWorkspaceV5(saved)?.paneActiveTraceMap[paneId]).toBeNull();
+    expect(saved?.ui.traceHueSlots).toEqual(restored.ui.traceHueSlots);
+    if (!saved) throw Error('snapshot save failed');
+    expect(workspaceFromSnapshot(initialWorkspaceState(), saved)?.ui.traceHueSlots).toEqual(restored.ui.traceHueSlots);
   });
   it('rejects broken discriminated trace, dataset and display data', () => {
     const valid = migrateWorkspaceV5(fixture('workspace-v4-eight-pane-extension')); if (!valid) throw Error('fixture');

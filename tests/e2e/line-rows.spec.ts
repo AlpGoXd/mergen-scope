@@ -8,7 +8,7 @@ test('line pane membership and deletion can be undone', async ({ page }) => {
   await page.getByRole('button', { name: '+ Pane', exact: true }).click();
   const trace = page.locator('[data-testid^="trace-row-"]').first();
   await trace.getByTitle('Show in panes').click();
-  await trace.getByRole('menu', { name: 'Show in' }).getByRole('menuitemcheckbox', { name: /Pane 2/ }).click();
+  await page.getByRole('menu', { name: 'Show in' }).getByRole('menuitemcheckbox', { name: /Pane 2/ }).click();
   await page.keyboard.press('Escape');
   await page.getByRole('button', { name: 'V-Line' }).click();
   await page.getByTestId('chart-plot-pane-1').click({ position: { x: 260, y: 60 } });
@@ -16,11 +16,11 @@ test('line pane membership and deletion can be undone', async ({ page }) => {
   await expect(row).toContainText('Shown in P1');
   await expect(row).not.toContainText('P2');
   await row.getByRole('button', { name: 'V1: Show in…' }).click();
-  await row.getByRole('menuitemcheckbox', { name: /Pane 2/ }).click();
+  await page.getByRole('menuitemcheckbox', { name: /Pane 2/ }).click();
   await page.keyboard.press('Escape');
   await expect(row).toContainText('Shown in P1, P2');
   await row.getByRole('button', { name: 'V1: Show in…' }).click();
-  await row.getByRole('menuitemcheckbox', { name: /Pane 2/ }).click();
+  await page.getByRole('menuitemcheckbox', { name: /Pane 2/ }).click();
   await expect(row).toContainText('Shown in P1 ·');
   await page.keyboard.press('Escape');
   await page.keyboard.press('Control+z');

@@ -16,6 +16,7 @@ export interface LineRowProps {
   offView?: string[];
   /** Hover or selection of any copy on a chart lights the row too. */
   lit?: boolean;
+  selected?: boolean;
   invalid?: boolean;
   menuOpen?: boolean;
   onValue: (text: string) => void;

@@ -16,7 +16,7 @@ for (const theme of ['light', 'dark'] as const) {
     await page.getByRole('button', { name: '+ Pane', exact: true }).click();
     const trace = page.locator('[data-testid^="trace-row-"]').first();
     await trace.getByTitle('Show in panes').click();
-    await trace.getByRole('menu', { name: 'Show in' }).getByRole('menuitemcheckbox', { name: /Pane 2/ }).click();
+    await page.getByRole('menu', { name: 'Show in' }).getByRole('menuitemcheckbox', { name: /Pane 2/ }).click();
     await page.keyboard.press('Escape');
     await page.getByRole('button', { name: 'V-Line' }).click();
     await page.getByTestId('chart-plot-pane-1').click({ position: { x: 260, y: 60 } });
@@ -24,7 +24,7 @@ for (const theme of ['light', 'dark'] as const) {
     await page.getByTestId('chart-plot-pane-1').click({ position: { x: 300, y: 140 } });
     const v1 = page.getByTestId('ref-line-row-V1');
     await v1.getByRole('button', { name: 'V1: Show in…' }).click();
-    await v1.getByRole('menuitemcheckbox', { name: /Pane 2/ }).click();
+    await page.getByRole('menuitemcheckbox', { name: /Pane 2/ }).click();
     await page.keyboard.press('Escape');
     await expect(v1).toContainText('Shown in P1, P2');
     await page.getByTestId('ref-line-row-V1').locator('.ln-row').hover();

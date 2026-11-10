@@ -50,24 +50,24 @@ test('Show in greys panes that cannot take the line, with the reason', async ({ 
   // Pane 2 is added but empty: it has no X axis.
   await page.getByRole('button', { name: '+ Pane', exact: true }).click();
   await row.getByRole('button', { name: 'V1: Show in…' }).click();
-  const pane2 = row.getByRole('menuitemcheckbox', { name: /Pane 2/ });
+  const pane2 = page.getByRole('menuitemcheckbox', { name: /Pane 2/ });
   await expect(pane2).toHaveAttribute('aria-disabled', 'true');
   await expect(pane2).toContainText('no X axis');
   await expect(pane2).toHaveAttribute('title', /.+/);
-  await expect(row.getByRole('menuitemcheckbox', { name: /Pane 1/ })).toBeChecked();
+  await expect(page.getByRole('menuitemcheckbox', { name: /Pane 1/ })).toBeChecked();
 });
 
 test('unticking the last pane keeps the line, marked "Not in a pane"; Show in puts it back', async ({ page }) => {
   const row = await oneLine(page, 'v');
   await row.getByRole('button', { name: 'V1: Show in…' }).click();
-  await row.getByRole('menuitemcheckbox', { name: /Pane 1/ }).click();
+  await page.getByRole('menuitemcheckbox', { name: /Pane 1/ }).click();
   await page.keyboard.press('Escape');
   await expect(row).toContainText('Not in a pane');
   await expect(row.locator('.lp-pane--none')).toBeVisible();
   await expect(page.locator('.ui-toast')).toHaveCount(1); // only the "Opened 1 file" toast, none for the toggle
   await expect(page.locator('.ui-toast')).toContainText('Opened 1 file');
   await row.getByRole('button', { name: /V1: Not in a pane/ }).click();
-  await row.getByRole('menuitemcheckbox', { name: /Pane 1/ }).click();
+  await page.getByRole('menuitemcheckbox', { name: /Pane 1/ }).click();
   await page.keyboard.press('Escape');
   await expect(row).toContainText('Shown in P1');
 });

@@ -4,6 +4,7 @@ import { createTransactionHistory } from '../../src/domain/transaction-history';
 import { initialWorkspaceEngine, workspaceEngineReducer } from '../../src/stores/aggregate-workspace-store';
 import type { ToastKind } from '../../src/stores/toast-store';
 import { ToastProvider, useToast } from '../../src/stores/toast-store';
+import { makeTestTrace } from './helpers';
 
 const setGain = (engine: ReturnType<typeof initialWorkspaceEngine>, value: string, extra: { toastMessage?: string; toastKind?: ToastKind } = {}) =>
   workspaceEngineReducer(engine, { type: 'change', ...extra, command: { slice: 'ui', action: { type: 'SET', payload: { key: 'ip3Gain', value } } } });
@@ -22,11 +23,26 @@ describe('toast policy at the source', () => {
 
   it('never raises a toast for Undo or Redo', () => {
     let engine = setGain(initialWorkspaceEngine(), '1', { toastMessage: 'Closed a file', toastKind: 'close' });
-    engine = workspaceEngineReducer(engine, { type: 'clear-notice' });
     engine = workspaceEngineReducer(engine, { type: 'undo' });
     expect(engine.toastMessage).toBeUndefined();
     engine = workspaceEngineReducer(engine, { type: 'redo' });
     expect(engine.toastMessage).toBeUndefined();
+  });
+
+  it('keeps created traces silent and gives peak-table add all its apply-all toast', () => {
+    const a = makeTestTrace({ id: 'a', name: 'a' });
+    const b = makeTestTrace({ id: 'b', name: 'b' });
+    let engine = workspaceEngineReducer(initialWorkspaceEngine(), { type: 'change', command: { slice: 'files', action: { type: 'ADD_PARSED_FILE', payload: { id: 'f', fileName: 'f.dat', text: '', parsed: { format: 'rs-dat', meta: {}, traces: [a, b] } } } } });
+    engine = { ...engine, present: { ...engine.present, files: { ...engine.present.files, files: engine.present.files.files.map(file => ({ ...file, traces: [a, b], datasets: [], displayTraces: [] })) } } };
+    engine = workspaceEngineReducer(engine, { type: 'change', command: { slice: 'analysis', action: { type: 'ADD_ANALYSIS', payload: { toolId: 'trace-math', source: { traceId: 'a', secondTraceId: 'b' } } } } });
+    engine = workspaceEngineReducer(engine, { type: 'change', command: { slice: 'analysis', action: { type: 'CREATE_ANALYSIS_OUTPUT', payload: { id: 'analysis-1' } } } });
+    expect(engine.present.traces.derivedTraces).toHaveLength(1);
+    expect(engine.toastMessage).toBeUndefined();
+    engine = workspaceEngineReducer(engine, { type: 'change', command: { slice: 'analysis', action: { type: 'FREEZE_ANALYSIS_COPY', payload: { id: 'analysis-1' } } } });
+    expect(engine.present.traces.derivedTraces).toHaveLength(2);
+    expect(engine.toastMessage).toBeUndefined();
+    engine = workspaceEngineReducer(engine, { type: 'change', toastKind: 'apply-all', toastMessage: 'Added markers', command: { slice: 'markers', action: { type: 'PLACE_MARKERS', payload: { trace: a, targetFreqs: [0, 10] } } } });
+    expect(engine.toastMessage).toBe('Added markers');
   });
 
   it('drops the oldest step silently when the history is full: no toast text of any kind', () => {

@@ -11,7 +11,7 @@ import type {
   UnitInfo,
   AxisInfo,
 } from "../types/units.ts";
-import type { OperationType, Trace } from "../types/trace.ts";
+import type { Trace } from "../types/trace.ts";
 
 // ---------------------------------------------------------------------------
 // Unit normalization
@@ -414,41 +414,6 @@ export function getUnitInfo(unit: YUnit | string | null | undefined): UnitInfo {
   const logarithmic = isLogUnit(unit);
   const canonical = (unit != null && String(unit).trim()) ? String(unit).trim() as YUnit : "Unitless" as YUnit;
   return { unit: canonical, logarithmic, dimension };
-}
-
-// ---------------------------------------------------------------------------
-// Unit compatibility (NEW consolidated function)
-// ---------------------------------------------------------------------------
-
-/** Resolve the unit of binary trace math without restricting computation. */
-export function traceMathUnit(op: OperationType, aUnit: string | null | undefined, bUnit: string | null | undefined): { unit: string | null; warning?: string } {
-  const a = normalizeUnitName(aUnit), b = normalizeUnitName(bUnit);
-  if (!a && !b) return { unit: null };
-  if (op === 'add') {
-    if ((a === 'dbm' && b === 'db') || (a === 'db' && b === 'dbm')) return { unit: 'dBm' };
-    if (a === 'db' && b === 'db') return { unit: 'dB' };
-    if (a === 'v' && b === 'v') return { unit: 'V' };
-    if (a === 'dbm' && b === 'dbm') return { unit: null, warning: 'dBm + dBm has no meaningful unit: convert to linear (W) first to add powers.' };
-  }
-  if (op === 'subtract') {
-    if (a === 'dbm' && b === 'db') return { unit: 'dBm' };
-    if ((a === 'dbm' && b === 'dbm') || (a === 'db' && b === 'db')) return { unit: 'dB' };
-    if (a === 'v' && b === 'v') return { unit: 'V' };
-  }
-  if (a === 'v' && b === 'v' && op === 'multiply') return { unit: 'V²' };
-  if (a === 'v' && b === 'v' && op === 'divide') return { unit: null };
-  const symbol = op === 'add' ? '+' : op === 'subtract' ? '−' : op === 'multiply' ? '×' : op === 'divide' ? '÷' : op;
-  return { unit: null, warning: `${aUnit?.trim() || '–'} ${symbol} ${bUnit?.trim() || '–'} has no meaningful unit.` };
-}
-
-/** Compatibility is advisory: all trace math operations remain available. */
-export function areUnitsCompatible(
-  aUnit: YUnit | string | null,
-  bUnit: YUnit | string | null,
-  op: OperationType,
-): { compatible: boolean; resultUnit: string | null; warning?: string } {
-  const advice = traceMathUnit(op, aUnit, bUnit);
-  return { compatible: true, resultUnit: advice.unit, ...(advice.warning ? { warning: advice.warning } : {}) };
 }
 
 // ---------------------------------------------------------------------------

@@ -285,7 +285,7 @@ export function resolveAnalysisTarget(args: {
   }
 
   const touchstone = getTouchstoneContextFromDataset(dataset, displayTrace) ?? getTraceTouchstoneContext(trace, files);
-  const traceLabel = displayTrace?.label ?? (trace ? (trace.dn || trace.name || '') : '');
+  const traceLabel = trace ? (trace.dn || trace.name || '') : '';
   const datasetFamily = dataset?.family ?? (touchstone ? 'network' : trace?.domain === 'time' ? 'waveform' : trace ? 'spectrum' : null);
 
   if (!trace) {

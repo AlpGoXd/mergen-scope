@@ -14,6 +14,7 @@ import type { AnalysisAction, AnalysisState } from './analysis-store';
 import { uiReducer, getInitialUiState, readThemePreference, UiStoreAdapter } from './ui-store';
 import type { UiAction, UiState } from './ui-store';
 import { adaptDisplayTracesToLegacyTraces } from '../domain/display-trace-adapter';
+import { allocateColourBlindCreated } from '../domain/trace-colors';
 import { migrateWorkspaceV5 } from '../domain/workspace-migrate-v5';
 import { canPlaceMembership, planPaneRemoval, planPaneTypeChange, traceXGroup } from '../domain/pane-placement';
 import type { PlacementTrace } from '../domain/pane-placement';
@@ -58,11 +59,11 @@ export interface WorkspaceMemento {
   readonly files: FileState; readonly traces: TraceState; readonly panes: PaneState;
   readonly markers: MarkerState['markers']; readonly lines: RefLineState['refLines']; readonly analysis: AnalysisState;
   readonly layout: WorkspaceState['layout'];
-  readonly ui: Pick<UiState, 'traceColors' | 'traceInterpolations' | 'noiseFilter' | 'noiseSource' | 'ip3Gain' | 'selectedTraceName'>;
+  readonly ui: Pick<UiState, 'traceColors' | 'traceHueSlots' | 'traceInterpolations' | 'noiseFilter' | 'noiseSource' | 'ip3Gain' | 'selectedTraceName'>;
 }
 export function captureWorkspace(state: WorkspaceState): WorkspaceMemento {
-  const {traceColors, traceInterpolations, noiseFilter, noiseSource, ip3Gain, selectedTraceName} = state.ui;
-  return {files:{...state.files,wizardQueue:state.files.wizardQueue.filter(entry => !entry.pendingBatch)}, traces:state.traces, panes:state.panes, markers:state.markers.markers, lines:state.lines.refLines, analysis:{...state.analysis, highlightedPeak:null}, layout:state.layout, ui:{traceColors,traceInterpolations,noiseFilter,noiseSource,ip3Gain,selectedTraceName}};
+  const {traceColors, traceHueSlots, traceInterpolations, noiseFilter, noiseSource, ip3Gain, selectedTraceName} = state.ui;
+  return {files:{...state.files,wizardQueue:state.files.wizardQueue.filter(entry => !entry.pendingBatch)}, traces:state.traces, panes:state.panes, markers:state.markers.markers, lines:state.lines.refLines, analysis:{...state.analysis, highlightedPeak:null}, layout:state.layout, ui:{traceColors,traceHueSlots,traceInterpolations,noiseFilter,noiseSource,ip3Gain,selectedTraceName}};
 }
 export function sameWorkspaceMemento(a: WorkspaceMemento, b: WorkspaceMemento): boolean {
   return a.files === b.files && a.traces === b.traces && a.panes === b.panes && a.markers === b.markers && a.lines === b.lines && sameValue(a.analysis, b.analysis) && a.layout === b.layout && a.ui.traceColors === b.ui.traceColors && a.ui.traceInterpolations === b.ui.traceInterpolations && a.ui.noiseFilter === b.ui.noiseFilter && a.ui.noiseSource === b.ui.noiseSource && a.ui.ip3Gain === b.ui.ip3Gain && a.ui.selectedTraceName === b.ui.selectedTraceName;
@@ -125,7 +126,7 @@ export function workspaceFromSnapshot(current: WorkspaceState, snapshot: Workspa
     markers:{...current.markers, markers:[...snapshot.markers], selectedMkrIdx:-1, armed:null, nextMarkerSerial:1},
     lines:{...current.lines, refLines:[...snapshot.refLines], refMode:null, selectedRefLineId:(snapshot.ui as typeof snapshot.ui & {selectedRefLineId?: number | null}).selectedRefLineId ?? null},
     analysis:analysisReducer(current.analysis,{type:'RESTORE',payload:{...snapshot.analysisResults, analysisOpenState:snapshot.analysisOpenState, analyses:[...(snapshot.analyses ?? [])]}}),
-    ui:{...current.ui, ...snapshot.ui, selectedTraceName:snapshot.selectedTraceName, paneAssignmentWarning:null, activeWizard:null},
+    ui:{...current.ui, ...snapshot.ui, traceHueSlots:Object.fromEntries(allocateColourBlindCreated(view.allKnownTraces, new Map(Object.entries(snapshot.ui.traceHueSlots ?? {})))), selectedTraceName:snapshot.selectedTraceName, paneAssignmentWarning:null, activeWizard:null},
     layout:snapshot.layout,
   };
 }
@@ -342,15 +343,18 @@ export function workspaceReducer(state: WorkspaceState, command: WorkspaceAction
     case 'markers': {
       const markers = markerReducer(state.markers, command.action);
       const selects = ((command.action.type === 'PLACE_MARKER' || command.action.type === 'PLACE_MARKERS') && markers !== state.markers) || (command.action.type === 'SET_SELECTED_IDX' && command.action.payload >= 0);
-      next = { ...state, markers, lines: selects && markers.selectedMkrIdx >= 0 ? { ...state.lines, selectedRefLineId: null } : state.lines }; break;
+      next = { ...state, markers, lines: selects && markers.selectedMkrIdx >= 0 ? { ...state.lines, selectedRefLineId: null } : state.lines, ui: selects && markers.selectedMkrIdx >= 0 ? { ...state.ui, selectedTraceName: null } : state.ui }; break;
     }
     case 'lines': {
       const lines = refLineReducer(state.lines, command.action);
       const selects = (command.action.type === 'ADD_LINE' && lines !== state.lines) || (command.action.type === 'SET_SELECTED' && command.action.payload !== null);
-      next = { ...state, lines, markers: selects && lines.selectedRefLineId !== null ? { ...state.markers, selectedMkrIdx: -1 } : state.markers }; break;
+      next = { ...state, lines, markers: selects && lines.selectedRefLineId !== null ? { ...state.markers, selectedMkrIdx: -1 } : state.markers, ui: selects && lines.selectedRefLineId !== null ? { ...state.ui, selectedTraceName: null } : state.ui }; break;
     }
     case 'analysis': next = { ...state, analysis: analysisReducer(state.analysis, command.action) }; break;
-    case 'ui': next = { ...state, ui: uiReducer(state.ui, command.action) }; break;
+    case 'ui': {
+      const selects = command.action.type === 'SET' && command.action.payload.key === 'selectedTraceName' && typeof command.action.payload.value === 'string';
+      next = { ...state, ui: uiReducer(state.ui, command.action), markers: selects ? { ...state.markers, selectedMkrIdx: -1 } : state.markers, lines: selects ? { ...state.lines, selectedRefLineId: null } : state.lines }; break;
+    }
     case 'panes': {
       let action = command.action;
       if (!['SET_PANE_COUNT','SET_RENDER_MODE','CREATE_PANE_WITH_TRACE','ASSIGN_TRACE_TO_PANE','ADD_MEMBERSHIP','MOVE_MEMBERSHIP'].includes(action.type)) {
@@ -426,7 +430,7 @@ export function workspaceReducer(state: WorkspaceState, command: WorkspaceAction
     }
     next = { ...next, panes: paneReducer(next.panes, { type: 'RECONCILE', payload: known }) };
     const visible = traceView(next.files,next.traces).allTraces;
-    if (!next.ui.selectedTraceName || !visible.some(trace => trace.name === next.ui.selectedTraceName && next.traces.vis[trace.name])) { const first=visible.find(trace => next.traces.vis[trace.name]); next={...next,ui:{...next.ui,selectedTraceName:first?.name ?? null}}; }
+    if (next.ui.selectedTraceName && !visible.some(trace => trace.name === next.ui.selectedTraceName && next.traces.vis[trace.name])) next={...next,ui:{...next.ui,selectedTraceName:null}};
   }
   if (next.panes.panes !== state.panes.panes) next = { ...next, lines: refLineReducer(next.lines, { type: 'CLEANUP_ORPHANED_LINES', payload: { paneIds: next.panes.panes.map(p => p.id) } }) };
   return { ...next, revision: state.revision + 1 };
@@ -456,7 +460,7 @@ function recordable(command: WorkspaceAction): boolean {
   if (command.slice === 'markers') return !['ARM','SET_TRACE','SET_SELECTED_IDX'].includes(command.action.type);
   if (command.slice === 'lines') return !['SET_MODE','SET_SELECTED','SET_HOVERED','SET_PANE_VIEW','CLEANUP_ORPHANED_LINES'].includes(command.action.type);
   if (command.slice === 'analysis') return command.action.type !== 'SET_HIGHLIGHTED_PEAK';
-  if (command.slice === 'ui') return command.action.type === 'SET' && ['traceColors','traceInterpolations','noiseFilter','noiseSource','ip3Gain','selectedTraceName'].includes(command.action.payload.key);
+  if (command.slice === 'ui') return command.action.type === 'SET' && ['traceColors','traceInterpolations','noiseFilter','noiseSource','ip3Gain'].includes(command.action.payload.key);
   return false;
 }
 export function workspaceEngineReducer(engine: WorkspaceEngine, action: WorkspaceEngineAction): WorkspaceEngine {
@@ -472,10 +476,12 @@ export function workspaceEngineReducer(engine: WorkspaceEngine, action: Workspac
   if (action.type === 'undo' || action.type === 'redo') {
     const current = engine.gesture ? restoreWorkspaceMemento(engine.present,engine.gesture) : engine.present;
     const moved = action.type === 'undo' ? undoTransaction(engine.history,captureWorkspace(current)) : redoTransaction(engine.history,captureWorkspace(current));
-    return {...engine,present:moved.state ? restoreWorkspaceMemento(current,moved.state) : current,history:moved.history,gesture:null,historyNotice:moved.outcome === 'moved-pruned' ? 'pruned' : null};
+    return {...engine,present:moved.state ? restoreWorkspaceMemento(current,moved.state) : current,history:moved.history,gesture:null,historyNotice:moved.outcome === 'moved-pruned' ? 'pruned' : null,toastMessage:undefined};
   }
   if (action.type !== 'change') return engine;
-  const next = workspaceReducer(engine.present,action.command);
+  const reduced = workspaceReducer(engine.present,action.command);
+  const slots = Object.fromEntries(allocateColourBlindCreated(traceView(reduced.files, reduced.traces).allKnownTraces, new Map(Object.entries(reduced.ui.traceHueSlots))));
+  const next = sameValue(slots, reduced.ui.traceHueSlots) ? reduced : { ...reduced, ui: { ...reduced.ui, traceHueSlots: slots } };
   if (next === engine.present) return engine;
   if (engine.gesture || !(action.record ?? recordable(action.command))) return {...engine,present:next};
   const result = recordTransaction(engine.history,captureWorkspace(engine.present),captureWorkspace(next),sameValue);

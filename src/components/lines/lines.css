@@ -7,7 +7,7 @@
  */
 
 /* ---------- left panel: line row additions ---------- */
-.ln-row.is-lit { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.ln-row.is-lit:not(.lp-selected) { background: var(--panel); }
 .ln-row.is-unplaced .lp-tag--line { border-style: dotted; color: var(--text-muted); }
 .ln-row .lp-panes { min-width: 18px; justify-content: flex-end; }
 .ln-row .lp-panes:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }

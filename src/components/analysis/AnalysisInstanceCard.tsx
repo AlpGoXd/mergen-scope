@@ -2,16 +2,17 @@
 // The tool's params become the generated form, its outputs become key/value rows, a headline result,
 // crossings, or a created trace row. All formatting comes from domain/analysis/card-view.ts.
 import { useMemo, useState } from 'react';
+import type { CSSProperties } from 'react';
 import './kit/analysis.css';
 import './peak-rows.css';
-import { AnalysisCard, CardMsg, CreateRow, CrossingsList, KeyValues, OutputRow, Params, Result, Results } from './kit/Analysis';
+import { AnalysisCard, CardMsg, CreateRow, CrossingsList, KeyValues, Params, Result, Results } from './kit/Analysis';
 import type { ParamField } from './kit/types';
 import { Menu as KitMenu } from '../left-panel/Menu';
 import { PopoverAt } from '../shared/Controls';
 import { useAnalysisContext } from '../../hooks/use-analysis-context';
 import { useAnalysisDispatch, useAnalysisState } from '../../stores/analysis-store';
 import { useOptionalAggregateWorkspace } from '../../stores/aggregate-workspace-store';
-import { useTraceState } from '../../stores/trace-store';
+import { useTraceDispatch, useTraceState } from '../../stores/trace-store';
 import { useUiDispatch } from '../../stores/ui-store';
 import { useMarkerDispatch } from '../../stores/marker-store';
 import { getAnalysisTool } from '../../domain/analysis/tool-registry';
@@ -26,7 +27,7 @@ import { parseEngInput } from '../../domain/units';
 import type { AnalysisInstance } from '../../types/analysis-instance';
 import type { AnalysisTool, ParameterField, ParameterSchema, ParameterValue } from '../../types/registry-contract';
 import type { Trace } from '../../types/trace';
-import type { OperationType } from '../../types/trace';
+import type { TraceMathOp } from '../../domain/trace-math-units';
 
 const NO_SOURCE_PICKER = new Set(['line-crossings', 'reciprocity-isolation', 'stability', 'ip3']);
 const SEGMENT_LABELS: Record<string, string> = { visible: 'Visible', all: 'All', add: '+', subtract: '−', multiply: '×', divide: '÷', gaussian: 'Gaussian', flattop: 'Flat top', fivepole: 'Five-pole' };
@@ -48,6 +49,8 @@ export function AnalysisInstanceCard({ instance }: { instance: AnalysisInstance 
   const uiDispatch = useUiDispatch();
   const aggregate = useOptionalAggregateWorkspace();
   const { derivedTraces } = useTraceState();
+  const traceDispatch = useTraceDispatch();
+  const [editingOutput, setEditingOutput] = useState(false);
   const [select, setSelect] = useState<SelectState | null>(null);
   const [menu, setMenu] = useState<HTMLElement | null>(null);
   const [invalidKey, setInvalidKey] = useState<string | null>(null);
@@ -133,8 +136,15 @@ export function AnalysisInstanceCard({ instance }: { instance: AnalysisInstance 
     rows: group.rows.map(row => ({ id: row.id, hue: hueOf(row.traceName), trace: shortName(row.traceName), value: row.value, current: row.id === currentRow })),
   }));
   const output = instance.outputTraceId ? derivedTraces.find(trace => trace.id === instance.outputTraceId) : undefined;
+  const renameOutput = (value: string) => {
+    if (!output) return;
+    const label = value.trim() || instance.autoName || output.name;
+    if (label === output.dn) return;
+    const action = { type: 'RENAME_DERIVED' as const, payload: { traceId: output.id, label } };
+    if (aggregate) aggregate.historyDispatch({ type: 'change', command: { slice: 'traces', action } }); else traceDispatch(action);
+  };
   const disabledReason = instance.toolId === 'trace-math' && (!source || !second) ? 'Pick trace A and trace B.' : result.reason ?? (!source ? 'Pick a trace.' : undefined);
-  const mathWarning = instance.toolId === 'trace-math' && source && second ? traceMathAdvice((instance.params['operation'] ?? 'add') as OperationType, source, second) : undefined;
+  const mathWarning = instance.toolId === 'trace-math' && source && second ? traceMathAdvice((instance.params['operation'] ?? 'add') as TraceMathOp, source, second) : undefined;
   const summary = numbers?.summary ?? (crossings ? `${crossings.total} crossing${crossings.total === 1 ? '' : 's'}` : output ? `→ ${traceLabel(output)}` : undefined);
 
   const peakTable = instance.toolId === 'peak-table' ? result.outputs?.find(item => item.type === 'table') : undefined;
@@ -191,7 +201,11 @@ export function AnalysisInstanceCard({ instance }: { instance: AnalysisInstance 
         ) : null}
         {tool.kind === 'math' ? (
           output
-            ? <OutputRow hue={hueOf(output.name)} name={traceLabel(output)} panes={(ctx.tracePaneMap[output.name] ?? []).map(paneBadge)} />
+            ? <div className="an-output" tabIndex={0} onKeyDown={event => { if (event.key === 'F2') { event.preventDefault(); event.stopPropagation(); setEditingOutput(true); } }}>
+                <span className="an-output__arrow" aria-hidden="true">→</span><span className="an-output__swatch is-created" style={{ '--h': hueOf(output.name) } as CSSProperties} /><span className="an-output__fx" aria-hidden="true">ƒ</span>
+                {editingOutput ? <input className="an-output__name" aria-label="Trace name" data-testid="trace-name-input" defaultValue={traceLabel(output)} ref={el => { if (el && document.activeElement !== el) { el.focus(); el.select(); } }} onBlur={event => { renameOutput(event.currentTarget.value); setEditingOutput(false); }} onKeyDown={event => { event.stopPropagation(); if (event.key === 'Enter') event.currentTarget.blur(); if (event.key === 'Escape') { event.preventDefault(); setEditingOutput(false); } }} /> : <span className="an-output__name" onDoubleClick={() => setEditingOutput(true)}>{traceLabel(output)}</span>}
+                {(ctx.tracePaneMap[output.name] ?? []).map(paneBadge).map(pane => <span key={pane} className="an-pane-badge">{pane}</span>)}<span className="an-output__note">follows inputs</span>
+              </div>
             : <CreateRow {...(disabledReason ? { disabledReason } : {})} onCreate={() => analysisDispatch({ type: 'CREATE_ANALYSIS_OUTPUT', payload: { id: instance.id } })} />
         ) : null}
         </Results>
@@ -207,6 +221,7 @@ export function AnalysisInstanceCard({ instance }: { instance: AnalysisInstance 
           <KitMenu label={`${title} actions`} entries={[
             ...(instance.toolId === 'peak-table' ? [{ label: 'Add all as markers', ...(!missingPeaks.length || !source ? { disabledReason: 'All peaks already have markers' } : {}), onSelect: addAllMarkers }] : []),
             ...(tool.kind === 'math' && output ? [{ label: 'Freeze as a copy', onSelect: () => { setMenu(null); analysisDispatch({ type: 'FREEZE_ANALYSIS_COPY', payload: { id: instance.id } }); } }] : []),
+            ...(output && instance.autoName !== undefined && output.dn !== instance.autoName ? [{ label: 'Reset name', onSelect: () => { setMenu(null); renameOutput(''); } }] : []),
             ...(tool.kind === 'measure' || output ? [{ label: 'Copy results', onSelect: () => { setMenu(null); copy(crossings ? crossingsCsv(crossings.groups, paneBadge, valueLabel) : resultsText(title, numbers)); } }, 'separator' as const] : []),
             { label: 'Remove', danger: true, onSelect: () => { setMenu(null); remove(); } },
           ]} />

@@ -10,7 +10,7 @@ async function twoPanesWithLine(page: Page) {
   await page.getByRole('button', { name: '+ Pane', exact: true }).click();
   const trace = page.locator('[data-testid^="trace-row-"]').first();
   await trace.getByTitle('Show in panes').click();
-  await trace.getByRole('menu', { name: 'Show in' }).getByRole('menuitemcheckbox', { name: /Pane 2/ }).click();
+  await page.getByRole('menu', { name: 'Show in' }).getByRole('menuitemcheckbox', { name: /Pane 2/ }).click();
   await page.keyboard.press('Escape');
   await page.getByRole('button', { name: 'V-Line' }).click();
   await page.getByTestId('chart-plot-pane-1').click({ position: { x: 260, y: 60 } });
@@ -18,7 +18,7 @@ async function twoPanesWithLine(page: Page) {
   await expect(placed).toContainText('Shown in P1');
   await expect(placed).not.toContainText('P2');
   await placed.getByRole('button', { name: 'V1: Show in…' }).click();
-  await placed.getByRole('menuitemcheckbox', { name: /Pane 2/ }).click();
+  await page.getByRole('menuitemcheckbox', { name: /Pane 2/ }).click();
   await page.keyboard.press('Escape');
   await expect(placed).toContainText('Shown in P1, P2');
 }

@@ -80,6 +80,7 @@ export interface TraceBase {
 
   /** The operation that produced this trace, or `null` for raw traces. */
   readonly operationType: OperationType | null;
+  readonly automaticDisplayName?: string;
 
   /** Operation parameters (window size, poly order, etc.). */
   readonly parameters: Record<string, unknown> | null;

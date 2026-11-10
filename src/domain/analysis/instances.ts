@@ -8,7 +8,7 @@ import type { BinaryOp } from '../trace-ops';
 import { alignAndCompute, describeStimulus } from './trace-math-align';
 import type { MathFill, MathPoints } from './trace-math-align';
 import { derived } from './tools/shared';
-import { traceMathUnit } from '../units';
+import { traceMathUnit } from '../trace-math-units';
 
 export type InstanceResult = { readonly outputs: readonly AnalysisOutput[]; readonly reason?: never } | { readonly outputs?: never; readonly reason: string };
 
@@ -64,7 +64,7 @@ export function computeInstance(instance: AnalysisInstance, inputs: AnalysisInpu
     if (instance.outputTraceId && !points && !fill && !describeStimulus(primary, second).identical) {
       const computation = computeBinaryTraceMathData(primary.data, second.data, 'auto', operation);
       if (computation.error || !computation.data) return { reason: computation.error ?? 'No valid points to combine.' };
-      return { outputs: [{ type: 'trace', trace: { ...derived(primary, computation.data, operation, { ...validated.values }, [primary.id, second.id]), units: { ...primary.units, y: traceMathUnit(operation, primary.units.y, second.units.y).unit } } }] };
+      return { outputs: [{ type: 'trace', trace: { ...derived(primary, computation.data, operation, { ...validated.values }, [primary.id, second.id]), units: { ...primary.units, y: traceMathUnit(primary.units.y, second.units.y, operation).unit } } }] };
     }
     const computation = alignAndCompute(primary, second, operation, points, fill);
     if ('reason' in computation) return { reason: computation.reason };

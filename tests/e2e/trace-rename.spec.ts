@@ -1,0 +1,52 @@
+import { expect, test } from '@playwright/test';
+import { resolve } from 'node:path';
+import { addAnalysis } from './analysis-helpers';
+
+test('trace names edit in place and reset', async ({ page }) => {
+  await page.goto('/app.html');
+  await page.getByTestId('empty-chart-file-input').setInputFiles(resolve('test files/cascade_ip3_-12dBm.DAT'));
+  const row = page.locator('[data-testid^="trace-row-"]').first();
+  const name = row.locator('.lp-name');
+  const original = await name.innerText();
+  await row.getByRole('button', { name: /^Trace menu: / }).click();
+  await expect(page.getByRole('menuitem', { name: 'Reset name' })).toHaveCount(0);
+  await page.getByRole('menuitem', { name: 'Rename', exact: true }).click();
+  await row.getByTestId('trace-name-input').fill('Discard');
+  await page.keyboard.press('Escape');
+  await expect(name).toHaveText(original);
+  await name.dblclick();
+  await row.getByTestId('trace-name-input').fill('Custom trace');
+  await page.keyboard.press('Enter');
+  await expect(name).toHaveText('Custom trace');
+  await expect(page.locator('.ui-toast')).toHaveCount(0);
+  await row.focus(); await page.keyboard.press('F2');
+  await expect(row.getByTestId('trace-name-input')).toBeFocused();
+  await row.getByTestId('trace-name-input').fill('Discard'); await page.keyboard.press('Escape');
+  await expect(name).toHaveText('Custom trace');
+  await row.click(); await page.locator('body').focus(); await page.keyboard.press('F2');
+  await expect(row.getByTestId('trace-name-input')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await row.getByRole('button', { name: /^Trace menu: / }).click();
+  await page.getByRole('menuitem', { name: 'Reset name' }).click();
+  await expect(name).toHaveText(original);
+  await page.keyboard.press('Control+z'); await expect(name).toHaveText('Custom trace');
+  await name.dblclick(); await row.getByTestId('trace-name-input').fill('   '); await page.keyboard.press('Enter');
+  await expect(name).toHaveText(original);
+});
+
+test('a math output rename is shared with the trace list', async ({ page }) => {
+  await page.goto('/app.html');
+  await page.getByTestId('empty-chart-file-input').setInputFiles(resolve('test files/cascade_ip3_-12dBm.DAT'));
+  const card = await addAnalysis(page, 'Smooth');
+  await card.getByRole('button', { name: 'Create trace' }).click();
+  await card.locator('.an-output__name').dblclick();
+  await card.getByTestId('trace-name-input').fill('Smoothed custom');
+  await page.keyboard.press('Enter');
+  await expect(page.locator('[data-testid^="trace-row-"]').filter({ hasText: 'Smoothed custom' })).toBeVisible();
+  await card.getByRole('textbox').first().fill('7');
+  await card.getByRole('textbox').first().press('Enter');
+  await expect(card.locator('.an-output__name')).toHaveText('Smoothed custom');
+  await card.locator('.an-icon-btn--more').click();
+  await page.getByRole('menuitem', { name: 'Reset name' }).click();
+  await expect(card.locator('.an-output__name')).not.toHaveText('Smoothed custom');
+});

@@ -162,9 +162,11 @@
   font-family: var(--font-mono); font-size: 11px; cursor: pointer;
 }
 .lp-cell.is-diag { background: var(--diag-bg); }
-.lp-cell[aria-pressed='true'] { background: var(--trace-tint); border: 1.5px solid var(--trace); color: var(--text); font-weight: 600; }
+.lp-grid > .ui-tooltip-anchor { display: flex; min-width: 0; }
+.lp-grid > .ui-tooltip-anchor > .lp-cell { width: 100%; }
+.lp-cell__count { position: absolute; right: 2px; top: 0; font-size: var(--font-caption); color: var(--text-muted); }
 .lp-cell.is-small { height: 22px; font-size: 9px; }
-.lp-cell__dot { position: absolute; right: 3px; top: 3px; width: 5px; height: 5px; border-radius: 50%; background: var(--trace); }
+.matrix-highlight .lp-trace { outline: 2px solid var(--accent); outline-offset: 1px; }
 .lp-list { display: flex; flex-direction: column; gap: 6px; }
 .lp-list__chips { display: flex; flex-wrap: wrap; gap: 4px; }
 .lp-list__chip {
@@ -187,10 +189,10 @@
 .lp-colhead__interp { width: 30px; text-align: center; }
 .lp-colhead__pane { width: 22px; text-align: center; }
 .lp-colhead__end { width: 12px; }
-.lp-trace { border: 1px solid transparent; border-radius: 5px; padding: 0 6px; }
-.lp-trace.is-selected { border: 1.5px solid var(--trace); }
+.lp-trace { border: 1.5px solid transparent; border-radius: 5px; padding: 0 6px; }
+.lp-trace.lp-selected { border-color: var(--trace); }
 .lp-trace.is-hidden { opacity: 0.6; }
-.lp-trace.is-unplaced { border: 1px dashed var(--border-strong); }
+.lp-trace.is-unplaced:not(.lp-selected) { border-style: dashed; border-color: var(--border-strong); }
 .lp-trace__check { flex: none; width: 12px; height: 12px; margin: 0; accent-color: var(--accent); }
 .lp-swatch { flex: none; width: 9px; height: 9px; border-radius: 2px; background: var(--trace); }
 .lp-trace.is-hidden .lp-swatch { background: none; border: 1.5px solid var(--trace); }
@@ -200,10 +202,10 @@
 .lp-sub__text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ---------- marker item (C01) ---------- */
-.lp-marker { border: 1px solid var(--border); border-radius: 5px; background: var(--raised); padding: 0 6px; }
+.lp-marker { border: 1.5px solid var(--border); border-radius: 5px; background: var(--raised); padding: 0 6px; }
 .lp-marker.is-delta { background: var(--trace-tint); }
-.lp-marker.is-selected { border: 1.5px solid var(--trace); }
-.lp-marker.is-related { box-shadow: 0 0 0 2px var(--sel-line); }
+.lp-marker.lp-selected { border-color: var(--trace); box-shadow: none; }
+.lp-marker.is-related:not(.lp-selected) { box-shadow: 0 0 0 2px var(--sel-line); }
 .lp-marker .lp-row, .lp-line .lp-row { height: 28px; }
 .lp-tag {
   flex: none; height: 16px; min-width: 22px; display: inline-flex; align-items: center; justify-content: center; padding: 0 3px;
@@ -222,7 +224,8 @@
 .lp-from { display: inline-flex; align-items: center; gap: 2px; height: 14px; padding: 0 3px; border-radius: 3px; border: 0; background: var(--tag-bg); color: var(--tag-ink); font-family: var(--font-mono); font-size: 9.5px; font-weight: 600; cursor: pointer; }
 
 /* ---------- line row (new) ---------- */
-.lp-line { border: 1px solid var(--border); border-radius: 5px; background: var(--raised); padding: 0 6px; }
+.lp-line { border: 1.5px solid var(--border); border-radius: 5px; background: var(--raised); padding: 0 6px; }
+.lp-line.lp-selected { border-color: var(--accent); box-shadow: none; }
 .lp-link-icon { flex: none; display: inline-flex; padding: 0; border: 0; background: none; color: var(--text-muted); cursor: pointer; }
 .lp-link-icon[aria-pressed='true'] { color: var(--accent); }
 .lp-link-icon:disabled { opacity: 0.35; cursor: not-allowed; }
@@ -277,7 +280,7 @@
 
 .lp-action-menu .ui-menu-root > button { font-size: 0; }
 .lp-action-menu .ui-menu-root > button::after { content: "\22ef"; font-size: 12px; }
-.lp .ui-popover:has(.lp-menu) { padding: 0; border: 0; background: transparent; box-shadow: none; }
+.ui-popover:has(.lp-menu) { padding: 0; border: 0; background: transparent; box-shadow: none; }
 
 /* Shared popover triggers retain the kit's compact faces. */
 .lp-more-trigger, .lp-pane-trigger { position: relative; display: inline-flex; flex: none; }
@@ -288,4 +291,6 @@
 .lp-pane-trigger > .ui-menu-root > button { border: 0; background: transparent; height: 18px; width: 100%; }
 .lp-pane-trigger__face { gap: 3px; }
 .lp-color-control { position: relative; overflow: hidden; }
+.lp-swatch.lp-swatch--symbol, .lp-trace.is-hidden .lp-swatch.lp-swatch--symbol { display: block; position: relative; box-sizing: border-box; flex: 0 0 16px; width: 16px; height: 12px; padding: 0; border-radius: 0; background: transparent; border: 0; overflow: visible; }
+.lp-swatch--symbol > svg { display: block; position: absolute; top: 0; left: 0; width: 16px; height: 12px; max-width: none; overflow: visible; }
 .lp-color-control input[type=color] { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }

@@ -120,7 +120,7 @@ export function prepareOpenInput(input: PrepareOpenInput): PreparedOpenInput {
   const add = (key: string, fresh: DisplayTrace): boolean => {
     const old = oldByKey.get(key); const oldTrace = oldTraceByKey.get(key);
     const display: DisplayTrace = old ? { ...fresh, id: old.id, hidden: old.hidden, interpolation: old.interpolation,
-      compat: { ...fresh.compat, legacyTraceName: oldTrace?.name ?? old.compat?.legacyTraceName, legacyDisplayName: oldTrace?.dn ?? old.compat?.legacyDisplayName } } : fresh;
+      compat: { ...fresh.compat, legacyTraceName: oldTrace?.name ?? old.compat?.legacyTraceName, legacyDisplayName: oldTrace?.dn ?? old.compat?.legacyDisplayName, automaticDisplayName: old.compat?.automaticDisplayName } } : fresh;
     const adapted = adaptDisplayTraceToLegacyTrace(datasets, display, file);
     if (!adapted) return false;
     const trace: Trace = oldTrace ? { ...adapted, name: oldTrace.name, dn: oldTrace.dn } : adapted;

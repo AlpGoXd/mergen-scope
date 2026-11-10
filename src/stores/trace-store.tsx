@@ -69,7 +69,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
       return { ...state, derivedTraces };
     }
     case 'RENAME_DERIVED': {
-      return { ...state, derivedTraces: state.derivedTraces.map(trace => trace.id === action.payload.traceId ? { ...trace, dn: action.payload.label } : trace) };
+      return { ...state, derivedTraces: state.derivedTraces.map(trace => trace.id === action.payload.traceId && trace.kind === 'derived' ? { ...trace, automaticDisplayName: trace.automaticDisplayName ?? trace.dn, dn: action.payload.label } : trace) };
     }
     case 'SET_DERIVED_INTERPOLATION': {
       const { traceId, interpolation } = action.payload;

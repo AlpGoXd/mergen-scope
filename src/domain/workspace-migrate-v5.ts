@@ -9,6 +9,8 @@ import type { ParameterSchema } from '../types/registry-contract';
 import { ANALYSIS_TOOLS, getAnalysisTool } from './analysis/tool-registry';
 import { createInstance } from './analysis/instances';
 import { validateParameters } from './analysis/tool-contract';
+import { SOURCE_HUES, CREATED_HUES } from './trace-palette';
+import type { TraceColorAssignment } from './trace-palette';
 
 const object = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === 'object' && !Array.isArray(value);
 const version = (value: unknown): boolean => value === undefined || (Number.isInteger(value) && Number(value) >= 1 && Number(value) <= 5);
@@ -17,6 +19,14 @@ const finite = (v: unknown): v is number => typeof v === 'number' && Number.isFi
 const stringMap = (v: unknown): boolean => object(v) && Object.values(v).every(x => typeof x === 'string');
 const boolMap = (v: unknown): boolean => object(v) && Object.values(v).every(x => typeof x === 'boolean');
 const strings = (v: unknown): v is string[] => Array.isArray(v) && v.every(x => typeof x === 'string');
+function hueSlots(value: unknown): Record<string, TraceColorAssignment> | undefined | null {
+  if (value === undefined) return undefined;
+  if (!object(value)) return null;
+  const values = Object.values(value);
+  if (values.length && values.every(item => typeof item === 'number' && Number.isFinite(item))) return undefined;
+  if (!values.every(item => object(item) && (item.palette === 'source' || item.palette === 'created') && Number.isInteger(item.index) && Number(item.index) >= 0 && Number(item.index) < 8 && Number.isSafeInteger(item.round) && Number(item.round) >= 0 && item.hue === (item.palette === 'source' ? SOURCE_HUES : CREATED_HUES)[Number(item.index)] && (item.cbIndex === undefined || (item.palette === 'created' && Number.isInteger(item.cbIndex) && Number(item.cbIndex) >= 0 && Number(item.cbIndex) < 8)) && Object.keys(item).every(key => ['palette', 'index', 'round', 'hue', 'cbIndex'].includes(key)))) return null;
+  return value as Record<string, TraceColorAssignment>;
+}
 
 /** Reject invalid analysis references just as invalid pane memberships are rejected. */
 function validAnalyses(value: unknown, derived: readonly unknown[]): value is AnalysisInstance[] {
@@ -237,7 +247,7 @@ function validGraph(body: Record<string, unknown>, traceIds: Set<string>, traceN
     if ((source.sourceType === 'iq' || source.sourceType === 'symbol') && source.sourceType !== dataset.family) return false;
     const id = d.id as string; const existing = knownTraces.get(id);
     const compat = object(d.compat) ? d.compat : {};
-    if (d.compat !== undefined && (!object(d.compat) || (compat.legacyTraceName !== undefined && typeof compat.legacyTraceName !== 'string') || (compat.legacyDisplayName !== undefined && typeof compat.legacyDisplayName !== 'string'))) return false;
+    if (d.compat !== undefined && (!object(d.compat) || (compat.legacyTraceName !== undefined && typeof compat.legacyTraceName !== 'string') || (compat.legacyDisplayName !== undefined && typeof compat.legacyDisplayName !== 'string') || (compat.automaticDisplayName !== undefined && typeof compat.automaticDisplayName !== 'string'))) return false;
     const name = typeof compat.legacyTraceName === 'string' && compat.legacyTraceName ? compat.legacyTraceName : id;
     if (existing) {
       if (typeof compat.legacyTraceName === 'string' && compat.legacyTraceName !== existing.name) return false;
@@ -301,7 +311,7 @@ function validCurrent(body: Record<string, unknown>): boolean {
   for (const trace of body.derivedTraces) { if (!object(trace)) return false; traces.push(trace); }
   const traceIds = new Set<string>(); const traceNames = new Set<string>();
   for (const trace of traces) {
-    if (!optionalBoolean(trace.isUniform) || !interpolation(trace.interpolation) || !['raw','derived'].includes(String(trace.kind)) || !['time','frequency'].includes(String(trace.domain)) || !strings(trace.sourceTraceIds) || !object(trace.units) || !nullableString(trace.units.x) || !nullableString(trace.units.y) || !(trace.parameters === null || object(trace.parameters)) || !(trace.paneId === null || typeof trace.paneId === 'string') || typeof trace.mode !== 'string' || typeof trace.detector !== 'string' || !['spectrum','network','waveform','iq','symbol'].includes(String(trace.family)) || !nullableString(trace.file) || typeof trace.dn !== 'string' || (trace.kind === 'raw' ? trace.operationType !== null : !['add','subtract','multiply','divide','offset','scale','smooth','noise-psd','derived'].includes(String(trace.operationType))) || (trace.touchstoneNetwork !== undefined && !validNetwork(trace.touchstoneNetwork)) || typeof trace.id !== 'string' || !trace.id || traceIds.has(trace.id) || typeof trace.name !== 'string' || !trace.name || traceNames.has(trace.name) || !Array.isArray(trace.data) || trace.data.some(point => !object(point) || !finite(point.freq) || !finite(point.amp))) return false;
+    if ((trace.automaticDisplayName !== undefined && typeof trace.automaticDisplayName !== 'string') || !optionalBoolean(trace.isUniform) || !interpolation(trace.interpolation) || !['raw','derived'].includes(String(trace.kind)) || !['time','frequency'].includes(String(trace.domain)) || !strings(trace.sourceTraceIds) || !object(trace.units) || !nullableString(trace.units.x) || !nullableString(trace.units.y) || !(trace.parameters === null || object(trace.parameters)) || !(trace.paneId === null || typeof trace.paneId === 'string') || typeof trace.mode !== 'string' || typeof trace.detector !== 'string' || !['spectrum','network','waveform','iq','symbol'].includes(String(trace.family)) || !nullableString(trace.file) || typeof trace.dn !== 'string' || (trace.kind === 'raw' ? trace.operationType !== null : !['add','subtract','multiply','divide','offset','scale','smooth','noise-psd','derived'].includes(String(trace.operationType))) || (trace.touchstoneNetwork !== undefined && !validNetwork(trace.touchstoneNetwork)) || typeof trace.id !== 'string' || !trace.id || traceIds.has(trace.id) || typeof trace.name !== 'string' || !trace.name || traceNames.has(trace.name) || !Array.isArray(trace.data) || trace.data.some(point => !object(point) || !finite(point.freq) || !finite(point.amp))) return false;
     traceIds.add(trace.id); traceNames.add(trace.name);
   }
   if (!validGraph(body, traceIds, traceNames)) return false;
@@ -334,6 +344,7 @@ export function migrateWorkspaceV5(raw: unknown): WorkspaceSnapshotV5 | null {
   if (body.datasets !== undefined && !Array.isArray(body.datasets)) return null;
   if (body.panes !== undefined && (!Array.isArray(body.panes) || body.panes.length < 1 || body.panes.length > 8 || body.panes.some(p => !object(p) || typeof p.id !== 'string' || !p.id))) return null;
   if (body.traceAssignments !== undefined && !object(body.traceAssignments)) return null;
+  if (object(body.ui) && hueSlots(body.ui.traceHueSlots) === null) return null;
   if (body.version === 5) {
     const paneOrder = Array.isArray(body.panes) ? body.panes.flatMap(pane => object(pane) && typeof pane.id === 'string' ? [pane.id] : []) : [];
     const refLines = migrateLines(body.refLines, paneOrder);
@@ -341,9 +352,11 @@ export function migrateWorkspaceV5(raw: unknown): WorkspaceSnapshotV5 | null {
     const snapshot = { ...body, refLines } as unknown as WorkspaceSnapshotV5;
     // Browser preferences and other transient UI keys are not workspace state.
     const { traceColors, traceInterpolations, noiseFilter, noiseSource, ip3Gain } = snapshot.ui;
+    const traceHueSlots = hueSlots(snapshot.ui.traceHueSlots);
+    if (traceHueSlots === null) return null;
     const selectedRefLineId = selectedLineId(body.ui, body.refLines, refLines);
     const migrated = snapshot.analyses === undefined ? legacyAnalyses(snapshot) : {};
-    return { ...snapshot, ...migrated, ...(snapshot.analyses ? { analyses: withoutLegacyLive(snapshot.analyses, snapshot.derivedTraces) } : {}), ui: { traceColors, traceInterpolations, noiseFilter, noiseSource, ip3Gain, ...(selectedRefLineId !== undefined ? { selectedRefLineId } : {}) } };
+    return { ...snapshot, ...migrated, ...(snapshot.analyses ? { analyses: withoutLegacyLive(snapshot.analyses, snapshot.derivedTraces) } : {}), ui: { traceColors, traceHueSlots, traceInterpolations, noiseFilter, noiseSource, ip3Gain, ...(selectedRefLineId !== undefined ? { selectedRefLineId } : {}) } };
   }
   try {
     let normalized = migrateWorkspaceSnapshot(body);
@@ -462,7 +475,7 @@ export function migrateWorkspaceV5(raw: unknown): WorkspaceSnapshotV5 | null {
       },
       activePaneId: typeof body.activePaneId === 'string' && valid.has(body.activePaneId) ? body.activePaneId : panes[0]?.id ?? 'pane-1',
       layout: { preset, paneOrder, sizes: object(layout.sizes) ? Object.fromEntries(Object.entries(layout.sizes).filter(([,v]) => typeof v === 'number' && Number.isFinite(v))) as Record<string, number> : {} },
-      ui: { traceColors: legacy.ui.traceColors, traceInterpolations: legacy.ui.traceInterpolations, noiseFilter: legacy.ui.noiseFilter, noiseSource: legacy.ui.noiseSource, ip3Gain: legacy.ui.ip3Gain, ...(selectedLineId(body.ui, body.refLines, refLines) !== undefined ? { selectedRefLineId: selectedLineId(body.ui, body.refLines, refLines) } : {}) },
+      ui: { traceColors: legacy.ui.traceColors, ...(object(body.ui) && hueSlots(body.ui.traceHueSlots) ? { traceHueSlots: hueSlots(body.ui.traceHueSlots) ?? undefined } : {}), traceInterpolations: legacy.ui.traceInterpolations, noiseFilter: legacy.ui.noiseFilter, noiseSource: legacy.ui.noiseSource, ip3Gain: legacy.ui.ip3Gain, ...(selectedLineId(body.ui, body.refLines, refLines) !== undefined ? { selectedRefLineId: selectedLineId(body.ui, body.refLines, refLines) } : {}) },
       ...(body.analyses !== undefined ? { analyses: withoutLegacyLive(body.analyses as AnalysisInstance[], legacy.derivedTraces) } : {}),
       ...(body.droppedViews !== undefined ? { droppedViews: Number(body.droppedViews) } : {}),
     };

@@ -21,6 +21,7 @@ export interface MatrixCell {
   title: string;
 }
 export interface MatrixProps {
+  plotAsDisabled?: boolean;
   grid?: ReactNode;
   quickControl?: ReactNode;
   moreControl?: ReactNode;
@@ -80,6 +81,7 @@ export interface TraceRowProps {
   swatch?: ReactNode;
   interpControl?: ReactNode;
   panesControl?: ReactNode;
+  actionsControl?: ReactNode;
   name: string;
   /** "S21 · dB" for network traces, the column name for CSV; omitted for single-trace files. */
   subline?: string;
@@ -95,6 +97,9 @@ export interface TraceRowProps {
   onInterp: (anchor: HTMLElement) => void;
   onPanes: (anchor: HTMLElement) => void;
   onRename: () => void;
+  editingName?: boolean;
+  onCommitName?: (value: string) => void;
+  onCancelName?: () => void;
   onRemove: () => void;
 }
 

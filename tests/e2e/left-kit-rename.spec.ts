@@ -10,8 +10,9 @@ test('trace rename preserves placement and marker association and is undoable', 
   await page.getByRole('button', { name: 'New Marker', exact: true }).click();
   await page.getByTestId('chart-plot-pane-1').click({ position: { x: 100, y: 100 } });
   await expect(page.locator('[data-testid^="marker-row-"]')).toHaveCount(1);
-  page.once('dialog', dialog => dialog.accept('Renamed trace'));
   await row.locator('.lp-name').dblclick();
+  await row.getByTestId('trace-name-input').fill('Renamed trace');
+  await row.getByTestId('trace-name-input').press('Enter');
   await expect(row.locator('.lp-name')).toHaveText('Renamed trace');
   await expect(row.locator('.lp-sub')).toContainText('S11');
   await expect(row.locator('.lp-sub')).toContainText('dB');
@@ -44,8 +45,10 @@ test('derived trace rename is undoable and keeps its identity', async ({ page })
   const initial = page.locator('[data-testid^="trace-row-"]').filter({ has: page.locator('.lp-trace__fx') }).first();
   const id = await initial.getAttribute('data-testid');
   const row = page.getByTestId(id!);
-  page.once('dialog', dialog => dialog.accept('Custom derived'));
-  await row.locator('.lp-name').dblclick();
+  await row.getByRole('button', { name: /^Trace menu: / }).click();
+  await page.getByRole('menuitem', { name: 'Rename', exact: true }).click();
+  await row.getByTestId('trace-name-input').fill('Custom derived');
+  await row.getByTestId('trace-name-input').press('Enter');
   await expect(row.locator('.lp-name')).toHaveText('Custom derived');
   await expect(row).toHaveAttribute('data-testid', id!);
   await page.keyboard.press('Control+z');

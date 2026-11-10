@@ -20,7 +20,7 @@ export function LineRow(p: LineRowProps): ReactElement {
   const unplaced = p.panes.length === 0;
   const single = p.kind === 'h';
   const badgeTip = single ? 'H lines belong to one pane' : unplaced ? 'Not in a pane: choose where to show it' : 'Show in…';
-  const cls = ['lp-line', 'ln-row', p.lit ? 'is-lit' : '', unplaced ? 'is-unplaced' : ''].filter(Boolean).join(' ');
+  const cls = ['lp-line', 'ln-row', p.lit ? 'is-lit' : '', p.selected ? 'lp-selected' : '', unplaced ? 'is-unplaced' : ''].filter(Boolean).join(' ');
   return (
     <div className={cls} onMouseEnter={() => p.onHover?.(true)} onMouseLeave={() => p.onHover?.(false)}>
       <div className="lp-row">

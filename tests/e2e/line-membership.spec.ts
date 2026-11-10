@@ -16,7 +16,7 @@ test('a line goes only into the clicked pane, even with X-linked panes; more pan
   await page.getByRole('button', { name: '+ Pane', exact: true }).click();
   const traceRow = page.locator('[data-testid^="trace-row-"]').first();
   await traceRow.getByTitle('Show in panes').click();
-  await traceRow.getByRole('menu', { name: 'Show in' }).getByRole('menuitemcheckbox', { name: /Pane 2/ }).click();
+  await page.getByRole('menu', { name: 'Show in' }).getByRole('menuitemcheckbox', { name: /Pane 2/ }).click();
   await page.keyboard.press('Escape');
 
   await page.getByRole('button', { name: 'V-Line' }).click();
@@ -30,7 +30,7 @@ test('a line goes only into the clicked pane, even with X-linked panes; more pan
 
   // More panes only when the user ticks them in Show in.
   await vRow.getByRole('button', { name: 'V1: Show in…' }).click();
-  await vRow.getByRole('menuitemcheckbox', { name: /Pane 2/ }).click();
+  await page.getByRole('menuitemcheckbox', { name: /Pane 2/ }).click();
   await page.keyboard.press('Escape');
   await expect(vRow).toContainText('Shown in P1, P2');
   await expect(page.getByTestId('chart-plot-pane-2').locator('.ln-g')).toHaveCount(1);

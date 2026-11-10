@@ -1,7 +1,11 @@
 import React, { createContext, useContext, useReducer, useEffect, useLayoutEffect, useState, useCallback } from 'react';
 import type { WorkspaceUiState } from '../types/workspace';
+import type { TraceColorAssignment } from '../domain/trace-palette';
+import { readAppPreferences } from '../components/settings/app-preferences';
 
 export interface UiState extends WorkspaceUiState {
+  traceHueSlots: Readonly<Record<string, TraceColorAssignment>>;
+  huePalette: 'standard' | 'colour-blind';
   vis: Record<string, boolean>;
   selectedTraceName: string | null;
   paneAssignmentWarning: {
@@ -57,6 +61,8 @@ export const defaultUiState: UiState = {
   ip3Gain: '',
   dtTrace: null,
   traceColors: {},
+  traceHueSlots: {},
+  huePalette: 'standard',
   traceInterpolations: {},
   vis: {},
   selectedTraceName: null,
@@ -77,7 +83,7 @@ export function readThemePreference(): ThemePreference {
 
 export function getInitialUiState(preference: ThemePreference): UiState {
   const systemDark = typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(prefers-color-scheme: dark)').matches;
-  return { ...defaultUiState, theme: preference === 'system' ? (systemDark ? 'dark' : 'light') : preference };
+  return { ...defaultUiState, huePalette: readAppPreferences().palette, theme: preference === 'system' ? (systemDark ? 'dark' : 'light') : preference };
 }
 
 export function uiReducer(state: UiState, action: UiAction): UiState {
@@ -96,7 +102,7 @@ export function uiReducer(state: UiState, action: UiAction): UiState {
       return { ...state, vis: action.payload };
     }
     case 'RESTORE': {
-      return { ...defaultUiState, ...action.payload, theme: state.theme };
+      return { ...defaultUiState, ...action.payload, theme: state.theme, huePalette: state.huePalette };
     }
     default:
       return state;

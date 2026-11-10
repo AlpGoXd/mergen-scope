@@ -1,7 +1,10 @@
 import { useMemo } from 'react';
 import { gammaToSvg } from '../../domain/smith-coords';
 import { SmithGrid } from './SmithGrid';
-import { useTheme } from '../../hooks/use-theme';
+import { useTraceColors } from '../../hooks/use-trace-colors';
+import { useTraceState } from '../../stores/trace-store';
+import { useUiState } from '../../stores/ui-store';
+import { allocateTraceColors, traceWidth } from '../../domain/trace-palette';
 import type { Trace, RawTrace } from '../../types/trace';
 
 export interface SmithChartProps {
@@ -15,18 +18,23 @@ export interface SmithChartProps {
  * Ported from legacy renderSmithPaneModel in app-chart-components.js.
  */
 export function SmithChart({ paneId, traces, renderMode }: SmithChartProps) {
-  const { colors } = useTheme();
+  const resolveTraceColor = useTraceColors();
+  const { allKnownTraces } = useTraceState();
+  const { traceHueSlots } = useUiState();
+  const assignments = useMemo(() => allocateTraceColors(allKnownTraces, new Map(Object.entries(traceHueSlots))), [allKnownTraces, traceHueSlots]);
   const clipId = `smith-clip-${paneId}`;
 
   const smithSeriesList = useMemo(() => {
-    return traces.map((tr, idx) => {
+    return traces.map((tr) => {
       const raw = tr as RawTrace;
       if (!raw.touchstoneNetwork || !raw.networkSource) return null;
 
       const { row, col } = raw.networkSource;
       if (row === undefined || col === undefined) return null;
 
-      const stroke = colors?.tr?.[idx % (colors?.tr?.length || 1)] || 'var(--accent)';
+      const stroke = resolveTraceColor(tr);
+      const assignment = assignments.get(tr.id);
+      const width = assignment ? traceWidth(assignment) : 1.5;
       
       const points = raw.touchstoneNetwork.samples.map(sample => {
         const complex = sample.sMatrix[row]?.[col];
@@ -46,12 +54,12 @@ export function SmithChart({ paneId, traces, renderMode }: SmithChartProps) {
 
       return {
         traceName: tr.name,
-        stroke,
+        stroke, width,
         points,
         path
       };
-    }).filter((series): series is { traceName: string; stroke: string; points: Array<{ x: number; y: number; freq: number; re: number; im: number }>; path: string } => Boolean(series));
-  }, [traces, colors]);
+    }).filter((series): series is { traceName: string; stroke: string; width: number; points: Array<{ x: number; y: number; freq: number; re: number; im: number }>; path: string } => Boolean(series));
+  }, [traces, resolveTraceColor, assignments]);
 
   if (smithSeriesList.length === 0) {
     return (
@@ -86,7 +94,8 @@ export function SmithChart({ paneId, traces, renderMode }: SmithChartProps) {
               points={series.path}
               fill="none"
               stroke={series.stroke}
-              strokeWidth="0.3"
+              strokeWidth={series.width}
+              vectorEffect="non-scaling-stroke"
               strokeLinejoin="round"
               strokeLinecap="round"
             />

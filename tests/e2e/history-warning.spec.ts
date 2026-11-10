@@ -7,7 +7,7 @@ test('changing trace placement after undo raises no toast and no history notice'
   await page.getByRole('button', { name: '+ Pane', exact: true }).click();
   const row = page.locator('[data-testid^="trace-row-"]').first();
   await row.getByTitle('Show in panes').click();
-  const pane2 = row.getByRole('menuitemcheckbox', { name: 'Pane 2' });
+  const pane2 = page.getByRole('menuitemcheckbox', { name: 'Pane 2' });
   await pane2.click();
   await page.keyboard.press('Escape');
   await page.keyboard.press('Control+z'); // a Show in toggle raises no toast

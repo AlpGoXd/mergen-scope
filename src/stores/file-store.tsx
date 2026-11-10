@@ -54,6 +54,7 @@ export type FileAction =
   | { type: 'DELETE_DISPLAY_TRACE'; payload: { fileId: string; displayTraceId: string } }
   | { type: 'SET_DISPLAY_TRACE_HIDDEN'; payload: { fileId: string; displayTraceId: string; hidden: boolean } }
   | { type: 'RENAME_DISPLAY_TRACE'; payload: { fileId: string; displayTraceId: string; label: string } }
+  | { type: 'RENAME_RAW_TRACE'; payload: { traceId: string; label: string } }
   | { type: 'SET_DISPLAY_TRACE_INTERPOLATION'; payload: { fileId: string; displayTraceId: string; interpolation: InterpolationStrategy } }
   | { type: 'SHOW_ALL_DISPLAY_TRACES'; payload: { fileId: string } }
   | { type: 'SET_VISIBILITY'; payload: { traceName: string; visible: boolean } }
@@ -366,11 +367,15 @@ export function fileReducer(state: FileState, action: FileAction): FileState {
         vis: nextVis,
       };
     }
+    case 'RENAME_RAW_TRACE': {
+      const { traceId, label } = action.payload;
+      return { ...state, files: state.files.map(file => ({ ...file, traces: file.traces.map(trace => trace.id === traceId ? { ...trace, automaticDisplayName: trace.automaticDisplayName ?? trace.dn, dn: label } : trace) })) };
+    }
     case 'RENAME_DISPLAY_TRACE': {
       const { fileId, displayTraceId, label } = action.payload;
       return { ...state, files: state.files.map(file => String(file.id) !== fileId ? file : {
         ...file, displayTraces: file.displayTraces?.map(display => display.id !== displayTraceId ? display : {
-          ...display, label, compat: { ...display.compat, legacyDisplayName: label },
+          ...display, label, compat: { ...display.compat, automaticDisplayName: display.compat?.automaticDisplayName ?? display.compat?.legacyDisplayName ?? display.label, legacyDisplayName: label },
         }),
       }) };
     }

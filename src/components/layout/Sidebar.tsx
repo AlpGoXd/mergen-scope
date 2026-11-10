@@ -6,8 +6,11 @@ import type { FileFormat, MatrixView } from '../left-panel/types';
 import { Popover } from '../shared/Controls';
 import { Menu as KitMenu } from '../left-panel/Menu';
 import type { ToastKind } from '../../stores/toast-store';
-import { makeTraceColorResolver } from '../../domain/trace-colors';
+import { useTraceColors } from '../../hooks/use-trace-colors';
+import { planMatrixAdd } from '../../domain/matrix-add';
+import type { MatrixTrace } from '../../domain/matrix-add';
 import { orderTracesForList } from '../../domain/trace-order';
+import { defaultTraceForPane } from '../../domain/default-trace';
 import { canPlaceMembership } from '../../domain/pane-placement';
 import { useMemo, useRef, useState, type ReactNode } from 'react';
 import { computeLineIntersections } from '../../domain/ref-lines';
@@ -24,6 +27,7 @@ import { useMarkerDispatch, useMarkerState, type MarkerAction } from '../../stor
 import { usePaneDispatch, usePaneLimit, usePaneState } from '../../stores/pane-store';
 import { useRefLineDispatch, useRefLineState, type RefLineAction } from '../../stores/ref-line-store';
 import { useTraceDispatch, useTraceState } from '../../stores/trace-store';
+import { useAnalysisState } from '../../stores/analysis-store';
 import { useUiDispatch, useUiState } from '../../stores/ui-store';
 import type { FileMetadata, MetadataEntry } from '../../types/file';
 import type { TouchstoneView } from '../../types/touchstone';
@@ -48,6 +52,7 @@ export interface SidebarProps {
 export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onReplaceFile, onEditColumns, onRenameFile, onThresholdCrossings }: SidebarProps) {
   const { files, rawFileData } = useFileState();
   const { allTraces, allKnownTraces, allDisplayTraces, vis } = useTraceState();
+  const { analyses } = useAnalysisState();
   const { markers, selectedMkrIdx } = useMarkerState();
   const { refLines, selectedRefLineId, hoveredRefLineId, paneViews } = useRefLineState();
   const { selectedTraceName, showSidebar, traceColors } = useUiState();
@@ -63,7 +68,7 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
   const uiDispatch = useUiDispatch();
   const { touchstoneStateByFileId, appendCell, setActiveFamily, setActiveView } = useTouchstoneState();
   const { selectTrace, removeTrace, toggleVisibility } = useTraceActions();
-  const { colors, theme } = useTheme();
+  const { colors } = useTheme();
 
   const [hoveredMarkerId, setHoveredMarkerId] = useState<string | null>(null);
   const [expandedByFileId, setExpandedByFileId] = useState<Record<string, { columns?: boolean; meta?: boolean }>>({});
@@ -85,13 +90,8 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
     return result;
   }, [files]);
 
-  const resolveTraceColor = useMemo(() => {
-    const styles = getComputedStyle(document.documentElement);
-    const sourcePalette = Array.from({ length: 8 }, (_, index) => styles.getPropertyValue(`--tr${index}`).trim());
-    const derivedPalette = Array.from({ length: 8 }, (_, index) => styles.getPropertyValue(`--dr${index}`).trim());
-    const resolve = makeTraceColorResolver(allKnownTraces, sourcePalette, derivedPalette, traceColors, theme);
-    return (trace: Trace, _fallbackIndex: number) => resolve(trace);
-  }, [allKnownTraces, colors, theme, traceColors]);
+  const resolveColor = useTraceColors();
+  const resolveTraceColor = (trace: Trace, _fallbackIndex: number) => resolveColor(trace);
 
   // Removed toggleMetadata usage
 
@@ -163,9 +163,33 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
             const touchstoneState = touchstoneStateByFileId[fileId] ?? makeDefaultTouchstoneState(file);
             const activeFamily = touchstoneState.activeFamily;
             const activeView = touchstoneState.activeViewByFamily[activeFamily];
+            const targetPane = panes.find(pane => pane.id === activePaneId);
+            const smithTarget = targetPane?.renderMode === 'smith' || targetPane?.renderMode === 'smith-inverted';
+            const matrixView: TouchstoneView = smithTarget ? (activeFamily === 'S' ? 'dB' : 'Mag') : activeView;
+            const componentViews: Record<string, TouchstoneView> = { 'magnitude-db': 'dB', 'magnitude-linear': 'Mag', phase: 'Phase', real: 'Real', imag: 'Imag', vswr: 'VSWR', 'return-loss': 'Return loss', 'group-delay': 'Group delay' };
+            const matrixTraces: MatrixTrace[] = (file.displayTraces ?? []).flatMap(display => {
+              const source = display.source;
+              if (display.hidden || source.sourceType !== 'network-parameter') return [];
+              if (source.parameterFamily !== 'S' && source.parameterFamily !== 'Y' && source.parameterFamily !== 'Z' && source.parameterFamily !== 'ABCD') return [];
+              const view = componentViews[source.component];
+              if (!view) return [];
+              const name = display.compat?.legacyTraceName ?? display.id;
+              return [{ name, family: source.parameterFamily, row: source.row, col: source.col, view, paneIds: tracePaneMap[name] ?? [] }];
+            });
             const hiddenViewCount = (file.displayTraces ?? []).filter((displayTrace) => displayTrace.hidden).length;
 
             const toggleMatrix = (row: number, col: number, view: TouchstoneView) => {
+                        view = smithTarget ? matrixView : view;
+                        const plan = planMatrixAdd({ family: activeFamily, row, col, view, targetPaneId: activePaneId ?? 'pane-1', targetPaneType: targetPane?.renderMode ?? 'cartesian', traces: matrixTraces });
+                        if (plan.kind === 'refused') return;
+                        if (plan.kind === 'duplicate') {
+                          selectTrace(plan.traceName);
+                          const rowElement = Array.from(document.querySelectorAll<HTMLElement>('[data-testid^="trace-row-"]')).find(element => element.dataset.testid === `trace-row-${plan.traceName}`);
+                          rowElement?.scrollIntoView({ block: 'nearest' });
+                          rowElement?.classList.add('matrix-highlight');
+                          window.setTimeout(() => rowElement?.classList.remove('matrix-highlight'), 1000);
+                          return;
+                        }
                         const component = ({ dB: 'magnitude-db', Mag: 'magnitude-linear', Phase: 'phase', Real: 'real', Imag: 'imag', VSWR: 'vswr', 'Return loss': 'return-loss', 'Group delay': 'group-delay' } as const)[view];
                         const display = (file.displayTraces ?? []).find(item => !item.hidden && item.source.sourceType === 'network-parameter' && item.source.parameterFamily === activeFamily && item.source.row === row && item.source.col === col && item.source.component === component);
                         const trace = display && allKnownTraces.find(item => item.name === (display.compat?.legacyTraceName ?? display.id));
@@ -184,9 +208,8 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
                           else { appendCell(fileId, activeFamily, row + 1, col + 1, view); paneDispatch(paneAction); }
                           return;
                         }
-                        const action = (tracePaneMap[trace.name] ?? []).includes(paneId)
-                          ? { type: 'REMOVE_MEMBERSHIP' as const, payload: { traceName: trace.name, paneId } }
-                          : { type: 'ADD_MEMBERSHIP' as const, payload: { trace, targetPaneId: paneId, allTraces: allKnownTraces, displayTraces: allDisplayTraces } };
+                        if ((tracePaneMap[trace.name] ?? []).includes(paneId)) { selectTrace(trace.name); return; }
+                        const action = { type: 'ADD_MEMBERSHIP' as const, payload: { trace, targetPaneId: paneId, allTraces: allKnownTraces, displayTraces: allDisplayTraces } };
                         if (aggregate) aggregate.historyDispatch({ type: 'change', command: { slice: 'panes', action, limit } });
                         else paneDispatch(action);
             };
@@ -243,7 +266,7 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
                       padding: '2px 0 5px',
                     }}
                   >
-                    <Matrix ports={file.touchstoneNetwork.portCount} family={activeFamily}
+                    <Matrix ports={file.touchstoneNetwork.portCount} family={activeFamily} plotAsDisabled={smithTarget}
                       view={(activeView === 'Real' ? 'Re' : activeView === 'Imag' ? 'Im' : activeView) as MatrixView}
                       abcdAllowed={file.touchstoneNetwork.portCount === 2} cells={[]} moreViews={[]}
                       onFamily={family => setActiveFamily(fileId, family)}
@@ -251,16 +274,17 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
                       onMore={() => {}} onToggleCell={(row, col) => toggleMatrix(row - 1, col - 1, activeView)}
                       moreControl={<MoreViews family={activeFamily} view={activeView} onChange={view => setActiveView(fileId, activeFamily, view)} />}
                       quickControl={file.touchstoneNetwork.portCount >= 3 && <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                      {(['All Sii', 'All Sij', 'Lower', 'Clear'] as const).map(pick => <button type="button" key={pick} onClick={() => {
+                      {(['All Sii', 'All Sij', 'Lower'] as const).map(pick => <button type="button" key={pick} onClick={() => {
                         const n = file.touchstoneNetwork?.portCount ?? 0;
                         if (!aggregate) return;
                         let candidate = aggregate.state;
                         const actions: Extract<WorkspaceAction, { slice: 'transaction' }>['actions'][number][] = [];
                         const apply = (action: typeof actions[number]) => { candidate = workspaceReducer(candidate, action); actions.push(action); };
-                        const component = ({ dB: 'magnitude-db', Mag: 'magnitude-linear', Phase: 'phase', Real: 'real', Imag: 'imag', VSWR: 'vswr', 'Return loss': 'return-loss', 'Group delay': 'group-delay' } as const)[activeView];
+                        const component = ({ dB: 'magnitude-db', Mag: 'magnitude-linear', Phase: 'phase', Real: 'real', Imag: 'imag', VSWR: 'vswr', 'Return loss': 'return-loss', 'Group delay': 'group-delay' } as const)[matrixView];
                         const paneId = activePaneId ?? 'pane-1';
                         for (let row = 0; row < n; row++) for (let col = 0; col < n; col++) {
-                          if ((activeView === 'VSWR' || activeView === 'Return loss') && row !== col) continue;
+                          if (smithTarget && planMatrixAdd({ family: activeFamily, row, col, view: matrixView, targetPaneId: paneId, targetPaneType: targetPane?.renderMode ?? 'cartesian', traces: [] }).kind === 'refused') continue;
+                          if ((matrixView === 'VSWR' || matrixView === 'Return loss') && row !== col) continue;
                           const matches = pick === 'All Sii' ? row === col : pick === 'All Sij' ? row !== col : pick === 'Lower' ? row > col : true;
                           if (!matches) continue;
                           const currentFile = candidate.files.files.find(item => String(item.id) === fileId);
@@ -269,61 +293,33 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
                           let currentView = traceView(candidate.files, candidate.traces);
                           let trace = projection && currentView.allKnownTraces.find(item => item.name === (projection.compat?.legacyTraceName ?? projection.id));
                           const selected = !!trace && (candidate.panes.tracePaneMap[trace.name] ?? []).includes(paneId);
-                          if (pick === 'Clear') {
-                            if (trace && selected) apply({ slice: 'panes', limit, action: { type: 'REMOVE_MEMBERSHIP', payload: { traceName: trace.name, paneId } } });
-                            continue;
-                          }
                           if (selected) continue;
                           if (!trace) {
-                            const nextFile = appendTouchstoneDisplayTrace(currentFile, touchstoneState, activeFamily, row + 1, col + 1, activeView);
+                            const nextFile = appendTouchstoneDisplayTrace(currentFile, touchstoneState, activeFamily, row + 1, col + 1, matrixView);
                             const added = nextFile === currentFile ? undefined : nextFile.displayTraces?.at(-1);
                             const created = added && adaptDisplayTracesToLegacyTraces(nextFile.datasets ?? [], [added], nextFile)[0];
                             if (!created) continue;
                             const entries = currentView.allKnownTraces.map(item => ({ trace: item, paneIds: candidate.panes.tracePaneMap[item.name] ?? [], displayTrace: currentView.allDisplayTraces.find(display => display.id === item.id) }));
                             if (!canPlaceMembership({ trace: created, paneIds: [], displayTrace: added }, paneId, candidate.panes.panes, entries).allowed) continue;
-                            apply({ slice: 'files', action: { type: 'APPEND_TOUCHSTONE_VIEW', payload: { fileId, family: activeFamily, row: row + 1, col: col + 1, view: activeView } } });
+                            apply({ slice: 'files', action: { type: 'APPEND_TOUCHSTONE_VIEW', payload: { fileId, family: activeFamily, row: row + 1, col: col + 1, view: matrixView } } });
                             currentView = traceView(candidate.files, candidate.traces);
                             trace = currentView.allKnownTraces.find(item => item.id === created.id);
                           }
                           if (trace) apply({ slice: 'panes', limit, action: { type: 'ADD_MEMBERSHIP', payload: { trace, targetPaneId: paneId, allTraces: currentView.allKnownTraces, displayTraces: currentView.allDisplayTraces } } });
                         }
                         if (actions.length) aggregate.historyDispatch({ type: 'change', command: { slice: 'transaction', actions } });
-                      }} disabled={!aggregate} title={!aggregate ? 'Batch actions require workspace history' : pick}>{pick === 'Lower' ? 'Lower \u25e3' : pick}</button>)}
+                      }} disabled={!aggregate || (smithTarget && pick !== 'All Sii')} title={smithTarget && pick !== 'All Sii' ? 'Smith panes show reflection (Sii) only' : !aggregate ? 'Batch actions require workspace history' : pick}>{pick === 'Lower' ? 'Lower \u25e3' : pick}</button>)}
                     </div>}
                       grid={<div style={{ marginLeft: file.touchstoneNetwork.portCount <= 2 ? 51 : 0, maxWidth: file.touchstoneNetwork.portCount <= 2 ? 168 : undefined }}><TouchstoneMatrixPicker
                       portCount={file.touchstoneNetwork.portCount}
                       family={activeFamily}
-                      view={activeView}
-                      cellColors={(() => {
-                        const map: Record<string, string> = {};
-                        const component = ({ dB: 'magnitude-db', Mag: 'magnitude-linear', Phase: 'phase', Real: 'real', Imag: 'imag', VSWR: 'vswr', 'Return loss': 'return-loss', 'Group delay': 'group-delay' } as const)[activeView];
-                        for (const display of file.displayTraces ?? []) {
-                          const source = display.source;
-                          if (display.hidden || source.sourceType !== 'network-parameter' || source.parameterFamily !== activeFamily || source.component !== component) continue;
-                          const name = display.compat?.legacyTraceName ?? display.id;
-                          if (!(tracePaneMap[name] ?? []).includes(activePaneId ?? 'pane-1')) continue;
-                          const trace = allTraces.find(item => item.name === name);
-                          if (trace) map[`${source.row + 1}:${source.col + 1}`] = resolveTraceColor(trace, allTraces.indexOf(trace));
-                        }
-                        return map;
-                      })()}
-                      dark={theme === 'dark'}
-                      otherCells={(() => {
-                        const cells: Record<string, string> = {};
-                        const component = ({ dB: 'magnitude-db', Mag: 'magnitude-linear', Phase: 'phase', Real: 'real', Imag: 'imag', VSWR: 'vswr', 'Return loss': 'return-loss', 'Group delay': 'group-delay' } as const)[activeView];
-                        for (const display of file.displayTraces ?? []) {
-                          const source = display.source;
-                          if (display.hidden || source.sourceType !== 'network-parameter' || source.parameterFamily !== activeFamily) continue;
-                          const name = display.compat?.legacyTraceName ?? display.id;
-                          const memberships = tracePaneMap[name] ?? [];
-                          if (memberships.some(id => id !== activePaneId) || (memberships.length && source.component !== component)) {
-                            const trace = allTraces.find(item => item.name === name);
-                            if (trace) cells[`${source.row + 1}:${source.col + 1}`] = resolveTraceColor(trace, allTraces.indexOf(trace));
-                          }
-                        }
-                        return cells;
-                      })()}
-                      disabledReason={(row, col) => (activeView === 'VSWR' || activeView === 'Return loss') && row !== col ? 'Reflection parameters only' : undefined}
+                      view={matrixView}
+                      traces={matrixTraces}
+                      targetPaneId={activePaneId ?? 'pane-1'}
+                      targetPaneType={targetPane?.renderMode ?? 'cartesian'}
+                      targetPaneTitle={targetPane?.title || 'Pane 1'}
+                      paneTitle={id => panes.find(pane => pane.id === id)?.title || id}
+                      disabledReason={(row, col) => smithTarget && planMatrixAdd({ family: activeFamily, row, col, view: matrixView, targetPaneId: activePaneId ?? 'pane-1', targetPaneType: targetPane?.renderMode ?? 'cartesian', traces: [] }).kind === 'refused' ? 'Smith panes show reflection (Sii) only' : (matrixView === 'VSWR' || matrixView === 'Return loss') && row !== col ? 'Reflection parameters only' : undefined}
                       onToggle={toggleMatrix}
                     /></div>} />
                   </div>
@@ -352,6 +348,8 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
                 (displayTrace) => (displayTrace.compat?.legacyTraceName ?? displayTrace.id) === trace.name,
               );
               const displayTraceLocation = displayTraceLocationByLegacyName.get(trace.name) ?? null;
+              const displayForName = allDisplayTraces.find(item => (item.compat?.legacyTraceName ?? item.id) === trace.name);
+              const automaticName = trace.kind === 'derived' ? analyses.find(item => item.outputTraceId === trace.id)?.autoName ?? trace.automaticDisplayName ?? trace.dn : displayForName?.compat?.automaticDisplayName ?? displayForName?.compat?.legacyDisplayName ?? trace.automaticDisplayName ?? trace.dn;
               const effectiveInterpolation = getResolvedInterpolationStrategy(
                 trace.family,
                 trace.interpolation,
@@ -413,14 +411,18 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
                   }}
                   traceColor={traceColor}
                   onSelect={() => selectTrace(trace.name)}
-                  onRename={() => {
-                    const label = window.prompt('Rename trace', trace.dn)?.trim();
-                    if (!label || label === trace.dn) return;
+                  canResetName={trace.dn !== automaticName}
+                  onRename={(value) => {
+                    const label = value.trim() || automaticName;
+                    if (label === trace.dn) return;
                     if (trace.kind === 'derived') {
                       const action = { type: 'RENAME_DERIVED' as const, payload: { traceId: trace.id, label } };
                       if (aggregate) aggregate.historyDispatch({ type: 'change', command: { slice: 'traces', action } }); else traceDispatch(action);
                     } else if (displayTraceLocation) {
                       const action = { type: 'RENAME_DISPLAY_TRACE' as const, payload: { ...displayTraceLocation, label } };
+                      if (aggregate) aggregate.historyDispatch({ type: 'change', command: { slice: 'files', action } }); else fileDispatch(action);
+                    } else {
+                      const action = { type: 'RENAME_RAW_TRACE' as const, payload: { traceId: trace.id, label } };
                       if (aggregate) aggregate.historyDispatch({ type: 'change', command: { slice: 'files', action } }); else fileDispatch(action);
                     }
                   }}
@@ -480,7 +482,7 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
                     isRelated={!!hoveredMarkerId && (marker.refId === hoveredMarkerId || markers.some(other => other.id === hoveredMarkerId && other.refId === marker.id))}
                     onHover={(hovered) => setHoveredMarkerId(hovered ? marker.id : null)}
                     paneNumbers={(tracePaneMap[marker.trace] ?? []).map(id => panes.findIndex(pane => pane.id === id) + 1).filter(n => n > 0)}
-                    onSelect={() => { refLineDispatch({ type: 'SET_SELECTED', payload: null }); markerDispatch({ type: 'SET_SELECTED_IDX', payload: index }); selectTrace(marker.trace); }}
+                    onSelect={() => { uiDispatch({ type: 'SET', payload: { key: 'selectedTraceName', value: null } }); refLineDispatch({ type: 'SET_SELECTED', payload: null }); markerDispatch({ type: 'SET_SELECTED_IDX', payload: index }); }}
                     onRemove={() => changeMarker({ type: 'REMOVE_MARKER', payload: index }, 'Removed marker', 'delete')}
                     compact={compactSidebar}
                     paneNumber={paneNumber}
@@ -527,16 +529,15 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
           } }]}>
             <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: '4px', minWidth: 0 }}>
               {(() => {
-                const selectedTrace = selectedTraceName ? allTraces.find((t) => t.name === selectedTraceName) ?? null : null;
                 return refLines
                   .map((refLine) => {
-                    const paneTraces = allTraces.filter(t => tracePaneMap[t.name]?.some(id => refLine.paneIds.includes(id)));
                     const intersections = computeLineIntersections(refLine, refLines, allTraces, tracePaneMap, vis);
                     return (
                       <LiveLineRow
                         key={refLine.id}
                         refLine={refLine}
                         lit={(hoveredRefLineId ?? selectedRefLineId) === refLine.id}
+                        selected={selectedRefLineId === refLine.id}
                         onHover={hovered => refLineDispatch({ type: 'SET_HOVERED', payload: hovered ? refLine.id : null })}
                         intersections={intersections}
                         panes={panes}
@@ -544,11 +545,12 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
                         entries={allKnownTraces.map(trace => ({ trace, paneIds: tracePaneMap[trace.name] ?? [], displayTrace: allDisplayTraces.find(display => display.id === trace.id || display.id === trace.parameters?.['displayTraceId']) }))}
                         onList={() => { markerDispatch({ type: 'SET_SELECTED_IDX', payload: -1 }); refLineDispatch({ type: 'SET_SELECTED', payload: refLine.id }); onThresholdCrossings?.(refLine.id); }}
                         onSelect={() => {
+                          uiDispatch({ type: 'SET', payload: { key: 'selectedTraceName', value: null } });
                           refLineDispatch({ type: 'SET_SELECTED', payload: refLine.id });
                           markerDispatch({ type: 'SET_SELECTED_IDX', payload: -1 });
                         }}
                         changeLine={changeLine}
-                        selectedTrace={paneTraces.find(trace => trace.name === selectedTraceName) ?? paneTraces[0] ?? selectedTrace}
+                        selectedTrace={defaultTraceForPane(allTraces, selectedTraceName, refLine.paneIds[0] ?? activePaneId, tracePaneMap, vis)}
                         xSpan={getVisibleXSpanForPaneId(refLine.paneIds[0] ?? null)}
                       />
                     );

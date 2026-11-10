@@ -1,0 +1,53 @@
+import { expect, it } from 'vitest';
+import { initialWorkspaceEngine, initialWorkspaceState, snapshotFromWorkspace, traceView, workspaceEngineReducer, workspaceFromSnapshot } from '../../src/stores/aggregate-workspace-store';
+import { parseTabularFile } from '../../src/domain/parsers/tabular';
+import { migrateWorkspaceV5 } from '../../src/domain/workspace-migrate-v5';
+
+it('renames a display trace as one undoable history change', () => {
+  const text = 'time,a\n0,1\n1,2';
+  const cfg = { delimiter: ',', skipRows: 1, xCol: 0, yCols: [1], xMult: 1, yMult: 1, domain: 'time' as const, confidence: 1, headers: ['time', 'a'] };
+  let engine = workspaceEngineReducer(initialWorkspaceEngine(), { type: 'change', command: { slice: 'open-data', inputs: [{ id: 'f', name: 'a.csv', text, parsed: parseTabularFile(text, 'a.csv', cfg) }], limit: 4 } });
+  const display = engine.present.files.files[0]?.displayTraces?.[0];
+  if (!display) throw new Error('missing display');
+  const original = traceView(engine.present.files, engine.present.traces).allKnownTraces[0]?.dn;
+  const before = engine.history.past.length;
+  engine = workspaceEngineReducer(engine, { type: 'change', command: { slice: 'files', action: { type: 'RENAME_DISPLAY_TRACE', payload: { fileId: 'f', displayTraceId: display.id, label: 'Custom' } } } });
+  expect(engine.history.past).toHaveLength(before + 1);
+  expect(engine.toastMessage).toBeUndefined();
+  expect(traceView(engine.present.files, engine.present.traces).allKnownTraces[0]?.dn).toBe('Custom');
+  expect(engine.present.files.files[0]?.displayTraces?.[0]?.compat?.automaticDisplayName).toBe(original);
+  expect(snapshotFromWorkspace(engine.present)?.files[0]?.displayTraces?.[0]?.compat?.automaticDisplayName).toBe(original);
+  const migrated = migrateWorkspaceV5(JSON.parse(JSON.stringify(snapshotFromWorkspace(engine.present))));
+  expect(migrated?.files[0]?.displayTraces?.[0]?.compat?.automaticDisplayName).toBe(original);
+  engine = workspaceEngineReducer(engine, { type: 'undo' });
+  expect(traceView(engine.present.files, engine.present.traces).allKnownTraces[0]?.dn).toBe(original);
+});
+
+it('preserves a manual output name through settings and resumes automatic naming after reset', () => {
+  const text = 'time,a,b\n0,1,2\n1,2,3';
+  const cfg = { delimiter: ',', skipRows: 1, xCol: 0, yCols: [1, 2], xMult: 1, yMult: 1, domain: 'time' as const, confidence: 1, headers: ['time', 'a', 'b'] };
+  let engine = workspaceEngineReducer(initialWorkspaceEngine(), { type: 'change', command: { slice: 'open-data', inputs: [{ id: 'f', name: 'a.csv', text, parsed: parseTabularFile(text, 'a.csv', cfg) }], limit: 4 } });
+  const sources = traceView(engine.present.files, engine.present.traces).allKnownTraces;
+  const first = sources[0], second = sources[1];
+  if (!first || !second) throw new Error('missing sources');
+  engine = workspaceEngineReducer(engine, { type: 'change', command: { slice: 'analysis', action: { type: 'ADD_ANALYSIS', payload: { toolId: 'trace-math', source: { traceId: first.id, secondTraceId: second.id } } } } });
+  engine = workspaceEngineReducer(engine, { type: 'change', command: { slice: 'analysis', action: { type: 'CREATE_ANALYSIS_OUTPUT', payload: { id: 'analysis-1' } } } });
+  const output = engine.present.traces.derivedTraces[0]; if (!output) throw new Error('missing output');
+  engine = workspaceEngineReducer(engine, { type: 'change', command: { slice: 'traces', action: { type: 'RENAME_DERIVED', payload: { traceId: output.id, label: 'Custom' } } } });
+  engine = workspaceEngineReducer(engine, { type: 'change', command: { slice: 'analysis', action: { type: 'SET_ANALYSIS_PARAMS', payload: { id: 'analysis-1', params: { operation: 'subtract' } } } } });
+  expect(engine.present.traces.derivedTraces[0]?.dn).toBe('Custom');
+  const snapshot = snapshotFromWorkspace(engine.present);
+  const migrated = snapshot && migrateWorkspaceV5(JSON.parse(JSON.stringify(snapshot)));
+  if (!migrated) throw new Error('failed to migrate snapshot');
+  const restored = workspaceFromSnapshot(initialWorkspaceState(), migrated);
+  expect(restored?.traces.derivedTraces[0]?.dn).toBe('Custom');
+  expect(restored?.analysis.analyses[0]?.autoName).toBe(engine.present.analysis.analyses[0]?.autoName);
+  if (!restored) throw new Error('failed to restore snapshot');
+  const afterLoad = workspaceEngineReducer({ ...engine, present: restored }, { type: 'change', command: { slice: 'analysis', action: { type: 'SET_ANALYSIS_PARAMS', payload: { id: 'analysis-1', params: { operation: 'divide' } } } } });
+  expect(afterLoad.present.traces.derivedTraces[0]?.dn).toBe('Custom');
+  const autoName = engine.present.analysis.analyses[0]?.autoName; if (!autoName) throw new Error('missing automatic name');
+  engine = workspaceEngineReducer(engine, { type: 'change', command: { slice: 'traces', action: { type: 'RENAME_DERIVED', payload: { traceId: output.id, label: autoName } } } });
+  engine = workspaceEngineReducer(engine, { type: 'change', command: { slice: 'analysis', action: { type: 'SET_ANALYSIS_PARAMS', payload: { id: 'analysis-1', params: { operation: 'multiply' } } } } });
+  expect(engine.present.traces.derivedTraces[0]?.dn).toBe(engine.present.analysis.analyses[0]?.autoName);
+  expect(engine.present.traces.derivedTraces[0]?.dn).not.toBe(autoName);
+});

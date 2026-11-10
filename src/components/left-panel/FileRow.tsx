@@ -1,5 +1,5 @@
 // File card (C03) with the Touchstone matrix (C04) and Info (C05) opening under the row.
-import type { CSSProperties, ReactElement } from 'react';
+import type { ReactElement } from 'react';
 import type { FileRowProps, InfoProps, MatrixFamily, MatrixProps, MatrixView } from './types';
 
 const BASE_VIEWS: Record<MatrixFamily, MatrixView[]> = {
@@ -9,7 +9,6 @@ const BASE_VIEWS: Record<MatrixFamily, MatrixView[]> = {
   ABCD: ['Mag', 'Phase', 'Re', 'Im'],
 };
 const FAMILIES: MatrixFamily[] = ['S', 'Y', 'Z', 'ABCD'];
-const hueStyle = (hue: number): CSSProperties => ({ ['--h' as string]: hue }) as CSSProperties;
 
 export function Matrix(p: MatrixProps): ReactElement {
   const views = BASE_VIEWS[p.family];
@@ -32,12 +31,12 @@ export function Matrix(p: MatrixProps): ReactElement {
       </div>
       <div className="lp-matrix__line">
         <span className="lp-matrix__label">Plot as</span>
-        <span className="lp-seg" role="group" aria-label="Plot as">
+        <span className="lp-seg" role="group" aria-label="Plot as" title={p.plotAsDisabled ? 'Smith panes ignore Plot as' : undefined}>
           {views.map((v) => (
-            <button key={v} type="button" className="lp-seg__item" aria-pressed={p.view === v} onClick={() => p.onView(v)}>{v}</button>
+            <button key={v} type="button" className="lp-seg__item" aria-pressed={p.view === v} disabled={p.plotAsDisabled} onClick={() => p.onView(v)}>{v}</button>
           ))}
         </span>
-        {p.moreControl ?? <button type="button" className="lp-toggle" disabled={!moreAllowed}
+        {p.plotAsDisabled ? null : p.moreControl ?? <button type="button" className="lp-toggle" disabled={!moreAllowed}
           title={moreAllowed ? 'VSWR, Return loss, Group delay' : 'S-parameter views only'}
           style={moreAllowed ? undefined : { opacity: 0.6, cursor: 'not-allowed' }}
           aria-pressed={!BASE_VIEWS[p.family].includes(p.view)}
@@ -50,23 +49,14 @@ export function Matrix(p: MatrixProps): ReactElement {
           <button type="button" className="lp-chip" onClick={() => p.onQuickPick?.('allSii')}>All Sii</button>
           <button type="button" className="lp-chip" onClick={() => p.onQuickPick?.('allSij')}>All Sij</button>
           <button type="button" className="lp-chip" onClick={() => p.onQuickPick?.('lower')}>Lower ◣</button>
-          <button type="button" className="lp-chip lp-chip--danger" onClick={() => p.onQuickPick?.('clear')}>Clear</button>
         </div>
       ) : null)}
       {p.grid ?? (p.list ? (
         <div className="lp-list" style={{ paddingLeft: 50 }}>
           <div className="lp-matrix__line">
-            <button type="button" className="lp-toggle" onClick={p.list.onAdd}>+ Plot…</button>
+            <button type="button" className="lp-toggle" onClick={p.list.onAdd}>+ Add</button>
             <span style={{ flex: 1 }} />
             <button type="button" className="lp-link" onClick={p.list.onOpenGrid}>Grid…</button>
-          </div>
-          <div className="lp-list__chips">
-            {p.list.plotted.map((c) => (
-              <span key={c.label} className="lp-list__chip" style={hueStyle(c.hue)}>
-                {c.label}
-                <button type="button" className="lp-icon-btn" aria-label={`Remove ${c.label}`} onClick={() => p.list?.onRemove(c.label)}>×</button>
-              </span>
-            ))}
           </div>
         </div>
       ) : (
@@ -90,15 +80,12 @@ function RowCells({ row, p, label, small }: { row: number; p: MatrixProps; label
       {Array.from({ length: p.ports }, (_, i) => {
         const col = i + 1;
         const cell = p.cells.find((c) => c.row === row && c.col === col);
-        const hue = cell?.plotted?.hue ?? cell?.elsewhere?.hue;
         return (
           <button key={col} type="button" role="gridcell"
             className={`lp-cell${row === col ? ' is-diag' : ''}${small ? ' is-small' : ''}`}
-            aria-pressed={Boolean(cell?.plotted)} title={cell?.title}
-            style={hue === undefined ? undefined : hueStyle(hue)}
+            title={cell?.title}
             onClick={() => p.onToggleCell(row, col)}>
             {label(row, col)}
-            {cell?.elsewhere && !cell.plotted ? <span className="lp-cell__dot" /> : null}
           </button>
         );
       })}

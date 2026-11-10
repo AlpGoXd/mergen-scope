@@ -5,16 +5,17 @@ import { useAnalysisState } from '../stores/analysis-store';
 import { useFileState } from '../stores/file-store';
 import { useUiState } from '../stores/ui-store';
 import { resolveAnalysisTarget, makeAnalysisRegistry } from '../domain/analysis/registry';
+import { defaultTraceForPane } from '../domain/default-trace';
 
 /**
  * Hook for resolving the current analysis target and registry.
  * This is a composed hook that coordinates state from multiple stores.
  */
 export function useAnalysisTarget() {
-  const { activePaneId, paneActiveTraceMap, paneXZooms, sharedZoom, zoomAll, tracePaneMap } = usePaneState();
+  const { activePaneId, paneXZooms, sharedZoom, zoomAll, tracePaneMap } = usePaneState();
   const { allTraces, allDatasets, allDisplayTraces } = useTraceState();
   const { files } = useFileState();
-  const { vis } = useUiState();
+  const { vis, selectedTraceName } = useUiState();
   const { analysisOpenState, noiseResults, ip3Results } = useAnalysisState();
 
   // 1. Resolve active pane zoom
@@ -27,20 +28,20 @@ export function useAnalysisTarget() {
   }, [allTraces, activePaneId, tracePaneMap, vis]);
 
   // 3. Get active trace for the pane
-  const activeTraceName = activePaneId ? (paneActiveTraceMap[activePaneId] || null) : null;
+  const activeTraceName = defaultTraceForPane(allTraces, selectedTraceName, activePaneId, tracePaneMap, vis)?.name ?? null;
 
   // 4. Resolve the analysis target
   const target = useMemo(() => {
     return resolveAnalysisTarget({
       paneId: activePaneId || 'pane-1',
-      paneTraces,
+      paneTraces: activeTraceName && !paneTraces.some(trace => trace.name === activeTraceName) ? allTraces.filter(trace => trace.name === activeTraceName) : paneTraces,
       activeTraceName,
       zoom,
       files,
       datasets: allDatasets,
       displayTraces: allDisplayTraces,
     });
-  }, [activePaneId, paneTraces, activeTraceName, zoom, files, allDatasets, allDisplayTraces]);
+  }, [activePaneId, paneTraces, activeTraceName, zoom, files, allDatasets, allDisplayTraces, allTraces]);
 
   // 5. Aggregate result counts for the registry
   const resultCounts = useMemo(() => {

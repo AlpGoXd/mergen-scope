@@ -21,17 +21,22 @@ import { useTraceState } from '../../stores/trace-store';
 import { useTheme } from '../../hooks/use-theme';
 import { usePaneData } from '../../hooks/use-pane-data';
 import { useAnalysisOverlays } from '../../hooks/use-analysis-overlays';
+import { useTraceColors } from '../../hooks/use-trace-colors';
 import { useFileImport } from '../../hooks/use-file-import';
 import { deriveAxisInfo } from '../../domain/units';
+import { defaultTraceForPane } from '../../domain/default-trace';
 import { checkPaneAssignment } from '../../domain/pane-placement';
 import { formatAdaptiveXAxisTickLabels, formatAdaptiveXAxisValue, formatPerDivision, formatScalarWithUnit, makeYAxisTickFormatter } from '../../domain/format';
 import { getResolvedInterpolationStrategy } from '../../domain/interpolation';
 import { placeMarker, nearestIndexByFreq } from '../../domain/markers';
 import { computeVerticalIntersections, computeHorizontalIntersections } from '../../domain/ref-lines';
 import { makeNiceTicks, NICE_TICK_COUNT } from '../../domain/trace-math';
+import { allocateTraceColors, traceWidth } from '../../domain/trace-palette';
 import { Btn } from '../shared/Btn';
 import { LinesLayer, CrossingsLayer } from './LinesLayer';
 import { OverlaysLayer } from './OverlaysLayer';
+import { SymbolsLayer } from './SymbolsLayer';
+import { useTraceSymbols } from '../../hooks/use-trace-symbols';
 import type { ToastKind } from '../../stores/toast-store';
 import type { PlotView } from './LinesLayer';
 import { EdgeTag, lineContextEntries, lineShowInEntries } from '../lines/Lines';
@@ -43,6 +48,7 @@ import { formatCrossingValue, } from '../../domain/analysis/crossing-rows';
 import { EmptyChartPane } from './EmptyChartPane';
 import { SmithPane } from './SmithPane';
 import { PaneSettingsPopover } from './PaneSettingsPopover';
+import { PaneActionsMenu } from './PaneActionsMenu';
 import { defaultPaneSettings } from '../../types/pane';
 import type { RefLine } from '../../types/ref-line';
 
@@ -97,11 +103,14 @@ export function ChartPane({ paneId }: ChartPaneProps) {
   const markerDispatch = useMarkerDispatch();
   const { refLines, refMode, selectedRefLineId, hoveredRefLineId } = useRefLineState();
   const refLineDispatch = useRefLineDispatch();
-  const { selectedTraceName, traceColors, markerTrace } = useUiState();
+  const { selectedTraceName, markerTrace, traceHueSlots } = useUiState();
+  const resolveColor = useTraceColors();
+  const traceSymbol = useTraceSymbols();
   const uiDispatch = useUiDispatch();
   const paneDispatch = usePaneDispatch();
   const importFiles = useFileImport();
   const { allTraces, allKnownTraces, allDisplayTraces, vis } = useTraceState();
+  const colorAssignments = useMemo(() => allocateTraceColors(allKnownTraces, new Map(Object.entries(traceHueSlots))), [allKnownTraces, traceHueSlots]);
   const { colors } = useTheme();
 
   const pane = panes.find((item) => item.id === paneId) || panes[0];
@@ -111,16 +120,7 @@ export function ChartPane({ paneId }: ChartPaneProps) {
   const isSmith = pane.renderMode === 'smith' || pane.renderMode === 'smith-inverted';
   const settings = { ...defaultPaneSettings(), ...pane.settings };
 
-  const [fitOpen, setFitOpen] = useState(false);
-  const fitRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!fitOpen) return;
-    const handler = (e: MouseEvent) => {
-      if (!fitRef.current?.contains(e.target as Node)) setFitOpen(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [fitOpen]);
+  const [fitAnchor, setFitAnchor] = useState<HTMLElement | null>(null);
 
   const traceNamesInPane = useMemo(() => {
     return Object.entries(tracePaneMap)
@@ -626,7 +626,7 @@ export function ChartPane({ paneId }: ChartPaneProps) {
 
     markerDispatch({ type: 'SET_SELECTED_IDX', payload: -1 });
     refLineDispatch({ type: 'SET_SELECTED', payload: null });
-
+    uiDispatch({ type: 'SET', payload: { key: 'selectedTraceName', value: null } });
   };
 
   const handleMouseMove = (e: ChartMouseEvent | undefined) => {
@@ -715,6 +715,7 @@ export function ChartPane({ paneId }: ChartPaneProps) {
     }
     lastPointerButtonRef.current = e.button;
     if (e.button === 2) {
+      if (armed || refMode) return;
       e.preventDefault();
       const zoom = zoomAll ? sharedZoom : (paneXZooms[paneId] || null);
       if (zoom) {
@@ -792,19 +793,11 @@ export function ChartPane({ paneId }: ChartPaneProps) {
   const canMoveSelectedHere = !!selectedTrace && !tracePaneMap[selectedTrace.name]?.includes(paneId);
 
   const resolveTraceColor = useMemo(() => {
-    const tracePalette = colors?.tr ?? [];
-    const derivedPalette = colors?.dr ?? [];
     return (traceName: string): string => {
-      const custom = traceColors[traceName];
-      if (custom) return custom;
       const trace = allTraces.find((item) => item.name === traceName);
-      const isDerived = trace?.kind === 'derived';
-      const palette = isDerived ? derivedPalette : tracePalette;
-      const globalIdx = allTraces.filter((item) => item.kind === (isDerived ? 'derived' : 'raw')).findIndex((item) => item.name === traceName);
-      const safeIdx = globalIdx >= 0 ? globalIdx : 0;
-      return palette[safeIdx % (palette.length || 1)] || 'var(--accent)';
+      return trace ? resolveColor(trace) : 'var(--accent)';
     };
-  }, [allTraces, colors?.dr, colors?.tr, traceColors]);
+  }, [allTraces, resolveColor]);
 
   const hoverRows = useMemo(() => {
     if (hoverFreq == null || !Number.isFinite(hoverFreq)) return [];
@@ -826,6 +819,9 @@ export function ChartPane({ paneId }: ChartPaneProps) {
       const explicitTrace = paneTraces.find((trace) => trace.name === markerTrace) ?? null;
       if (explicitTrace) return explicitTrace;
     }
+
+    const defaultTrace = defaultTraceForPane(allTraces, selectedTraceName, paneId, tracePaneMap, vis);
+    if (defaultTrace) return defaultTrace;
 
     // Auto mode: pick the trace whose resolved Y-value at the click X is closest
     // in pixel distance to where the user clicked vertically.
@@ -918,7 +914,7 @@ export function ChartPane({ paneId }: ChartPaneProps) {
     // Fallback: sidebar-selected trace, or pane active trace, or first trace
     const preferredTraceName = paneActiveTraceMap[paneId] || selectedTraceName || paneTraces[0]?.name;
     return paneTraces.find((trace) => trace.name === preferredTraceName) ?? paneTraces[0] ?? null;
-  }, [markerTrace, selectedTraceName, paneActiveTraceMap, paneId, paneTraces, currentXZoom]);
+  }, [markerTrace, selectedTraceName, paneActiveTraceMap, paneId, paneTraces, currentXZoom, allTraces, tracePaneMap, vis]);
 
   const computeNearestPixelDist = React.useCallback((trace: typeof paneTraces[0], targetFreq: number): number => {
     const nearestIdx = nearestIndexByFreq(trace.data, targetFreq);
@@ -1082,16 +1078,16 @@ export function ChartPane({ paneId }: ChartPaneProps) {
             </>
           )}
           {/* Fit split button */}
-          <div ref={fitRef} style={{ position: 'relative', display: 'flex' }}>
+          <div style={{ display: 'flex' }}>
             <Btn soft style={{ padding: '0.2rem 0.45rem', fontSize: 'var(--font-caption)', minHeight: 'auto', borderRadius: '6px 0 0 6px' }} title="Fit X and Y to traces" onClick={(e) => {
               e.stopPropagation();
               if (zoomAll) paneDispatch({ type: 'SET_SHARED_ZOOM', payload: null });
               else paneDispatch({ type: 'SET_PANE_ZOOM', payload: { paneId, zoom: null } });
               paneDispatch({ type: 'SET_PANE_Y_ZOOM', payload: { paneId, zoom: null } });
             }}>Fit</Btn>
-            <Btn soft style={{ padding: '0.2rem 0.3rem', fontSize: 'var(--font-caption)', minHeight: 'auto', borderRadius: '0 6px 6px 0', borderLeft: '1px solid color-mix(in srgb, var(--border) 60%, transparent)' }} title="More fit options" onClick={(e) => { e.stopPropagation(); setFitOpen(v => !v); }}>▾</Btn>
-            {fitOpen && (
-              <div style={{ position: 'absolute', top: 'calc(100% + 2px)', left: 0, zIndex: 200, background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 6, padding: '3px 0', minWidth: 90, boxShadow: '0 4px 12px rgba(0,0,0,0.25)' }} onClick={e => e.stopPropagation()}>
+            <Btn soft style={{ padding: '0.2rem 0.3rem', fontSize: 'var(--font-caption)', minHeight: 'auto', borderRadius: '0 6px 6px 0', borderLeft: '1px solid color-mix(in srgb, var(--border) 60%, transparent)' }} title="More fit options" onClick={(e) => { e.stopPropagation(); setFitAnchor(fitAnchor ? null : e.currentTarget); }}>▾</Btn>
+            {fitAnchor && (
+              <PopoverAt label="Fit options" at={fitAnchor} onClose={() => setFitAnchor(null)}><div role="menu" aria-label="Fit options" onClick={e => e.stopPropagation()}>
                 {([['Fit All', () => {
                   if (zoomAll) paneDispatch({ type: 'SET_SHARED_ZOOM', payload: null });
                   else paneDispatch({ type: 'SET_PANE_ZOOM', payload: { paneId, zoom: null } });
@@ -1102,14 +1098,14 @@ export function ChartPane({ paneId }: ChartPaneProps) {
                 }], ['Fit Y', () => {
                   paneDispatch({ type: 'SET_PANE_Y_ZOOM', payload: { paneId, zoom: null } });
                 }]] as [string, () => void][]).map(([label, action]) => (
-                  <button key={label} style={{ display: 'block', width: '100%', padding: '5px 12px', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', fontSize: 'var(--font-caption)', color: 'var(--text)' }}
+                  <button key={label} role="menuitem" style={{ display: 'block', width: '100%', padding: '5px 12px', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', fontSize: 'var(--font-caption)', color: 'var(--text)' }}
                     onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg)')}
                     onMouseLeave={e => (e.currentTarget.style.background = 'none')}
-                    onClick={() => { action(); setFitOpen(false); }}>
+                    onClick={() => { action(); setFitAnchor(null); }}>
                     {label}
                   </button>
                 ))}
-              </div>
+              </div></PopoverAt>
             )}
           </div>
           {/* Move Here */}
@@ -1133,6 +1129,7 @@ export function ChartPane({ paneId }: ChartPaneProps) {
           )}
           {/* Settings popover */}
           <PaneSettingsPopover paneId={paneId} settings={settings} />
+          <PaneActionsMenu paneId={paneId} showSampleDots={settings.showSampleDots} />
         </div>
       </div>
 
@@ -1185,7 +1182,7 @@ export function ChartPane({ paneId }: ChartPaneProps) {
                 />
                 <Tooltip isAnimationActive={false} cursor={false} content={() => null} />
                 {paneTraces.map((trace) => (
-                  <Line key={trace.name} type="linear" dataKey={trace.name} name={trace.dn || trace.name} stroke={resolveTraceColor(trace.name)} strokeDasharray={trace.kind === 'derived' ? '5 3' : undefined} dot={settings.showSampleDots ? { r: 2, fill: resolveTraceColor(trace.name), stroke: resolveTraceColor(trace.name) } : false} activeDot={false} isAnimationActive={false} connectNulls strokeWidth={selectedTraceName === trace.name ? 2 : 1.5} />
+                  <Line key={trace.name} type="linear" dataKey={trace.name} name={trace.dn || trace.name} stroke={resolveTraceColor(trace.name)} dot={settings.showSampleDots && traceSymbol(trace.id) === null ? { r: 2, fill: resolveTraceColor(trace.name), stroke: resolveTraceColor(trace.name) } : false} activeDot={false} isAnimationActive={false} connectNulls strokeWidth={colorAssignments.get(trace.id) ? traceWidth(colorAssignments.get(trace.id) as NonNullable<ReturnType<typeof colorAssignments.get>>) : 1.5} />
                 ))}
                 {hoverFreq != null && Number.isFinite(hoverFreq) && <ReferenceLine x={hoverFreq} stroke="color-mix(in srgb, var(--accent) 60%, white)" strokeDasharray="4 4" strokeWidth={1} />}
                 {settings.showMarkers && paneMarkers.map(({ marker, index }) => {
@@ -1285,6 +1282,7 @@ export function ChartPane({ paneId }: ChartPaneProps) {
                   onContextMenu={(line, event) => { event.preventDefault(); markerDispatch({ type: 'SET_SELECTED_IDX', payload: -1 }); refLineDispatch({ type: 'SET_SELECTED', payload: line.id }); setLineMenu({ lineId: line.id, at: { x: event.clientX, y: event.clientY }, mode: 'main' }); }}
                   onLabelClick={(line) => { markerDispatch({ type: 'SET_SELECTED_IDX', payload: -1 }); refLineDispatch({ type: 'SET_SELECTED', payload: line.id }); }} />} />
                 <Customized component={<OverlaysLayer overlays={overlays} />} />
+                <Customized component={<SymbolsLayer traces={paneTraces} showDots={settings.showSampleDots} />} />
                 {/* ΔX between V-line delta pairs */}
                 {settings.showReferenceLines && vDeltaPairs.map(([a, b]) => {
                   const lo = Math.min(a.value, b.value);

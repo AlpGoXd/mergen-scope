@@ -35,6 +35,7 @@ export interface WorkspaceFileV5 extends WorkspaceFileRecord {
 }
 export interface WorkspaceSessionUiV5 {
   readonly traceColors: Readonly<Record<string,string>>;
+  readonly traceHueSlots?: Readonly<Record<string, import('../domain/trace-palette').TraceColorAssignment>>;
   readonly traceInterpolations: WorkspaceSnapshot['ui']['traceInterpolations'];
   readonly noiseFilter: string;
   readonly noiseSource: string | null;

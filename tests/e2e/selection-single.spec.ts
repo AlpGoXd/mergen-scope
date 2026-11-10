@@ -17,4 +17,17 @@ test('selecting a marker or line clears the other selection', async ({ page }) =
   await marker.locator('.lp-tag').click();
   await expect(marker.locator('.lp-marker')).toHaveClass(/is-selected/);
   await expect(line).not.toHaveClass(/is-lit/);
+  const trace = page.locator('[data-testid^="trace-row-"] .lp-trace').first();
+  await trace.click();
+  await expect(trace).toHaveClass(/lp-selected/);
+  await expect(marker.locator('.lp-marker')).not.toHaveClass(/lp-selected/);
+  await expect(line).not.toHaveClass(/lp-selected/);
+  const traceWidth = await trace.evaluate(element => getComputedStyle(element).borderTopWidth);
+  await marker.locator('.lp-tag').click();
+  await expect(trace).not.toHaveClass(/lp-selected/);
+  await expect(marker.locator('.lp-marker')).toHaveClass(/lp-selected/);
+  expect(await marker.locator('.lp-marker').evaluate(element => getComputedStyle(element).borderTopWidth)).toBe(traceWidth);
+  await line.locator('.lp-tag').click();
+  await expect(line).toHaveClass(/lp-selected/);
+  expect(await line.evaluate(element => getComputedStyle(element).borderTopWidth)).toBe(traceWidth);
 });

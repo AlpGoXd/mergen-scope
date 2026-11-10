@@ -1,4 +1,5 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Btn } from './Btn';
 import type { GroupTone } from './Btn';
 
@@ -10,10 +11,13 @@ export function Icon({ name, label }: { name: 'close' | 'check' | 'info' | 'warn
 }
 
 export function Tooltip({ text, children }: { text: string; children: React.ReactNode }) {
-  const id = useId(); const [dismissed, setDismissed] = useState(false);
+  const id = useId(); const [dismissed, setDismissed] = useState(false); const [active, setActive] = useState(false);
+  const anchor = useRef<HTMLSpanElement>(null); const tip = useRef<HTMLSpanElement>(null);
+  useEffect(() => { if (!active || dismissed || !anchor.current || !tip.current) return; const position = () => { if (anchor.current && tip.current) placePopup(anchor.current, tip.current); }; position(); window.addEventListener('resize', position); window.addEventListener('scroll', position, true); return () => { window.removeEventListener('resize', position); window.removeEventListener('scroll', position, true); }; }, [active, dismissed]);
   const disabled = React.isValidElement<{ disabled?: boolean }>(children) && children.props.disabled;
   const content = !disabled && React.isValidElement<{ "aria-describedby"?: string }>(children) ? React.cloneElement(children, { "aria-describedby": [children.props["aria-describedby"], id].filter(Boolean).join(" ") }) : children;
-  return <span className="ui-tooltip-anchor" tabIndex={disabled ? 0 : undefined} aria-describedby={disabled ? id : undefined} onMouseEnter={() => setDismissed(false)} onFocus={() => setDismissed(false)} onKeyDown={e => { if (e.key === 'Escape' && !dismissed) { setDismissed(true); e.stopPropagation(); } }}>{content}<span className="ui-tooltip" role="tooltip" id={id} hidden={dismissed}>{text}</span></span>;
+  const tooltip = <span ref={tip} className="ui-tooltip" role="tooltip" id={id} hidden={dismissed} style={{ visibility: active ? 'visible' : 'hidden' }}>{text}</span>;
+  return <span ref={anchor} className="ui-tooltip-anchor" tabIndex={disabled ? 0 : undefined} aria-describedby={disabled ? id : undefined} onMouseEnter={() => { setActive(true); setDismissed(false); }} onMouseLeave={() => setActive(false)} onFocus={() => { setActive(true); setDismissed(false); }} onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget)) setActive(false); }} onKeyDown={e => { if (e.key === 'Escape' && !dismissed) { setDismissed(true); e.stopPropagation(); } }}>{content}{disabled ? tooltip : createPortal(tooltip, document.body)}</span>;
 }
 
 export function Select(props: React.ComponentPropsWithoutRef<'select'> & { reason?: string }) {
@@ -51,7 +55,7 @@ function placePopup(anchor: HTMLElement, popup: HTMLElement) {
 }
 export function Menu({ label, items, iconOnly = false, icon = 'chevron', className = '' }: { label: string; items: readonly MenuItem[]; iconOnly?: boolean; icon?: 'chevron' | 'more'; className?: string }) {
   const [open, setOpen] = useState(false); const root = useRef<HTMLDivElement>(null); const trigger = useRef<HTMLButtonElement>(null); const popup = useRef<HTMLDivElement>(null); const focusLast = useRef(false);
-  useEffect(() => { if (!open || !popup.current || !trigger.current) return; const position = () => { if (trigger.current && popup.current) placePopup(trigger.current, popup.current); }; position(); window.addEventListener('resize', position); window.addEventListener('scroll', position, true); const buttons = popup.current.querySelectorAll<HTMLButtonElement>('[role=menuitem]'); (focusLast.current ? buttons[buttons.length - 1] : buttons[0])?.focus(); const close = (e: PointerEvent) => { if (!root.current?.contains(e.target as Node)) setOpen(false); }; document.addEventListener('pointerdown', close); return () => { document.removeEventListener('pointerdown', close); window.removeEventListener('resize', position); window.removeEventListener('scroll', position, true); }; }, [open]);
+  useEffect(() => { if (!open || !popup.current || !trigger.current) return; const position = () => { if (trigger.current && popup.current) placePopup(trigger.current, popup.current); }; position(); window.addEventListener('resize', position); window.addEventListener('scroll', position, true); const buttons = popup.current.querySelectorAll<HTMLButtonElement>('[role=menuitem]'); (focusLast.current ? buttons[buttons.length - 1] : buttons[0])?.focus({ preventScroll: true }); const close = (e: PointerEvent) => { if (!root.current?.contains(e.target as Node) && !popup.current?.contains(e.target as Node)) setOpen(false); }; document.addEventListener('pointerdown', close); return () => { document.removeEventListener('pointerdown', close); window.removeEventListener('resize', position); window.removeEventListener('scroll', position, true); }; }, [open]);
   function onKeyDown(e: React.KeyboardEvent) {
     if (!open && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) { e.preventDefault(); focusLast.current = e.key === 'ArrowUp'; setOpen(true); return; }
     if (!open) return;
@@ -59,13 +63,13 @@ export function Menu({ label, items, iconOnly = false, icon = 'chevron', classNa
     else if (e.key === 'Tab') { e.preventDefault(); const anchor = trigger.current; const dialog = anchor?.closest<HTMLElement>('[role="dialog"][aria-modal="true"]'); const all = tabbables(dialog ?? document).filter(el => !popup.current?.contains(el)); const index = anchor ? all.indexOf(anchor) : -1; const offset = e.shiftKey ? -1 : 1; const nextIndex = dialog && all.length ? (index + offset + all.length) % all.length : index + offset; const next = all[nextIndex]; setOpen(false); (next ?? anchor)?.focus(); }
     else if (['ArrowDown','ArrowUp','Home','End'].includes(e.key)) { e.preventDefault(); const els = Array.from(popup.current?.querySelectorAll<HTMLButtonElement>('[role=menuitem]') ?? []); if (!els.length) return; const i = els.indexOf(document.activeElement as HTMLButtonElement); const next = e.key === 'Home' ? 0 : e.key === 'End' ? els.length - 1 : (i + (e.key === 'ArrowDown' ? 1 : -1) + els.length) % els.length; els[next]?.focus(); }
   }
-  return <div className="ui-menu-root" ref={root} onKeyDown={onKeyDown}><button ref={trigger} type="button" className={`ui-btn ui-btn--neutral ${className}`.trim()} aria-haspopup="menu" aria-label={iconOnly ? label : undefined} aria-expanded={open} onClick={() => { focusLast.current = false; setOpen(!open); }}>{!iconOnly && label}<Icon name={icon} /></button>{open && <div ref={popup} role="menu" className="ui-popover">{items.map(item => { const button = <button type="button" role="menuitem" tabIndex={-1} aria-disabled={item.disabled || undefined} onClick={() => { if (item.disabled) return; setOpen(false); item.onSelect(); trigger.current?.focus(); }}>{item.label}</button>; return <React.Fragment key={item.label}>{item.disabled && item.reason ? <Tooltip text={item.reason}>{button}</Tooltip> : button}</React.Fragment>; })}</div>}</div>;
+  return <div className="ui-menu-root" ref={root} onKeyDown={onKeyDown}><button ref={trigger} type="button" className={`ui-btn ui-btn--neutral ${className}`.trim()} aria-haspopup="menu" aria-label={iconOnly ? label : undefined} aria-expanded={open} onClick={() => { focusLast.current = false; setOpen(!open); }}>{!iconOnly && label}<Icon name={icon} /></button>{open && createPortal(<div ref={popup} role="menu" className="ui-popover">{items.map(item => { const button = <button type="button" role="menuitem" tabIndex={-1} aria-disabled={item.disabled || undefined} onClick={() => { if (item.disabled) return; setOpen(false); item.onSelect(); trigger.current?.focus(); }}>{item.label}</button>; return <React.Fragment key={item.label}>{item.disabled && item.reason ? <Tooltip text={item.reason}>{button}</Tooltip> : button}</React.Fragment>; })}</div>, document.body)}</div>;
 }
 export function SplitButton({ label, onClick, items }: { label: string; onClick: () => void; items: readonly MenuItem[] }) { return <div className="ui-split"><Btn onClick={onClick}>{label}</Btn><Menu label={`More ${label} options`} items={items} iconOnly /></div>; }
 export function Popover({ label, children }: { label: string; children: React.ReactNode }) {
   const [open, setOpen] = useState(false); const ref = useRef<HTMLButtonElement>(null); const root = useRef<HTMLDivElement>(null); const popup = useRef<HTMLDivElement>(null);
-  useEffect(() => { if (!open || !ref.current || !popup.current) return; const position = () => { if (ref.current && popup.current) placePopup(ref.current, popup.current); }; position(); window.addEventListener('resize', position); window.addEventListener('scroll', position, true); const close = (e: PointerEvent) => { if (!root.current?.contains(e.target as Node)) setOpen(false); }; document.addEventListener('pointerdown', close); return () => { document.removeEventListener('pointerdown', close); window.removeEventListener('resize', position); window.removeEventListener('scroll', position, true); }; }, [open]);
-  return <div ref={root} className="ui-menu-root" onKeyDown={e => { if (e.key === 'Escape' && open) { e.preventDefault(); e.stopPropagation(); setOpen(false); ref.current?.focus(); } }}><button type="button" ref={ref} className="ui-btn ui-btn--neutral" aria-expanded={open} onClick={() => setOpen(!open)}>{label}</button>{open && <div ref={popup} className="ui-popover">{children}</div>}</div>;
+  useEffect(() => { if (!open || !ref.current || !popup.current) return; const position = () => { if (ref.current && popup.current) placePopup(ref.current, popup.current); }; position(); window.addEventListener('resize', position); window.addEventListener('scroll', position, true); const close = (e: PointerEvent) => { if (!root.current?.contains(e.target as Node) && !popup.current?.contains(e.target as Node)) setOpen(false); }; document.addEventListener('pointerdown', close); return () => { document.removeEventListener('pointerdown', close); window.removeEventListener('resize', position); window.removeEventListener('scroll', position, true); }; }, [open]);
+  return <div ref={root} className="ui-menu-root" onKeyDown={e => { if (e.key === 'Escape' && open) { e.preventDefault(); e.stopPropagation(); setOpen(false); ref.current?.focus(); } }}><button type="button" ref={ref} className="ui-btn ui-btn--neutral" aria-expanded={open} onClick={() => setOpen(!open)}>{label}</button>{open && createPortal(<div ref={popup} className="ui-popover">{children}</div>, document.body)}</div>;
 }
 /**
  * Controlled popup at an anchor element or a pointer position (context menus, badge menus).
@@ -85,7 +89,7 @@ export function PopoverAt({ label, at, onClose, children }: { label: string; at:
     el.querySelector<HTMLElement>('[role^=menuitem]:not([aria-disabled=true])')?.focus({ preventScroll: true });
   }, [at]);
   useEffect(() => {
-    const press = (e: PointerEvent) => { if (!popup.current?.contains(e.target as Node)) onClose(); };
+    const press = (e: PointerEvent) => { if (!popup.current?.contains(e.target as Node) && !(at instanceof HTMLElement && at.contains(e.target as Node))) onClose(); };
     const key = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); onClose(); } };
     document.addEventListener('pointerdown', press, true); document.addEventListener('keydown', key, true);
     // An anchored popup follows its anchor; a pointer-placed one closes when the page moves under it.
@@ -96,7 +100,7 @@ export function PopoverAt({ label, at, onClose, children }: { label: string; at:
     window.addEventListener('resize', move); window.addEventListener('scroll', move, true);
     return () => { document.removeEventListener('pointerdown', press, true); document.removeEventListener('keydown', key, true); window.removeEventListener('resize', move); window.removeEventListener('scroll', move, true); };
   }, [onClose, at]);
-  return <div ref={popup} className="ui-popover" role="presentation" aria-label={label}>{children}</div>;
+  return createPortal(<div ref={popup} className="ui-popover" role="presentation" aria-label={label} onClick={event => event.stopPropagation()}>{children}</div>, document.body);
 }
 export function MessageBar({ status, children }: { status: 'danger' | 'warning' | 'success' | 'info'; children: React.ReactNode }) { const icon = status === 'danger' ? 'error' : status === 'success' ? 'check' : status; return <div className={`ui-message ui-message--${status}`} role={status === 'danger' ? 'alert' : 'status'}><Icon name={icon} /><span>{children}</span></div>; }
 

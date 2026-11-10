@@ -3,6 +3,8 @@ import { oklchHue } from '../../src/domain/color-hue';
 
 describe('oklchHue', () => {
   it('reads the hue of an oklch() colour directly', () => {
+    expect(oklchHue('oklch(0.75 0.13 135)')).toBe(135);
+    expect(oklchHue('oklch(0.46 0.1 112.5)')).toBe(112.5);
     expect(oklchHue('oklch(0.58 0.16 270)')).toBe(270);
     expect(oklchHue('oklch(0.5 0.1 -90 / 0.5)')).toBe(270);
   });

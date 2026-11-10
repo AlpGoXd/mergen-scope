@@ -15,7 +15,7 @@ test('sidebar sections remember collapse and trace membership can be changed', a
   await page.getByRole('button', { name: '+ Pane', exact: true }).click();
   const row = page.locator('[data-testid^="trace-row-"]').first();
   await row.getByTitle('Show in panes').click();
-  const pane2 = row.getByRole('menuitemcheckbox', { name: 'Pane 2' });
+  const pane2 = page.getByRole('menuitemcheckbox', { name: 'Pane 2' });
   await expect(pane2).not.toBeChecked();
   await pane2.click();
   await expect(pane2).toBeChecked();
@@ -45,9 +45,9 @@ test('matrix creates a new view in the target pane and marks other views', async
   await page.getByTestId('touchstone-cell-S12').click();
   const row = page.locator('[data-testid^="trace-row-"]').filter({ hasText: 'S12' });
   await expect(row).toContainText('P2');
-  await expect(page.getByTestId('touchstone-cell-S12')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByTestId('touchstone-cell-S12').locator('.lp-cell__count')).toHaveText('1');
   await page.getByRole('button', { name: 'Phase', exact: true }).click();
-  await expect(page.getByTestId('touchstone-cell-S12').getByLabel('Also plotted elsewhere or in another view')).toBeVisible();
+  await expect(page.getByTestId('touchstone-cell-S12').locator('.lp-cell__count')).toHaveText('1');
 });
 
 test('matrix offers ABCD and reflection-only network views', async ({ page }) => {
