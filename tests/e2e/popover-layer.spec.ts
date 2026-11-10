@@ -17,7 +17,7 @@ test('pane popovers appear above neighbouring panes and remain interactive', asy
   await expect(settings).toBeVisible();
   expect(await settings.evaluate(element => element.parentElement === document.body)).toBe(true);
   expect(await topmost('.ui-popover[aria-label="Pane 1 settings"]')).toBe(true);
-  await settings.getByRole('checkbox', { name: 'Sample dots' }).check();
+  await settings.getByRole('button', { name: 'Sample dots' }).click();
   await expect(first.locator('.recharts-line-dot')).toHaveCount(3);
   await first.getByTitle('Pane settings').click();
   await expect(settings).toHaveCount(0);

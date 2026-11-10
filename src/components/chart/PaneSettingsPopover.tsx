@@ -167,6 +167,22 @@ export function PaneSettingsPopover({
             Pane {paneNum} Settings
           </div>
 
+          <Section title="Display">
+            <Btn variant="chip" tone="pane" active={settings.showSampleDots} aria-pressed={settings.showSampleDots} aria-label="Sample dots" data-testid="sample-dots-toggle" style={{ width: '100%' }} onClick={() => patch({ showSampleDots: !settings.showSampleDots })}>Sample dots</Btn>
+            <Row label="Show markers">
+              <Toggle checked={settings.showMarkers} onChange={v => patch({ showMarkers: v })} />
+            </Row>
+            <Row label="Marker labels">
+              <Toggle checked={settings.showMarkerLabels} onChange={v => patch({ showMarkerLabels: v })} />
+            </Row>
+            <Row label="Reference lines">
+              <Toggle checked={settings.showReferenceLines} onChange={v => patch({ showReferenceLines: v })} />
+            </Row>
+            <Row label="Line labels">
+              <Toggle checked={settings.showLineLabels} onChange={v => patch({ showLineLabels: v })} />
+            </Row>
+          </Section>
+
           <Section title="Grid">
             <Row label="Major grid">
               <Toggle checked={settings.gridMajor} onChange={v => patch({ gridMajor: v })} />
@@ -188,24 +204,6 @@ export function PaneSettingsPopover({
                 <option value="6 3">Long dash</option>
                 <option value="solid">Solid</option>
               </select>
-            </Row>
-          </Section>
-
-          <Section title="Display">
-            <Row label="Sample dots">
-              <Toggle label="Sample dots" checked={settings.showSampleDots} onChange={v => patch({ showSampleDots: v })} />
-            </Row>
-            <Row label="Show markers">
-              <Toggle checked={settings.showMarkers} onChange={v => patch({ showMarkers: v })} />
-            </Row>
-            <Row label="Marker labels">
-              <Toggle checked={settings.showMarkerLabels} onChange={v => patch({ showMarkerLabels: v })} />
-            </Row>
-            <Row label="Reference lines">
-              <Toggle checked={settings.showReferenceLines} onChange={v => patch({ showReferenceLines: v })} />
-            </Row>
-            <Row label="Line labels">
-              <Toggle checked={settings.showLineLabels} onChange={v => patch({ showLineLabels: v })} />
             </Row>
           </Section>
         </div>

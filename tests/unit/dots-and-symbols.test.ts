@@ -18,3 +18,24 @@ it('assigns nearby symbols different samples', () => {
   const plan = planDotsAndSymbols({ points: [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 200, y: 0 }], showDots: true, showSymbols: true, spacing: 60 });
   expect(new Set(plan.symbols.map(symbol => symbol.sampleIndex)).size).toBe(plan.symbols.length);
 });
+
+it('suppresses the full symbol footprint on dense samples and retains distant dots', () => {
+  const dense = Array.from({ length: 601 }, (_, i) => ({ x: i * 0.3, y: 0 }));
+  const plan = planDotsAndSymbols({ points: dense, showDots: true, showSymbols: true });
+  expect(plan.symbols.length).toBeGreaterThan(0);
+  expect(plan.dots.length).toBeGreaterThan(0);
+  for (const index of plan.dots) {
+    const point = dense[index];
+    if (!point) throw new Error('missing sample');
+    for (const symbol of plan.symbols) expect(Math.hypot(point.x - symbol.x, point.y - symbol.y)).toBeGreaterThan(6.35);
+  }
+  expect(plan.dots).toContain(0);
+  expect(planDotsAndSymbols({ points: dense, showDots: false, showSymbols: true }).dots).toEqual([]);
+  expect(planDotsAndSymbols({ points: dense, showDots: true, showSymbols: false }).dots).toHaveLength(dense.length);
+});
+it('removes exactly the nearest sample for sparse points', () => {
+  const sparse = Array.from({ length: 5 }, (_, i) => ({ x: i * 50, y: 0 }));
+  const plan = planDotsAndSymbols({ points: sparse, showDots: true, showSymbols: true });
+  expect(plan.dots).toHaveLength(sparse.length - plan.symbols.length);
+  for (const symbol of plan.symbols) expect(plan.dots).not.toContain(symbol.sampleIndex);
+});

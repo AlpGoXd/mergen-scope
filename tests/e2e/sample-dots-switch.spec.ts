@@ -9,7 +9,7 @@ test('pane settings and menu keep sample dots in sync and undo', async ({ page }
   await pane.getByTitle('Pane settings').click();
   const settings = page.locator('.ui-popover[aria-label="Pane 1 settings"]');
   await expect(settings.getByText('Display', { exact: true })).toBeVisible();
-  await settings.getByRole('checkbox', { name: 'Sample dots' }).check();
+  await settings.getByRole('button', { name: 'Sample dots' }).click();
   await expect(dots).toHaveCount(3);
   await pane.getByTitle('Pane settings').click();
   await pane.getByRole('button', { name: 'Pane actions' }).click();
@@ -21,5 +21,5 @@ test('pane settings and menu keep sample dots in sync and undo', async ({ page }
   await page.keyboard.press('Control+z');
   await expect(dots).toHaveCount(3);
   await pane.getByTitle('Pane settings').click();
-  await expect(settings.getByRole('checkbox', { name: 'Sample dots' })).toBeChecked();
+  await expect(settings.getByRole('button', { name: 'Sample dots' })).toHaveAttribute('aria-pressed', 'true');
 });
