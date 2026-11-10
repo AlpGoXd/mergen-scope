@@ -14,6 +14,8 @@ import { useUiState } from './stores/ui-store';
 import { useUiDispatch } from './stores/ui-store';
 import { DATA_FILE_ACCEPT, useFileImport } from './hooks/use-file-import';
 import { usePaneState } from './stores/pane-store';
+import { useAggregateWorkspace } from './stores/aggregate-workspace-store';
+import { loadDemoWorkspace } from './demo/demo-loader';
 
 
 function clampLeftPanelWidth(width: number, viewportWidth: number) {
@@ -44,6 +46,22 @@ export function App() {
   const analysisDispatch = useAnalysisDispatch();
   const { analyses } = useAnalysisState();
   const importFiles = useFileImport();
+  const { dispatch: workspaceDispatch } = useAggregateWorkspace();
+  const loadDemo = useCallback(async () => {
+    try {
+      const text = await loadDemoWorkspace();
+      await importFiles([new File([text], 'demo.json', { type: 'application/json' })], undefined, true);
+    } catch {
+      workspaceDispatch({ slice: 'files', action: { type: 'REPORT_IMPORT_ERROR', payload: { fileName: 'Demo', message: 'The demo could not be loaded. Open the app from the website, or open demo.json from the demo-assets folder.' } } });
+    }
+  }, [importFiles, workspaceDispatch]);
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (url.searchParams.get('demo') !== '1') return;
+    url.searchParams.delete('demo');
+    window.history.replaceState(window.history.state, '', url.href);
+    void loadDemo();
+  }, [loadDemo]);
   const sidebarFileInput = useRef<HTMLInputElement>(null);
   const { activePaneId } = usePaneState();
 
@@ -216,7 +234,7 @@ export function App() {
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minWidth: 0 }}>
         {/* Always mounted (renders nothing when hidden): it owns the Touchstone trace reconciliation. */}
         <input data-testid="app-open-input" ref={sidebarFileInput} type="file" accept={DATA_FILE_ACCEPT} multiple hidden onChange={event => { if (event.target.files?.length) void importFiles(event.target.files); event.target.value = ''; }} />
-        <Sidebar width={leftPanelWidth} onOpenFiles={() => sidebarFileInput.current?.click()} onThresholdCrossings={listCrossings} />
+        <Sidebar width={leftPanelWidth} onLoadDemo={() => void loadDemo()} onOpenFiles={() => sidebarFileInput.current?.click()} onThresholdCrossings={listCrossings} />
         {showSidebar && <PanelResizeHandle side="left" onMouseDown={startResize('left')} />}
         <ChartWorkspace />
         {showRightPanel && <PanelResizeHandle side="right" onMouseDown={startResize('right')} />}

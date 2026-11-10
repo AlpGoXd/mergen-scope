@@ -57,3 +57,10 @@ export async function loadDemoPresets(
   }
   return results;
 }
+
+/** Fetch the saved demo workspace for the normal workspace import path. */
+export async function loadDemoWorkspace(): Promise<string> {
+  const response = await fetch('./demo-assets/demo.json');
+  if (!response.ok) throw new Error(`Demo request failed: ${response.status}`);
+  return response.text();
+}
