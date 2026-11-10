@@ -8,7 +8,7 @@ for (const theme of ['light', 'dark'] as const) {
     await page.addInitScript(value => localStorage.setItem('mergen-theme-preference', value), theme);
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/app.html');
-    await page.getByTestId('empty-chart-file-input').setInputFiles(resolve('test files/cascaded chain.s2p'));
+    await page.getByTestId('app-open-input').setInputFiles(resolve('test files/cascaded chain.s2p'));
     await page.getByRole('button', { name: '+ Pane', exact: true }).click();
     const row = page.locator('[data-testid^="trace-row-"]').first();
     await row.getByTitle('Show in panes').click();
@@ -36,7 +36,7 @@ for (const theme of ['light', 'dark'] as const) {
     await page.addInitScript(value => localStorage.setItem('mergen-theme-preference', value), theme);
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/app.html');
-    await page.getByTestId('empty-chart-file-input').setInputFiles({ name: 'time.csv', mimeType: 'text/csv', buffer: Buffer.from('Time (s),CH1 (V)\n0,1\n0.5,2\n1,3\n') });
+    await page.getByTestId('app-open-input').setInputFiles({ name: 'time.csv', mimeType: 'text/csv', buffer: Buffer.from('Time (s),CH1 (V)\n0,1\n0.5,2\n1,3\n') });
     await page.keyboard.press('2');
     await page.getByTestId('chart-pane-pane-2').evaluate(target => {
       const dataTransfer = new DataTransfer();
@@ -62,7 +62,7 @@ for (const theme of ['light', 'dark'] as const) {
 
 test('New pane creates and assigns in one undoable action and respects the limit', async ({ page }) => {
   await page.goto('/app.html');
-  await page.getByTestId('empty-chart-file-input').setInputFiles(resolve('test files/cascaded chain.s2p'));
+  await page.getByTestId('app-open-input').setInputFiles(resolve('test files/cascaded chain.s2p'));
   const row = page.locator('[data-testid^="trace-row-"]').first();
   await row.getByTitle('Show in panes').click();
   const menu = page.getByRole('menu', { name: 'Show in' });

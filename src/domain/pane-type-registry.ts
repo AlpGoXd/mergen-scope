@@ -43,13 +43,13 @@ export function createPaneTypeRegistry(
       appliesTo: () => ({ allowed: false, reason: 'Planned, not built yet' }),
     },
     eye: {
-      id: 'eye', title: 'Eye', description: 'Eye: planned, added when a data kind needs it',
+      id: 'eye', source: 'analysis', title: 'Eye', description: 'Eye: planned, added when a data kind needs it',
       status: 'later', laterReason: 'Planned, not built yet', iconKey: 'eye', settings: [], renderMode: null,
       appliesTo: () => ({ allowed: false, reason: 'Planned, not built yet' }),
     },
     spectrogram: {
       id: 'spectrogram', title: 'Spectrogram', description: 'Spectrogram: planned, added when a data kind needs it',
-      status: 'later', laterReason: 'Planned, not built yet', iconKey: 'spectrogram', settings: [], renderMode: null,
+      status: 'later', laterReason: 'Needs a spectrum series file', iconKey: 'spectrogram', settings: [], renderMode: null,
       appliesTo: () => ({ allowed: false, reason: 'Planned, not built yet' }),
     },
   };
@@ -62,7 +62,7 @@ export function paneTypeOfMode(mode: PaneRenderMode): PaneTypeId {
 }
 
 export function selectableTypes(registry: Readonly<Record<PaneTypeId, PaneTypeDefinition>>): readonly PaneTypeDefinition[] {
-  return Object.values(registry).filter(type => type.status === 'available');
+  return Object.values(registry).filter(type => type.status === 'available' && type.source !== 'analysis');
 }
 
 export function typeForTrace(

@@ -4,7 +4,7 @@ import { resolve } from 'node:path';
 
 test('demo opens a saved workspace and removes its query parameter', async ({ page }) => {
   await page.goto('/app.html');
-  await page.getByTestId('empty-chart-file-input').setInputFiles(resolve('test files/cascade_ip3_-12dBm.DAT'));
+  await page.getByTestId('app-open-input').setInputFiles(resolve('test files/cascade_ip3_-12dBm.DAT'));
   await expect(page.locator('[data-testid^="trace-row-"]').first()).toBeVisible();
   const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Save', exact: true }).click()]);
   const path = await download.path();

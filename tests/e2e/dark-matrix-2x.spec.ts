@@ -6,7 +6,7 @@ for (const theme of ['dark', 'light'] as const) {
   test(`matrix states in ${theme}`, async ({ page }) => {
     await page.addInitScript(value => localStorage.setItem('mergen-theme-preference', value), theme);
     await page.goto('/app.html');
-    await page.getByTestId('empty-chart-file-input').setInputFiles(resolve('test files/cascaded chain.s2p'));
+    await page.getByTestId('app-open-input').setInputFiles(resolve('test files/cascaded chain.s2p'));
     const selected = page.getByTestId('touchstone-cell-S11');
     const empty = page.getByTestId('touchstone-cell-S12');
     await expect(selected.locator('.lp-cell__count')).toHaveText('1');

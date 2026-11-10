@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 
 test('selecting a marker or line clears the other selection', async ({ page }) => {
   await page.goto('/app.html');
-  await page.getByTestId('empty-chart-file-input').setInputFiles(resolve('test files/cascade_ip3_-12dBm.DAT'));
+  await page.getByTestId('app-open-input').setInputFiles(resolve('test files/cascade_ip3_-12dBm.DAT'));
   const plot = page.getByTestId('chart-plot-pane-1');
   await page.getByRole('button', { name: 'New Marker', exact: true }).click();
   await plot.click({ position: { x: 100, y: 100 } });

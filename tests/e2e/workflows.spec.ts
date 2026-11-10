@@ -8,7 +8,7 @@ const touchstoneFixture = resolve(process.cwd(), "test files/cascaded chain.s2p"
 
 async function importFromEmptyPane(page: Page, filePath: string) {
   await page.goto("/app.html");
-  await page.getByTestId("empty-chart-file-input").setInputFiles(filePath);
+  await page.getByTestId("app-open-input").setInputFiles(filePath);
 }
 
 function firstTraceRow(page: Page): Locator {
@@ -30,7 +30,7 @@ async function dropCsv(page: Page, paneId: string, name: string, text: string) {
 
 test("rejecting a trace drop onto another domain shows a warning", async ({ page }) => {
   await page.goto("/app.html");
-  await page.getByTestId("empty-chart-file-input").setInputFiles({ name: "time.csv", mimeType: "text/csv", buffer: Buffer.from(timeCsv) });
+  await page.getByTestId("app-open-input").setInputFiles({ name: "time.csv", mimeType: "text/csv", buffer: Buffer.from(timeCsv) });
   const timeRow = page.locator('[data-testid^="trace-row-"]').filter({ hasText: "time.csv" }).first();
   await expect(timeRow).toContainText("P1");
   await page.keyboard.press("2");
@@ -60,7 +60,7 @@ test("multi-pane assignment survives workspace save and reload", async ({ page }
 
   await page.getByRole("button", { name: "+ Pane" }).click();
   await expect(page.getByTestId("chart-pane-pane-2")).toBeVisible();
-  await expect(page.getByTestId("empty-trace-pane-dropzone")).toContainText("Drop traces here");
+  await expect(page.getByTestId("empty-trace-pane-dropzone")).toContainText(/Pick a type/);
 
   await firstTraceRow(page).click();
   await page.getByTestId("chart-pane-header-pane-2").getByRole("button", { name: "Move Here" }).click();
@@ -212,7 +212,7 @@ test("Touchstone traces load while the sidebar is hidden", async ({ page }) => {
 
 test("a broken file shows an import error instead of crashing the app", async ({ page }) => {
   await page.goto("/app.html");
-  await page.getByTestId("empty-chart-file-input").setInputFiles({
+  await page.getByTestId("app-open-input").setInputFiles({
     name: "broken.s2p",
     mimeType: "text/plain",
     buffer: Buffer.from("this is not a network file"),

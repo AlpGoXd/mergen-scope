@@ -8,13 +8,13 @@ test("loads the app shell directly from /app.html", async ({ page }) => {
   await page.goto("/app.html");
 
   await expect(page.getByTestId("app-root")).toBeVisible();
-  await expect(page.getByTestId("empty-chart-dropzone")).toContainText("Drop files here");
+  await expect(page.getByTestId("empty-chart-dropzone")).toContainText("What should this pane show?");
 });
 
 test("imports data, uses marker/search tools, exports CSV, and reloads a workspace", async ({ page }) => {
   await page.goto("/app.html");
 
-  await page.getByTestId("empty-chart-file-input").setInputFiles(datFixture);
+  await page.getByTestId("app-open-input").setInputFiles(datFixture);
   await expect(page.locator(".lp-file--header .lp-name").filter({ hasText: "cascade_ip3_-12dBm.DAT" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Peak", exact: true })).toBeVisible();
 
@@ -47,7 +47,7 @@ test("imports data, uses marker/search tools, exports CSV, and reloads a workspa
 test("routes ambiguous CSV imports through the import wizard", async ({ page }) => {
   await page.goto("/app.html");
 
-  await page.getByTestId("empty-chart-file-input").setInputFiles({
+  await page.getByTestId("app-open-input").setInputFiles({
     name: "ambiguous.csv",
     mimeType: "text/csv",
     buffer: Buffer.from("1,2\n2,3\n"),
@@ -61,7 +61,7 @@ test("routes ambiguous CSV imports through the import wizard", async ({ page }) 
 test("import wizard shows which rows and columns its settings select", async ({ page }) => {
   await page.goto("/app.html");
   const csv = "exported by scope\nidx,a,b,c\n1,2,3,4\n2,3,4,5\n3,4,5,6\n";
-  await page.getByTestId("empty-chart-file-input").setInputFiles([
+  await page.getByTestId("app-open-input").setInputFiles([
     { name: "first.csv", mimeType: "text/csv", buffer: Buffer.from(csv) },
     { name: "second.csv", mimeType: "text/csv", buffer: Buffer.from(csv) },
   ]);

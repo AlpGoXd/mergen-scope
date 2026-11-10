@@ -10,7 +10,7 @@ for (const dataset of datasets) {
   test(`four panes contain visible y-axis labels with ${dataset.name}`, async ({ page }) => {
     await page.setViewportSize({ width: 1024, height: 900 });
     await page.goto('/app.html');
-    await page.getByTestId('empty-chart-file-input').setInputFiles({ name: dataset.name, mimeType: 'text/csv', buffer: Buffer.from(dataset.csv) });
+    await page.getByTestId('app-open-input').setInputFiles({ name: dataset.name, mimeType: 'text/csv', buffer: Buffer.from(dataset.csv) });
     await page.keyboard.press('4');
     const row = page.locator('[data-testid^="trace-row-"]').first();
     await row.getByTitle('Show in panes').click();
@@ -44,7 +44,7 @@ for (const theme of ['light', 'dark'] as const) {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/app.html');
     await expect(page.locator(`.theme-${theme}`).first()).toBeAttached();
-    await page.getByTestId('empty-chart-file-input').setInputFiles({ name: datasets[0].name, mimeType: 'text/csv', buffer: Buffer.from(datasets[0].csv) });
+    await page.getByTestId('app-open-input').setInputFiles({ name: datasets[0].name, mimeType: 'text/csv', buffer: Buffer.from(datasets[0].csv) });
     await page.keyboard.press('4');
     const row = page.locator('[data-testid^="trace-row-"]').first();
     await row.getByTitle('Show in panes').click();

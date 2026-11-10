@@ -82,6 +82,7 @@ export function restoreWorkspaceMemento(state: WorkspaceState, memento: Workspac
 /** Build a portable v5 snapshot from the actual live slices, never a history memento. */
 export function snapshotFromWorkspace(state: WorkspaceState): WorkspaceSnapshotV5 | null {
   const { files, traces, panes, markers, lines, analysis, ui } = state;
+  const { paneTypeChosen: _paneTypeChosen, ...portableUi } = ui;
   const paneIds = panes.panes.map(p => p.id);
   const layout = {...state.layout, paneOrder: [...state.layout.paneOrder.filter(id => paneIds.includes(id)), ...paneIds.filter(id => !state.layout.paneOrder.includes(id))], sizes: Object.fromEntries(Object.entries(state.layout.sizes).filter(([id]) => paneIds.includes(id)))};
   const body = {
@@ -90,7 +91,7 @@ export function snapshotFromWorkspace(state: WorkspaceState): WorkspaceSnapshotV
     derivedTraces: traces.derivedTraces, vis: traces.vis, panes: panes.panes, paneMode: panes.panes.length,
     activePaneId: panes.activePaneId, traceAssignments: panes.tracePaneMap, paneActiveTraceMap: panes.paneActiveTraceMap,
     xZoomState: {zoomAll:panes.zoomAll,sharedZoom:panes.sharedZoom,paneXZooms:panes.paneXZooms}, yZoomState:{paneYZooms:panes.paneYZooms},
-    markers:markers.markers, refLines:lines.refLines, ui:{...ui, selectedRefLineId:lines.selectedRefLineId}, analysisOpenState:analysis.analysisOpenState, analyses:analysis.analyses,
+    markers:markers.markers, refLines:lines.refLines, ui:{...portableUi, selectedRefLineId:lines.selectedRefLineId}, analysisOpenState:analysis.analysisOpenState, analyses:analysis.analyses,
     analysisResults: {noiseResults:analysis.noiseResults,ip3Results:analysis.ip3Results,peakResults:analysis.peakResults,bandwidthResults:analysis.bandwidthResults,rippleResults:analysis.rippleResults,rangeStatsResults:analysis.rangeStatsResults},
     savedNoise:[], savedIP3:[], selectedTraceName:ui.selectedTraceName, layout,
   };
@@ -127,7 +128,7 @@ export function workspaceFromSnapshot(current: WorkspaceState, snapshot: Workspa
     markers:{...current.markers, markers:[...snapshot.markers], selectedMkrIdx:-1, armed:null, nextMarkerSerial:1},
     lines:{...current.lines, refLines:[...snapshot.refLines], refMode:null, selectedRefLineId:(snapshot.ui as typeof snapshot.ui & {selectedRefLineId?: number | null}).selectedRefLineId ?? null},
     analysis:analysisReducer(current.analysis,{type:'RESTORE',payload:{...snapshot.analysisResults, analysisOpenState:snapshot.analysisOpenState, analyses:[...(snapshot.analyses ?? [])]}}),
-    ui:{...current.ui, ...snapshot.ui, traceHueSlots:Object.fromEntries(allocateColourBlindCreated(view.allKnownTraces, new Map(Object.entries(snapshot.ui.traceHueSlots ?? {})))), selectedTraceName:snapshot.selectedTraceName, paneAssignmentWarning:null, activeWizard:null},
+    ui:{...current.ui, ...snapshot.ui, paneTypeChosen:{}, traceHueSlots:Object.fromEntries(allocateColourBlindCreated(view.allKnownTraces, new Map(Object.entries(snapshot.ui.traceHueSlots ?? {})))), selectedTraceName:snapshot.selectedTraceName, paneAssignmentWarning:null, activeWizard:null},
     layout:snapshot.layout,
   };
 }
@@ -323,7 +324,7 @@ export function workspaceReducer(state: WorkspaceState, command: WorkspaceAction
     panes: paneReducer(state.panes, {type: 'RESTORE', payload: command.state.panes}),
     markers: markerReducer(state.markers, {type: 'RESTORE', payload: command.state.markers}),
     analysis: analysisReducer(state.analysis, {type: 'RESTORE', payload: command.state.analysis}),
-    ui: { ...command.state.ui, theme: state.ui.theme }, revision: state.revision + 1,
+    ui: { ...command.state.ui, paneTypeChosen: {}, theme: state.ui.theme }, revision: state.revision + 1,
   };
   if (command.slice === 'analysis' && (command.action.type === 'CREATE_ANALYSIS_OUTPUT' || command.action.type === 'FREEZE_ANALYSIS_COPY')) {
     const action = command.action;
@@ -379,6 +380,7 @@ export function workspaceReducer(state: WorkspaceState, command: WorkspaceAction
         const plan=planPaneRemoval(state.panes.panes,entries,state.panes.panes.slice(action.payload).map(pane => pane.id));
         if (!plan.ok || plan.plan.unplaced.length) return refusal(plan.ok ? 'Removing these panes would leave traces unplaced; confirmation is required.' : plan.reason,state.panes.activePaneId);
       }
+      if (action.type === 'SET_RENDER_MODE' && action.payload.confirmed && action.payload.expectedRevision !== undefined && action.payload.expectedRevision !== state.revision) return refusal('The panes changed while you were confirming. Review the new plan.', action.payload.paneId);
       if (action.type === 'SET_RENDER_MODE' && !action.payload.confirmed) {
         const plan=planPaneTypeChange(state.panes.panes,entries,action.payload.paneId,action.payload.mode);
         if (!plan.ok || plan.plan.requiresConfirmation) return refusal(plan.ok ? 'Changing this pane would leave traces unplaced; confirmation is required.' : plan.reason,action.payload.paneId);
@@ -396,6 +398,10 @@ export function workspaceReducer(state: WorkspaceState, command: WorkspaceAction
       else next = { ...state, panes: paneReducer(state.panes, action) };
       break;
     }
+  }
+  if (next.panes !== state.panes) {
+    const ids = new Set(next.panes.panes.map(pane => pane.id));
+    next = { ...next, ui: { ...next.ui, paneTypeChosen: Object.fromEntries(Object.entries(next.ui.paneTypeChosen).filter(([id]) => ids.has(id))) } };
   }
   if (next.files === state.files && next.traces === state.traces && next.panes === state.panes && next.markers === state.markers && next.lines === state.lines && next.analysis === state.analysis && next.ui === state.ui) return state;
   if (command.slice === 'analysis' && command.action.type === 'REMOVE_ANALYSIS') {

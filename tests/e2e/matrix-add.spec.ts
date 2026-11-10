@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 
 test('matrix cells add views and identify duplicates', async ({ page }) => {
   await page.goto('/app.html');
-  await page.getByTestId('empty-chart-file-input').setInputFiles(resolve('test files/cascaded chain.s2p'));
+  await page.getByTestId('app-open-input').setInputFiles(resolve('test files/cascaded chain.s2p'));
   const cell = page.getByTestId('touchstone-cell-S11');
   const rows = page.locator('[data-testid^="trace-row-"]');
   await expect(rows.first()).toBeVisible();

@@ -3,7 +3,7 @@ import { resolve } from 'path';
 
 test('new two-port files open the matrix and expose ABCD', async ({ page }) => {
   await page.goto('/app.html');
-  await page.getByTestId('empty-chart-file-input').setInputFiles(resolve(process.cwd(), 'test files/cascaded chain.s2p'));
+  await page.getByTestId('app-open-input').setInputFiles(resolve(process.cwd(), 'test files/cascaded chain.s2p'));
   const matrix = page.getByRole('button', { name: 'Matrix', exact: true });
   await expect(matrix).toHaveAttribute('aria-expanded', 'true');
   await expect(page.getByRole('button', { name: 'Restore', exact: true })).toHaveCount(0);

@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 
 test('armed tools replace one another and cancel', async ({ page }) => {
   await page.goto('/app.html');
-  await page.getByTestId('empty-chart-file-input').setInputFiles(resolve('test files/cascade_ip3_-12dBm.DAT'));
+  await page.getByTestId('app-open-input').setInputFiles(resolve('test files/cascade_ip3_-12dBm.DAT'));
   for (const name of ['Markers', 'Lines']) {
     const chip = page.getByRole('button', { name, exact: true });
     if (await chip.getAttribute('aria-pressed') !== 'true') await chip.click();

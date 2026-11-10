@@ -4,7 +4,7 @@ import { addAnalysis } from './analysis-helpers';
 
 test('a smooth trace appears immediately below its first-file parent', async ({ page }) => {
   await page.goto('/app.html');
-  await page.getByTestId('empty-chart-file-input').setInputFiles(resolve('test files/cascade_ip3_-12dBm.DAT'));
+  await page.getByTestId('app-open-input').setInputFiles(resolve('test files/cascade_ip3_-12dBm.DAT'));
   const rows = page.locator('[data-testid^="trace-row-"]');
   const parentId = await rows.first().getAttribute('data-testid');
   await page.getByTestId('app-open-input').setInputFiles(resolve('test files/cascaded chain.s2p'));

@@ -277,7 +277,6 @@ table {
 .ph-count { font-size: var(--font-caption); line-height: var(--lh-caption); color: var(--text-muted); }
 @container (max-width: 520px) { .ph .ph-scale { display: none; } }
 @container (max-width: 400px) { .ph .ph-count, .ph .ph-set-target { display: none; } }
-@container (max-width: 650px) { .ph .ph-type-label { display: none; } }
 @container (max-width: 400px) { .ph .ph-move { display: none; } }
 .pane-type-tile { width: 96px; min-height: 88px; }
 @container (max-height: 220px) {

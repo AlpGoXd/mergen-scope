@@ -11,7 +11,7 @@ async function setup(page: Page, theme: 'light' | 'dark', size: string, viewport
   await page.addInitScript(([t, s]) => { localStorage.setItem('mergen-theme-preference', t); localStorage.setItem('mergen-app-preferences', JSON.stringify({ size: s })); }, [theme, size] as const);
   await page.setViewportSize(viewport);
   await page.goto('/app.html');
-  await page.getByTestId('empty-chart-file-input').setInputFiles(resolve(process.cwd(), 'test files/cascade_ip3_-12dBm.DAT'));
+  await page.getByTestId('app-open-input').setInputFiles(resolve(process.cwd(), 'test files/cascade_ip3_-12dBm.DAT'));
   await expect(page.locator('[data-testid^="trace-row-"]').first()).toBeVisible();
   await expect(page.locator('html')).toHaveAttribute('data-size', size);
 }
@@ -51,7 +51,7 @@ for (const theme of ['light', 'dark'] as const) {
     await page.addInitScript((t) => { localStorage.setItem('mergen-theme-preference', t); }, theme);
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/app.html');
-    await page.getByTestId('empty-chart-file-input').setInputFiles(resolve(process.cwd(), 'test files/cascaded chain.s2p'));
+    await page.getByTestId('app-open-input').setInputFiles(resolve(process.cwd(), 'test files/cascaded chain.s2p'));
     await expect(page.locator('.lp-file__summary').first()).toBeVisible();
     await page.locator('.lp').first().screenshot({ path: `${dir}/${theme}-left-network.png` });
   });

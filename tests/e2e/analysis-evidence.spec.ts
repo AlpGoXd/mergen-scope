@@ -13,7 +13,7 @@ for (const theme of ['light', 'dark'] as const) {
     await page.addInitScript((t) => { localStorage.setItem('mergen-theme-preference', t); }, theme);
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/app.html');
-    await page.getByTestId('empty-chart-file-input').setInputFiles(resolve('test files/cascade_ip3_-12dBm.DAT'));
+    await page.getByTestId('app-open-input').setInputFiles(resolve('test files/cascade_ip3_-12dBm.DAT'));
     await expect(page.locator('[data-testid^="trace-row-"]').first()).toBeVisible();
     await page.getByRole('button', { name: 'Analysis', exact: true }).click();
     await page.screenshot({ path: `${dir}/${theme}-empty.png` });

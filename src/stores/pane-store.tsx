@@ -32,7 +32,7 @@ export type PaneAction =
   | { type: 'ASSIGN_TRACE_TO_PANE'; payload: { trace: Trace; targetPaneId: string; allTraces: Trace[]; displayTraces?: readonly DisplayTrace[] } }
   | { type: 'SET_ACTIVE_PANE'; payload: string | null }
   | { type: 'SET_PANE_ACTIVE_TRACE'; payload: { paneId: string; traceName: string | null } }
-  | { type: 'SET_RENDER_MODE'; payload: { paneId: string; mode: PaneRenderMode; traces?: PlacementTrace[]; confirmed?: boolean } }
+  | { type: 'SET_RENDER_MODE'; payload: { paneId: string; mode: PaneRenderMode; traces?: PlacementTrace[]; confirmed?: boolean; expectedRevision?: number } }
   | { type: 'SET_PANE_TITLE'; payload: { paneId: string; title: string } }
   | { type: 'SET_ZOOM_ALL'; payload: boolean }
   | { type: 'SET_SHARED_ZOOM'; payload: ZoomWindow | null | ((prev: ZoomWindow | null) => ZoomWindow | null) }

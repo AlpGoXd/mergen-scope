@@ -3,7 +3,7 @@ import { resolve } from 'path';
 
 test('file summary and matrix controls stay aligned and remain interactive', async ({ page }) => {
   await page.goto('/app.html');
-  await page.getByTestId('empty-chart-file-input').setInputFiles(resolve(process.cwd(), 'test files/cascaded chain.s2p'));
+  await page.getByTestId('app-open-input').setInputFiles(resolve(process.cwd(), 'test files/cascaded chain.s2p'));
   const matrix = page.getByRole('button', { name: 'Matrix', exact: true });
   await expect(matrix).toHaveAttribute('aria-expanded', 'true');
   await expect(page.getByText(/2 ports.*201 pts/)).toBeVisible();

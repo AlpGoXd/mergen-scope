@@ -5,7 +5,7 @@ import { addAnalysis } from './analysis-helpers';
 test('created traces have distinct colours and symbols can be shown', async ({ page }) => {
   await page.goto('/app.html');
   page.on('dialog', dialog => dialog.accept());
-  await page.getByTestId('empty-chart-file-input').setInputFiles(resolve('test files/cascade_ip3_-12dBm.DAT'));
+  await page.getByTestId('app-open-input').setInputFiles(resolve('test files/cascade_ip3_-12dBm.DAT'));
   await page.getByTestId('app-open-input').setInputFiles(resolve('test files/cascaded chain.s2p'));
   const rows = page.locator('[data-testid^="trace-row-"]');
   await expect(rows.first()).toBeVisible();

@@ -6,7 +6,7 @@ import { resolve } from 'path';
 test('a line goes only into the clicked pane, even with X-linked panes; more panes only through Show in; new panes get none', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/app.html');
-  await page.getByTestId('empty-chart-file-input').setInputFiles(resolve('test files/cascade_ip3_-12dBm.DAT'));
+  await page.getByTestId('app-open-input').setInputFiles(resolve('test files/cascade_ip3_-12dBm.DAT'));
   await expect(page.locator('[data-testid^="trace-row-"]').first()).toBeVisible();
 
   // The Link button and the row's link icon are gone.

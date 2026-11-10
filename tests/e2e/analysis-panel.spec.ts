@@ -7,7 +7,7 @@ import { addAnalysis, analysisCard, openAnalysisPanel } from './analysis-helpers
 async function loaded(page: Page) {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/app.html');
-  await page.getByTestId('empty-chart-file-input').setInputFiles(resolve('test files/cascade_ip3_-12dBm.DAT'));
+  await page.getByTestId('app-open-input').setInputFiles(resolve('test files/cascade_ip3_-12dBm.DAT'));
   await expect(page.locator('[data-testid^="trace-row-"]').first()).toBeVisible();
 }
 
@@ -141,7 +141,7 @@ test('Smooth creates and follows an output, and can freeze a copy', async ({ pag
 test('the trace of a card is chosen from a list of the visible traces', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/app.html');
-  await page.getByTestId('empty-chart-file-input').setInputFiles(resolve('test files/cascaded chain.s2p'));
+  await page.getByTestId('app-open-input').setInputFiles(resolve('test files/cascaded chain.s2p'));
   await page.getByTestId('touchstone-cell-S11').click();
   const card = await addAnalysis(page, 'Range Statistics');
   const source = card.locator('.an-select').first();
@@ -158,6 +158,6 @@ test('the trace of a card is chosen from a list of the visible traces', async ({
 test('the top bar Export is disabled without traces and downloads the visible traces as CSV with them', async ({ page }) => {
   await page.goto('/app.html');
   await expect(page.getByRole('button', { name: 'Export', exact: true })).toBeDisabled();
-  await page.getByTestId('empty-chart-file-input').setInputFiles(resolve('test files/cascade_ip3_-12dBm.DAT'));
+  await page.getByTestId('app-open-input').setInputFiles(resolve('test files/cascade_ip3_-12dBm.DAT'));
   await expect(page.getByRole('button', { name: 'Export', exact: true })).toBeEnabled();
 });

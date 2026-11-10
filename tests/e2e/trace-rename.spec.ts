@@ -4,7 +4,7 @@ import { addAnalysis } from './analysis-helpers';
 
 test('trace names edit in place and reset', async ({ page }) => {
   await page.goto('/app.html');
-  await page.getByTestId('empty-chart-file-input').setInputFiles(resolve('test files/cascade_ip3_-12dBm.DAT'));
+  await page.getByTestId('app-open-input').setInputFiles(resolve('test files/cascade_ip3_-12dBm.DAT'));
   const row = page.locator('[data-testid^="trace-row-"]').first();
   const name = row.locator('.lp-name');
   const original = await name.innerText();
@@ -36,7 +36,7 @@ test('trace names edit in place and reset', async ({ page }) => {
 
 test('a math output rename is shared with the trace list', async ({ page }) => {
   await page.goto('/app.html');
-  await page.getByTestId('empty-chart-file-input').setInputFiles(resolve('test files/cascade_ip3_-12dBm.DAT'));
+  await page.getByTestId('app-open-input').setInputFiles(resolve('test files/cascade_ip3_-12dBm.DAT'));
   const card = await addAnalysis(page, 'Smooth');
   await card.getByRole('button', { name: 'Create trace' }).click();
   await card.locator('.an-output__name').dblclick();

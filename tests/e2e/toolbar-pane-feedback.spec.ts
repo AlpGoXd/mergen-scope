@@ -35,7 +35,7 @@ test('experimental limit supports eight panes', async ({ page }) => {
 
 test('incompatible removal confirms and keeps a paneless line out of the remaining chart', async ({ page }) => {
   await page.goto('/app.html');
-  await page.getByTestId('empty-chart-file-input').setInputFiles({ name:'time.csv', mimeType:'text/csv', buffer:Buffer.from('Time (s),CH1 (V)\n0,1\n0.5,2\n1,3\n') });
+  await page.getByTestId('app-open-input').setInputFiles({ name:'time.csv', mimeType:'text/csv', buffer:Buffer.from('Time (s),CH1 (V)\n0,1\n0.5,2\n1,3\n') });
   await page.getByRole('button',{name:'+ Pane',exact:true}).click();
   await page.getByTestId('chart-pane-pane-2').evaluate(target => {
     const transfer=new DataTransfer();

@@ -10,7 +10,7 @@ for (const theme of ['light', 'dark'] as const) {
       if (process.env.MARKER_TOOLBAR_CAPTURE) await page.screenshot({ path: `docs/redesign/marker-toolbar-visual-evidence/${theme}-${state}.png`, animations: 'disabled' });
     };
     await capture('empty');
-    await page.getByTestId('empty-chart-file-input').setInputFiles(resolve(process.cwd(), 'test files/cascaded chain.s2p'));
+    await page.getByTestId('app-open-input').setInputFiles(resolve(process.cwd(), 'test files/cascaded chain.s2p'));
     await expect(page.locator('[data-testid^="trace-row-"]').first()).toBeVisible();
     await capture('populated');
     const controls = page.getByRole('button', { name: 'New Marker', exact: true });

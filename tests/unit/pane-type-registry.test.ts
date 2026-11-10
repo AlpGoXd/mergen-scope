@@ -7,6 +7,9 @@ const registry = createPaneTypeRegistry({ smithCapability: () => ({ allowed: fal
 describe('pane type registry', () => {
   it('lists available and planned types in order', () => {
     expect(Object.keys(registry)).toEqual(['chart', 'table', 'smith', 'polar', 'eye', 'spectrogram']);
+    expect(registry.eye.source).toBe('analysis');
+    expect(Object.values(registry).filter(type => type.source !== 'analysis').map(type => type.id)).toEqual(['chart', 'table', 'smith', 'polar', 'spectrogram']);
+    expect(registry.table.status).toBe('later');
     expect(selectableTypes(registry).map(type => type.id)).toEqual(['chart']);
     expect(Object.values(registry).filter(type => type.status === 'later').every(type => type.laterReason)).toBe(true);
   });

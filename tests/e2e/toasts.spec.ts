@@ -5,7 +5,7 @@ import { resolve } from 'path';
 async function loaded(page: Page) {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/app.html');
-  await page.getByTestId('empty-chart-file-input').setInputFiles(resolve('test files/cascade_ip3_-12dBm.DAT'));
+  await page.getByTestId('app-open-input').setInputFiles(resolve('test files/cascade_ip3_-12dBm.DAT'));
   await expect(page.locator('[data-testid^="trace-row-"]').first()).toBeVisible();
   // Opening a file raises the "Opened 1 file" toast; dismiss it so the rest starts from a clean screen.
   await expect(page.locator('.ui-toast')).toContainText('Opened 1 file');

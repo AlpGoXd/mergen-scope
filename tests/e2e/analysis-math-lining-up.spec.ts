@@ -4,7 +4,7 @@ import { addAnalysis } from './analysis-helpers';
 
 test('mismatched stimulus requires alignment choices', async ({ page }) => {
   await page.goto('/app.html');
-  await page.getByTestId('empty-chart-file-input').setInputFiles(resolve('test files/cascade_ip3_-12dBm.DAT'));
+  await page.getByTestId('app-open-input').setInputFiles(resolve('test files/cascade_ip3_-12dBm.DAT'));
   await page.getByTestId('app-open-input').setInputFiles(resolve('test files/cascaded chain.s2p'));
   const card = await addAnalysis(page, 'Trace math');
   await card.locator('.an-select').nth(1).click();
@@ -25,7 +25,7 @@ test('mismatched stimulus requires alignment choices', async ({ page }) => {
 test('identical stimuli need no choices', async ({ page }) => {
   await page.goto('/app.html');
   const file = resolve('test files/cascade_ip3_-12dBm.DAT');
-  await page.getByTestId('empty-chart-file-input').setInputFiles(file);
+  await page.getByTestId('app-open-input').setInputFiles(file);
   await page.getByTestId('app-open-input').setInputFiles(file);
   const card = await addAnalysis(page, 'Trace math');
   await card.locator('.an-select').nth(1).click();

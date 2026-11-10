@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 test('header Samples stays in sync, supports undo and remains visible', async ({ page }) => {
   await page.setViewportSize({ width: 1024, height: 640 });
   await page.goto('/app.html');
-  await page.getByTestId('empty-chart-file-input').setInputFiles({ name: 'samples.csv', mimeType: 'text/csv', buffer: Buffer.from('Time (s),CH1 (V)\n0,1\n0.5,2\n1,3\n') });
+  await page.getByTestId('app-open-input').setInputFiles({ name: 'samples.csv', mimeType: 'text/csv', buffer: Buffer.from('Time (s),CH1 (V)\n0,1\n0.5,2\n1,3\n') });
   const pane = page.getByTestId('chart-pane-pane-1');
   const button = pane.getByTestId('samples-toggle');
   await button.click();
@@ -31,7 +31,7 @@ test('header Samples stays in sync, supports undo and remains visible', async ({
   expect(h).not.toBeNull();
   expect(h?.width).toBeCloseTo(330, 0);
   expect(h?.height).toBe(initial?.height);
-  for (const control of [button, pane.getByTitle('Pane settings'), pane.getByRole('button', { name: 'Pane actions' })]) {
+  for (const control of [header.getByTestId('pane-type-icon'), button, pane.getByTitle('Pane settings'), pane.getByRole('button', { name: 'Pane actions' })]) {
     await expect(control).toBeVisible();
     const box = await control.boundingBox();
     expect(box && h && box.x >= h.x && box.x + box.width <= h.x + h.width).toBeTruthy();

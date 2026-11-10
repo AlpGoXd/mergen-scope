@@ -4,7 +4,7 @@ import { addAnalysis, analysisCard } from './analysis-helpers';
 
 test('List adds a "V1 crossings" card with only the changing value; it has no Manual threshold button and follows the line', async ({ page }) => {
   await page.goto('/app.html');
-  await page.getByTestId('empty-chart-file-input').setInputFiles(resolve(process.cwd(), 'test files/cascade_ip3_-12dBm.DAT'));
+  await page.getByTestId('app-open-input').setInputFiles(resolve(process.cwd(), 'test files/cascade_ip3_-12dBm.DAT'));
   await page.getByRole('button', { name: 'V-Line' }).click();
   await page.getByTestId('chart-plot-pane-1').click({ position: { x: 260, y: 120 } });
   const row = page.getByTestId('ref-line-row-V1');
@@ -28,7 +28,7 @@ test('List adds a "V1 crossings" card with only the changing value; it has no Ma
 
 test('the Threshold crossings tool takes a level and lists x values only', async ({ page }) => {
   await page.goto('/app.html');
-  await page.getByTestId('empty-chart-file-input').setInputFiles(resolve(process.cwd(), 'test files/cascade_ip3_-12dBm.DAT'));
+  await page.getByTestId('app-open-input').setInputFiles(resolve(process.cwd(), 'test files/cascade_ip3_-12dBm.DAT'));
   const card = await addAnalysis(page, 'Threshold crossings');
   await expect(card.locator('.an-cross__head')).toContainText('X');
   const before = await card.locator('.an-cross__row').count();
@@ -43,7 +43,7 @@ test.describe('AC-3 card evidence at 2x', () => {
     test(`line crossing evidence in ${theme}`, async ({ page }) => {
       await page.addInitScript(value => localStorage.setItem('mergen-theme-preference', value), theme);
       await page.goto('/app.html');
-      await page.getByTestId('empty-chart-file-input').setInputFiles(resolve(process.cwd(), 'test files/cascade_ip3_-12dBm.DAT'));
+      await page.getByTestId('app-open-input').setInputFiles(resolve(process.cwd(), 'test files/cascade_ip3_-12dBm.DAT'));
       await page.getByRole('button', { name: 'V-Line' }).click();
       await page.getByTestId('chart-plot-pane-1').click({ position: { x: 260, y: 120 } });
       await page.getByTestId('ref-line-row-V1').getByRole('button', { name: 'List…' }).click();

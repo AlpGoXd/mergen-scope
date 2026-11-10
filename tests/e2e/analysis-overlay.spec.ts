@@ -5,7 +5,7 @@ import { addAnalysis } from './analysis-helpers';
 test('bandwidth band follows the eye and undo; range statistics has no eye', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/app.html');
-  await page.getByTestId('empty-chart-file-input').setInputFiles(resolve('test files/cascade_ip3_-12dBm.DAT'));
+  await page.getByTestId('app-open-input').setInputFiles(resolve('test files/cascade_ip3_-12dBm.DAT'));
   const bandwidth = await addAnalysis(page, 'Bandwidth');
   const plot = page.getByTestId('chart-plot-pane-1');
   const overlay = plot.getByTestId('analysis-shape-band');

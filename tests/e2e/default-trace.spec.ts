@@ -4,7 +4,7 @@ import { addAnalysis } from './analysis-helpers';
 
 test('analysis and marker default to the first visible trace', async ({ page }) => {
   await page.goto('/app.html');
-  await page.getByTestId('empty-chart-file-input').setInputFiles(resolve('test files/cascade_ip3_-12dBm.DAT'));
+  await page.getByTestId('app-open-input').setInputFiles(resolve('test files/cascade_ip3_-12dBm.DAT'));
   await page.getByTestId('app-open-input').setInputFiles(resolve('test files/cascaded chain.s2p'));
   const first = page.locator('[data-testid^="trace-row-"]').first();
   const name = await first.locator('.lp-name').innerText();

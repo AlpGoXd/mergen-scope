@@ -5,7 +5,7 @@ import { addAnalysis } from './analysis-helpers';
 test('peak rows highlight triangles and place markers with bulk undo', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/app.html');
-  await page.getByTestId('empty-chart-file-input').setInputFiles(resolve('test files/cascade_ip3_-12dBm.DAT'));
+  await page.getByTestId('app-open-input').setInputFiles(resolve('test files/cascade_ip3_-12dBm.DAT'));
   const card = await addAnalysis(page, 'Peak Table');
   const rows = card.locator('[data-testid^="peak-row-"]');
   expect(await rows.count()).toBeGreaterThan(1);

@@ -4,7 +4,7 @@ import { addAnalysis } from './analysis-helpers';
 
 test('trace rename preserves placement and marker association and is undoable', async ({ page }) => {
   await page.goto('/app.html');
-  await page.getByTestId('empty-chart-file-input').setInputFiles(resolve('test files/cascaded chain.s2p'));
+  await page.getByTestId('app-open-input').setInputFiles(resolve('test files/cascaded chain.s2p'));
   const row = page.locator('[data-testid^="trace-row-"]').first();
   const original = await row.getAttribute('data-testid');
   await page.getByRole('button', { name: 'New Marker', exact: true }).click();
@@ -39,7 +39,7 @@ test('trace rename preserves placement and marker association and is undoable', 
 
 test('derived trace rename is undoable and keeps its identity', async ({ page }) => {
   await page.goto('/app.html');
-  await page.getByTestId('empty-chart-file-input').setInputFiles(resolve('test files/cascade_ip3_-12dBm.DAT'));
+  await page.getByTestId('app-open-input').setInputFiles(resolve('test files/cascade_ip3_-12dBm.DAT'));
   const card = await addAnalysis(page, 'Offset / Scale');
   await card.getByRole('button', { name: 'Create trace' }).click();
   const initial = page.locator('[data-testid^="trace-row-"]').filter({ has: page.locator('.lp-trace__fx') }).first();

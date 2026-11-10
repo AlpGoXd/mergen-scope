@@ -25,6 +25,7 @@ export interface PaneTypeDefinition {
   readonly id: PaneTypeId;
   readonly title: string;
   readonly description: string;
+  readonly source?: 'pane' | 'analysis';
   readonly status: 'available' | 'later';
   readonly laterReason?: string;
   readonly iconKey: PaneTypeId;
