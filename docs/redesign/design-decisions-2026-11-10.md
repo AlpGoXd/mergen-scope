@@ -56,7 +56,6 @@ Put this file in `docs/redesign/`. It sits next to `spec-v3.md`: where they disa
   - Graph export defaults to Always.
   - When a colour repeats (9th source, 9th created trace), the trace gets a hollow symbol every ~90 px, in this order: ○ □ △ ◇ ▽ + × ☆.
   - The same symbol shows in its row swatch and in exports.
-- **Family highlight:** hovering or selecting any trace in a family (parent and created traces) thickens the family and fades the other traces.
 - **Colour-blind palette** swaps the 8 source hues for the colour-blind set; all rules stay the same.
 
 ## Behaviour
