@@ -17,6 +17,7 @@ function copyRuntimeAssets(): Plugin {
   ];
   const staticDirs = [
     "demo-assets",
+    "landing-assets",
   ];
   return {
     name: "copy-runtime-assets",
