@@ -3,7 +3,7 @@
 import { createRoot } from 'react-dom/client';
 import type { ReactElement } from 'react';
 import {
-  AddAnalysisMenu, AnalysisCard, AnalysisEmpty, AnalysisPanel, Busy, CardMsg, CrossingsList, KeyValues, OutputRow, Params, Result,
+  AddAnalysisMenu, AnalysisCard, AnalysisEmpty, AnalysisPanel, Busy, CardMsg, CreateRow, CrossingsList, KeyValues, OutputRow, Params, Result, Results,
 } from '../Analysis';
 import type { AddMenuItem } from '../types';
 import '../../common/app-tokens.css';
@@ -26,20 +26,34 @@ const MENU: AddMenuItem[] = [
 function Panel(): ReactElement {
   return (
     <AnalysisPanel count={5} onAdd={noop}>
-      <AnalysisCard id="bw" kind="measure" title="Bandwidth" source="S21 · lna_board_rev3.s2p · Pane 1" onToggle={noop} onMenu={noop} onRemove={noop}>
-        <KeyValues rows={[{ label: 'Level', value: '−3 dB from peak' }, { label: 'Range', value: 'visible' }]} />
-        <Result value="86.2" unit="MHz" note="centre 2.441 GHz · 2.398 → 2.484 GHz" />
+      <AnalysisCard id="bw" kind="measure" title="Bandwidth" source="S21 · lna_board_rev3.s2p · P1" sourceHue={0} overlay={{ on: true, onToggle: noop }} onToggle={noop} onMenu={noop} onRemove={noop}>
+        <Params cardId="bw" fields={[
+          { id: 'drop', label: 'Drop', control: { type: 'number', value: '3', unit: 'dB from peak', onCommit: noop } },
+          { id: 'range', label: 'Range', control: { type: 'segmented', value: 'vis', onChange: noop, options: [{ value: 'vis', label: 'Visible' }, { value: 'all', label: 'All' }] } },
+        ]} />
+        <Results>
+          <Result value="86.2" unit="MHz" />
+          <KeyValues rows={[{ label: 'Centre', value: '2.441 GHz' }, { label: 'Edges', value: '2.398 → 2.484 GHz' }]} />
+        </Results>
       </AnalysisCard>
-      <AnalysisCard id="rip" kind="measure" title="Ripple / flatness" source="S21 · in 2.40–2.48 GHz" collapsed summary="0.42 dB p-p" onToggle={noop} onMenu={noop} onRemove={noop} />
-      <AnalysisCard id="smooth" kind="math" title="Smooth" source="S21 · lna_board_rev3.s2p" selected onToggle={noop} onMenu={noop} onRemove={noop}>
-        <Params fields={[
+      <AnalysisCard id="rip" kind="measure" title="Ripple / flatness" source="S21 · in 2.40–2.48 GHz" sourceHue={0} overlay={{ on: false, onToggle: noop }} collapsed summary="0.42 dB p-p" onToggle={noop} onMenu={noop} onRemove={noop} />
+      <AnalysisCard id="arith" kind="math" title="A ± B, A × B, A ÷ B" source="two traces" onToggle={noop} onMenu={noop} onRemove={noop}>
+        <Params cardId="arith" fields={[
+          { id: 'a', label: 'A', control: { type: 'select', value: 'S11 · cascaded chain.s2p', hue: 270, onOpen: noop } },
+          { id: 'b', label: 'B', control: { type: 'select', value: 'S21 · cascaded chain.s2p', hue: 0, onOpen: noop } },
+          { id: 'op', label: 'Operation', control: { type: 'segmented', value: '-', onChange: noop, options: [{ value: '+', label: '+' }, { value: '-', label: '−' }, { value: '*', label: '×' }, { value: '/', label: '÷' }] } },
+        ]} />
+        <CreateRow onCreate={noop} />
+      </AnalysisCard>
+      <AnalysisCard id="smooth" kind="math" title="Smooth" source="S21 · lna_board_rev3.s2p" sourceHue={0} selected onToggle={noop} onMenu={noop} onRemove={noop}>
+        <Params cardId="smooth" fields={[
           { id: 'method', label: 'Method', control: { type: 'select', value: 'Savitzky–Golay', onOpen: noop } },
           { id: 'window', label: 'Window', control: { type: 'number', value: '7', unit: 'points', onCommit: noop } },
           { id: 'order', label: 'Order', control: { type: 'segmented', value: '2', onChange: noop, options: [{ value: '1', label: '1' }, { value: '2', label: '2' }, { value: '3', label: '3' }] } },
         ]} />
-        <OutputRow hue={337.5} name="smoothed · SG 7" panes={['P1']} live onLive={noop} />
+        <OutputRow hue={337.5} name="S21 smoothed · SG 7" panes={['P1']} />
       </AnalysisCard>
-      <AnalysisCard id="noise" kind="measure" title="Noise density" source="S21 · lna_board_rev3.s2p" onToggle={noop} onMenu={noop} onRemove={noop}>
+      <AnalysisCard id="noise" kind="measure" title="Noise density" source="S21 · lna_board_rev3.s2p" sourceHue={0} onToggle={noop} onMenu={noop} onRemove={noop}>
         <CardMsg tone="warning" text="Needs a power spectral density trace (dBm/Hz). S21 is in dB." action={{ label: 'Pick a trace', onClick: noop }} />
       </AnalysisCard>
       <AnalysisCard id="v1" kind="measure" title="V1 crossings" source="V1 · 3.653 32 GHz · P1, P2" onToggle={noop} onMenu={noop} onRemove={noop}>
@@ -61,19 +75,18 @@ function Panel(): ReactElement {
 function Manual(): ReactElement {
   return (
     <div style={{ width: 320, display: 'flex', flexDirection: 'column', gap: 6, padding: 8, background: 'var(--panel)', borderRadius: 8 }}>
-      <AnalysisCard id="thr" kind="measure" title="Threshold crossings" source="S21 · lna_board_rev3.s2p · Pane 1" onToggle={noop} onMenu={noop} onRemove={noop}>
-        <Params fields={[
-          { id: 'trace', label: 'Trace', control: { type: 'select', value: 'S21 · lna_board_rev3.s2p', onOpen: noop } },
+      <AnalysisCard id="thr" kind="measure" title="Threshold crossings" source="S21 · lna_board_rev3.s2p · P1" sourceHue={0} overlay={{ on: true, onToggle: noop }} onToggle={noop} onMenu={noop} onRemove={noop}>
+        <Params cardId="thr" fields={[
           { id: 'level', label: 'Level', control: { type: 'number', value: '−3', unit: 'dB', onCommit: noop } },
         ]} />
-        <Result value="2" unit="crossings" />
+        <Results><Result value="2" unit="crossings" />
         <CrossingsList valueLabel="X" onSelect={noop} onCopy={noop} groups={[{ paneBadge: 'P1', paneTitle: 'Pane 1', rows: [
           { id: 'x1', hue: 0, trace: 'S21 rising', value: '2.398 12 GHz' },
           { id: 'x2', hue: 0, trace: 'S21 falling', value: '2.484 40 GHz' },
-        ] }]} />
+        ] }]} /></Results>
       </AnalysisCard>
       <AnalysisCard id="ip3" kind="measure" title="IP3 / TOI" source="cascade_ip3_-12dBm_final.DAT" onToggle={noop} onRemove={noop}>
-        <Params fields={[{ id: 'gain', label: 'Gain', control: { type: 'number', value: '12x', unit: 'dB', invalid: true, onCommit: noop } }]} />
+        <Params cardId="ip3" fields={[{ id: 'gain', label: 'Gain', control: { type: 'number', value: '12x', unit: 'dB', invalid: true, onCommit: noop } }]} />
         <CardMsg tone="danger" text="Gain must be a number, e.g. 12 or 12.5." />
         <Busy text="Waiting for a valid gain…" />
       </AnalysisCard>

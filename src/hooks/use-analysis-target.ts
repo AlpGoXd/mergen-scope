@@ -23,7 +23,7 @@ export function useAnalysisTarget() {
   // 2. Filter traces for the active pane
   const paneTraces = useMemo(() => {
     const pId = activePaneId || 'pane-1';
-    return allTraces.filter(tr => tracePaneMap[tr.name]?.includes(pId) && (!vis || vis[tr.name]));
+    return allTraces.filter(tr => tracePaneMap[tr.name]?.includes(pId) && (!vis || vis[tr.name] !== false));
   }, [allTraces, activePaneId, tracePaneMap, vis]);
 
   // 3. Get active trace for the pane

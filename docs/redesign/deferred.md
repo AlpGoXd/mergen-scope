@@ -206,3 +206,13 @@ Done and covered by tests: a line is placed only in the clicked pane (no X-link 
 | **Data table:** the right panel's Data tab (a table of the active trace's samples: #, Freq, Amp) is removed in Analysis Part B2. Until the Table pane exists there is no sample table in the app. | Phase 5, first step (Table pane, shares membership and cursor contracts) | Decided: removal accepted; Table pane is the first step of Phase 5. |
 | **Export:** until Phase 6 the top bar's Export… performs "export visible CSV" (no dialog); the Import/Export card is removed in B2. | Phase 6 | Decided. |
 | **Views out of the panel:** VSWR, Return loss and Group delay cards are removed; the same values are matrix views (run Range Statistics on the view's trace for min / max / average). | Part B2 | Decided. |
+
+## Analysis overhaul B2 follow-up (10 November)
+
+Evidence and the difference list: [analysis-evidence](analysis-evidence/README.md). Open:
+
+| Remaining work | Target phase | Status |
+| --- | --- | --- |
+| Legacy analysis state still exists behind the new panel and is written to workspaces for the old reader: `analysisOpenState`, the six result maps, `savedNoise`, `savedIP3`, `ANALYSIS_ITEMS`, `use-analysis-target` registry parts, and ui fields `noiseFilter`, `noiseSource`, `ip3Gain`, `traceOpsOpenSections` | Analysis B3 | Deferred |
+| Highlight the `current` crossing row on the chart; Math output names follow their parameters; family colour for the output hue; card "Create trace" | Analysis B3 / 7C | Deferred |
+| The Data tab and the Import/Export card are gone (decisions 1 and 2); the Table pane is the first step of Phase 5 | Phase 5 | Decided |

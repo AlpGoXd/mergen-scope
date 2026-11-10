@@ -21,12 +21,11 @@ test("imports data, uses marker/search tools, exports CSV, and reloads a workspa
   await page.getByRole("button", { name: "Peak", exact: true }).click();
   await expect(page.getByText("M1", { exact: true })).toBeVisible();
 
-  await page.getByRole("button", { name: "Right" }).click();
-  await page.getByRole("button", { name: "Import/Export" }).click();
-  await expect(page.getByRole("button", { name: "Export Visible CSV" })).toBeEnabled();
+  // Until the Export dialog (Phase 6) the top bar's Export downloads the visible traces as CSV.
+  await expect(page.getByRole("button", { name: "Export", exact: true })).toBeEnabled();
 
   const csvDownloadPromise = page.waitForEvent("download");
-  await page.getByRole("button", { name: "Export Visible CSV" }).click();
+  await page.getByRole("button", { name: "Export", exact: true }).click();
   const csvDownload = await csvDownloadPromise;
   const csvPath = await csvDownload.path();
   expect(csvPath).toBeTruthy();

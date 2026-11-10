@@ -225,6 +225,8 @@ table {
 /* App size preference (App settings > Appearance, board S2), saved in localStorage and applied as html[data-size].
    Base :root above is Comfortable (the default). Sizes: buttons 24/28/32, small controls 20/22/24, rows 26/30/34,
    bars 32/36/40, footer 24/26/28, body text 12/13/14. */
+/* Analysis panel header (kit an-panel) follows the bar size. */
+:root { --bar-height: var(--top-row-height); }
 :root[data-size="compact"] { --font-caption: 11px; --font-label: 12px; --font-body: 12px; --font-emphasis: 12px; --font-title: 14px; --font-display: 14px; --lh-caption: 14px; --lh-label: 16px; --lh-body: 17px; --lh-title: 19px; --top-row-height: 32px; --tool-row-height: 32px; --pane-header-height: 28px; --footer-height: 24px; --control-height: 24px; --control-sm-height: 20px; --row-height: 26px; --gap: 4px; --panel-padding: 8px; --input-height: 22px; }
 :root[data-size="large"] { --font-caption: 13px; --font-label: 14px; --font-body: 14px; --font-emphasis: 14px; --font-title: 16px; --font-display: 16px; --lh-caption: 16px; --lh-label: 18px; --lh-body: 19px; --lh-title: 21px; --top-row-height: 40px; --tool-row-height: 40px; --pane-header-height: 32px; --footer-height: 28px; --control-height: 32px; --control-sm-height: 24px; --row-height: 34px; --gap: 8px; --panel-padding: 14px; --input-height: 26px; }
 

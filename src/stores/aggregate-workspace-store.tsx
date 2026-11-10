@@ -363,7 +363,7 @@ export function workspaceReducer(state: WorkspaceState, command: WorkspaceAction
       while (all.some(trace => trace.id === outputId || trace.name === name)) { outputId = `${instance.id}-output-${serial}`; name = `${baseName} (${serial})`; serial += 1; }
       const output = makeAnalysisOutput(instance, { traces: all }, outputId, name);
       if (!output) return state;
-      if (output) next = { ...next, traces: { ...next.traces, derivedTraces: [...next.traces.derivedTraces, output] }, analysis: { ...next.analysis, analyses: next.analysis.analyses.map(item => item.id === instance.id ? { ...item, outputTraceId: output.id } : item) } };
+      if (output) next = { ...next, panes: { ...next.panes, tracePaneMap: { ...next.panes.tracePaneMap, [name]: [...(source ? next.panes.tracePaneMap[source.name] ?? [] : [])] } }, traces: { ...next.traces, derivedTraces: [...next.traces.derivedTraces, output] }, analysis: { ...next.analysis, analyses: next.analysis.analyses.map(item => item.id === instance.id ? { ...item, outputTraceId: output.id } : item) } };
     }
   }
   const analysisInputsChanged = next.analysis.analyses.length !== state.analysis.analyses.length || next.analysis.analyses.some(item => {

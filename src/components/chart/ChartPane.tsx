@@ -35,7 +35,7 @@ import type { PlotView } from './LinesLayer';
 import { EdgeTag, lineContextEntries, lineShowInEntries } from '../lines/Lines';
 import { Menu as KitMenu } from '../left-panel/Menu';
 import { PopoverAt } from '../shared/Controls';
-import { LineCrossingsContext } from '../analysis/shared/ThresholdCrossingsCard';
+import { LineCrossingsContext } from '../analysis/line-crossings-context';
 import { lineShowInChoices, linePaneAxisUnit, paneName } from '../../domain/line-view';
 import { formatCrossingValue, } from '../../domain/analysis/crossing-rows';
 import { EmptyChartPane } from './EmptyChartPane';

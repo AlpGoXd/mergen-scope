@@ -26,6 +26,7 @@ export type AnalysisAction =
   | { type: 'ADD_ANALYSIS'; payload: { toolId: string; source: AnalysisInstance['source']; params?: Record<string, ParameterValue> } }
   | { type: 'REMOVE_ANALYSIS'; payload: { id: string } }
   | { type: 'SET_ANALYSIS_PARAMS'; payload: { id: string; params: Record<string, ParameterValue> } }
+  | { type: 'SET_ANALYSIS_SOURCE'; payload: { id: string; source: AnalysisInstance['source'] } }
   | { type: 'SET_ANALYSIS_COLLAPSED'; payload: { id: string; collapsed: boolean } }
   | { type: 'MOVE_ANALYSIS'; payload: { id: string; index: number } }
   | { type: 'SET_ANALYSIS_LIVE'; payload: { id: string; live: boolean } }
@@ -76,6 +77,10 @@ export function analysisReducer(state: AnalysisState, action: AnalysisAction): A
     }
     case 'SET_ANALYSIS_PARAMS': {
       const analyses = state.analyses.map(instance => instance.id === action.payload.id ? updateParams(instance, action.payload.params) : instance);
+      return analyses.every((item, index) => item === state.analyses[index]) ? state : { ...state, analyses };
+    }
+    case 'SET_ANALYSIS_SOURCE': {
+      const analyses = state.analyses.map(instance => instance.id === action.payload.id ? { ...instance, source: { ...action.payload.source } } : instance);
       return analyses.every((item, index) => item === state.analyses[index]) ? state : { ...state, analyses };
     }
     case 'SET_ANALYSIS_COLLAPSED': {

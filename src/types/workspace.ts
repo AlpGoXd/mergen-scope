@@ -255,7 +255,6 @@ export interface WorkspaceUiState {
   readonly showLineTools: boolean;
   readonly showViewTools: boolean;
   readonly showDots: boolean;
-  readonly showDT: boolean;
   readonly theme: "dark" | "light" | "glass";
   readonly searchDirection: "left" | "right";
   readonly newMarkerArmed: boolean;
@@ -265,10 +264,7 @@ export interface WorkspaceUiState {
   readonly refMode: "h" | "v" | null;
   readonly selectedRefLineId: number | null;
   readonly showTouchstoneControls: boolean;
-  readonly showTraceOps: boolean;
-  readonly showImportExportPanel: boolean;
   readonly traceOpsOpenSections: TraceOpsOpenSections;
-  readonly showAnalysisPanel: boolean;
   readonly noiseFilter: string;
   readonly noiseSource: string | null;
   readonly ip3Gain: string;
