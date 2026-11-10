@@ -52,10 +52,13 @@ Put this file in `docs/redesign/`. It sits next to `spec-v3.md`: where they disa
   - Order, starting at the parent's hue: one step forward, one step back, then onward forward, skipping created hues already on screen.
   - Example, parent 90°: ƒ1 112.5°, ƒ2 67.5°, ƒ3 157.5°, ƒ4 202.5°…
   - A created trace sits indented under its first source in the Traces list, with ƒ.
+  - **In colour-blind mode** created traces use the colour-blind set in the created tone, 2 px, ordered from the parent's colour in the colour-blind order (+1, −1, then forward, skipping colours in use).
 - **Symbols:** Settings › Colours › **Trace symbols: Off · When colours repeat (default) · Always**.
   - Graph export defaults to Always.
   - When a colour repeats (9th source, 9th created trace), the trace gets a hollow symbol every ~90 px, in this order: ○ □ △ ◇ ▽ + × ☆.
   - The same symbol shows in its row swatch and in exports.
+  - **Row swatch with a symbol:** it becomes a 16 × 12 px line sample: the line in the trace colour and width, the symbol centred on it and filled with the row background, never clipped.
+- **Sample dots and symbols together:** dots are filled, radius 2, on every sample; symbols are hollow, radius 3.6, every ~90 px. With both on, each symbol replaces the dot at the sample nearest its position (no dot under a symbol).
 - **Colour-blind palette** swaps the 8 source hues for the colour-blind set; all rules stay the same.
 
 ## Behaviour
@@ -66,6 +69,14 @@ Put this file in `docs/redesign/`. It sits next to `spec-v3.md`: where they disa
   - **Only** for delete, closing a file, Apply to all, moved traces and opened files.
   - **Never** for placing or moving markers and lines, toggles, Undo/Redo, or history housekeeping. A full Undo history drops its oldest step silently.
   - One at a time: a new toast replaces the old one.
+- **Rename in place, no popup:**
+  - Double-click the trace name, F2 or ⋯ › Rename turns the name into a text field in the row.
+  - Enter or blur saves, Esc cancels, an empty name restores the original.
+  - One Undo step, no toast. The new name is used everywhere (chart legend, cursor card, markers, analysis, export).
+  - ⋯ › "Reset name" for renamed traces.
+  - The Analysis card's output name (Math cards) is editable in place the same way, synced with the Traces list. A renamed output keeps its name when settings change; "Reset name" restores the automatic one.
+- **Popovers:** pane settings and every other popover or menu render in the shared popover layer above all panes, never behind a neighbouring pane.
+- **Defaults with nothing selected:** new Analysis cards, + New marker and trace pickers use the selected trace, else the first visible trace in the target pane.
 - **Messages:** a neutral bar with a thin status-colour border and a coloured icon; status colours never fill a bar.
 
 ## Lines (shown in panes like traces)
@@ -99,6 +110,7 @@ Put this file in `docs/redesign/`. It sits next to `spec-v3.md`: where they disa
   - dBm+dB=dBm, dB+dB=dB, dBm−dB=dBm, dBm−dBm=dB, dB−dB=dB;
   - V±V=V, V×V=V², V÷V=unitless.
   - Anything else is allowed but shows a warning in the card, and the output has no unit.
+  - Implemented only by `src/domain/trace-math-units.ts`; the trace-math tool uses nothing else. `units.ts` stays for parsing and formatting.
 - **Measure tools draw outlines, never markers:**
   - hollow shapes in the trace colour, shown while the card is open and its eye is on;
   - Peak table: numbered hollow triangles, row ↔ triangle highlight, "+ Marker" per row, ⋯ › "Add all as markers" (with an Undo toast);
@@ -118,11 +130,11 @@ Put this file in `docs/redesign/`. It sits next to `spec-v3.md`: where they disa
 ## Panes
 
 - **A pane-type registry**, like the analysis registry. Each type declares the data it accepts (with a reason when it can't), its settings and its renderer.
-  - Build Chart, **Table (first, before Smith)** and Smith now; Polar next.
-  - Eye, Constellation and Spectrogram are planned entries, added when a data kind needs them.
+  - Build Chart and **Table** now, Smith next (a separate session).
+  - **Polar**, Eye, Constellation and Spectrogram are planned entries, added when a data kind needs them. Polar is not built now.
 - dB / linear is a Y-axis setting of a chart, not a pane type.
-- **A new empty pane shows the types as large icons** (Chart, Smith, Table; Polar later). Dropping a file or a trace picks the type that fits. The pane header keeps a type menu.
-- **Sample dots:** pane settings › Display only. The minor-grid switch is gone.
+- **A new empty pane shows the types as large icons** (Chart, Table; Smith when it is built). Dropping a file or a trace picks the type that fits. The pane header keeps a type menu.
+- **Sample dots:** a switch in pane settings › Display › Sample dots and a "Sample dots" checkmark item in the pane's ⋯ menu; no header button. The minor-grid switch is gone.
 
 ## Still open
 
