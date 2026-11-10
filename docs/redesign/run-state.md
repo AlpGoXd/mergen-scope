@@ -78,14 +78,16 @@ Gates on HEAD: typecheck pass; unit 277 passed + 4 todo (51 files); e2e 59 passe
 
 ## Remaining work, in order (set by the user, 10 November)
 
-[design-decisions-2026-11-10.md](design-decisions-2026-11-10.md) holds every design decision from 9–10 Nov and wins over older boards and `spec-v3.md`; `spec-v3.md` and `plan.md` were updated to match it. Done and committed up to `5c56fb4`: lines (LL-2), Size setting, Analysis panel, Math define-then-create, units, trace math lining-up, measure outlines, Peak table rows (the Analysis overhaul, 7C, is finished).
+[design-decisions-2026-11-10.md](design-decisions-2026-11-10.md) holds every design decision from 9–10 Nov and wins over older boards and `spec-v3.md`; `spec-v3.md` and `plan.md` were updated to match it (second pass after the starter pack). Done and committed: lines (LL-2), Size setting, the Analysis overhaul up to `5c56fb4` (panel, Math define-then-create, units, trace math lining-up, measure outlines, Peak table rows), the decisions file (`32070a6`) and the starter pack (`e4cd2b2`: `trace-palette.ts`, `trace-symbols.ts`, `trace-math-units.ts`, `text-roles.css`, their tests, `STARTER-README.md`, `smith-brief.md`).
 
-1. **Small rules** (one step): armed tools (one at a time, fills in its group colour, hint after the strip, footer sentence, Esc and empty-chart right-click cancel) · one selection in the whole left panel (marker, line or trace, one frame style) · toast policy check across the app · created-trace colours (the 8 in-between hues, one step forward then one back from the parent, created tone) and source-hue reuse · Settings › Colours › Trace symbols (Off · When colours repeat · Always; symbol every ~90 px, row swatch carries it) with family highlight · matrix add palette (the matrix only adds, count badge with hover list, duplicate highlights the existing trace, Smith target greys non-Sii, Traces list has no dots or "plotted" fill).
-2. **Text roles pass** (its own step): the seven roles, no font sizes typed in components, no bold mono.
-3. **Panes:** pane-type registry + empty-pane picker → Table pane → chart / header / layout (5A–5D) → Smith (5E) → Polar.
-4. **Export** (Phase 6). PDF needs a new library: bring a proposal at the start of this phase.
-5. **Frame and flows** (Phase 7: top bar, strip, footer, App settings, opening UI, wizard, empty app).
-6. **Final check** (Phase 8).
+1. **Small rules** (one step, Codex Terra in worktree `codex/rules`, not merged yet): armed tools (one at a time, fills in its group colour, hint after the strip, footer sentence, Esc and empty-chart right-click cancel) · one selection in the whole left panel (marker, line or trace, one frame style) · toasts (audit, only delete, closing a file, Apply to all, moved, opened) · created-trace colours and source-hue reuse through `src/domain/trace-palette.ts` · Settings › Colours › Trace symbols (Off · When colours repeat · Always) through `trace-symbols.ts` · matrix add palette (the matrix only adds, count badge with hover list, duplicate highlights the existing trace, Smith target greys non-Sii, Traces list has no dots or "plotted" fill) · trace-math units through `trace-math-units.ts`. The family highlight is not a decision any more (removed from the decisions file).
+2. **Text roles pass** with `src/text-roles.css`: the seven roles, no font sizes typed in components, no bold mono.
+3. **Pane-type registry + empty-pane picker → Table pane → chart / header / layout polish** (5A–5D).
+4. **Polar pane** (Eye, Constellation and Spectrogram stay planned registry entries). Built so its circle drawing, round-preserving zoom and readout strip are shared primitives that Smith reuses (see plan 5F); `smith-brief.md` is updated to point at them when Smith starts.
+5. **Smith:** a separate Fable 5.2 session from `docs/redesign/smith-brief.md`, in its own worktree, only after 3 and 4 are done and committed.
+6. **Export** (Phase 6). PDF needs a new library: bring a proposal at the start of this phase.
+7. **Frame and flows** (Phase 7: top bar, strip, footer, App settings, opening UI, wizard, empty app).
+8. **Final check** (Phase 8).
 
 Cleanup that rides along (listed in `deferred.md`): legacy analysis state still written to workspaces for the old reader; the kit's comments still mention Live/Freeze.
 
