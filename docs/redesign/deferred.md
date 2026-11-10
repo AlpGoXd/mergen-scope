@@ -198,3 +198,11 @@ Done and covered by tests: a line is placed only in the clicked pane (no X-link 
 | --- | --- | --- |
 | A right-click that starts on a line after a drag (right-drag X zoom released over a line) would also open the line menu | Phase 5C | Deferred; not reproduced |
 | `historyNotice` ('pruned', 'oversized') is still computed in the engine for tests but never shown; remove it when the history work is next touched | Phase 8 audit | Deferred |
+
+## Analysis overhaul decisions (10 November)
+
+| Remaining work | Target phase | Status |
+| --- | --- | --- |
+| **Data table:** the right panel's Data tab (a table of the active trace's samples: #, Freq, Amp) is removed in Analysis Part B2. Until the Table pane exists there is no sample table in the app. | Phase 5, first step (Table pane, shares membership and cursor contracts) | Decided: removal accepted; Table pane is the first step of Phase 5. |
+| **Export:** until Phase 6 the top bar's Export… performs "export visible CSV" (no dialog); the Import/Export card is removed in B2. | Phase 6 | Decided. |
+| **Views out of the panel:** VSWR, Return loss and Group delay cards are removed; the same values are matrix views (run Range Statistics on the view's trace for min / max / average). | Part B2 | Decided. |

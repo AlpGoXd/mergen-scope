@@ -40,6 +40,8 @@ export interface StabilitySummary {
   readonly minK: ScalarPoint;
   readonly minMu1: ScalarPoint;
   readonly minMu2: ScalarPoint;
+  readonly minDelta: ScalarPoint;
+  readonly maxDelta: ScalarPoint;
   readonly unstableCount: number;
   readonly count: number;
 }
@@ -209,11 +211,13 @@ export function computeStabilityFactors(context: TouchstoneContext | null): Stab
   const kPoints: ScalarPoint[] = [];
   const mu1Points: ScalarPoint[] = [];
   const mu2Points: ScalarPoint[] = [];
+  const deltaPoints: ScalarPoint[] = [];
   let unstableCount = 0;
 
   for (const sample of context.network.samples) {
     const stability = computeTwoPortStability(sample.sMatrix);
     if (!stability) continue;
+    deltaPoints.push({ freq: sample.freq, value: stability.deltaAbs });
     if (!stability.unconditional) unstableCount += 1;
     kPoints.push({ freq: sample.freq, value: stability.kFactor });
     mu1Points.push({ freq: sample.freq, value: stability.mu1 });
@@ -223,12 +227,16 @@ export function computeStabilityFactors(context: TouchstoneContext | null): Stab
   const minK = minPoint(kPoints);
   const minMu1 = minPoint(mu1Points);
   const minMu2 = minPoint(mu2Points);
-  if (!minK || !minMu1 || !minMu2) return null;
+  const minDelta = minPoint(deltaPoints);
+  const maxDelta = maxPoint(deltaPoints);
+  if (!minK || !minMu1 || !minMu2 || !minDelta || !maxDelta) return null;
 
   return {
     minK,
     minMu1,
     minMu2,
+    minDelta,
+    maxDelta,
     unstableCount,
     count: kPoints.length,
   };

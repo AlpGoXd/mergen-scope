@@ -13,6 +13,7 @@ import type { ZoomWindow } from "./marker.ts";
 import type { ComplexMatrix } from "./touchstone.ts";
 import type { XUnit, YUnit } from "./units.ts";
 import type { InterpolationStrategy } from "./interpolation.ts";
+import type { AnalysisInstance } from "./analysis-instance.ts";
 
 // ---------------------------------------------------------------------------
 // Workspace file version
@@ -325,6 +326,9 @@ export interface WorkspaceSnapshot {
   readonly savedNoise: readonly SavedAnalysisResult[];
   readonly savedIP3: readonly SavedAnalysisResult[];
   readonly analysisOpenState: AnalysisOpenState;
+  /** v5 analysis instances; absent in older workspace files. */
+  readonly analyses?: readonly AnalysisInstance[];
+  readonly droppedViews?: number;
   readonly selectedTraceName: string | null;
 }
 

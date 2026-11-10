@@ -167,11 +167,20 @@ Counts: 14 chooser items become 12 registry tools (+ crossings used twice) after
 3. **B3, wiring and cleanup (Codex Terra for the non-visual parts, Claude for `App.tsx` / `TopBar.tsx` / `ChartPane.tsx` edits)**: `listCrossings` -> instance, crossing-row highlight on the chart (`current`), Copy as CSV, Undo toasts, remove Import/Export and Data panels once decisions 1 and 2 are settled, update e2e helpers.
 4. Gates after every step: typecheck, unit, e2e (full), build, static; `ChartPane.tsx` edits in small steps with e2e after each.
 
-### Decisions needed before Part B
+### Decisions (answered by the user, 10 November)
 
-1. **Where does "Export Visible CSV" live until Phase 6?** Proposal: enable the top bar's Export… as a plain "Export visible CSV" now (same function, no dialog), so the Import/Export card can go in B2. Alternative: keep that one button in the panel until Phase 6.
-2. **The Data table until the Table pane exists (Phase 5D).** Proposal: remove the Data tab in B2 and record the loss in `deferred.md` (a Table pane is on the Phase 5D list). Alternative: keep the Data tab alone until 5D.
-3. **Live / Freeze for Math outputs.** Today derived traces are computed once. The kit's `OutputRow` has Live / Freeze, and spec 5.5 says a Math output is "-> smoothed · SG 7 · P1 · live" with **Freeze**. Proposal: build Live (recompute when the source trace changes) in B1 with a Freeze action; alternative: ship Freeze-only first (all outputs frozen, as today) and add Live later.
-4. **Range Statistics range.** Today whole trace; proposal: the pane's visible X range with a "visible / all" choice, as the spec wording ("range statistics") implies.
-5. **Stability abs delta.** Proposal: add abs(delta) to the 2-port stability tool (spec lists it; today's card lacks it).
-6. **Emphasised number font.** Proposal: accept the kit's choice (Plex Sans 600 tabular). No font file needed.
+1. **Export…** in the top bar becomes "export visible CSV" (same function as today's card button, no dialog) until Phase 6; the Import/Export card goes in B2.
+2. **Data tab removed** in B2 and recorded in `deferred.md`; **the Table pane becomes the first step of Phase 5** (before 5A work resumes).
+3. **Math outputs are Live by default, with Freeze.** Freeze = stop recomputing; removing a Math card keeps its trace as an ordinary frozen trace.
+4. **Range Statistics:** visible X range by default, with a visible / all choice.
+5. **Stability tool gains |delta|.**
+6. **Emphasised numbers:** IBM Plex Sans 600, tabular digits, no font file.
+
+### Part B progress
+
+- Kit update `docs/redesign/kit/analysis/` was committed by the user in `b7e90e9`.
+- **B1 (domain and migration) is done in the main tree, uncommitted.** Gates: typecheck pass; unit 338 passed + 4 todo (63 files); e2e 87 passed; build pass; static 1 passed. Codex Terra (worktree `codex/analysis-domain`, medium effort; it stopped early after small edits twice, so the work ran as four `--resume-last` passes plus one fresh fix pass); Claude fixed one type error (`old.kind === 'derived'` narrowing) and one wrong test assumption. Independent Terra read-only review (high effort) found 6 confirmed issues: 4 fixed (unsaveable Math instance, recompute on unrelated changes, stale metadata after recompute, partial RESTORE clearing instances; each with a test) and 2 deliberately left: (a) the old UI and the new `analyses` can disagree until B2 switches the UI to instances; (b) saved noise/IP3 result values are not persisted (the writer never persisted them; instances recompute from params and markers).
+- What B1 added (all behind the old UI, which still runs on `analysisOpenState`): `src/domain/analysis/tools/*` (15 tool modules) and `tool-registry.ts` (`ANALYSIS_TOOLS`, `getAnalysisTool`, `listAddableTools`), `AnalysisInstance` type and `instances.ts` (`createInstance`, `updateParams`, `computeInstance`, `recomputeLiveOutputs`, Math output creation), the `analyses` slice and actions in `analysis-store.tsx` (id allocator survives Undo and loads), live recompute and Math-output creation inside the aggregate reducer (same history entry), the `analyses` wire field with strict validation and the legacy-to-instances reader in `workspace-migrate-v5.ts` (writer writes both shapes; the new one wins on read), `DerivedTrace.analysisId`, and stability |delta|. Tests: `analysis-tools`, `analysis-registry`, `analysis-instances`, `analysis-migration`.
+- Known limitations carried into B2: tool compute for `channel-power` uses only samples inside the band (no edge interpolation); `ip3` and `noise-psd` parameters are the minimum the old cards used (extend in B2 if the generated form needs more).
+- B1's worktree was removed (junction first); branch `codex/analysis-domain` is kept as a backup until the user commits.
+- **B2 (panel and kit, Claude) is next**, then B3 (wiring and cleanup); stop after each with a report and a test list.

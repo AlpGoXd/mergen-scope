@@ -29,6 +29,8 @@ import { createTransactionHistory, recordTransaction, undoTransaction, redoTrans
 import type { TransactionHistory } from '../domain/transaction-history';
 import { useOptionalToast } from './toast-store';
 import type { ToastKind } from './toast-store';
+import { makeAnalysisOutput, recomputeLiveOutputs } from '../domain/analysis/instances';
+import { getAnalysisTool } from '../domain/analysis/tool-registry';
 
 export interface WorkspaceState {
   files: FileState; traces: TraceState; panes: PaneState; markers: MarkerState;
@@ -70,7 +72,7 @@ export function restoreWorkspaceMemento(state: WorkspaceState, memento: Workspac
     ...state, files:{...memento.files,wizardQueue:[...memento.files.wizardQueue,...state.files.wizardQueue.filter(entry => entry.pendingBatch)]}, traces:memento.traces,
     panes:paneReducer(state.panes,{type:'RESTORE',payload:memento.panes}),
     markers:markerReducer(state.markers,{type:'RESTORE',payload:{...state.markers,markers:memento.markers,armed:null,selectedMkrIdx:-1}}),
-    lines:{...state.lines,refLines:memento.lines,refMode:null,selectedRefLineId:null}, analysis:memento.analysis,
+    lines:{...state.lines,refLines:memento.lines,refMode:null,selectedRefLineId:null}, analysis:analysisReducer(state.analysis,{type:'RESTORE',payload:memento.analysis}),
     ui:{...state.ui,...memento.ui,paneAssignmentWarning:null,activeWizard:null}, layout:memento.layout, revision:state.revision+1,
   };
 }
@@ -86,7 +88,7 @@ export function snapshotFromWorkspace(state: WorkspaceState): WorkspaceSnapshotV
     derivedTraces: traces.derivedTraces, vis: traces.vis, panes: panes.panes, paneMode: panes.panes.length,
     activePaneId: panes.activePaneId, traceAssignments: panes.tracePaneMap, paneActiveTraceMap: panes.paneActiveTraceMap,
     xZoomState: {zoomAll:panes.zoomAll,sharedZoom:panes.sharedZoom,paneXZooms:panes.paneXZooms}, yZoomState:{paneYZooms:panes.paneYZooms},
-    markers:markers.markers, refLines:lines.refLines, ui:{...ui, selectedRefLineId:lines.selectedRefLineId}, analysisOpenState:analysis.analysisOpenState,
+    markers:markers.markers, refLines:lines.refLines, ui:{...ui, selectedRefLineId:lines.selectedRefLineId}, analysisOpenState:analysis.analysisOpenState, analyses:analysis.analyses,
     analysisResults: {noiseResults:analysis.noiseResults,ip3Results:analysis.ip3Results,peakResults:analysis.peakResults,bandwidthResults:analysis.bandwidthResults,rippleResults:analysis.rippleResults,rangeStatsResults:analysis.rangeStatsResults},
     savedNoise:[], savedIP3:[], selectedTraceName:ui.selectedTraceName, layout,
   };
@@ -122,7 +124,7 @@ export function workspaceFromSnapshot(current: WorkspaceState, snapshot: Workspa
     panes:{...current.panes, panes:orderedPanes, tracePaneMap:safeAssignments, issuedPaneIds:orderedPanes.map(p => p.id), paneActiveTraceMap:safeActive, activePaneId:snapshot.activePaneId, zoomAll:snapshot.xZoomState.zoomAll, sharedZoom:snapshot.xZoomState.sharedZoom, paneXZooms:{...snapshot.xZoomState.paneXZooms}, paneYZooms:{...snapshot.yZoomState.paneYZooms}},
     markers:{...current.markers, markers:[...snapshot.markers], selectedMkrIdx:-1, armed:null, nextMarkerSerial:1},
     lines:{...current.lines, refLines:[...snapshot.refLines], refMode:null, selectedRefLineId:(snapshot.ui as typeof snapshot.ui & {selectedRefLineId?: number | null}).selectedRefLineId ?? null},
-    analysis:{...snapshot.analysisResults, analysisOpenState:snapshot.analysisOpenState},
+    analysis:analysisReducer(current.analysis,{type:'RESTORE',payload:{...snapshot.analysisResults, analysisOpenState:snapshot.analysisOpenState, analyses:[...(snapshot.analyses ?? [])]}}),
     ui:{...current.ui, ...snapshot.ui, selectedTraceName:snapshot.selectedTraceName, paneAssignmentWarning:null, activeWizard:null},
     layout:snapshot.layout,
   };
@@ -307,6 +309,7 @@ export function workspaceReducer(state: WorkspaceState, command: WorkspaceAction
     ...command.state,
     panes: paneReducer(state.panes, {type: 'RESTORE', payload: command.state.panes}),
     markers: markerReducer(state.markers, {type: 'RESTORE', payload: command.state.markers}),
+    analysis: analysisReducer(state.analysis, {type: 'RESTORE', payload: command.state.analysis}),
     ui: { ...command.state.ui, theme: state.ui.theme }, revision: state.revision + 1,
   };
   let next = state;
@@ -348,13 +351,47 @@ export function workspaceReducer(state: WorkspaceState, command: WorkspaceAction
     }
   }
   if (next.files === state.files && next.traces === state.traces && next.panes === state.panes && next.markers === state.markers && next.lines === state.lines && next.analysis === state.analysis && next.ui === state.ui) return state;
+  if (command.slice === 'analysis' && command.action.type === 'ADD_ANALYSIS' && next.analysis !== state.analysis) {
+    const instance = next.analysis.analyses[next.analysis.analyses.length - 1];
+    if (instance && getAnalysisTool(instance.toolId)?.kind === 'math') {
+      const all = traceView(next.files, next.traces).allKnownTraces;
+      const source = all.find(trace => trace.id === instance.source.traceId);
+      const second = all.find(trace => trace.id === instance.source.secondTraceId);
+      const suffix = instance.toolId === 'smooth' ? 'smoothed' : instance.toolId === 'offset-scale' ? `offset ${String(instance.params.offset)} scale ${String(instance.params.scale)}` : `${String(instance.params.operation)} ${second?.dn ?? second?.name ?? ''}`;
+      const baseName = `${source?.dn ?? source?.name ?? 'Trace'} · ${suffix}`;
+      let outputId = `${instance.id}-output`; let name = baseName; let serial = 2;
+      while (all.some(trace => trace.id === outputId || trace.name === name)) { outputId = `${instance.id}-output-${serial}`; name = `${baseName} (${serial})`; serial += 1; }
+      const output = makeAnalysisOutput(instance, { traces: all }, outputId, name);
+      if (!output) return state;
+      if (output) next = { ...next, traces: { ...next.traces, derivedTraces: [...next.traces.derivedTraces, output] }, analysis: { ...next.analysis, analyses: next.analysis.analyses.map(item => item.id === instance.id ? { ...item, outputTraceId: output.id } : item) } };
+    }
+  }
+  const analysisInputsChanged = next.analysis.analyses.length !== state.analysis.analyses.length || next.analysis.analyses.some(item => {
+    const previous = state.analysis.analyses.find(old => old.id === item.id);
+    return !previous || previous.live !== item.live || JSON.stringify(previous.params) !== JSON.stringify(item.params) || JSON.stringify(previous.source) !== JSON.stringify(item.source);
+  });
+  if (next.files !== state.files || next.traces !== state.traces || analysisInputsChanged) {
+    const view = traceView(next.files, next.traces);
+    const live = recomputeLiveOutputs({ analyses: next.analysis.analyses, traces: view.allKnownTraces.filter(trace => trace.kind !== 'derived'), derivedTraces: next.traces.derivedTraces });
+    if (live.analyses.some((item, index) => item !== next.analysis.analyses[index])) next = { ...next, analysis: { ...next.analysis, analyses: live.analyses } };
+    if (live.derivedTraces.some((item, index) => item !== next.traces.derivedTraces[index])) next = { ...next, traces: { ...next.traces, derivedTraces: live.derivedTraces } };
+  }
   if (next.files !== state.files || next.traces !== state.traces) {
     const view = traceView(next.files, next.traces);
     const raw = view.allKnownTraces.filter(trace => trace.kind !== 'derived');
-    const reconciled = traceReducer(next.traces, { type: 'RECONCILE', payload: raw });
+    // Analysis outputs remain ordinary frozen traces when their source or card is removed.
+    const protectedTraces = next.traces.derivedTraces.filter(trace => trace.kind === 'derived' && trace.analysisId !== undefined);
+    const legacyTraces = next.traces.derivedTraces.filter(trace => !(trace.kind === 'derived' && trace.analysisId !== undefined));
+    const legacy = traceReducer({ ...next.traces, derivedTraces: legacyTraces }, { type: 'RECONCILE', payload: [...raw, ...protectedTraces] });
+    const kept = new Map([...legacy.derivedTraces, ...protectedTraces].map(trace => [trace.id, trace]));
+    const ordered = next.traces.derivedTraces.flatMap(trace => { const item = kept.get(trace.id); return item ? [item] : []; });
+    const reconciled = ordered.length === next.traces.derivedTraces.length && ordered.every((trace, index) => trace === next.traces.derivedTraces[index]) ? next.traces : { ...legacy, derivedTraces: ordered };
     const vis = { ...reconciled.vis }; let changed = false;
     for (const trace of view.allTraces) if (vis[trace.name] === undefined) { vis[trace.name] = true; changed = true; }
     next = { ...next, traces: changed ? { ...reconciled, vis } : reconciled };
+    const afterLegacy = recomputeLiveOutputs({ analyses: next.analysis.analyses, traces: raw, derivedTraces: next.traces.derivedTraces });
+    if (afterLegacy.analyses.some((item, index) => item !== next.analysis.analyses[index])) next = { ...next, analysis: { ...next.analysis, analyses: afterLegacy.analyses } };
+    if (afterLegacy.derivedTraces.some((item, index) => item !== next.traces.derivedTraces[index])) next = { ...next, traces: { ...next.traces, derivedTraces: afterLegacy.derivedTraces } };
     const known = traceView(next.files, next.traces).allKnownTraces;
     const knownNames = new Set(known.map(trace => trace.name));
     const removed = traceView(state.files, state.traces).allKnownTraces.filter(trace => !knownNames.has(trace.name)).map(trace => trace.name);

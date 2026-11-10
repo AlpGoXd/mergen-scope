@@ -1,4 +1,7 @@
 import type { Trace } from './trace';
+import type { Marker } from './marker';
+import type { RefLine } from './ref-line';
+import type { TouchstoneContext } from './analysis';
 
 /** A capability check either succeeds or explains why the operation is unavailable. */
 export type Capability =
@@ -82,6 +85,13 @@ export type ParameterValidationResult<Schema extends ParameterSchema> =
 
 export interface AnalysisInputs {
   readonly traces: readonly Trace[];
+  readonly markers?: readonly Marker[];
+  readonly visibleRange?: { readonly left: number; readonly right: number } | null;
+  readonly lines?: readonly RefLine[];
+  readonly lineId?: number | null;
+  readonly tracePaneMap?: Readonly<Record<string, readonly string[]>>;
+  readonly vis?: Readonly<Record<string, boolean>>;
+  readonly touchstone?: TouchstoneContext | null;
 }
 
 export type TableCell = string | number | boolean | null;
@@ -111,6 +121,9 @@ export interface AnalysisTool<
   Declarations extends readonly AnalysisOutputDeclaration[] = readonly AnalysisOutputDeclaration[],
 > {
   readonly kind: AnalysisToolKind;
+  readonly addable?: boolean;
+  readonly parameterUnits?: Readonly<Record<string, string>>;
+  readonly appliesToInputs?: (inputs: AnalysisInputs) => Capability;
   readonly meta: AnalysisToolMetadata;
   readonly params: Schema;
   readonly outputs: Declarations;

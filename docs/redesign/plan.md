@@ -110,6 +110,8 @@ Exit: trace copies and unplaced states are visible/editable; destructive behavio
 
 ### Phase 5 — panes, shared rendering and interactions
 
+- **First step of Phase 5 (decided 10 November): the Table pane.** It replaces the right panel's Data tab (removed in the Analysis overhaul): a pane type that shows the sample table of its traces, shares trace membership and the cursor contract. 5A to 5E follow.
+
 - **5A:** header, target state and per-pane settings. One `ChartPane.tsx` writer; small reversible changes with e2e after every edit. No hidden global Sample dots or nonfunctional minor-grid setting.
 - **5B, rendering feasibility gate:** first prototype extracting the existing Recharts subtree into a presentational Cartesian plot with explicit dimensions, data, domains/ticks and presentation options, keeping stores/pointer interactions in the container. Candidate approach: live panes and export render this same plot tree; export mounts it at requested dimensions, awaits layout/fonts, serializes the resulting SVG and unmounts. This approach is provisional until standalone resolved colors/fonts, unique clip IDs, physical sizing, target-resolution data/decimation and transient-overlay exclusion pass. Do not clone the visible chart DOM or implement a second plotting algorithm. If this candidate fails, resolve the rendering design before expanding export UI, preserving Recharts Cartesian and the same-renderer requirement unless the user explicitly changes the spec.
 - **5C:** marker/line glyphs/tags, cursor card, short-name rules, axis formatting, hover state, linked X zoom and independent Y behavior. Carry pane/trace selections through the shared contracts. Test zoom/pan and marker placement after each small chart change.

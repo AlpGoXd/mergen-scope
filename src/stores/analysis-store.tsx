@@ -6,8 +6,13 @@ import type { BandwidthResult } from '../domain/analysis/bandwidth';
 import type { RippleResult } from '../domain/analysis/ripple';
 import type { AnalysisOpenState } from '../types/analysis';
 import { setAnalysisOpenState, clearAllAnalysisOpenState, getDefaultAnalysisOpenState } from '../domain/analysis/registry';
+import { createInstance, moveInstance, setCollapsed, updateParams } from '../domain/analysis/instances';
+import type { AnalysisInstance } from '../types/analysis-instance';
+import type { ParameterValue } from '../types/registry-contract';
 
 export interface AnalysisState {
+  analyses: AnalysisInstance[];
+  nextAnalysisSerial: number;
   analysisOpenState: AnalysisOpenState;
   noiseResults: Record<string, DataPoint[]>;
   ip3Results: Record<string, IP3Result | null>;
@@ -18,6 +23,12 @@ export interface AnalysisState {
 }
 
 export type AnalysisAction =
+  | { type: 'ADD_ANALYSIS'; payload: { toolId: string; source: AnalysisInstance['source']; params?: Record<string, ParameterValue> } }
+  | { type: 'REMOVE_ANALYSIS'; payload: { id: string } }
+  | { type: 'SET_ANALYSIS_PARAMS'; payload: { id: string; params: Record<string, ParameterValue> } }
+  | { type: 'SET_ANALYSIS_COLLAPSED'; payload: { id: string; collapsed: boolean } }
+  | { type: 'MOVE_ANALYSIS'; payload: { id: string; index: number } }
+  | { type: 'SET_ANALYSIS_LIVE'; payload: { id: string; live: boolean } }
   | { type: 'TOGGLE_PANEL'; payload: { id: string; forceValue?: boolean } }
   | { type: 'CLEAR_ALL_PANELS' }
   | { type: 'SET_NOISE_RESULT'; payload: { id: string; result: DataPoint[] | null } }
@@ -29,6 +40,8 @@ export type AnalysisAction =
   | { type: 'RESTORE'; payload: Partial<AnalysisState> };
 
 export const defaultAnalysisState: AnalysisState = {
+  analyses: [],
+  nextAnalysisSerial: 1,
   analysisOpenState: getDefaultAnalysisOpenState(),
   noiseResults: {},
   ip3Results: {},
@@ -41,8 +54,42 @@ export const defaultAnalysisState: AnalysisState = {
 export const AnalysisStateContext = createContext<AnalysisState | null>(null);
 export const AnalysisDispatchContext = createContext<React.Dispatch<AnalysisAction> | null>(null);
 
+/** Keep the high-water mark through restoration, including IDs from loaded data. */
+export function analysisSerialAfter(analyses: readonly AnalysisInstance[], minimum: number): number {
+  return analyses.reduce((next, instance) => {
+    const match = /^analysis-(\d+)$/.exec(instance.id);
+    const serial = match?.[1] ? Number(match[1]) : 0;
+    return Number.isSafeInteger(serial) ? Math.max(next, serial + 1) : next;
+  }, Math.max(1, minimum));
+}
+
 export function analysisReducer(state: AnalysisState, action: AnalysisAction): AnalysisState {
   switch (action.type) {
+    case 'ADD_ANALYSIS': {
+      const serial = analysisSerialAfter(state.analyses, state.nextAnalysisSerial);
+      const instance = createInstance(`analysis-${serial}`, action.payload.toolId, action.payload.source, action.payload.params);
+      return instance ? { ...state, analyses: [...state.analyses, instance], nextAnalysisSerial: serial + 1 } : state;
+    }
+    case 'REMOVE_ANALYSIS': {
+      const analyses = state.analyses.filter(instance => instance.id !== action.payload.id);
+      return analyses.length === state.analyses.length ? state : { ...state, analyses };
+    }
+    case 'SET_ANALYSIS_PARAMS': {
+      const analyses = state.analyses.map(instance => instance.id === action.payload.id ? updateParams(instance, action.payload.params) : instance);
+      return analyses.every((item, index) => item === state.analyses[index]) ? state : { ...state, analyses };
+    }
+    case 'SET_ANALYSIS_COLLAPSED': {
+      const analyses = state.analyses.map(instance => instance.id === action.payload.id ? setCollapsed(instance, action.payload.collapsed) : instance);
+      return analyses.every((item, index) => item === state.analyses[index]) ? state : { ...state, analyses };
+    }
+    case 'MOVE_ANALYSIS': {
+      const analyses = moveInstance(state.analyses, action.payload.id, action.payload.index);
+      return analyses.every((item, index) => item === state.analyses[index]) ? state : { ...state, analyses };
+    }
+    case 'SET_ANALYSIS_LIVE': {
+      const analyses = state.analyses.map(instance => instance.id === action.payload.id && instance.live !== action.payload.live ? { ...instance, live: action.payload.live } : instance);
+      return analyses.every((item, index) => item === state.analyses[index]) ? state : { ...state, analyses };
+    }
     case 'TOGGLE_PANEL': {
       const nextOpenState = setAnalysisOpenState(
         state.analysisOpenState, 
@@ -97,10 +144,13 @@ export function analysisReducer(state: AnalysisState, action: AnalysisAction): A
       return { ...state, rangeStatsResults: nextStats };
     }
     case 'RESTORE': {
+      const analyses = action.payload.analyses ?? state.analyses;
       return {
         ...defaultAnalysisState,
         ...action.payload,
         analysisOpenState: action.payload.analysisOpenState ?? defaultAnalysisState.analysisOpenState,
+        analyses,
+        nextAnalysisSerial: action.payload.analyses === undefined ? state.nextAnalysisSerial : analysisSerialAfter(analyses, Math.max(state.nextAnalysisSerial, action.payload.nextAnalysisSerial ?? 1)),
       };
     }
     default:

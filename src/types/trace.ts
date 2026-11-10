@@ -154,6 +154,7 @@ export interface RawTrace extends TraceBase {
 export interface DerivedTrace extends TraceBase {
   readonly kind: "derived";
   readonly operationType: OperationType;
+  readonly analysisId?: string;
 }
 
 // ---------------------------------------------------------------------------

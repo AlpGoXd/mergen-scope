@@ -4,6 +4,11 @@ import { migrateWorkspaceSnapshot } from './workspace-migrate-v4';
 import { defaultPaneSettings } from '../types/pane';
 import type { WorkspacePaneV5, WorkspaceSnapshotV5 } from '../types/workspace-v5';
 import type { RefLine } from '../types/ref-line';
+import type { AnalysisInstance } from '../types/analysis-instance';
+import type { ParameterSchema } from '../types/registry-contract';
+import { ANALYSIS_TOOLS, getAnalysisTool } from './analysis/tool-registry';
+import { createInstance } from './analysis/instances';
+import { validateParameters } from './analysis/tool-contract';
 
 const object = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === 'object' && !Array.isArray(value);
 const version = (value: unknown): boolean => value === undefined || (Number.isInteger(value) && Number(value) >= 1 && Number(value) <= 5);
@@ -12,6 +17,63 @@ const finite = (v: unknown): v is number => typeof v === 'number' && Number.isFi
 const stringMap = (v: unknown): boolean => object(v) && Object.values(v).every(x => typeof x === 'string');
 const boolMap = (v: unknown): boolean => object(v) && Object.values(v).every(x => typeof x === 'boolean');
 const strings = (v: unknown): v is string[] => Array.isArray(v) && v.every(x => typeof x === 'string');
+
+/** Reject invalid analysis references just as invalid pane memberships are rejected. */
+function validAnalyses(value: unknown, derived: readonly unknown[]): value is AnalysisInstance[] {
+  if (!Array.isArray(value)) return false;
+  const ids = new Set<string>();
+  const outputs = new Set<string>();
+  for (const item of value) {
+    if (!object(item) || typeof item.id !== 'string' || !/^analysis-[1-9]\d*$/.test(item.id) || !Number.isSafeInteger(Number(item.id.slice(9))) || Number(item.id.slice(9)) >= Number.MAX_SAFE_INTEGER || ids.has(item.id) || typeof item.toolId !== 'string' || !object(item.source) || !object(item.params) || typeof item.collapsed !== 'boolean' || typeof item.live !== 'boolean') return false;
+    if (!(item.source.traceId === null || typeof item.source.traceId === 'string') || !(item.source.secondTraceId === undefined || item.source.secondTraceId === null || typeof item.source.secondTraceId === 'string') || !(item.source.lineId === undefined || item.source.lineId === null || finite(item.source.lineId))) return false;
+    const tool = getAnalysisTool(item.toolId);
+    if (!tool || !validateParameters(tool.params as ParameterSchema, item.params).valid) return false;
+    if (tool.kind === 'math') {
+      if (item.outputTraceId === null) { if (item.live) return false; }
+      else {
+        if (typeof item.outputTraceId !== 'string' || outputs.has(item.outputTraceId) || !derived.some(trace => object(trace) && trace.kind === 'derived' && trace.id === item.outputTraceId && trace.analysisId === item.id)) return false;
+        outputs.add(item.outputTraceId);
+      }
+    } else if (item.outputTraceId !== null) return false;
+    ids.add(item.id);
+  }
+  return true;
+}
+
+const legacyToolIds: Readonly<Record<string, string>> = {
+  'peak-spur-table': 'peak-table', 'bandwidth-helper': 'bandwidth', 'threshold-crossings': 'crossings',
+  'touchstone-stability': 'stability', 'ripple-flatness': 'ripple',
+};
+const matrixViews = new Set(['vswr', 'return-loss', 'group-delay']);
+
+function legacyAnalyses(snapshot: WorkspaceSnapshotV5): { analyses: AnalysisInstance[]; droppedViews: number } {
+  const selected = snapshot.selectedTraceName;
+  const display = snapshot.files.flatMap(file => file.displayTraces ?? []).find(item => (item.compat?.legacyTraceName ?? item.id) === selected);
+  const trace = [...snapshot.files.flatMap(file => file.traces), ...snapshot.derivedTraces].find(item => item.name === selected);
+  const traceId = display?.id ?? trace?.id ?? null;
+  const open = Object.entries(snapshot.analysisOpenState).filter(([, enabled]) => enabled);
+  const droppedViews = open.filter(([id]) => matrixViews.has(id)).length;
+  const order = new Map(ANALYSIS_TOOLS.map((tool, index) => [tool.meta.id, index]));
+  const tools = open.map(([id]) => ({ id, toolId: legacyToolIds[id] ?? id })).filter(item => !matrixViews.has(item.id) && order.has(item.toolId))
+    .sort((a, b) => (order.get(a.toolId) ?? 0) - (order.get(b.toolId) ?? 0));
+  const analyses: AnalysisInstance[] = [];
+  for (const item of tools) {
+    const instance = createInstance(`analysis-${analyses.length + 1}`, item.toolId, { traceId });
+    if (instance) analyses.push(instance);
+  }
+  const saved = [...snapshot.savedNoise.filter(row => object(row) && finite(row.id)).map(row => ({ row, toolId: 'noise-psd' })), ...snapshot.savedIP3.filter(row => object(row) && finite(row.id)).map(row => ({ row, toolId: 'ip3' }))].sort((a, b) => a.row.id - b.row.id);
+  for (const { row, toolId } of saved) {
+    const parameters = object(row.parameters) ? row.parameters : {};
+    // Legacy saved rows contain result metadata and marker-role maps, which are not tool parameters.
+    const params = toolId === 'noise-psd' ? { filter: parameters.filter } : { gain: parameters.gain };
+    const tool = getAnalysisTool(toolId);
+    const usable = tool && validateParameters(tool.params as ParameterSchema, params).valid ? params : {};
+    const sourceId = typeof row.sourceTraceId === 'string' ? row.sourceTraceId : typeof row.sourceTraceId === 'number' ? String(row.sourceTraceId) : null;
+    const instance = createInstance(`analysis-${analyses.length + 1}`, toolId, { traceId: sourceId }, usable as Record<string, string | number>);
+    if (instance) analyses.push({ ...instance, collapsed: true });
+  }
+  return { analyses, droppedViews };
+}
 
 /** Legacy null meant global; horizontal lines retain the first pane because Y is local. */
 export function migrateLines(raw: unknown, paneOrder: readonly string[]): RefLine[] | null {
@@ -189,13 +251,19 @@ function validGraph(body: Record<string, unknown>, traceIds: Set<string>, traceN
       traceIds.add(id); traceNames.add(name);
     }
   }
-  for (const trace of knownTraces.values()) if (trace.kind === 'derived' && (trace.sourceTraceIds as string[]).some(id => !traceIds.has(id) && !sourceAliases.has(id))) return false;
+  for (const trace of knownTraces.values()) {
+    if (trace.kind !== 'derived' || !(trace.sourceTraceIds as string[]).some(id => !traceIds.has(id) && !sourceAliases.has(id))) continue;
+    // A detached or frozen analysis output intentionally retains its last samples after its source disappears.
+    const owner = Array.isArray(body.analyses) ? body.analyses.find(item => object(item) && item.outputTraceId === trace.id) : undefined;
+    if (typeof trace.analysisId !== 'string' || (object(owner) && owner.live !== false)) return false;
+  }
   return true;
 }
 
 function validCurrent(body: Record<string, unknown>): boolean {
   if (!Array.isArray(body.files) || !Array.isArray(body.datasets) || !Array.isArray(body.displayTraces) || !Array.isArray(body.derivedTraces) || !boolMap(body.vis) || !Array.isArray(body.panes) || !object(body.traceAssignments) || !object(body.paneActiveTraceMap) || !object(body.layout) || !object(body.ui) || !Array.isArray(body.markers) || !Array.isArray(body.refLines) || !Array.isArray(body.savedNoise) || !Array.isArray(body.savedIP3) || !boolMap(body.analysisOpenState) || !object(body.xZoomState) || !object(body.yZoomState) || !object(body.analysisResults)) return false;
   if (body.panes.length < 1 || body.panes.length > 8) return false;
+  if ((body.analyses !== undefined && !validAnalyses(body.analyses, body.derivedTraces)) || (body.droppedViews !== undefined && (!Number.isSafeInteger(body.droppedViews) || Number(body.droppedViews) < 0))) return false;
   const paneIds = new Set<string>();
   for (const pane of body.panes) {
     if (!object(pane) || typeof pane.id !== 'string' || !pane.id || paneIds.has(pane.id) || typeof pane.title !== 'string' || !['cartesian','smith','smith-inverted','table'].includes(String(pane.renderMode)) || !(pane.xLinkGroup === null || typeof pane.xLinkGroup === 'string') || !object(pane.settings)) return false;
@@ -268,7 +336,8 @@ export function migrateWorkspaceV5(raw: unknown): WorkspaceSnapshotV5 | null {
     // Browser preferences and other transient UI keys are not workspace state.
     const { traceColors, traceInterpolations, noiseFilter, noiseSource, ip3Gain } = snapshot.ui;
     const selectedRefLineId = selectedLineId(body.ui, body.refLines, refLines);
-    return { ...snapshot, ui: { traceColors, traceInterpolations, noiseFilter, noiseSource, ip3Gain, ...(selectedRefLineId !== undefined ? { selectedRefLineId } : {}) } };
+    const migrated = snapshot.analyses === undefined ? legacyAnalyses(snapshot) : {};
+    return { ...snapshot, ...migrated, ui: { traceColors, traceInterpolations, noiseFilter, noiseSource, ip3Gain, ...(selectedRefLineId !== undefined ? { selectedRefLineId } : {}) } };
   }
   try {
     let normalized = migrateWorkspaceSnapshot(body);
@@ -373,7 +442,9 @@ export function migrateWorkspaceV5(raw: unknown): WorkspaceSnapshotV5 | null {
     const preset = layout.preset === 'columns' || layout.preset === 'grid' || layout.preset === 'one-side' ? layout.preset : 'rows';
     const { paneMode: _paneMode, paneRenderModes: _paneRenderModes, ...base } = legacy;
     const results = object(body.analysisResults) ? body.analysisResults : {};
-    return {
+    if (body.analyses !== undefined && !validAnalyses(body.analyses, legacy.derivedTraces)) return null;
+    if (body.droppedViews !== undefined && (!Number.isSafeInteger(body.droppedViews) || Number(body.droppedViews) < 0)) return null;
+    const snapshot: WorkspaceSnapshotV5 = {
       ...base, version: 5, panes, traceAssignments, paneActiveTraceMap, refLines,
       analysisResults: {
         noiseResults: object(results.noiseResults) ? results.noiseResults as WorkspaceSnapshotV5['analysisResults']['noiseResults'] : {},
@@ -386,7 +457,10 @@ export function migrateWorkspaceV5(raw: unknown): WorkspaceSnapshotV5 | null {
       activePaneId: typeof body.activePaneId === 'string' && valid.has(body.activePaneId) ? body.activePaneId : panes[0]?.id ?? 'pane-1',
       layout: { preset, paneOrder, sizes: object(layout.sizes) ? Object.fromEntries(Object.entries(layout.sizes).filter(([,v]) => typeof v === 'number' && Number.isFinite(v))) as Record<string, number> : {} },
       ui: { traceColors: legacy.ui.traceColors, traceInterpolations: legacy.ui.traceInterpolations, noiseFilter: legacy.ui.noiseFilter, noiseSource: legacy.ui.noiseSource, ip3Gain: legacy.ui.ip3Gain, ...(selectedLineId(body.ui, body.refLines, refLines) !== undefined ? { selectedRefLineId: selectedLineId(body.ui, body.refLines, refLines) } : {}) },
+      ...(body.analyses !== undefined ? { analyses: body.analyses as AnalysisInstance[] } : {}),
+      ...(body.droppedViews !== undefined ? { droppedViews: Number(body.droppedViews) } : {}),
     };
+    return snapshot.analyses === undefined ? { ...snapshot, ...legacyAnalyses(snapshot) } : snapshot;
   } catch {
     return null;
   }
