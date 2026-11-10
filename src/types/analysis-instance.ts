@@ -6,6 +6,7 @@ export interface AnalysisInstance {
   params: Record<string, ParameterValue>;
   source: { traceId: string | null; secondTraceId?: string | null; lineId?: number | null };
   collapsed: boolean;
-  live: boolean;
+  autoName?: string;
+  overlay?: boolean;
   outputTraceId: string | null;
 }

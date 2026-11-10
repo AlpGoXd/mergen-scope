@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { resolve } from 'node:path';
+import { addAnalysis } from './analysis-helpers';
 
 test('trace rename preserves placement and marker association and is undoable', async ({ page }) => {
   await page.goto('/app.html');
@@ -38,13 +39,9 @@ test('trace rename preserves placement and marker association and is undoable', 
 test('derived trace rename is undoable and keeps its identity', async ({ page }) => {
   await page.goto('/app.html');
   await page.getByTestId('empty-chart-file-input').setInputFiles(resolve('test files/cascade_ip3_-12dBm.DAT'));
-  await page.getByRole('button', { name: 'Right' }).click();
-  await page.getByRole('button', { name: 'Trace Ops' }).click();
-  await page.getByRole('button', { name: 'Offset' }).click();
-  await page.getByLabel('Source trace').selectOption({ index: 1 });
-  await page.getByRole('spinbutton', { name: 'dB' }).fill('3');
-  await page.getByRole('button', { name: 'Create Offset Trace' }).click();
-  const initial = page.locator('[data-testid^="trace-row-"]').filter({ hasText: 'Offset' }).first();
+  const card = await addAnalysis(page, 'Offset / Scale');
+  await card.getByRole('button', { name: 'Create trace' }).click();
+  const initial = page.locator('[data-testid^="trace-row-"]').filter({ has: page.locator('.lp-trace__fx') }).first();
   const id = await initial.getAttribute('data-testid');
   const row = page.getByTestId(id!);
   page.once('dialog', dialog => dialog.accept('Custom derived'));

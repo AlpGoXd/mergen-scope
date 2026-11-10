@@ -50,7 +50,7 @@ export function refLineReducer(state: RefLineState, action: RefLineAction): RefL
       const duplicate = incoming.label && state.refLines.some(line => line.label === incoming.label);
       const used = state.refLines.flatMap(line => line.type === incoming.type && line.label?.startsWith(prefix) && /^\d+$/.test(line.label.slice(1)) ? [Number(line.label.slice(1))] : []);
       const label = duplicate ? `${prefix}${Math.max(0, ...used) + 1}` : incoming.label;
-      return { ...state, refLines: [...state.refLines, { ...incoming, label }] };
+      return { ...state, refLines: [...state.refLines, { ...incoming, label }], selectedRefLineId: incoming.id };
     }
     case 'REMOVE_LINE': {
       const target = state.refLines.find(line => line.id === action.payload);

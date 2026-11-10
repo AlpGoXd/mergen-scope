@@ -17,19 +17,25 @@ export interface ResultValue {
 export type CardMessageTone = 'warning' | 'danger' | 'info';
 export interface CardMessage { tone: CardMessageTone; text: string; action?: { label: string; onClick: () => void } }
 
+/** A Math tool's created trace. It always follows its inputs and settings (no Live/Freeze toggle);
+ *  "Freeze as a copy" lives in the card's ⋯ menu and makes an ordinary, independent trace. */
 export interface MathOutput {
   hue: number;          // trace hue (the app's colour resolver may pass --trace instead)
-  name: string;         // "smoothed · SG 7"
+  name: string;         // "S11 + S21" (updates when settings change)
   panes: string[];      // ["P1"]
-  live: boolean;        // Live follows the source; Freeze keeps the current samples
-  onLive: (live: boolean) => void;
 }
+/** Before a Math card has made its trace: nothing is created until the user presses the button. */
+export interface CreateRowProps { label?: string; disabledReason?: string; onCreate: () => void }
 
 export interface AnalysisCardProps {
   id: string;
   kind: AnalysisKind;
   title: string;                 // "Bandwidth"
   source?: string;               // "S21 · lna_board_rev3.s2p · Pane 1"
+  /** Colour of the target trace: a swatch before the source text (R1). */
+  sourceHue?: number;
+  /** Measure tools with a chart overlay: the eye toggles it (R1). */
+  overlay?: { on: boolean; onToggle: () => void };
   collapsed?: boolean;
   /** Shown in the header when collapsed, e.g. "86.2 MHz". */
   summary?: string;
@@ -43,7 +49,7 @@ export interface AnalysisCardProps {
 
 export type ParamControl =
   | { type: 'number'; value: string; unit?: string; invalid?: boolean; placeholder?: string; onCommit: (text: string) => void }
-  | { type: 'select'; value: string; title?: string; onOpen: (anchor: HTMLElement) => void }
+  | { type: 'select'; value: string; title?: string; /** trace pickers: the trace colour */ hue?: number; onOpen: (anchor: HTMLElement) => void }
   | { type: 'segmented'; options: { value: string; label: string; disabledReason?: string }[]; value: string; onChange: (value: string) => void };
 
 export interface ParamField { id: string; label: string; control: ParamControl }

@@ -24,13 +24,12 @@ function validAnalyses(value: unknown, derived: readonly unknown[]): value is An
   const ids = new Set<string>();
   const outputs = new Set<string>();
   for (const item of value) {
-    if (!object(item) || typeof item.id !== 'string' || !/^analysis-[1-9]\d*$/.test(item.id) || !Number.isSafeInteger(Number(item.id.slice(9))) || Number(item.id.slice(9)) >= Number.MAX_SAFE_INTEGER || ids.has(item.id) || typeof item.toolId !== 'string' || !object(item.source) || !object(item.params) || typeof item.collapsed !== 'boolean' || typeof item.live !== 'boolean') return false;
-    if (!(item.source.traceId === null || typeof item.source.traceId === 'string') || !(item.source.secondTraceId === undefined || item.source.secondTraceId === null || typeof item.source.secondTraceId === 'string') || !(item.source.lineId === undefined || item.source.lineId === null || finite(item.source.lineId))) return false;
+    if (!object(item) || typeof item.id !== 'string' || !/^analysis-[1-9]\d*$/.test(item.id) || !Number.isSafeInteger(Number(item.id.slice(9))) || Number(item.id.slice(9)) >= Number.MAX_SAFE_INTEGER || ids.has(item.id) || typeof item.toolId !== 'string' || !object(item.source) || !object(item.params) || typeof item.collapsed !== 'boolean' || (item.autoName !== undefined && typeof item.autoName !== 'string')) return false;
+    if ((item.overlay !== undefined && typeof item.overlay !== 'boolean') || !(item.source.traceId === null || typeof item.source.traceId === 'string') || !(item.source.secondTraceId === undefined || item.source.secondTraceId === null || typeof item.source.secondTraceId === 'string') || !(item.source.lineId === undefined || item.source.lineId === null || finite(item.source.lineId))) return false;
     const tool = getAnalysisTool(item.toolId);
     if (!tool || !validateParameters(tool.params as ParameterSchema, item.params).valid) return false;
     if (tool.kind === 'math') {
-      if (item.outputTraceId === null) { if (item.live) return false; }
-      else {
+      if (item.outputTraceId !== null) {
         if (typeof item.outputTraceId !== 'string' || outputs.has(item.outputTraceId) || !derived.some(trace => object(trace) && trace.kind === 'derived' && trace.id === item.outputTraceId && trace.analysisId === item.id)) return false;
         outputs.add(item.outputTraceId);
       }
@@ -38,6 +37,14 @@ function validAnalyses(value: unknown, derived: readonly unknown[]): value is An
     ids.add(item.id);
   }
   return true;
+}
+
+function withoutLegacyLive(analyses: readonly AnalysisInstance[], derived: WorkspaceSnapshotV5['derivedTraces']): AnalysisInstance[] {
+  return analyses.map(item => {
+    const { live: _live, ...rest } = item as AnalysisInstance & { live?: unknown };
+    const output = _live !== undefined && rest.autoName === undefined ? derived.find(trace => trace.id === rest.outputTraceId) : undefined;
+    return output ? { ...rest, autoName: output.dn } : rest;
+  });
 }
 
 const legacyToolIds: Readonly<Record<string, string>> = {
@@ -254,8 +261,7 @@ function validGraph(body: Record<string, unknown>, traceIds: Set<string>, traceN
   for (const trace of knownTraces.values()) {
     if (trace.kind !== 'derived' || !(trace.sourceTraceIds as string[]).some(id => !traceIds.has(id) && !sourceAliases.has(id))) continue;
     // A detached or frozen analysis output intentionally retains its last samples after its source disappears.
-    const owner = Array.isArray(body.analyses) ? body.analyses.find(item => object(item) && item.outputTraceId === trace.id) : undefined;
-    if (typeof trace.analysisId !== 'string' || (object(owner) && owner.live !== false)) return false;
+    if (typeof trace.analysisId !== 'string' && !(object(trace.parameters) && trace.parameters.analysisFrozen === true)) return false;
   }
   return true;
 }
@@ -337,7 +343,7 @@ export function migrateWorkspaceV5(raw: unknown): WorkspaceSnapshotV5 | null {
     const { traceColors, traceInterpolations, noiseFilter, noiseSource, ip3Gain } = snapshot.ui;
     const selectedRefLineId = selectedLineId(body.ui, body.refLines, refLines);
     const migrated = snapshot.analyses === undefined ? legacyAnalyses(snapshot) : {};
-    return { ...snapshot, ...migrated, ui: { traceColors, traceInterpolations, noiseFilter, noiseSource, ip3Gain, ...(selectedRefLineId !== undefined ? { selectedRefLineId } : {}) } };
+    return { ...snapshot, ...migrated, ...(snapshot.analyses ? { analyses: withoutLegacyLive(snapshot.analyses, snapshot.derivedTraces) } : {}), ui: { traceColors, traceInterpolations, noiseFilter, noiseSource, ip3Gain, ...(selectedRefLineId !== undefined ? { selectedRefLineId } : {}) } };
   }
   try {
     let normalized = migrateWorkspaceSnapshot(body);
@@ -457,7 +463,7 @@ export function migrateWorkspaceV5(raw: unknown): WorkspaceSnapshotV5 | null {
       activePaneId: typeof body.activePaneId === 'string' && valid.has(body.activePaneId) ? body.activePaneId : panes[0]?.id ?? 'pane-1',
       layout: { preset, paneOrder, sizes: object(layout.sizes) ? Object.fromEntries(Object.entries(layout.sizes).filter(([,v]) => typeof v === 'number' && Number.isFinite(v))) as Record<string, number> : {} },
       ui: { traceColors: legacy.ui.traceColors, traceInterpolations: legacy.ui.traceInterpolations, noiseFilter: legacy.ui.noiseFilter, noiseSource: legacy.ui.noiseSource, ip3Gain: legacy.ui.ip3Gain, ...(selectedLineId(body.ui, body.refLines, refLines) !== undefined ? { selectedRefLineId: selectedLineId(body.ui, body.refLines, refLines) } : {}) },
-      ...(body.analyses !== undefined ? { analyses: body.analyses as AnalysisInstance[] } : {}),
+      ...(body.analyses !== undefined ? { analyses: withoutLegacyLive(body.analyses as AnalysisInstance[], legacy.derivedTraces) } : {}),
       ...(body.droppedViews !== undefined ? { droppedViews: Number(body.droppedViews) } : {}),
     };
     return snapshot.analyses === undefined ? { ...snapshot, ...legacyAnalyses(snapshot) } : snapshot;

@@ -86,7 +86,7 @@ test('right-click menu: Show in, Remove from pane with Undo, List crossings and 
 
   await page.getByTestId('chart-plot-pane-1').locator('.ln-label').click({ button: 'right' });
   await page.getByRole('menu', { name: 'V1 line' }).getByRole('menuitem', { name: 'List crossings' }).click();
-  await expect(page.getByTestId('analysis-card-threshold-crossings')).toContainText('V1 crossings');
+  await expect(page.locator('.an-card').filter({ hasText: 'V1 crossings' })).toBeVisible();
 
   await page.getByTestId('chart-plot-pane-1').locator('.ln-label').click({ button: 'right' });
   await page.getByRole('menu', { name: 'V1 line' }).getByRole('menuitem', { name: 'Delete V1' }).click();

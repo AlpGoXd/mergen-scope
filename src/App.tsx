@@ -3,8 +3,8 @@ import { TopBar } from './components/layout/TopBar';
 import { ToolbarStrip } from './components/layout/ToolbarStrip';
 import { Sidebar } from './components/layout/Sidebar';
 import { ChartWorkspace } from './components/chart/ChartWorkspace';
-import { LineCrossingsContext } from './components/analysis/shared/ThresholdCrossingsCard';
-import { useAnalysisDispatch } from './stores/analysis-store';
+import { LineCrossingsContext } from './components/analysis/line-crossings-context';
+import { useAnalysisDispatch, useAnalysisState } from './stores/analysis-store';
 import { RightPanelStack } from './components/layout/RightPanelStack';
 import { FooterBar } from './components/layout/FooterBar';
 import { ImportWizardModal } from './components/wizard/ImportWizardModal';
@@ -42,7 +42,7 @@ export function App() {
   } = useUiState();
   const uiDispatch = useUiDispatch();
   const analysisDispatch = useAnalysisDispatch();
-  const [crossingsLineId, setCrossingsLineId] = useState<number | null>(null);
+  const { analyses } = useAnalysisState();
   const importFiles = useFileImport();
   const sidebarFileInput = useRef<HTMLInputElement>(null);
   const { activePaneId } = usePaneState();
@@ -160,12 +160,12 @@ export function App() {
     resetDragOverlay();
   }, [resetDragOverlay]);
 
+  // A line's List... adds its "V1 crossings" card (or shows the existing one) and opens the right panel.
   const listCrossings = (lineId: number) => {
-    setCrossingsLineId(lineId);
     uiDispatch({ type: 'SET', payload: { key: 'showRightPanel', value: true } });
-    uiDispatch({ type: 'SET', payload: { key: 'showAnalysisPanel', value: true } });
-    uiDispatch({ type: 'SET', payload: { key: 'showDT', value: false } });
-    analysisDispatch({ type: 'TOGGLE_PANEL', payload: { id: 'threshold-crossings', forceValue: true } });
+    const existing = analyses.find(item => item.toolId === 'line-crossings' && item.source.lineId === lineId);
+    if (existing) { if (existing.collapsed) analysisDispatch({ type: 'SET_ANALYSIS_COLLAPSED', payload: { id: existing.id, collapsed: false } }); return; }
+    analysisDispatch({ type: 'ADD_ANALYSIS', payload: { toolId: 'line-crossings', source: { traceId: null, lineId } } });
   };
 
   return (
@@ -212,10 +212,10 @@ export function App() {
       <TopBar />
       <ToolbarStrip />
 
-      <LineCrossingsContext.Provider value={{ lineId: crossingsLineId, setLineId: setCrossingsLineId, listCrossings }}>
+      <LineCrossingsContext.Provider value={{ listCrossings }}>
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minWidth: 0 }}>
         {/* Always mounted (renders nothing when hidden): it owns the Touchstone trace reconciliation. */}
-        <input ref={sidebarFileInput} type="file" accept={DATA_FILE_ACCEPT} multiple hidden onChange={event => { if (event.target.files?.length) void importFiles(event.target.files); event.target.value = ''; }} />
+        <input data-testid="app-open-input" ref={sidebarFileInput} type="file" accept={DATA_FILE_ACCEPT} multiple hidden onChange={event => { if (event.target.files?.length) void importFiles(event.target.files); event.target.value = ''; }} />
         <Sidebar width={leftPanelWidth} onOpenFiles={() => sidebarFileInput.current?.click()} onThresholdCrossings={listCrossings} />
         {showSidebar && <PanelResizeHandle side="left" onMouseDown={startResize('left')} />}
         <ChartWorkspace />

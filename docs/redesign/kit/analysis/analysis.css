@@ -207,3 +207,19 @@
 
 /* dark: --analysis-tint has the same lightness as --raised, so the band would vanish; mix in more fill */
 .theme-dark .an-card__head { background: color-mix(in oklch, var(--analysis-fill) 45%, var(--raised)); }
+
+/* ---------- added after the first integration (R1 parity) ---------- */
+/* trace colour swatch: card source, trace pickers */
+.an-swatch { display: inline-block; flex: none; width: 8px; height: 8px; margin-right: 5px; border-radius: 2px; background: var(--trace, var(--text-muted)); vertical-align: 0; }
+.an-swatch[style*='--h'] { --trace: oklch(0.58 0.16 var(--h)); }
+.theme-dark .an-swatch[style*='--h'] { --trace: oklch(0.75 0.13 var(--h)); }
+.an-select .an-swatch { margin-right: 0; }
+/* settings above, results below a hairline */
+.an-results { display: flex; flex-direction: column; gap: 6px; padding-top: 6px; border-top: 1px solid var(--border); }
+/* Math: create step, then the output row */
+.an-create { display: flex; align-items: center; gap: 8px; padding-top: 6px; border-top: 1px solid var(--border); }
+.an-create__note { font-size: calc(var(--font-caption) - 0.5px); color: var(--text-muted); }
+.an-btn--primary { background: var(--slate-fill); color: var(--slate-ink); border-color: var(--slate-line); font-weight: 600; }
+.an-output__fx { flex: none; color: var(--analysis-ink); }
+.an-output__note { flex: none; font-size: calc(var(--font-caption) - 0.5px); color: var(--text-muted); }
+.an-icon-btn[aria-pressed='false'] { opacity: 0.55; }

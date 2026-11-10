@@ -32,17 +32,19 @@ Two kit-only names have fallbacks: `--bar-height` (panel header, 32 px) and `--m
 Components in `Analysis.tsx`:
 - `AnalysisPanel`: 32 px header with "Analysis", the count and "+ Add analysis"; scrolling body.
 - `AnalysisEmpty`: the panel with no analyses.
-- `AnalysisCard`: AC-3. A neutral card with a header band in the Analysis tint, holding:
+- `AnalysisCard`: AC-3. A neutral card with a header band in the Analysis tint. `sourceHue` adds the target trace's colour swatch before the source text; `overlay` adds the eye (show / hide this tool's drawing on the chart). The header holds:
   - the kind icon (ƒ Math / ruler Measure);
   - title, source, ⋯, ×.
 
   Click or Enter on the header collapses the card, and then the result shows in the header (`summary`). `selected` marks the card whose output or overlay is highlighted.
 - `KeyValues`: muted 11 px labels; values 12 px semibold, full ink.
 - `Result`: the headline value with a muted unit and an optional note line.
-- `Params`: the generated form. Number (with unit; `invalid` gives the danger tint), select (the app opens its listbox popover from `onOpen`), segmented.
+- `Params`: the generated form; pass `cardId` so field ids stay unique when two cards use the same tool. Number (with unit; `invalid` gives the danger tint), select (`hue` adds the trace colour swatch in trace pickers) (the app opens its listbox popover from `onOpen`), segmented.
 - `CardMsg`: an SC-3 message inside a card. Neutral background, thin status outline, coloured icon, optional action ("Pick a trace").
 - `Busy`: computing or waiting text.
-- `OutputRow`: a Math tool's created trace: swatch, name, pane badges, Live / Freeze.
+- `Results`: wraps everything under the settings, separated by a hairline (settings above, results below, as in R1).
+- `CreateRow`: a Math card before it has made a trace. **Nothing is created when the card is added**; the user picks inputs and presses "Create trace" (or sees the reason it's disabled).
+- `OutputRow`: a Math tool's created trace: swatch, ƒ, name, pane badges, "follows inputs". There is **no Live / Freeze toggle**: the output always follows its inputs and settings. "Freeze as a copy" goes in the card's ⋯ menu and makes an ordinary, independent trace.
 - `CrossingsList`: crossings grouped by pane (a group header only when there's more than one pane).
   - Each row: swatch · trace · **the one value that changes** (y for a V line, x for an H line or a threshold level). The constant goes in the card's source line ("V1 · 3.653 32 GHz"), never in every row. No bold: the value is regular Mono in full ink.
   - The `current` row is the one highlighted on the chart.

@@ -3,10 +3,10 @@
 // AddAnalysisMenu inside it, anchored to the "+ Add analysis" button.
 import type { CSSProperties, ReactElement, ReactNode } from 'react';
 import type {
-  AddAnalysisMenuProps, AddMenuItem, AnalysisCardProps, AnalysisKind, CardMessage, CrossingsListProps,
+  AddAnalysisMenuProps, AddMenuItem, AnalysisCardProps, AnalysisKind, CardMessage, CreateRowProps, CrossingsListProps,
   KeyValue, MathOutput, ParamField, ResultValue,
 } from './types';
-import { Fx, IconRuler, IconSearch, IconWarn } from './icons';
+import { Fx, IconEye, IconEyeOff, IconRuler, IconSearch, IconWarn } from './icons';
 
 const hueStyle = (hue: number): CSSProperties => ({ '--h': hue } as CSSProperties);
 
@@ -58,8 +58,18 @@ export function AnalysisCard(p: AnalysisCardProps): ReactElement {
         onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); p.onToggle?.(); } }}>
         <span className="an-card__kind" title={p.kind === 'math' ? 'Math: makes a trace' : 'Measure: reads values'}><KindIcon kind={p.kind} /></span>
         <span className="an-card__title">{p.title}</span>
-        <span className="an-card__source" title={p.source}>{p.source}</span>
+        <span className="an-card__source" title={p.source}>
+          {p.sourceHue !== undefined ? <span className="an-swatch" style={hueStyle(p.sourceHue)} aria-hidden="true" /> : null}{p.source}
+        </span>
         {p.collapsed && p.summary ? <span className="an-card__summary">{p.summary}</span> : null}
+        {p.overlay ? (
+          <button type="button" className="an-icon-btn" aria-pressed={p.overlay.on}
+            aria-label={p.overlay.on ? `Hide ${p.title} on the chart` : `Show ${p.title} on the chart`}
+            title={p.overlay.on ? 'Shown on the chart' : 'Hidden on the chart'}
+            onClick={(e) => { e.stopPropagation(); p.overlay?.onToggle(); }}>
+            {p.overlay.on ? <IconEye size={12} /> : <IconEyeOff size={12} />}
+          </button>
+        ) : null}
         {p.onMenu ? (
           <button type="button" className="an-icon-btn an-icon-btn--more" aria-label={`${p.title} actions`} aria-haspopup="menu"
             aria-expanded={p.menuOpen ?? false} onClick={(e) => { e.stopPropagation(); p.onMenu?.(e.currentTarget); }}>···</button>
@@ -94,11 +104,12 @@ export function Result({ value, unit, note }: ResultValue): ReactElement {
   );
 }
 
-export function Params({ fields }: { fields: ParamField[] }): ReactElement {
+/** The settings part of a card. `cardId` keeps field ids unique when two cards use the same tool. */
+export function Params({ cardId, fields }: { cardId: string; fields: ParamField[] }): ReactElement {
   return (
     <div className="an-params">
       {fields.map((f) => {
-        const id = `an-param-${f.id}`;
+        const id = `an-param-${cardId}-${f.id}`;
         const c = f.control;
         return [
           <label key={`${f.id}-l`} className="an-params__label" htmlFor={id}>{f.label}</label>,
@@ -113,6 +124,7 @@ export function Params({ fields }: { fields: ParamField[] }): ReactElement {
             ) : c.type === 'select' ? (
               <button id={id} type="button" className="an-select" aria-haspopup="listbox" title={c.title ?? c.value}
                 onClick={(e) => c.onOpen(e.currentTarget)}>
+                {c.hue !== undefined ? <span className="an-swatch" style={hueStyle(c.hue)} aria-hidden="true" /> : null}
                 <span className="an-select__text">{c.value}</span><span className="an-select__arrow">▾</span>
               </button>
             ) : (
@@ -145,17 +157,31 @@ export function Busy({ text = 'Computing…' }: { text?: string }): ReactElement
   return <div className="an-busy" role="status">{text}</div>;
 }
 
-export function OutputRow({ hue, name, panes, live, onLive }: MathOutput): ReactElement {
+/** The results part of a card, under the settings, separated by a hairline (R1). */
+export function Results({ children }: { children?: ReactNode }): ReactElement {
+  return <div className="an-results">{children}</div>;
+}
+
+/** A Math card before it has made a trace. */
+export function CreateRow({ label = 'Create trace', disabledReason, onCreate }: CreateRowProps): ReactElement {
+  return (
+    <div className="an-create">
+      <button type="button" className="an-btn an-btn--primary" disabled={Boolean(disabledReason)} title={disabledReason} onClick={onCreate}>{label}</button>
+      <span className="an-create__note">{disabledReason ?? 'Adds a new trace under its input, in the same pane.'}</span>
+    </div>
+  );
+}
+
+/** A Math card's created trace. It always follows its inputs and settings. */
+export function OutputRow({ hue, name, panes }: MathOutput): ReactElement {
   return (
     <div className="an-output">
       <span className="an-output__arrow" aria-hidden="true">→</span>
       <span className="an-output__swatch is-created" style={hueStyle(hue)} />
+      <span className="an-output__fx" aria-hidden="true"><Fx /></span>
       <span className="an-output__name" title={name}>{name}</span>
       {panes.map((p) => <span key={p} className="an-pane-badge">{p}</span>)}
-      <span className="an-seg" role="group" aria-label="Output follows the source">
-        <button type="button" className="an-seg__item" aria-pressed={live} onClick={() => onLive(true)}>Live</button>
-        <button type="button" className="an-seg__item" aria-pressed={!live} onClick={() => onLive(false)}>Freeze</button>
-      </span>
+      <span className="an-output__note" title="Updates when its inputs or settings change. To keep a fixed copy, use ⋯ › Freeze as a copy.">follows inputs</span>
     </div>
   );
 }

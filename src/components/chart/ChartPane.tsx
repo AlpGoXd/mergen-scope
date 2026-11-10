@@ -20,6 +20,7 @@ import { useUiState, useUiDispatch } from '../../stores/ui-store';
 import { useTraceState } from '../../stores/trace-store';
 import { useTheme } from '../../hooks/use-theme';
 import { usePaneData } from '../../hooks/use-pane-data';
+import { useAnalysisOverlays } from '../../hooks/use-analysis-overlays';
 import { useFileImport } from '../../hooks/use-file-import';
 import { deriveAxisInfo } from '../../domain/units';
 import { checkPaneAssignment } from '../../domain/pane-placement';
@@ -30,12 +31,13 @@ import { computeVerticalIntersections, computeHorizontalIntersections } from '..
 import { makeNiceTicks, NICE_TICK_COUNT } from '../../domain/trace-math';
 import { Btn } from '../shared/Btn';
 import { LinesLayer, CrossingsLayer } from './LinesLayer';
+import { OverlaysLayer } from './OverlaysLayer';
 import type { ToastKind } from '../../stores/toast-store';
 import type { PlotView } from './LinesLayer';
 import { EdgeTag, lineContextEntries, lineShowInEntries } from '../lines/Lines';
 import { Menu as KitMenu } from '../left-panel/Menu';
 import { PopoverAt } from '../shared/Controls';
-import { LineCrossingsContext } from '../analysis/shared/ThresholdCrossingsCard';
+import { LineCrossingsContext } from '../analysis/line-crossings-context';
 import { lineShowInChoices, linePaneAxisUnit, paneName } from '../../domain/line-view';
 import { formatCrossingValue, } from '../../domain/analysis/crossing-rows';
 import { EmptyChartPane } from './EmptyChartPane';
@@ -88,6 +90,7 @@ const CHART_MARGIN_TOP = 10;
 const CHART_X_AXIS_HEIGHT = 35; // approximate height for x-axis ticks + label
 
 export function ChartPane({ paneId }: ChartPaneProps) {
+  const overlays = useAnalysisOverlays(paneId);
   const historyDispatch = useOptionalAggregateWorkspace()?.historyDispatch;
   const { panes, activePaneId, tracePaneMap, paneActiveTraceMap, zoomAll, sharedZoom, paneXZooms, paneYZooms } = usePaneState();
   const { markers, selectedMkrIdx, armed } = useMarkerState();
@@ -579,7 +582,7 @@ export function ChartPane({ paneId }: ChartPaneProps) {
     if (armed) {
       const reference = armed.kind === 'delta' ? markers.find(marker => marker.id === armed.refId) : null;
       const trace = reference ? allTraces.find(item => item.name === reference.trace && traceNamesInPane.includes(item.name)) : resolvePlacementTrace(freq, e?.nativeEvent?.clientY ?? lastPointerClientYRef.current);
-      if (trace) markerDispatch({ type: 'PLACE_MARKER', payload: { trace, targetFreq: freq, markerType: armed.kind, refId: reference?.id ?? null, magneticSnap: { nearestPointPixelDistance: computeNearestPixelDist(trace, freq), snapThresholdPx: 10 } } });
+      if (trace) { refLineDispatch({ type: 'SET_SELECTED', payload: null }); markerDispatch({ type: 'PLACE_MARKER', payload: { trace, targetFreq: freq, markerType: armed.kind, refId: reference?.id ?? null, magneticSnap: { nearestPointPixelDistance: computeNearestPixelDist(trace, freq), snapThresholdPx: 10 } } }); }
       return;
     }
 
@@ -594,29 +597,6 @@ export function ChartPane({ paneId }: ChartPaneProps) {
       setDraggingMarkerIdx(markerHit.index);
       return;
     }
-
-    // Drag already-selected marker — takes priority over placing new markers in all modes
-    const selectedMarker = selectedMkrIdx >= 0 ? markers[selectedMkrIdx] : null;
-    if (selectedMarker && traceNamesInPane.includes(selectedMarker.trace)) {
-      refLineDispatch({ type: 'SET_SELECTED', payload: null });
-      historyDispatch?.({type:'begin-gesture'});
-      setDraggingMarkerIdx(selectedMkrIdx);
-      return;
-    }
-
-    // Drag already-selected line — takes priority over placing markers.
-    if (selectedRefLineId !== null) {
-      const selLine = refLines.find(l => l.id === selectedRefLineId);
-      if (selLine) {
-        const inThisPane = selLine.paneIds.includes(paneId);
-        if (inThisPane) {
-          historyDispatch?.({type:'begin-gesture'});
-          setDraggingRefLineId(selectedRefLineId);
-          return;
-        }
-      }
-    }
-
 
     const lineHit = refLines
       .filter((line) => line.type === 'v' && line.paneIds.includes(paneId))
@@ -643,6 +623,9 @@ export function ChartPane({ paneId }: ChartPaneProps) {
           setDraggingRefLineId(hLineHit.id);
       return;
     }
+
+    markerDispatch({ type: 'SET_SELECTED_IDX', payload: -1 });
+    refLineDispatch({ type: 'SET_SELECTED', payload: null });
 
   };
 
@@ -778,6 +761,7 @@ export function ChartPane({ paneId }: ChartPaneProps) {
     if (source?.view === 'Real') return `Real (${yUnit || 'linear'})`;
     if (source?.view === 'Imag') return `Imag (${yUnit || 'linear'})`;
     if (yUnit) return `Amplitude (${yUnit})`;
+    if (activePaneTrace.kind === 'derived') return 'Amplitude (–)';
     return axisInfo.yLabel || 'Amplitude';
   }, [activePaneTrace, axisInfo.yLabel]);
 
@@ -1298,8 +1282,9 @@ export function ChartPane({ paneId }: ChartPaneProps) {
                 <Customized component={<LinesLayer lines={settings.showReferenceLines ? paneRefLines : []} litId={hoveredRefLineId ?? selectedRefLineId} selectedId={selectedRefLineId}
                   onView={handlePlotView}
                   onHover={(id) => refLineDispatch({ type: 'SET_HOVERED', payload: id })}
-                  onContextMenu={(line, event) => { event.preventDefault(); refLineDispatch({ type: 'SET_SELECTED', payload: line.id }); setLineMenu({ lineId: line.id, at: { x: event.clientX, y: event.clientY }, mode: 'main' }); }}
+                  onContextMenu={(line, event) => { event.preventDefault(); markerDispatch({ type: 'SET_SELECTED_IDX', payload: -1 }); refLineDispatch({ type: 'SET_SELECTED', payload: line.id }); setLineMenu({ lineId: line.id, at: { x: event.clientX, y: event.clientY }, mode: 'main' }); }}
                   onLabelClick={(line) => { markerDispatch({ type: 'SET_SELECTED_IDX', payload: -1 }); refLineDispatch({ type: 'SET_SELECTED', payload: line.id }); }} />} />
+                <Customized component={<OverlaysLayer overlays={overlays} />} />
                 {/* ΔX between V-line delta pairs */}
                 {settings.showReferenceLines && vDeltaPairs.map(([a, b]) => {
                   const lo = Math.min(a.value, b.value);

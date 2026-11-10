@@ -96,6 +96,12 @@ export interface AnalysisInputs {
 
 export type TableCell = string | number | boolean | null;
 
+export type OverlayShape =
+  | { readonly kind: 'triangle'; readonly x: number; readonly y: number; readonly n: number }
+  | { readonly kind: 'dot'; readonly x: number; readonly y: number }
+  | { readonly kind: 'band'; readonly x1: number; readonly x2: number; readonly y1?: number; readonly y2?: number }
+  | { readonly kind: 'tick'; readonly x: number; readonly y: number };
+
 export type AnalysisOutput =
   | { readonly type: 'numbers'; readonly values: Readonly<Record<string, number>> }
   | {
@@ -104,12 +110,14 @@ export type AnalysisOutput =
       readonly rows: readonly (readonly TableCell[])[];
     }
   | { readonly type: 'overlay'; readonly points: readonly { readonly x: number; readonly y: number }[] }
+  | { readonly type: 'shapes'; readonly shapes: readonly OverlayShape[] }
   | { readonly type: 'trace'; readonly trace: Trace };
 
 export type AnalysisOutputDeclaration =
   | { readonly type: 'numbers'; readonly units?: Readonly<Record<string, string>> }
   | { readonly type: 'table' }
   | { readonly type: 'overlay' }
+  | { readonly type: 'shapes' }
   | { readonly type: 'trace' };
 
 /** Pure, typed contract for one analysis module; computation has no UI/store dependency. */

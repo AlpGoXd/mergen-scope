@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { resolve } from 'path';
+import { addAnalysis, analysisCard } from './analysis-helpers';
 
 // Evidence capture for the AC-3 cards, row spacing and Size setting. Writes PNGs only when AC3_CAPTURE is set.
 const capture = process.env.AC3_CAPTURE;
@@ -25,19 +26,15 @@ for (const theme of ['light', 'dark'] as const) {
     await page.getByTestId('chart-plot-pane-1').click({ position: { x: 300, y: 120 } });
     await page.getByRole('button', { name: 'V-Line' }).click();
     await page.getByTestId('chart-plot-pane-1').click({ position: { x: 260, y: 120 } });
-    const rightButton = page.getByRole('button', { name: 'Right' });
-    if (await rightButton.isVisible().catch(() => false)) await rightButton.click();
-    await page.getByRole('button', { name: 'Range Statistics' }).click();
-    await page.getByRole('button', { name: 'Compute Stats' }).click();
-    await page.getByRole('button', { name: 'Ripple / Flatness' }).click();
-    await page.getByRole('button', { name: 'Compute Ripple' }).click();
+    await addAnalysis(page, 'Range Statistics');
+    await addAnalysis(page, 'Ripple');
     await page.getByTestId('ref-line-row-V1').getByRole('button', { name: /^List/ }).click();
-    await expect(page.getByTestId('analysis-card-threshold-crossings')).toBeVisible();
+    await expect(analysisCard(page, 'V1 crossings')).toBeVisible();
     await page.screenshot({ path: `${dir}/${theme}-app.png` });
     await page.locator('.lp').first().screenshot({ path: `${dir}/${theme}-left.png` });
-    await page.getByTestId('analysis-card-range-statistics').screenshot({ path: `${dir}/${theme}-card-range.png` });
-    await page.getByTestId('analysis-card-ripple-flatness').screenshot({ path: `${dir}/${theme}-card-ripple.png` });
-    await page.getByTestId('analysis-card-analysis-menu').screenshot({ path: `${dir}/${theme}-panel-header.png` });
+    await analysisCard(page, 'Range Statistics').screenshot({ path: `${dir}/${theme}-card-range.png` });
+    await analysisCard(page, 'Ripple').screenshot({ path: `${dir}/${theme}-card-ripple.png` });
+    await page.locator('.an-panel').screenshot({ path: `${dir}/${theme}-panel-header.png` });
     for (const size of ['compact', 'large'] as const) {
       await page.evaluate((s) => { document.documentElement.dataset.size = s; }, size);
       await page.screenshot({ path: `${dir}/${theme}-app-${size}.png` });

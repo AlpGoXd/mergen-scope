@@ -7,6 +7,7 @@ import { Popover } from '../shared/Controls';
 import { Menu as KitMenu } from '../left-panel/Menu';
 import type { ToastKind } from '../../stores/toast-store';
 import { makeTraceColorResolver } from '../../domain/trace-colors';
+import { orderTracesForList } from '../../domain/trace-order';
 import { canPlaceMembership } from '../../domain/pane-placement';
 import { useMemo, useRef, useState, type ReactNode } from 'react';
 import { computeLineIntersections } from '../../domain/ref-lines';
@@ -345,7 +346,7 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
         ]}>
           <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 2, minWidth: 0 }}>
             {allTraces.length > 0 && <TraceColumnsHeader />}
-            {allTraces.map((trace, index) => {
+            {orderTracesForList(allTraces).map((trace, index) => {
               const traceColor = resolveTraceColor(trace, index);
               const isBackedByDisplayTrace = visibleDisplayTraces.some(
                 (displayTrace) => (displayTrace.compat?.legacyTraceName ?? displayTrace.id) === trace.name,
@@ -479,7 +480,7 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
                     isRelated={!!hoveredMarkerId && (marker.refId === hoveredMarkerId || markers.some(other => other.id === hoveredMarkerId && other.refId === marker.id))}
                     onHover={(hovered) => setHoveredMarkerId(hovered ? marker.id : null)}
                     paneNumbers={(tracePaneMap[marker.trace] ?? []).map(id => panes.findIndex(pane => pane.id === id) + 1).filter(n => n > 0)}
-                    onSelect={() => { markerDispatch({ type: 'SET_SELECTED_IDX', payload: index }); selectTrace(marker.trace); }}
+                    onSelect={() => { refLineDispatch({ type: 'SET_SELECTED', payload: null }); markerDispatch({ type: 'SET_SELECTED_IDX', payload: index }); selectTrace(marker.trace); }}
                     onRemove={() => changeMarker({ type: 'REMOVE_MARKER', payload: index }, 'Removed marker', 'delete')}
                     compact={compactSidebar}
                     paneNumber={paneNumber}
@@ -541,7 +542,7 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
                         panes={panes}
                         paneViews={paneViews}
                         entries={allKnownTraces.map(trace => ({ trace, paneIds: tracePaneMap[trace.name] ?? [], displayTrace: allDisplayTraces.find(display => display.id === trace.id || display.id === trace.parameters?.['displayTraceId']) }))}
-                        onList={() => onThresholdCrossings?.(refLine.id)}
+                        onList={() => { markerDispatch({ type: 'SET_SELECTED_IDX', payload: -1 }); refLineDispatch({ type: 'SET_SELECTED', payload: refLine.id }); onThresholdCrossings?.(refLine.id); }}
                         onSelect={() => {
                           refLineDispatch({ type: 'SET_SELECTED', payload: refLine.id });
                           markerDispatch({ type: 'SET_SELECTED_IDX', payload: -1 });

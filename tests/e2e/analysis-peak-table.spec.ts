@@ -1,0 +1,32 @@
+import { expect, test } from '@playwright/test';
+import { resolve } from 'node:path';
+import { addAnalysis } from './analysis-helpers';
+
+test('peak rows highlight triangles and place markers with bulk undo', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/app.html');
+  await page.getByTestId('empty-chart-file-input').setInputFiles(resolve('test files/cascade_ip3_-12dBm.DAT'));
+  const card = await addAnalysis(page, 'Peak Table');
+  const rows = card.locator('[data-testid^="peak-row-"]');
+  expect(await rows.count()).toBeGreaterThan(1);
+  const markers = page.locator('[data-testid^="marker-row-"]');
+  const initial = await markers.count();
+  await card.getByTestId('peak-row-2').locator('.an-peak-row__select').click();
+  const triangles = page.getByTestId('analysis-shape-triangle');
+  await expect(page.locator('[data-testid="analysis-shape-triangle"][data-highlighted="true"][data-rank="2"]')).toHaveCount(1);
+  await expect(page.locator('[data-testid="analysis-shape-triangle"][data-highlighted="true"]')).toHaveCount(1);
+  await expect(markers).toHaveCount(initial);
+  await expect(triangles.first()).toHaveAttribute('fill', 'none');
+  const first = card.getByTestId('peak-row-1');
+  await first.getByRole('button', { name: '+ Marker' }).click();
+  await expect(markers).toHaveCount(initial + 1);
+  await expect(first.getByRole('button', { name: '✓' })).toBeDisabled();
+  await card.locator('.an-icon-btn[aria-label="Peak Table actions"]').click();
+  await page.getByRole('menuitem', { name: 'Add all as markers' }).click();
+  await expect(markers).toHaveCount(initial + await rows.count());
+  const toast = page.locator('.ui-toast');
+  await expect(toast).toContainText(/Added \d+ markers/);
+  await expect(toast).toBeVisible();
+  await toast.getByRole('button', { name: 'Undo' }).click();
+  await expect(markers).toHaveCount(initial + 1);
+});

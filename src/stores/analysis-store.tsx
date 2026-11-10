@@ -11,6 +11,7 @@ import type { AnalysisInstance } from '../types/analysis-instance';
 import type { ParameterValue } from '../types/registry-contract';
 
 export interface AnalysisState {
+  highlightedPeak: { analysisId: string; n: number } | null;
   analyses: AnalysisInstance[];
   nextAnalysisSerial: number;
   analysisOpenState: AnalysisOpenState;
@@ -23,12 +24,16 @@ export interface AnalysisState {
 }
 
 export type AnalysisAction =
+  | { type: 'SET_HIGHLIGHTED_PEAK'; payload: AnalysisState['highlightedPeak'] }
   | { type: 'ADD_ANALYSIS'; payload: { toolId: string; source: AnalysisInstance['source']; params?: Record<string, ParameterValue> } }
   | { type: 'REMOVE_ANALYSIS'; payload: { id: string } }
   | { type: 'SET_ANALYSIS_PARAMS'; payload: { id: string; params: Record<string, ParameterValue> } }
+  | { type: 'SET_ANALYSIS_SOURCE'; payload: { id: string; source: AnalysisInstance['source'] } }
   | { type: 'SET_ANALYSIS_COLLAPSED'; payload: { id: string; collapsed: boolean } }
+  | { type: 'SET_ANALYSIS_OVERLAY'; payload: { id: string; overlay: boolean } }
   | { type: 'MOVE_ANALYSIS'; payload: { id: string; index: number } }
-  | { type: 'SET_ANALYSIS_LIVE'; payload: { id: string; live: boolean } }
+  | { type: 'CREATE_ANALYSIS_OUTPUT'; payload: { id: string } }
+  | { type: 'FREEZE_ANALYSIS_COPY'; payload: { id: string } }
   | { type: 'TOGGLE_PANEL'; payload: { id: string; forceValue?: boolean } }
   | { type: 'CLEAR_ALL_PANELS' }
   | { type: 'SET_NOISE_RESULT'; payload: { id: string; result: DataPoint[] | null } }
@@ -40,6 +45,7 @@ export type AnalysisAction =
   | { type: 'RESTORE'; payload: Partial<AnalysisState> };
 
 export const defaultAnalysisState: AnalysisState = {
+  highlightedPeak: null,
   analyses: [],
   nextAnalysisSerial: 1,
   analysisOpenState: getDefaultAnalysisOpenState(),
@@ -65,6 +71,12 @@ export function analysisSerialAfter(analyses: readonly AnalysisInstance[], minim
 
 export function analysisReducer(state: AnalysisState, action: AnalysisAction): AnalysisState {
   switch (action.type) {
+    case 'SET_HIGHLIGHTED_PEAK': {
+      const next = action.payload;
+      if (next && !state.analyses.some(instance => instance.id === next.analysisId && instance.toolId === 'peak-table')) return state;
+      if (state.highlightedPeak?.analysisId === next?.analysisId && state.highlightedPeak?.n === next?.n) return state;
+      return { ...state, highlightedPeak: next };
+    }
     case 'ADD_ANALYSIS': {
       const serial = analysisSerialAfter(state.analyses, state.nextAnalysisSerial);
       const instance = createInstance(`analysis-${serial}`, action.payload.toolId, action.payload.source, action.payload.params);
@@ -72,24 +84,30 @@ export function analysisReducer(state: AnalysisState, action: AnalysisAction): A
     }
     case 'REMOVE_ANALYSIS': {
       const analyses = state.analyses.filter(instance => instance.id !== action.payload.id);
-      return analyses.length === state.analyses.length ? state : { ...state, analyses };
+      return analyses.length === state.analyses.length ? state : { ...state, analyses, highlightedPeak: state.highlightedPeak?.analysisId === action.payload.id ? null : state.highlightedPeak };
     }
     case 'SET_ANALYSIS_PARAMS': {
       const analyses = state.analyses.map(instance => instance.id === action.payload.id ? updateParams(instance, action.payload.params) : instance);
+      return analyses.every((item, index) => item === state.analyses[index]) ? state : { ...state, analyses };
+    }
+    case 'SET_ANALYSIS_SOURCE': {
+      const analyses = state.analyses.map(instance => instance.id === action.payload.id ? { ...instance, source: { ...action.payload.source } } : instance);
       return analyses.every((item, index) => item === state.analyses[index]) ? state : { ...state, analyses };
     }
     case 'SET_ANALYSIS_COLLAPSED': {
       const analyses = state.analyses.map(instance => instance.id === action.payload.id ? setCollapsed(instance, action.payload.collapsed) : instance);
       return analyses.every((item, index) => item === state.analyses[index]) ? state : { ...state, analyses };
     }
+    case 'SET_ANALYSIS_OVERLAY': {
+      const analyses = state.analyses.map(instance => instance.id === action.payload.id && (instance.overlay !== false) !== action.payload.overlay ? { ...instance, overlay: action.payload.overlay } : instance);
+      return analyses.every((item, index) => item === state.analyses[index]) ? state : { ...state, analyses };
+    }
     case 'MOVE_ANALYSIS': {
       const analyses = moveInstance(state.analyses, action.payload.id, action.payload.index);
       return analyses.every((item, index) => item === state.analyses[index]) ? state : { ...state, analyses };
     }
-    case 'SET_ANALYSIS_LIVE': {
-      const analyses = state.analyses.map(instance => instance.id === action.payload.id && instance.live !== action.payload.live ? { ...instance, live: action.payload.live } : instance);
-      return analyses.every((item, index) => item === state.analyses[index]) ? state : { ...state, analyses };
-    }
+    case 'CREATE_ANALYSIS_OUTPUT':
+    case 'FREEZE_ANALYSIS_COPY': return state; // Aggregate workspace owns trace and pane changes.
     case 'TOGGLE_PANEL': {
       const nextOpenState = setAnalysisOpenState(
         state.analysisOpenState, 
@@ -148,6 +166,7 @@ export function analysisReducer(state: AnalysisState, action: AnalysisAction): A
       return {
         ...defaultAnalysisState,
         ...action.payload,
+        highlightedPeak: state.highlightedPeak && analyses.some(instance => instance.id === state.highlightedPeak?.analysisId) ? state.highlightedPeak : null,
         analysisOpenState: action.payload.analysisOpenState ?? defaultAnalysisState.analysisOpenState,
         analyses,
         nextAnalysisSerial: action.payload.analyses === undefined ? state.nextAnalysisSerial : analysisSerialAfter(analyses, Math.max(state.nextAnalysisSerial, action.payload.nextAnalysisSerial ?? 1)),

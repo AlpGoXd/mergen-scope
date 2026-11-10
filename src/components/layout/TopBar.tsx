@@ -8,6 +8,15 @@ import { useRefLineState, useRefLineDispatch } from '../../stores/ref-line-store
 import { usePaneDispatch } from '../../stores/pane-store';
 import { useOptionalAggregateWorkspace } from '../../stores/aggregate-workspace-store';
 import { Btn } from '../shared/Btn';
+import { useTraceState } from '../../stores/trace-store';
+import { tracesToCSV } from '../../domain/export';
+
+function downloadTextFile(fileName: string, text: string, mimeType: string) {
+  const url = URL.createObjectURL(new Blob([text], { type: mimeType }));
+  const a = document.createElement('a');
+  a.href = url; a.download = fileName; a.click();
+  URL.revokeObjectURL(url);
+}
 
 interface TopBarProps {
   onOpen?: () => void;
@@ -23,6 +32,10 @@ export function TopBar({ onOpen, onExport }: TopBarProps = {}) {
   const markerDispatch = useMarkerDispatch(); const { refLines } = useRefLineState();
   const lineDispatch = useRefLineDispatch(); const paneDispatch = usePaneDispatch();
   const aggregate = useOptionalAggregateWorkspace();
+  const { allTraces, vis } = useTraceState();
+  const visibleTraces = allTraces.filter(trace => vis[trace.name] !== false);
+  // Until the Export dialog (Phase 6), Export... downloads the visible traces as CSV.
+  const exportVisibleCsv = () => { if (visibleTraces.length) downloadTextFile('visible-traces.csv', tracesToCSV(visibleTraces, 'Frequency'), 'text/csv;charset=utf-8'); };
   const clearAll = () => {
     if (aggregate) {
       aggregate.historyDispatch({type:'change',toastMessage:'Cleared workspace',toastKind:'delete',command:{slice:'transaction', actions:[
@@ -38,9 +51,6 @@ export function TopBar({ onOpen, onExport }: TopBarProps = {}) {
   };
   const toggle = (key: keyof UiState, value: boolean) => {
     dispatch({ type: 'SET', payload: { key, value: !value } });
-    if (key === 'showRightPanel' && !value && !ui.showAnalysisPanel) {
-      dispatch({ type: 'SET', payload: { key: 'showAnalysisPanel', value: true } });
-    }
   };
   const icon = (path: React.ReactNode) => <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">{path}</svg>;
   return <div style={{ minHeight: 'var(--top-row-height)', display: 'flex', alignItems: 'center', gap: 4, padding: '0 8px', background: 'var(--panel)', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
@@ -51,13 +61,13 @@ export function TopBar({ onOpen, onExport }: TopBarProps = {}) {
     <input data-testid="topbar-workspace-input" type="file" ref={fileInputRef} style={{ display: 'none' }} accept=".json" onChange={e => { if (e.target.files?.[0]) loadFromFile(e.target.files[0]); e.target.value = ''; }} />
     <Btn title={onOpen ? 'Open… (Ctrl+O)' : 'Load Workspace JSON'} aria-label="Open" onClick={onOpen ?? (() => fileInputRef.current?.click())}>{icon(<path d="M3 19V5h7l2 3h9v11z" />)}<span className="topbar-action-label">Open</span></Btn>
     <Btn title="Save Workspace JSON" aria-label="Save" onClick={() => downloadWorkspace()}>{icon(<><path d="M4 3h14l3 3v15H4z"/><path d="M8 3v6h9V3M8 21v-8h9v8"/></>)}<span className="topbar-action-label">Save</span></Btn>
-    <Btn title={onExport ? 'Export…' : 'Export will be available after integration'} aria-label="Export" disabled={!onExport} onClick={onExport}>{icon(<><path d="M12 3v12m-4-4 4 4 4-4"/><path d="M4 17v4h16v-4"/></>)}<span className="topbar-action-label">Export…</span></Btn>
+    <Btn title={visibleTraces.length || onExport ? 'Export visible traces as CSV' : 'Load a trace to export'} aria-label="Export" disabled={!onExport && visibleTraces.length === 0} onClick={onExport ?? exportVisibleCsv}>{icon(<><path d="M12 3v12m-4-4 4 4 4-4"/><path d="M4 17v4h16v-4"/></>)}<span className="topbar-action-label">Export…</span></Btn>
     <span aria-hidden="true" style={{ height: 20, borderLeft: '1px solid var(--border)', margin: '0 4px' }} />
     <Btn variant="chip" tone="marker" active={ui.showMarkerTools} onClick={() => toggle('showMarkerTools', ui.showMarkerTools)}>Markers</Btn>
     <Btn variant="chip" tone="search" active={ui.showSearchTools} onClick={() => toggle('showSearchTools', ui.showSearchTools)}>Search</Btn>
     <Btn variant="chip" tone="lines" active={ui.showLineTools} onClick={() => toggle('showLineTools', ui.showLineTools)}>Lines</Btn>
     <Btn variant="chip" tone="pane" active={ui.showPaneTools} onClick={() => toggle('showPaneTools', ui.showPaneTools)}>Pane</Btn>
-    {!onOpen && <><Btn title="Toggle right panel" onClick={() => toggle('showRightPanel', ui.showRightPanel)}>Right</Btn><Btn title="Remove all loaded files and clear state" onClick={clearAll}>Clear All</Btn></>}
+    {!onOpen && <Btn title="Remove all loaded files and clear state" onClick={clearAll}>Clear All</Btn>}
     <Btn style={{ marginLeft: 'auto' }} variant="chip" tone="analysis" active={ui.showRightPanel} onClick={() => toggle('showRightPanel', ui.showRightPanel)}>Analysis</Btn>
   </div>;
 }

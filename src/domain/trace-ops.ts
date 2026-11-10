@@ -332,10 +332,9 @@ export function computeBinaryTraceMathData(
 
   const aOverlap = getDataInWindow(aData, window);
   const bOverlap = getDataInWindow(bData, window);
-  if (!aOverlap.length || !bOverlap.length) return { error: "No overlap between the selected traces." };
 
   let effectiveInterpolation = requestedInterpolation;
-  const exactAligned = overlapArraysMatchExactly(aOverlap, bOverlap);
+  const exactAligned = aOverlap.length > 0 && bOverlap.length > 0 && overlapArraysMatchExactly(aOverlap, bOverlap);
 
   if (requestedInterpolation === "auto") {
     effectiveInterpolation = exactAligned ? "exact" : "linear";
@@ -345,12 +344,13 @@ export function computeBinaryTraceMathData(
   }
 
   let dropped = 0;
-  const data = aOverlap.flatMap((p) => {
+  const data = (aOverlap.length ? aOverlap : bOverlap).flatMap((p) => {
+    const aAmp = aOverlap.length ? p.amp : interpolateAmpAtFreq(aData, p.freq, effectiveInterpolation);
     const bAmp = effectiveInterpolation === "exact"
       ? ampsFromExactMatch(bOverlap, p.freq)
       : interpolateAmpAtFreq(bData, p.freq, effectiveInterpolation);
-    if (bAmp === null) { dropped++; return []; }
-    const amp = applyBinaryTraceMathOp(p.amp, bAmp, operation);
+    if (aAmp === null || bAmp === null) { dropped++; return []; }
+    const amp = applyBinaryTraceMathOp(aAmp, bAmp, operation);
     if (!Number.isFinite(amp) || amp === null) { dropped++; return []; }
     return [{ freq: p.freq, amp }];
   });

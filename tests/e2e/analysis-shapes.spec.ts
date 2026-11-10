@@ -1,0 +1,35 @@
+import { expect, test } from '@playwright/test';
+import { resolve } from 'node:path';
+import { addAnalysis } from './analysis-helpers';
+
+test('measure shapes follow the eye and card expansion', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/app.html');
+  await page.getByTestId('empty-chart-file-input').setInputFiles(resolve('test files/cascade_ip3_-12dBm.DAT'));
+  const plot = page.getByTestId('chart-plot-pane-1');
+  const peaks = await addAnalysis(page, 'Peak Table');
+  const triangles = plot.getByTestId('analysis-shape-triangle');
+  const count = await triangles.count();
+  expect(count).toBeGreaterThan(0);
+  await expect(triangles).toHaveCount(await peaks.locator('[data-testid^="peak-row-"]').count());
+  await expect(triangles.first()).toHaveAttribute('fill', 'none');
+  await peaks.locator('.an-icon-btn[aria-label="Hide Peak Table on the chart"]').click();
+  await expect(triangles).toHaveCount(0);
+  await peaks.locator('.an-icon-btn[aria-label="Show Peak Table on the chart"]').click();
+  await expect(triangles).toHaveCount(count);
+  await peaks.locator('.an-card__head').click();
+  await expect(triangles).toHaveCount(0);
+  await peaks.locator('.an-card__head').click();
+  await expect(triangles).toHaveCount(count);
+  await addAnalysis(page, 'Bandwidth');
+  await expect(plot.getByTestId('analysis-shape-band')).toHaveCount(1);
+  await expect(plot.getByTestId('analysis-shape-tick')).toHaveCount(2);
+  await addAnalysis(page, 'Ripple');
+  await expect(plot.getByTestId('analysis-shape-band')).toHaveCount(2);
+  const crossings = await addAnalysis(page, 'Threshold crossings');
+  await crossings.getByLabel('Level').fill('-82');
+  await crossings.getByLabel('Level').press('Enter');
+  const dots = plot.getByTestId('analysis-shape-dot');
+  await expect(dots.first()).toBeVisible();
+  await expect(dots.first()).toHaveAttribute('fill', 'none');
+});

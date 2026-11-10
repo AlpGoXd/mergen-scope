@@ -29,7 +29,7 @@ import { createTransactionHistory, recordTransaction, undoTransaction, redoTrans
 import type { TransactionHistory } from '../domain/transaction-history';
 import { useOptionalToast } from './toast-store';
 import type { ToastKind } from './toast-store';
-import { makeAnalysisOutput, recomputeLiveOutputs } from '../domain/analysis/instances';
+import { autoOutputName, makeAnalysisOutput, recomputeOutputs } from '../domain/analysis/instances';
 import { getAnalysisTool } from '../domain/analysis/tool-registry';
 
 export interface WorkspaceState {
@@ -62,10 +62,10 @@ export interface WorkspaceMemento {
 }
 export function captureWorkspace(state: WorkspaceState): WorkspaceMemento {
   const {traceColors, traceInterpolations, noiseFilter, noiseSource, ip3Gain, selectedTraceName} = state.ui;
-  return {files:{...state.files,wizardQueue:state.files.wizardQueue.filter(entry => !entry.pendingBatch)}, traces:state.traces, panes:state.panes, markers:state.markers.markers, lines:state.lines.refLines, analysis:state.analysis, layout:state.layout, ui:{traceColors,traceInterpolations,noiseFilter,noiseSource,ip3Gain,selectedTraceName}};
+  return {files:{...state.files,wizardQueue:state.files.wizardQueue.filter(entry => !entry.pendingBatch)}, traces:state.traces, panes:state.panes, markers:state.markers.markers, lines:state.lines.refLines, analysis:{...state.analysis, highlightedPeak:null}, layout:state.layout, ui:{traceColors,traceInterpolations,noiseFilter,noiseSource,ip3Gain,selectedTraceName}};
 }
 export function sameWorkspaceMemento(a: WorkspaceMemento, b: WorkspaceMemento): boolean {
-  return a.files === b.files && a.traces === b.traces && a.panes === b.panes && a.markers === b.markers && a.lines === b.lines && a.analysis === b.analysis && a.layout === b.layout && a.ui.traceColors === b.ui.traceColors && a.ui.traceInterpolations === b.ui.traceInterpolations && a.ui.noiseFilter === b.ui.noiseFilter && a.ui.noiseSource === b.ui.noiseSource && a.ui.ip3Gain === b.ui.ip3Gain && a.ui.selectedTraceName === b.ui.selectedTraceName;
+  return a.files === b.files && a.traces === b.traces && a.panes === b.panes && a.markers === b.markers && a.lines === b.lines && sameValue(a.analysis, b.analysis) && a.layout === b.layout && a.ui.traceColors === b.ui.traceColors && a.ui.traceInterpolations === b.ui.traceInterpolations && a.ui.noiseFilter === b.ui.noiseFilter && a.ui.noiseSource === b.ui.noiseSource && a.ui.ip3Gain === b.ui.ip3Gain && a.ui.selectedTraceName === b.ui.selectedTraceName;
 }
 export function restoreWorkspaceMemento(state: WorkspaceState, memento: WorkspaceMemento): WorkspaceState {
   return {
@@ -312,12 +312,43 @@ export function workspaceReducer(state: WorkspaceState, command: WorkspaceAction
     analysis: analysisReducer(state.analysis, {type: 'RESTORE', payload: command.state.analysis}),
     ui: { ...command.state.ui, theme: state.ui.theme }, revision: state.revision + 1,
   };
+  if (command.slice === 'analysis' && (command.action.type === 'CREATE_ANALYSIS_OUTPUT' || command.action.type === 'FREEZE_ANALYSIS_COPY')) {
+    const action = command.action;
+    const instance = state.analysis.analyses.find(item => item.id === action.payload.id);
+    if (!instance || getAnalysisTool(instance.toolId)?.kind !== 'math') return state;
+    const all = traceView(state.files, state.traces).allKnownTraces;
+    const source = all.find(trace => trace.id === instance.source.traceId);
+    const existing = all.find(trace => trace.id === instance.outputTraceId && trace.kind === 'derived');
+    if (action.type === 'CREATE_ANALYSIS_OUTPUT' && (instance.outputTraceId || !source || (instance.toolId === 'trace-math' && !all.some(trace => trace.id === instance.source.secondTraceId)))) return state;
+    if (action.type === 'FREEZE_ANALYSIS_COPY' && !existing) return state;
+    const base = `${instance.id}-output-${state.revision + 1}`;
+    let id = base; let serial = 2;
+    while (all.some(trace => trace.id === id || trace.name === id)) { id = `${base}-${serial}`; serial += 1; }
+    const autoName = autoOutputName(instance, all);
+    const created = action.type === 'CREATE_ANALYSIS_OUTPUT' ? makeAnalysisOutput(instance, { traces: all }, id, id) : null;
+    const output = created ? { ...created, dn: autoName } : existing && existing.kind === 'derived' && action.type === 'FREEZE_ANALYSIS_COPY' ? (() => {
+      const { analysisId: _analysisId, ...copy } = existing;
+      return { ...copy, id, name: id, dn: `${existing.dn || existing.name} (copy)`, data: existing.data.map(point => ({ ...point })), parameters: { ...existing.parameters, analysisFrozen: true } };
+    })() : null;
+    if (!output) return state;
+    const paneSource = created ? source : existing;
+    const analyses = created ? state.analysis.analyses.map(item => item.id === instance.id ? { ...item, outputTraceId: id, autoName } : item) : state.analysis.analyses;
+    return { ...state, revision: state.revision + 1, analysis: { ...state.analysis, analyses }, traces: { ...state.traces, derivedTraces: [...state.traces.derivedTraces, output], vis: { ...state.traces.vis, [id]: true } }, panes: { ...state.panes, tracePaneMap: { ...state.panes.tracePaneMap, [id]: [...(paneSource ? state.panes.tracePaneMap[paneSource.name] ?? [] : [])] } } };
+  }
   let next = state;
   switch (command.slice) {
     case 'files': next = { ...state, files: fileReducer(state.files, command.action) }; break;
     case 'traces': next = { ...state, traces: traceReducer(state.traces, command.action) }; break;
-    case 'markers': next = { ...state, markers: markerReducer(state.markers, command.action) }; break;
-    case 'lines': next = { ...state, lines: refLineReducer(state.lines, command.action) }; break;
+    case 'markers': {
+      const markers = markerReducer(state.markers, command.action);
+      const selects = ((command.action.type === 'PLACE_MARKER' || command.action.type === 'PLACE_MARKERS') && markers !== state.markers) || (command.action.type === 'SET_SELECTED_IDX' && command.action.payload >= 0);
+      next = { ...state, markers, lines: selects && markers.selectedMkrIdx >= 0 ? { ...state.lines, selectedRefLineId: null } : state.lines }; break;
+    }
+    case 'lines': {
+      const lines = refLineReducer(state.lines, command.action);
+      const selects = (command.action.type === 'ADD_LINE' && lines !== state.lines) || (command.action.type === 'SET_SELECTED' && command.action.payload !== null);
+      next = { ...state, lines, markers: selects && lines.selectedRefLineId !== null ? { ...state.markers, selectedMkrIdx: -1 } : state.markers }; break;
+    }
     case 'analysis': next = { ...state, analysis: analysisReducer(state.analysis, command.action) }; break;
     case 'ui': next = { ...state, ui: uiReducer(state.ui, command.action) }; break;
     case 'panes': {
@@ -351,37 +382,31 @@ export function workspaceReducer(state: WorkspaceState, command: WorkspaceAction
     }
   }
   if (next.files === state.files && next.traces === state.traces && next.panes === state.panes && next.markers === state.markers && next.lines === state.lines && next.analysis === state.analysis && next.ui === state.ui) return state;
-  if (command.slice === 'analysis' && command.action.type === 'ADD_ANALYSIS' && next.analysis !== state.analysis) {
-    const instance = next.analysis.analyses[next.analysis.analyses.length - 1];
-    if (instance && getAnalysisTool(instance.toolId)?.kind === 'math') {
-      const all = traceView(next.files, next.traces).allKnownTraces;
-      const source = all.find(trace => trace.id === instance.source.traceId);
-      const second = all.find(trace => trace.id === instance.source.secondTraceId);
-      const suffix = instance.toolId === 'smooth' ? 'smoothed' : instance.toolId === 'offset-scale' ? `offset ${String(instance.params.offset)} scale ${String(instance.params.scale)}` : `${String(instance.params.operation)} ${second?.dn ?? second?.name ?? ''}`;
-      const baseName = `${source?.dn ?? source?.name ?? 'Trace'} · ${suffix}`;
-      let outputId = `${instance.id}-output`; let name = baseName; let serial = 2;
-      while (all.some(trace => trace.id === outputId || trace.name === name)) { outputId = `${instance.id}-output-${serial}`; name = `${baseName} (${serial})`; serial += 1; }
-      const output = makeAnalysisOutput(instance, { traces: all }, outputId, name);
-      if (!output) return state;
-      if (output) next = { ...next, traces: { ...next.traces, derivedTraces: [...next.traces.derivedTraces, output] }, analysis: { ...next.analysis, analyses: next.analysis.analyses.map(item => item.id === instance.id ? { ...item, outputTraceId: output.id } : item) } };
-    }
+  if (command.slice === 'analysis' && command.action.type === 'REMOVE_ANALYSIS') {
+    const removedId = command.action.payload.id;
+    const removed = state.analysis.analyses.find(item => item.id === removedId);
+    if (removed?.outputTraceId) next = { ...next, traces: { ...next.traces, derivedTraces: next.traces.derivedTraces.map(trace => {
+      if (trace.kind !== 'derived' || trace.id !== removed.outputTraceId) return trace;
+      const { analysisId: _analysisId, ...frozen } = trace;
+      return { ...frozen, parameters: { ...trace.parameters, analysisFrozen: true } };
+    }) } };
   }
   const analysisInputsChanged = next.analysis.analyses.length !== state.analysis.analyses.length || next.analysis.analyses.some(item => {
     const previous = state.analysis.analyses.find(old => old.id === item.id);
-    return !previous || previous.live !== item.live || JSON.stringify(previous.params) !== JSON.stringify(item.params) || JSON.stringify(previous.source) !== JSON.stringify(item.source);
+    return !previous || JSON.stringify(previous.params) !== JSON.stringify(item.params) || JSON.stringify(previous.source) !== JSON.stringify(item.source);
   });
   if (next.files !== state.files || next.traces !== state.traces || analysisInputsChanged) {
     const view = traceView(next.files, next.traces);
-    const live = recomputeLiveOutputs({ analyses: next.analysis.analyses, traces: view.allKnownTraces.filter(trace => trace.kind !== 'derived'), derivedTraces: next.traces.derivedTraces });
-    if (live.analyses.some((item, index) => item !== next.analysis.analyses[index])) next = { ...next, analysis: { ...next.analysis, analyses: live.analyses } };
-    if (live.derivedTraces.some((item, index) => item !== next.traces.derivedTraces[index])) next = { ...next, traces: { ...next.traces, derivedTraces: live.derivedTraces } };
+    const outputs = recomputeOutputs({ analyses: next.analysis.analyses, traces: view.allKnownTraces.filter(trace => trace.kind !== 'derived'), derivedTraces: next.traces.derivedTraces });
+    if (outputs.analyses.some((item, index) => item !== next.analysis.analyses[index])) next = { ...next, analysis: { ...next.analysis, analyses: outputs.analyses } };
+    if (outputs.derivedTraces.some((item, index) => item !== next.traces.derivedTraces[index])) next = { ...next, traces: { ...next.traces, derivedTraces: outputs.derivedTraces } };
   }
   if (next.files !== state.files || next.traces !== state.traces) {
     const view = traceView(next.files, next.traces);
     const raw = view.allKnownTraces.filter(trace => trace.kind !== 'derived');
     // Analysis outputs remain ordinary frozen traces when their source or card is removed.
-    const protectedTraces = next.traces.derivedTraces.filter(trace => trace.kind === 'derived' && trace.analysisId !== undefined);
-    const legacyTraces = next.traces.derivedTraces.filter(trace => !(trace.kind === 'derived' && trace.analysisId !== undefined));
+    const protectedTraces = next.traces.derivedTraces.filter(trace => trace.kind === 'derived' && (trace.analysisId !== undefined || trace.parameters?.['analysisFrozen'] === true));
+    const legacyTraces = next.traces.derivedTraces.filter(trace => !(trace.kind === 'derived' && (trace.analysisId !== undefined || trace.parameters?.['analysisFrozen'] === true)));
     const legacy = traceReducer({ ...next.traces, derivedTraces: legacyTraces }, { type: 'RECONCILE', payload: [...raw, ...protectedTraces] });
     const kept = new Map([...legacy.derivedTraces, ...protectedTraces].map(trace => [trace.id, trace]));
     const ordered = next.traces.derivedTraces.flatMap(trace => { const item = kept.get(trace.id); return item ? [item] : []; });
@@ -389,7 +414,7 @@ export function workspaceReducer(state: WorkspaceState, command: WorkspaceAction
     const vis = { ...reconciled.vis }; let changed = false;
     for (const trace of view.allTraces) if (vis[trace.name] === undefined) { vis[trace.name] = true; changed = true; }
     next = { ...next, traces: changed ? { ...reconciled, vis } : reconciled };
-    const afterLegacy = recomputeLiveOutputs({ analyses: next.analysis.analyses, traces: raw, derivedTraces: next.traces.derivedTraces });
+    const afterLegacy = recomputeOutputs({ analyses: next.analysis.analyses, traces: raw, derivedTraces: next.traces.derivedTraces });
     if (afterLegacy.analyses.some((item, index) => item !== next.analysis.analyses[index])) next = { ...next, analysis: { ...next.analysis, analyses: afterLegacy.analyses } };
     if (afterLegacy.derivedTraces.some((item, index) => item !== next.traces.derivedTraces[index])) next = { ...next, traces: { ...next.traces, derivedTraces: afterLegacy.derivedTraces } };
     const known = traceView(next.files, next.traces).allKnownTraces;
@@ -430,7 +455,7 @@ function recordable(command: WorkspaceAction): boolean {
   if (command.slice === 'panes') return command.action.type !== 'RECONCILE';
   if (command.slice === 'markers') return !['ARM','SET_TRACE','SET_SELECTED_IDX'].includes(command.action.type);
   if (command.slice === 'lines') return !['SET_MODE','SET_SELECTED','SET_HOVERED','SET_PANE_VIEW','CLEANUP_ORPHANED_LINES'].includes(command.action.type);
-  if (command.slice === 'analysis') return true;
+  if (command.slice === 'analysis') return command.action.type !== 'SET_HIGHLIGHTED_PEAK';
   if (command.slice === 'ui') return command.action.type === 'SET' && ['traceColors','traceInterpolations','noiseFilter','noiseSource','ip3Gain','selectedTraceName'].includes(command.action.payload.key);
   return false;
 }

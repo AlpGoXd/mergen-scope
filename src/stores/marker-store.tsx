@@ -12,6 +12,7 @@ export interface MarkerState {
 }
 
 export type MarkerAction =
+  | { type: 'PLACE_MARKERS'; payload: { trace: Trace; targetFreqs: readonly number[] } }
   | {
       type: 'PLACE_MARKER';
       payload: {
@@ -46,6 +47,13 @@ export const MarkerDispatchContext = createContext<React.Dispatch<MarkerAction> 
 
 export function markerReducer(state: MarkerState, action: MarkerAction): MarkerState {
   switch (action.type) {
+    case 'PLACE_MARKERS': {
+      const { trace, targetFreqs } = action.payload;
+      return targetFreqs.reduce((current, targetFreq) => {
+        if (!Number.isFinite(targetFreq) || current.markers.some(marker => marker.trace === trace.name && marker.freq === targetFreq)) return current;
+        return markerReducer(current, { type: 'PLACE_MARKER', payload: { trace, targetFreq } });
+      }, state);
+    }
     case 'PLACE_MARKER': {
       const { targetFreq, trace, markerType = 'normal', label = null, refId = null, magneticSnap } = action.payload;
       const placement = placeMarker(trace, targetFreq, magneticSnap);

@@ -42,6 +42,7 @@ describe('analysis workspace migration', () => {
     const selected = traceView(state.files, state.traces).allKnownTraces[0];
     if (!selected) throw new Error('Expected source');
     state = workspaceReducer(state, { slice: 'analysis', action: { type: 'ADD_ANALYSIS', payload: { toolId: 'offset-scale', source: { traceId: selected.id }, params: { offset: 4 } } } });
+    state = workspaceReducer(state, { slice: 'analysis', action: { type: 'CREATE_ANALYSIS_OUTPUT', payload: { id: 'analysis-1' } } });
     const snapshot = snapshotFromWorkspace(state); if (!snapshot) throw new Error('Expected snapshot');
     const reread = migrateWorkspaceV5(JSON.parse(JSON.stringify(snapshot))); if (!reread) throw new Error('Expected round trip');
     expect(reread.analyses).toEqual(state.analysis.analyses);
@@ -52,14 +53,14 @@ describe('analysis workspace migration', () => {
     const added = workspaceReducer(restored, { slice: 'analysis', action: { type: 'ADD_ANALYSIS', payload: { toolId: 'ripple', source: { traceId: selected.id } } } });
     expect(added.analysis.analyses.map(item => item.id)).toEqual(['analysis-1', 'analysis-2']);
     const frozen = workspaceReducer(restored, { slice: 'files', action: { type: 'REMOVE_FILE', payload: { fileId: 'f' } } });
-    expect(frozen.analysis.analyses[0]?.live).toBe(false);
+    expect(frozen.analysis.analyses[0]?.outputTraceId).toBeTruthy();
     const frozenSnapshot = snapshotFromWorkspace(frozen); if (!frozenSnapshot) throw new Error('Expected frozen snapshot');
-    expect(migrateWorkspaceV5(JSON.parse(JSON.stringify(frozenSnapshot)))?.analyses?.[0]?.live).toBe(false);
+    expect(migrateWorkspaceV5(JSON.parse(JSON.stringify(frozenSnapshot)))?.analyses?.[0]?.outputTraceId).toBeTruthy();
   });
 
   it('rejects malformed new instances and prefers the new field when both shapes exist', () => {
     const snapshot = snapshotWithTrace();
-    const instance = { id: 'analysis-1', toolId: 'ripple', params: {}, source: { traceId: null }, collapsed: false, live: true, outputTraceId: null };
+    const instance = { id: 'analysis-1', toolId: 'ripple', params: {}, source: { traceId: null }, collapsed: false, outputTraceId: null };
     const valid = { ...snapshot, analysisOpenState: { 'noise-psd': true }, analyses: [instance] };
     expect(migrateWorkspaceV5(valid)?.analyses).toEqual([instance]);
     const invalid = [
@@ -68,12 +69,15 @@ describe('analysis workspace migration', () => {
       [{ ...instance, toolId: 'ip3', params: { gain: 'invalid' } }],
       [instance, instance],
       [{ ...instance, id: 'bad-id' }],
-      [{ ...instance, live: 'yes' }],
+      [{ ...instance, autoName: 1 }],
+      [{ ...instance, overlay: 'hidden' }],
       [{ ...instance, toolId: 'smooth', params: { method: 'moving-average', window: 3, sgOrder: 2 }, outputTraceId: 'missing' }],
-      [{ ...instance, toolId: 'smooth', params: { method: 'moving-average', window: 3, sgOrder: 2 }, outputTraceId: null }],
     ];
     for (const analyses of invalid) expect(migrateWorkspaceV5({ ...snapshot, analyses })).toBeNull();
     expect(migrateWorkspaceV5({ ...snapshot, analyses: null })).toBeNull();
+    expect(migrateWorkspaceV5({ ...snapshot, analyses: [{ ...instance, live: true }] })?.analyses).toEqual([instance]);
+    expect(migrateWorkspaceV5({ ...snapshot, analyses: [{ ...instance, overlay: false }] })?.analyses?.[0]?.overlay).toBe(false);
+    expect(migrateWorkspaceV5({ ...snapshot, analyses: [{ ...instance, toolId: 'smooth', params: { method: 'moving-average', window: 3, sgOrder: 2 }, outputTraceId: null }] })).not.toBeNull();
   });
 
   it('uses no source when the legacy snapshot has no selected trace', () => {
@@ -92,10 +96,10 @@ describe('analysis workspace migration', () => {
   });
   it('checks math output ownership and permits detached frozen instances', () => {
     const snapshot = snapshotWithTrace();
-    const instance = { id: 'analysis-1', toolId: 'offset-scale', params: { offset: 0, scale: 1 }, source: { traceId: 'source' }, collapsed: false, live: false, outputTraceId: null };
+    const instance = { id: 'analysis-1', toolId: 'offset-scale', params: { offset: 0, scale: 1 }, source: { traceId: 'source' }, collapsed: false, outputTraceId: null };
     expect(migrateWorkspaceV5({ ...snapshot, analyses: [instance] })).not.toBeNull();
     const trace = { ...makeTestTrace({ id: 'out', name: 'out' }), kind: 'derived' as const, analysisId: 'analysis-2' };
-    expect(migrateWorkspaceV5({ ...snapshot, derivedTraces: [trace], analyses: [{ ...instance, live: true, outputTraceId: 'out' }] })).toBeNull();
+    expect(migrateWorkspaceV5({ ...snapshot, derivedTraces: [trace], analyses: [{ ...instance, outputTraceId: 'out' }] })).toBeNull();
   });
 
 });

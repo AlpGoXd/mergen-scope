@@ -19,5 +19,10 @@ describe('analysis registry', () => {
     expect(items.find(item => item.id === 'ripple')?.open).toBe(true);
     expect(items.find(item => item.id === 'occupied-bandwidth')?.disabledReason).toBe('Select a trace with power units (dBm or dBW).');
     expect(items.find(item => item.id === 'ip3')?.disabledReason).toBe('Place F1, F2, IM3L and IM3U markers');
+    expect(items.find(item => item.id === 'trace-math')?.disabledReason).toBeUndefined();
+  });
+  it('allows defining a Math card before a source is available', () => {
+    const items = listAddableTools({ trace: null, inputs: { traces: [] }, analyses: [] });
+    expect(items.filter(item => item.kind === 'math').every(item => !item.disabledReason)).toBe(true);
   });
 });

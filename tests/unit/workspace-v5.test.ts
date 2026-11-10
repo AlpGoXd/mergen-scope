@@ -4,6 +4,19 @@ import { initialWorkspaceState, workspaceReducer, snapshotFromWorkspace, workspa
 import { parseTabularFile } from '../../src/domain/parsers/tabular';
 import { parseTouchstoneFile } from '../../src/domain/parsers/touchstone';
 import { migrateWorkspaceV5 } from '../../src/domain/workspace-migrate-v5';
+import { makeTestTrace } from './helpers';
+
+it('accepts optional trace math alignment choices and rejects unknown choices', () => {
+  const base = migrateWorkspaceV5(fixture('workspace-v4-eight-pane-extension'));
+  if (!base) throw new Error('fixture');
+  const instance = { id: 'analysis-1', toolId: 'trace-math', source: { traceId: null, secondTraceId: null }, params: { operation: 'add' }, collapsed: false, outputTraceId: null };
+  expect(migrateWorkspaceV5({ ...base, analyses: [instance] })?.analyses?.[0]?.params).toEqual(instance.params);
+  expect(migrateWorkspaceV5({ ...base, analyses: [{ ...instance, params: { ...instance.params, points: 'both', fill: 'linear' } }] })).not.toBeNull();
+  expect(migrateWorkspaceV5({ ...base, analyses: [{ ...instance, params: { ...instance.params, fill: 'unknown' } }] })).toBeNull();
+  const output = { ...makeTestTrace({ id: 'math-output', name: 'math-output' }), kind: 'derived', operationType: 'add', analysisId: instance.id };
+  const saved = migrateWorkspaceV5({ ...base, derivedTraces: [...base.derivedTraces, output], analyses: [{ ...instance, outputTraceId: output.id }] });
+  expect(saved?.analyses?.[0]?.outputTraceId).toBe(output.id);
+});
 
 const fixture = (name: string): unknown => JSON.parse(readFileSync(`tests/fixtures/phase3-preservation/${name}.json`, 'utf8'));
 type LegacyTrace = { id: string; name: string; domain: string };

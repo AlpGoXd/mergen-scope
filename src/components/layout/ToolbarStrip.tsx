@@ -52,6 +52,7 @@ export function ToolbarStrip() {
 
   // --- Peak/Min search handlers ---
   const moveOrPlace = (freq: number, amp: number) => {
+    refDispatch({ type: 'SET_SELECTED', payload: null });
     if (selectedMkrIdx >= 0) {
       markerDispatch({ type: 'UPDATE_MARKER', payload: { idx: selectedMkrIdx, updates: { requestedFreq: freq, freq, amp, interpolated: false } } });
     } else {

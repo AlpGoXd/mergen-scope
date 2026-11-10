@@ -3,6 +3,12 @@ import type { AnalysisInputs, AnalysisOutput, AnalysisTool, ParameterSchema, Par
 import type { DerivedTrace, Trace } from '../../types/trace';
 import { validateParameters } from './tool-contract';
 import { getAnalysisTool } from './tool-registry';
+import { computeBinaryTraceMathData } from '../trace-ops';
+import type { BinaryOp } from '../trace-ops';
+import { alignAndCompute, describeStimulus } from './trace-math-align';
+import type { MathFill, MathPoints } from './trace-math-align';
+import { derived } from './tools/shared';
+import { traceMathUnit } from '../units';
 
 export type InstanceResult = { readonly outputs: readonly AnalysisOutput[]; readonly reason?: never } | { readonly outputs?: never; readonly reason: string };
 
@@ -12,7 +18,7 @@ export function createInstance(id: string, toolId: string, source: AnalysisInsta
   if (!tool) return null;
   const validated = validateParameters(tool.params as ParameterSchema, params);
   if (!validated.valid) return null;
-  return { id, toolId, params: { ...validated.values }, source: { ...source }, collapsed: false, live: true, outputTraceId: null };
+  return { id, toolId, params: { ...validated.values }, source: { ...source }, collapsed: false, outputTraceId: null };
 }
 
 export function updateParams(instance: AnalysisInstance, params: Record<string, ParameterValue>): AnalysisInstance {
@@ -51,7 +57,27 @@ export function computeInstance(instance: AnalysisInstance, inputs: AnalysisInpu
   if (primary) { const capability = tool.appliesTo(primary); if (!capability.allowed) return { reason: capability.reason }; }
   const capability = tool.appliesToInputs?.(resolved);
   if (capability && !capability.allowed) return { reason: capability.reason };
-  return { outputs: tool.compute(resolved, validated.values) };
+  if (instance.toolId === 'trace-math' && primary && second) {
+    const operation = validated.values['operation'] as BinaryOp;
+    const points = (validated.values['points'] || undefined) as MathPoints | undefined;
+    const fill = (validated.values['fill'] || undefined) as MathFill | undefined;
+    if (instance.outputTraceId && !points && !fill && !describeStimulus(primary, second).identical) {
+      const computation = computeBinaryTraceMathData(primary.data, second.data, 'auto', operation);
+      if (computation.error || !computation.data) return { reason: computation.error ?? 'No valid points to combine.' };
+      return { outputs: [{ type: 'trace', trace: { ...derived(primary, computation.data, operation, { ...validated.values }, [primary.id, second.id]), units: { ...primary.units, y: traceMathUnit(operation, primary.units.y, second.units.y).unit } } }] };
+    }
+    const computation = alignAndCompute(primary, second, operation, points, fill);
+    if ('reason' in computation) return { reason: computation.reason };
+  }
+  const outputs = tool.compute(resolved, validated.values);
+  if (instance.toolId === 'peak-table' && outputs.some(output => output.type === 'table' && output.rows.length === 0)) return { reason: 'No peaks found.' };
+  if (tool.kind === 'measure' && outputs.length === 0) {
+    const view = inputs.visibleRange;
+    return { reason: instance.toolId === 'range-stats' && validated.values['range'] === 'visible' && view && Number.isFinite(view.left) && Number.isFinite(view.right) && view.left < view.right && (primary?.data.length ?? 0) > 0
+      ? 'No samples in the visible range: zoom out or choose Range: All.'
+      : 'Nothing to measure on this trace.' };
+  }
+  return { outputs };
 }
 
 /** Assign identity only at creation; later recomputation changes samples alone. */
@@ -62,13 +88,33 @@ export function makeAnalysisOutput(instance: AnalysisInstance, inputs: AnalysisI
   return { ...output.trace, id, name, dn: name, analysisId: instance.id };
 }
 
-export interface LiveOutputState {
+export function autoOutputName(instance: AnalysisInstance, traces: readonly Trace[]): string {
+  const source = traces.find(trace => trace.id === instance.source.traceId);
+  const a = source?.dn || source?.name || 'Trace';
+  if (instance.toolId === 'trace-math') {
+    const second = traces.find(trace => trace.id === instance.source.secondTraceId);
+    const op = instance.params['operation'];
+    const symbol = op === 'subtract' ? '−' : op === 'multiply' ? '×' : op === 'divide' ? '÷' : '+';
+    return `${a} ${symbol} ${second?.dn || second?.name || 'Trace'}`;
+  }
+  if (instance.toolId === 'smooth') {
+    const method = instance.params['method'];
+    const label = method === 'median-filter' ? 'Median' : method === 'savitzky-golay' ? 'SG' : method === 'none' ? 'None' : 'MA';
+    return `${a} · smoothed · ${label} ${String(instance.params['window'] ?? 11)}${method === 'savitzky-golay' ? ` order ${String(instance.params['sgOrder'] ?? 2)}` : ''}`;
+  }
+  const offset = Number(instance.params['offset'] ?? 0), scale = Number(instance.params['scale'] ?? 1);
+  const unit = source?.units.y ? ` ${source.units.y}` : '';
+  const parts = [offset !== 0 ? `offset ${offset > 0 ? '+' : ''}${offset}${unit}` : '', scale !== 1 ? `scale ×${scale}` : ''].filter(Boolean);
+  return `${a} · ${parts.length ? parts.join(' · ') : 'offset 0'}`;
+}
+
+export interface AnalysisOutputState {
   readonly analyses: readonly AnalysisInstance[];
   readonly traces: readonly Trace[];
   readonly derivedTraces: readonly Trace[];
 }
 
-export function recomputeLiveOutputs(state: LiveOutputState): { analyses: AnalysisInstance[]; derivedTraces: Trace[] } {
+export function recomputeOutputs(state: AnalysisOutputState): { analyses: AnalysisInstance[]; derivedTraces: Trace[] } {
   const analyses = [...state.analyses];
   const derivedTraces = [...state.derivedTraces];
   const sources = new Map(state.traces.map(trace => [trace.id, trace]));
@@ -79,16 +125,15 @@ export function recomputeLiveOutputs(state: LiveOutputState): { analyses: Analys
   const visit = (index: number): void => {
     if (done.has(index) || visiting.has(index)) return;
     const instance = analyses[index];
-    if (instance?.outputTraceId && !derivedTraces.some(trace => trace.id === instance.outputTraceId)) { analyses[index] = { ...instance, live: false, outputTraceId: null }; done.add(index); return; }
-    if (!instance || !instance.live || !instance.outputTraceId || getAnalysisTool(instance.toolId)?.kind !== 'math') { done.add(index); return; }
+    if (instance?.outputTraceId && !derivedTraces.some(trace => trace.id === instance.outputTraceId)) { const { autoName: _autoName, ...rest } = instance; analyses[index] = { ...rest, outputTraceId: null }; done.add(index); return; }
+    if (!instance || !instance.outputTraceId || getAnalysisTool(instance.toolId)?.kind !== 'math') { done.add(index); return; }
     visiting.add(index);
     for (const id of [instance.source.traceId, instance.source.secondTraceId]) {
       const dependency = id ? owners.get(id) : undefined;
       if (dependency !== undefined) visit(dependency);
     }
     const missing = !instance.source.traceId || !sources.has(instance.source.traceId) || (instance.toolId === 'trace-math' && (!instance.source.secondTraceId || !sources.has(instance.source.secondTraceId)));
-    if (missing) analyses[index] = { ...instance, live: false };
-    else {
+    if (!missing) {
       const outputIndex = derivedTraces.findIndex(trace => trace.id === instance.outputTraceId);
       const old = derivedTraces[outputIndex];
       const result = computeInstance(instance, { traces: [...sources.values()] });
@@ -98,7 +143,10 @@ export function recomputeLiveOutputs(state: LiveOutputState): { analyses: Analys
         const unchanged = data.length === old.data.length && data.every((point, i) => point.freq === old.data[i]?.freq && point.amp === old.data[i]?.amp);
         const metadata = output.trace;
         const sameMetadata = JSON.stringify([old.operationType, old.parameters, old.sourceTraceIds, old.units]) === JSON.stringify([metadata.operationType, metadata.parameters, metadata.sourceTraceIds, metadata.units]);
-        const updated = unchanged && sameMetadata ? old : { ...old, data, operationType: metadata.operationType, parameters: metadata.parameters, sourceTraceIds: metadata.sourceTraceIds, units: metadata.units };
+        const autoName = autoOutputName(instance, [...sources.values()]);
+        const dn = instance.autoName !== undefined && old.dn === instance.autoName ? autoName : old.dn;
+        if (instance.autoName !== autoName) analyses[index] = { ...instance, autoName };
+        const updated = unchanged && sameMetadata && dn === old.dn ? old : { ...old, dn, data, operationType: metadata.operationType, parameters: metadata.parameters, sourceTraceIds: metadata.sourceTraceIds, units: metadata.units };
         derivedTraces[outputIndex] = updated;
         sources.set(updated.id, updated);
       }

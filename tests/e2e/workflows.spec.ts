@@ -1,5 +1,6 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import { readFileSync } from "fs";
+import { addAnalysis, analysisCard, openAnalysisPanel } from "./analysis-helpers";
 import { resolve } from "path";
 
 const datFixture = resolve(process.cwd(), "test files/cascade_ip3_-12dBm.DAT");
@@ -8,33 +9,6 @@ const touchstoneFixture = resolve(process.cwd(), "test files/cascaded chain.s2p"
 async function importFromEmptyPane(page: Page, filePath: string) {
   await page.goto("/app.html");
   await page.getByTestId("empty-chart-file-input").setInputFiles(filePath);
-}
-
-async function isVisible(locator: Locator) {
-  return locator.isVisible().catch(() => false);
-}
-
-function rightPanelAnchor(page: Page, section: "Analysis" | "Trace Ops" | "Import/Export") {
-  if (section === "Analysis") return page.getByTestId("analysis-card-analysis-menu");
-  if (section === "Trace Ops") return page.getByTestId("analysis-card-trace-ops");
-  return page.getByRole("button", { name: "Export Visible CSV" });
-}
-
-async function openRightPanelSection(page: Page, section: "Analysis" | "Trace Ops" | "Import/Export") {
-  const rightButton = page.getByRole("button", { name: "Right" });
-  if (await isVisible(rightButton)) {
-    await rightButton.click();
-  }
-
-  const anchor = rightPanelAnchor(page, section);
-  if (await isVisible(anchor)) {
-    return;
-  }
-
-  const sectionButton = page.getByRole("button", { name: section });
-  await expect(sectionButton).toBeVisible();
-  await sectionButton.click();
-  await expect(anchor).toBeVisible();
 }
 
 function firstTraceRow(page: Page): Locator {
@@ -107,21 +81,20 @@ test("multi-pane assignment survives workspace save and reload", async ({ page }
   await expect(firstTraceRow(page)).toContainText("P2");
 });
 
-test("trace ops can create an offset trace and include it in CSV export", async ({ page }) => {
+test("an Offset / Scale analysis creates a trace that Export includes in the CSV", async ({ page }) => {
   await importFromEmptyPane(page, datFixture);
   await expect(page.locator(".lp-file--header .lp-name").filter({ hasText: "cascade_ip3_-12dBm.DAT" })).toBeVisible();
 
-  await openRightPanelSection(page, "Trace Ops");
-  await page.getByRole("button", { name: "Offset" }).click();
-  await page.getByLabel("Source trace").selectOption({ index: 1 });
-  await page.getByRole("spinbutton", { name: "dB" }).fill("3");
-  await page.getByRole("button", { name: "Create Offset Trace" }).click();
+  const card = await addAnalysis(page, "Offset / Scale");
+  const offsetField = card.getByRole("textbox").first();
+  await offsetField.fill("3");
+  await offsetField.press("Enter");
+  await card.getByRole("button", { name: "Create trace" }).click();
 
-  await expect(page.locator('[data-testid^="trace-row-"]').filter({ hasText: "Offset" }).first()).toBeVisible();
+  await expect(page.locator('[data-testid^="trace-row-"]').filter({ has: page.locator('.lp-trace__fx') }).first()).toBeVisible();
 
-  await page.getByRole("button", { name: "Import/Export" }).click();
   const csvDownloadPromise = page.waitForEvent("download");
-  await page.getByRole("button", { name: "Export Visible CSV" }).click();
+  await page.getByRole("button", { name: "Export", exact: true }).click();
   const csvDownload = await csvDownloadPromise;
   const csvPath = await csvDownload.path();
   expect(csvPath).toBeTruthy();
@@ -131,28 +104,24 @@ test("trace ops can create an offset trace and include it in CSV export", async 
   expect(csv.toLowerCase()).toContain("offset");
 });
 
-test("analysis panels compute visible results for imported spectrum data", async ({ page }) => {
+test("analysis cards show their results for imported spectrum data", async ({ page }) => {
   await importFromEmptyPane(page, datFixture);
   await expect(page.locator(".lp-file--header .lp-name").filter({ hasText: "cascade_ip3_-12dBm.DAT" })).toBeVisible();
 
-  await openRightPanelSection(page, "Analysis");
+  const stats = await addAnalysis(page, "Range Statistics");
+  await expect(stats.getByText("Maximum")).toBeVisible();
+  await expect(stats.getByText("Average", { exact: true })).toBeVisible();
 
-  await page.getByRole("button", { name: "Range Statistics" }).click();
-  await page.getByRole("button", { name: "Compute Stats" }).click();
-  await expect(page.getByText("Maximum")).toBeVisible();
-  await expect(page.getByText("Average Amplitude")).toBeVisible();
+  const peaks = await addAnalysis(page, "Peak Table");
+  await expect(peaks.getByText(/^#1 /)).toBeVisible();
 
-  await page.getByRole("button", { name: "Peak Table" }).click();
-  await page.getByRole("button", { name: "Find Peaks" }).click();
-  await expect(page.getByRole("columnheader", { name: "Rank" })).toBeVisible();
-  await expect(page.getByRole("cell", { name: "#1", exact: true })).toBeVisible();
+  const ripple = await addAnalysis(page, "Ripple");
+  await expect(ripple.locator(".an-result")).toBeVisible();
+  await expect(ripple.getByText("Span", { exact: true })).toBeVisible();
 
-  await page.getByRole("button", { name: "Ripple / Flatness" }).click();
-  await page.getByRole("button", { name: "Compute Ripple" }).click();
-  await expect(page.getByText("Peak-to-Peak Ripple")).toBeVisible();
-
-  await page.getByRole("button", { name: "Threshold Crossings" }).click();
-  await expect(page.getByTestId("analysis-card-threshold-crossings").locator(".ac-result")).toContainText(/\d+\s*crossings?/);
+  const crossings = await addAnalysis(page, "Threshold crossings");
+  await expect(crossings.locator(".an-cross__row").first()).toBeVisible();
+  await expect(page.locator(".an-panel__count")).toHaveText("4");
 });
 
 test("reference-line placement creates, edits, and deletes sidebar state", async ({ page }) => {
@@ -173,7 +142,7 @@ test("reference-line placement creates, edits, and deletes sidebar state", async
   await expect(page.getByTestId("ref-line-row-V1")).toHaveCount(0);
 });
 
-test("Touchstone import exposes matrix controls and analysis cards without crashing", async ({ page }) => {
+test("Touchstone import exposes matrix controls and the 2-port analysis tools without crashing", async ({ page }) => {
   await importFromEmptyPane(page, touchstoneFixture);
   await expect(page.locator(".lp-file--header .lp-name").filter({ hasText: "cascaded chain.s2p" })).toBeVisible();
 
@@ -183,15 +152,14 @@ test("Touchstone import exposes matrix controls and analysis cards without crash
   await expect(s11Trace).toBeVisible();
   await s11Trace.click();
 
-  await openRightPanelSection(page, "Analysis");
-  await page.getByRole("button", { name: "VSWR" }).click();
-  await expect(page.getByTestId("analysis-card-vswr")).toBeVisible();
+  const stability = await addAnalysis(page, "Stability");
+  await expect(stability.getByText("Min K")).toBeVisible();
+  const reciprocity = await addAnalysis(page, "Reciprocity / Isolation");
+  await expect(reciprocity.getByText("Worst isolation")).toBeVisible();
 
-  await page.getByRole("button", { name: "Return Loss" }).click();
-  await expect(page.getByTestId("analysis-card-return-loss")).toBeVisible();
-
-  await page.getByRole("button", { name: "Touchstone Stability" }).click();
-  await expect(page.getByTestId("analysis-card-touchstone-stability")).toBeVisible();
+  // VSWR, Return loss and Group delay are matrix views now, not analysis tools.
+  await page.locator(".an-panel__head").getByRole("button", { name: "+ Add analysis" }).click();
+  for (const view of ["VSWR", "Return loss", "Group delay"]) await expect(page.getByRole("option", { name: new RegExp(`^${view}`, "i") })).toHaveCount(0);
 });
 
 test("four empty panes fit without covering each other's headers", async ({ page }) => {
@@ -215,8 +183,7 @@ test("a multi-channel time CSV fills one new pane instead of one pane per channe
 
   const rows = ["Time (s),CH1 (V),CH2 (V),CH3 (V),CH4 (V)"];
   for (let i = 0; i < 20; i++) rows.push([i * 1e-6, Math.sin(i), Math.cos(i), i, -i].join(","));
-  await openRightPanelSection(page, "Import/Export");
-  await page.getByTestId("import-export-data-input").setInputFiles({
+  await page.getByTestId("app-open-input").setInputFiles({
     name: "four_channels.csv",
     mimeType: "text/csv",
     buffer: Buffer.from(rows.join("\n")),
@@ -237,8 +204,7 @@ test("Touchstone traces load while the sidebar is hidden", async ({ page }) => {
   await page.getByRole("button", { name: "Left" }).click();
   await expect(page.locator(".lp-file--header .lp-name").filter({ hasText: "cascade_ip3_-12dBm.DAT" })).toHaveCount(0);
 
-  await openRightPanelSection(page, "Import/Export");
-  await page.getByTestId("import-export-data-input").setInputFiles(touchstoneFixture);
+  await page.getByTestId("app-open-input").setInputFiles(touchstoneFixture);
 
   // 1 spectrum line + the default S11/S21 views; without the fix only the spectrum line is drawn.
   await expect(page.getByTestId("chart-plot-pane-1").locator(".recharts-line")).toHaveCount(3);
