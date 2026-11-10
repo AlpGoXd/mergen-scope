@@ -276,6 +276,6 @@ table {
 .ph .ph-title { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .ph-count { font-size: var(--font-caption); line-height: var(--lh-caption); color: var(--text-muted); }
 @container (max-width: 520px) { .ph .ph-scale { display: none; } }
-@container (max-width: 400px) { .ph .ph-count { display: none; } }
+@container (max-width: 400px) { .ph .ph-count, .ph .ph-set-target { display: none; } }
 /* Pane setting "line labels" off hides the kit's label chip (the kit itself has no such switch). */
 [data-line-labels="off"] .ln-label { display: none; }

@@ -5,7 +5,7 @@ export const SYMBOL_RADIUS = 3.6;
 export const DOT_RADIUS = 2;
 export const SYMBOL_STROKE = 1.5;
 
-export function planDotsAndSymbols({ points, showDots, showSymbols, spacing = 90 }: { points: readonly Pt[]; showDots: boolean; showSymbols: boolean; spacing?: number }): { dots: number[]; symbols: { x: number; y: number; sampleIndex: number }[] } {
+export function planDotsAndSymbols({ points, showDots, showSymbols, spacing = 90 }: { points: readonly Pt[]; showDots: boolean; showSymbols: boolean; spacing?: number }): { dots: number[]; symbols: { x: number; y: number; sampleIndex: number }[]; hollow: boolean } {
   const finite = points.flatMap((point, index) => Number.isFinite(point.x) && Number.isFinite(point.y) ? [index] : []);
   const claimed = new Set<number>();
   const symbols = showSymbols ? symbolPositions(points, spacing).flatMap(position => {
@@ -17,11 +17,9 @@ export function planDotsAndSymbols({ points, showDots, showSymbols, spacing = 90
     }
     if (nearest === undefined) return [];
     claimed.add(nearest);
-    return [{ ...position, sampleIndex: nearest }];
+    const point = points[nearest];
+    if (!point) return [];
+    return [{ ...(showDots ? point : position), sampleIndex: nearest }];
   }) : [];
-  return { dots: showDots ? finite.filter(index => {
-    const point = points[index];
-    return point && !claimed.has(index) && symbols.every(symbol =>
-      Math.hypot(point.x - symbol.x, point.y - symbol.y) > SYMBOL_RADIUS + SYMBOL_STROKE / 2 + DOT_RADIUS);
-  }) : [], symbols };
+  return { dots: showDots ? finite : [], symbols, hollow: showDots };
 }

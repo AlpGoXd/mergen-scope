@@ -1125,11 +1125,12 @@ export function ChartPane({ paneId }: ChartPaneProps) {
           }}>Move Here</Btn>
           {/* Set Target (inactive panes only) */}
           {!isActive && (
-            <Btn soft style={{ padding: '0.2rem 0.55rem', fontSize: 'var(--font-caption)', minHeight: 'auto' }} onClick={(e) => { e.stopPropagation(); paneDispatch({ type: 'SET_ACTIVE_PANE', payload: paneId }); }}>Set Target</Btn>
+            <Btn className="ph-set-target" soft style={{ padding: '0.2rem 0.55rem', fontSize: 'var(--font-caption)', minHeight: 'auto' }} onClick={(e) => { e.stopPropagation(); paneDispatch({ type: 'SET_ACTIVE_PANE', payload: paneId }); }}>Set Target</Btn>
           )}
           {/* Settings popover */}
+          <Btn variant={settings.showSampleDots ? "armed" : "neutral"} tone="pane" small aria-label="Samples" aria-pressed={settings.showSampleDots} title="Show the measured sample points" data-testid="samples-toggle" onClick={e => { e.stopPropagation(); paneDispatch({ type: "SET_PANE_SETTINGS", payload: { paneId, patch: { showSampleDots: !settings.showSampleDots } } }); }}>Samples</Btn>
           <PaneSettingsPopover paneId={paneId} settings={settings} />
-          <PaneActionsMenu paneId={paneId} showSampleDots={settings.showSampleDots} />
+          <PaneActionsMenu />
         </div>
       </div>
 

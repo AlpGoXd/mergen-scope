@@ -17,7 +17,7 @@ test('pane popovers appear above neighbouring panes and remain interactive', asy
   await expect(settings).toBeVisible();
   expect(await settings.evaluate(element => element.parentElement === document.body)).toBe(true);
   expect(await topmost('.ui-popover[aria-label="Pane 1 settings"]')).toBe(true);
-  await settings.getByRole('button', { name: 'Sample dots' }).click();
+  await settings.getByRole('button', { name: 'Samples' }).click();
   await expect(first.locator('.recharts-line-dot')).toHaveCount(3);
   await first.getByTitle('Pane settings').click();
   await expect(settings).toHaveCount(0);
@@ -28,8 +28,7 @@ test('pane popovers appear above neighbouring panes and remain interactive', asy
   const menu = page.getByRole('menu', { name: 'Pane actions' });
   await expect(menu).toBeVisible();
   expect(await topmost('.ui-popover[aria-label="Pane actions popup"]')).toBe(true);
-  await menu.getByRole('menuitemcheckbox', { name: 'Sample dots' }).click();
-  await expect(first.locator('.recharts-line-dot')).toHaveCount(0);
+  await expect(menu.getByText('Sample dots')).toHaveCount(0);
   await first.getByRole('button', { name: 'Pane actions' }).click();
   await page.mouse.click(5, 5);
   await expect(menu).toHaveCount(0);

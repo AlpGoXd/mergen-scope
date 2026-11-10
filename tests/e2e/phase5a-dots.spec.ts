@@ -19,7 +19,7 @@ for (const theme of ['light', 'dark'] as const) {
     await expect(dots2).toHaveCount(0);
     await pane1.getByTitle('Pane settings').click();
     await expect(page.getByText('Minor grid')).toHaveCount(0);
-    await page.getByRole('button', {name:'Sample dots'}).click();
+    await page.getByTestId('sample-dots-toggle').click();
     await expect(dots1).toHaveCount(3);
     await expect(dots2).toHaveCount(0);
     await pane1.getByTitle('Pane settings').click();
@@ -37,6 +37,6 @@ for (const theme of ['light', 'dark'] as const) {
     await expect(dots1).toHaveCount(3);
     await expect(dots2).toHaveCount(0);
     await pane1.getByTitle('Pane settings').click();
-    await expect(page.getByRole('button', {name:'Sample dots'})).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByTestId('sample-dots-toggle')).toHaveAttribute('aria-pressed', 'true');
   });
 }

@@ -168,7 +168,7 @@ export function PaneSettingsPopover({
           </div>
 
           <Section title="Display">
-            <Btn variant="chip" tone="pane" active={settings.showSampleDots} aria-pressed={settings.showSampleDots} aria-label="Sample dots" data-testid="sample-dots-toggle" style={{ width: '100%' }} onClick={() => patch({ showSampleDots: !settings.showSampleDots })}>Sample dots</Btn>
+            <Btn variant="chip" tone="pane" active={settings.showSampleDots} aria-pressed={settings.showSampleDots} aria-label="Samples" data-testid="sample-dots-toggle" style={{ width: '100%' }} onClick={() => patch({ showSampleDots: !settings.showSampleDots })}>Samples</Btn>
             <Row label="Show markers">
               <Toggle checked={settings.showMarkers} onChange={v => patch({ showMarkers: v })} />
             </Row>
