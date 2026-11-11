@@ -15,6 +15,8 @@ export interface WorkspacePaneSettingsV5 extends PaneSettings {
   readonly showReadoutNames: boolean;
   readonly showZeroLine: boolean;
   readonly smith: {
+    readonly range?: { readonly startHz: number; readonly stopHz: number } | null;
+    readonly outside?: 'hidden' | 'faint';
     readonly grid: 'z' | 'y' | 'both';
     readonly labels: 'normalised' | 'ohms' | 'off';
     readonly direction: 'chevrons' | 'ends' | 'off';

@@ -199,7 +199,8 @@ function openData(state: WorkspaceState, command: Extract<WorkspaceAction,{slice
       if (result.allowed) paneById.set(pane.id, candidate);
       return result;
     },
-    newPane:(_trace,_panes,issued) => {const source=state.panes.panes.find(pane => pane.id===state.panes.activePaneId) ?? state.panes.panes[0]; if (!source) return null; let n=1; while(issued.includes(`pane-${n}`)) n++; const pane={...source,id:`pane-${n}`,title:'',renderMode:'cartesian' as const,typed:false,settings:{...source.settings}}; paneById.set(pane.id,pane); return pane;},
+    // A copied frequency range may belong to a different file.
+    newPane:(_trace,_panes,issued) => {const source=state.panes.panes.find(pane => pane.id===state.panes.activePaneId) ?? state.panes.panes[0]; if (!source) return null; let n=1; while(issued.includes(`pane-${n}`)) n++; const pane={...source,id:`pane-${n}`,title:'',renderMode:'cartesian' as const,typed:false,settings:{...source.settings,smith:{...source.settings.smith,range:null}}}; paneById.set(pane.id,pane); return pane;},
   });
   if (!plan.ok) return {...state,ui:uiReducer(state.ui,{type:'SET',payload:{key:'paneAssignmentWarning',value:{message:plan.reason,paneId:command.targetPaneId ?? state.panes.activePaneId,traceName:null}}}),revision:state.revision+1};
   const replacedTraceNames = new Set<string>();

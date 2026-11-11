@@ -126,6 +126,13 @@ test('linked chart zoom dims out-of-band Smith data and publishes the cursor', a
   await page.mouse.down({ button: 'right' });
   await page.mouse.move(box.x + box.width * 0.7, y, { steps: 8 });
   await page.mouse.up({ button: 'right' });
+  await expect(pane.locator('[data-testid^="smith-trace-"] path.is-faint')).toHaveCount(0);
+  await expect(pane.locator('[data-testid^="smith-trace-"] path:not(.is-faint)').first()).toBeAttached();
+  await page.getByTestId('chart-pane-header-pane-2').getByTitle('Pane settings').click();
+  const settings = page.locator('.ui-popover[aria-label="Pane 2 settings"]');
+  await expect(settings.getByRole('button', { name: 'Hidden', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await settings.getByRole('button', { name: 'Faint', exact: true }).click();
+  await page.keyboard.press('Escape');
   await expect(pane.locator('[data-testid^="smith-trace-"] path.is-faint').first()).toBeAttached();
   await expect(pane.locator('[data-testid^="smith-trace-"] path:not(.is-faint)').first()).toBeAttached();
   await page.mouse.move(box.x + box.width * 0.4, y);

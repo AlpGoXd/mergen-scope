@@ -10,7 +10,7 @@ const finiteSample = (s: SmithSample): boolean =>
 
 function lerpSample(a: SmithSample, b: SmithSample, frequencyHz: number): SmithSample {
   const t = (frequencyHz - a.frequencyHz) / (b.frequencyHz - a.frequencyHz);
-  return { frequencyHz, gamma: { re: a.gamma.re + (b.gamma.re - a.gamma.re) * t, im: a.gamma.im + (b.gamma.im - a.gamma.im) * t } };
+  return { frequencyHz, synthetic: true, gamma: { re: a.gamma.re + (b.gamma.re - a.gamma.re) * t, im: a.gamma.im + (b.gamma.im - a.gamma.im) * t } };
 }
 
 function validBand(band: SmithBand | null | undefined): band is SmithBand {

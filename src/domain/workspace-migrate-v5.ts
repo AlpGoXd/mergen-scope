@@ -292,6 +292,8 @@ function validCurrent(body: Record<string, unknown>): boolean {
     for (const key of ['gridMajorOpacity','gridMinorOpacity']) if (!finite(settings[key]) || Number(settings[key]) < 0 || Number(settings[key]) > 1) return false;
     if (typeof settings.gridDashStyle !== 'string' || !object(settings.smith)) return false;
     const smith = settings.smith;
+    if (smith.outside !== undefined && smith.outside !== 'hidden' && smith.outside !== 'faint') return false;
+    if (smith.range !== undefined && smith.range !== null && (!object(smith.range) || !finite(smith.range.startHz) || !finite(smith.range.stopHz) || smith.range.startHz > smith.range.stopHz)) return false;
     if (!['z','y','both'].includes(String(smith.grid)) || !['normalised','ohms','off'].includes(String(smith.labels)) || !['chevrons','ends','off'].includes(String(smith.direction)) || !strings(smith.readout) || smith.readout.some(x => !['z','y','gamma','vswr','return-loss'].includes(x)) || new Set(smith.readout).size !== smith.readout.length) return false;
   }
   const layout = body.layout;
@@ -356,7 +358,7 @@ export function migrateWorkspaceV5(raw: unknown): WorkspaceSnapshotV5 | null {
       const labels = smith.labels === true || smith.labels === undefined ? 'normalised' : smith.labels === false ? 'off' : smith.labels;
       const inverted = pane.renderMode === 'smith-inverted';
       const readout = inverted && Array.isArray(smith.readout) ? ['y', ...smith.readout.filter(field => field !== 'y')] : smith.readout;
-      return { ...pane, renderMode: inverted ? 'smith' : pane.renderMode, settings: { ...pane.settings, smith: { ...smith, labels, ...(inverted ? { grid: 'y', readout } : {}) } } };
+      return { ...pane, renderMode: inverted ? 'smith' : pane.renderMode, settings: { ...pane.settings, smith: { ...smith, range: smith.range === undefined ? null : smith.range, outside: smith.outside === undefined ? 'hidden' : smith.outside, labels, ...(inverted ? { grid: 'y', readout } : {}) } } };
     }) : body.panes;
     if (!refLines || !validCurrent({ ...body, panes, refLines })) return null;
     const snapshot = { ...body, panes, refLines } as unknown as WorkspaceSnapshotV5;
@@ -436,6 +438,8 @@ export function migrateWorkspaceV5(raw: unknown): WorkspaceSnapshotV5 | null {
           showReadoutNames: typeof s.showReadoutNames === 'boolean' ? s.showReadoutNames : true,
           showZeroLine: typeof s.showZeroLine === 'boolean' ? s.showZeroLine : true,
           smith: {
+            range: object(smith.range) && finite(smith.range.startHz) && finite(smith.range.stopHz) && smith.range.startHz <= smith.range.stopHz ? { startHz: smith.range.startHz, stopHz: smith.range.stopHz } : null,
+            outside: smith.outside === 'faint' ? 'faint' : 'hidden',
             grid: p.renderMode === 'smith-inverted' ? 'y' : smith.grid === 'y' || smith.grid === 'both' ? smith.grid : 'z',
             labels: smith.labels === false || smith.labels === 'off' ? 'off' : smith.labels === 'ohms' ? 'ohms' : 'normalised',
             direction: smith.direction === 'ends' || smith.direction === 'off' ? smith.direction : 'chevrons',

@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from 'react';
-import { usePaneState } from '../../stores/pane-store';
+import { usePaneDispatch, usePaneState } from '../../stores/pane-store';
 import { useTraceState } from '../../stores/trace-store';
 import { useMarkerDispatch, useMarkerState } from '../../stores/marker-store';
 import { useRefLineDispatch } from '../../stores/ref-line-store';
@@ -8,11 +8,12 @@ import { useLinkedHoverFrequency, useSharedHoverPublisher } from '../../stores/s
 import { useTraceColors } from '../../hooks/use-trace-colors';
 import { canRenderInPane } from '../../domain/pane-placement';
 import { allocateTraceColors, traceWidth } from '../../domain/trace-palette';
-import { smithLinkedBand, smithMarkerFrequency, smithTraceSamples } from '../../domain/smith-pane-model';
+import { smithLinkedBand, smithMarkerFrequency, smithTraceSamples, smithRangeModel } from '../../domain/smith-pane-model';
 import { SmithPane } from './SmithPane';
 
 export function SmithPaneContainer({ paneId, fitRequest = 0 }: { paneId: string; fitRequest?: number }) {
   const { panes, tracePaneMap, zoomAll, sharedZoom } = usePaneState();
+  const paneDispatch = usePaneDispatch();
   const { allTraces, allKnownTraces, allDisplayTraces, vis } = useTraceState();
   const { traceHueSlots } = useUiState();
   const { markers, selectedMkrIdx, armed } = useMarkerState();
@@ -38,7 +39,13 @@ export function SmithPaneContainer({ paneId, fitRequest = 0 }: { paneId: string;
   const band = useMemo(() => smithLinkedBand(zoomAll, sharedZoom, traces), [zoomAll, sharedZoom, traces]);
   if (!pane) return null;
   const smith = pane.settings.smith;
-  return <SmithPane traces={traces} markers={markers} selectedMarkerId={markers[selectedMkrIdx]?.id ?? null}
+  // A shared zoom may have several Hz panes; use the lowest pane number as its stable label.
+  const linkedPane = band ? panes.filter(candidate => candidate.id !== paneId && candidate.renderMode === 'cartesian' && allTraces.some(trace => (tracePaneMap[trace.name] ?? []).includes(candidate.id) && vis[trace.name] !== false && trace.domain === 'frequency')).sort((a, b) => Number(a.id.split('-').pop()) - Number(b.id.split('-').pop()))[0] : undefined;
+  const linked = linkedPane && band ? { startHz: band.minHz, stopHz: band.maxHz } : null;
+  const model = smithRangeModel(traces, smith.range ?? null, linked, smith.outside ?? 'hidden');
+  const setRange = (range: typeof smith.range) => paneDispatch({ type: 'SET_PANE_SETTINGS', payload: { paneId, patch: { smith: { ...smith, range } } } });
+  return <SmithPane traces={model.traces} markers={markers} selectedMarkerId={markers[selectedMkrIdx]?.id ?? null}
+    rangeBar={model.full && model.range ? { full: model.full, range: model.range, linkedLabel: linkedPane ? `Linked to Pane ${linkedPane.id.split('-').pop()}` : null, onChange: setRange, onFull: () => setRange(null) } : undefined}
     onSelectMarker={id => { lineDispatch({ type: 'SET_SELECTED', payload: null }); markerDispatch({ type: 'SET_SELECTED_IDX', payload: markers.findIndex(marker => marker.id === id) }); }}
     onTraceClick={click => {
       if (!armed) return;
@@ -47,7 +54,7 @@ export function SmithPaneContainer({ paneId, fitRequest = 0 }: { paneId: string;
       lineDispatch({ type: 'SET_SELECTED', payload: null });
       markerDispatch({ type: 'PLACE_MARKER', payload: { trace, targetFreq: smithMarkerFrequency(trace, click), markerType: armed.kind, refId: armed.kind === 'delta' ? armed.refId : null } });
     }}
-    band={band} cursorFrequencyHz={cursorFrequencyHz}
+    band={model.band} cursorFrequencyHz={cursorFrequencyHz}
     onHoverFrequency={value => publish(value === null ? null : { paneId, xUnit: 'Hz', value }, paneId)}
     grid={smith?.grid ?? (pane.renderMode === 'smith-inverted' ? 'y' : 'z')} labels={smith?.labels ?? 'normalised'}
     direction={smith?.direction ?? 'chevrons'} readout={smith?.readout ?? ['z', 'gamma', 'vswr']}

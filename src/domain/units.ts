@@ -123,6 +123,11 @@ function chooseEngineeringPrefix(reference: number): EngineeringPrefix {
     ?? { symbol: "", aliases: [""], factor: 1 };
 }
 
+/** Scale used by the engineering formatter for a reference value. */
+export function engineeringScale(reference: number): number {
+  return chooseEngineeringPrefix(reference).factor;
+}
+
 function decimalsForStep(step: number, factor: number): number | null {
   const scaledStep = Math.abs(step) / factor;
   if (!Number.isFinite(scaledStep) || scaledStep <= 0) return null;

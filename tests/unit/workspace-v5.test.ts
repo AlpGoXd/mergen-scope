@@ -23,6 +23,23 @@ it('accepts optional trace math alignment choices and rejects unknown choices', 
 });
 
 const fixture = (name: string): unknown => JSON.parse(readFileSync(`tests/fixtures/phase3-preservation/${name}.json`, 'utf8'));
+it('preserves and validates Smith ranges', () => {
+  const base = migrateWorkspaceV5(fixture('workspace-v4-eight-pane-extension'));
+  if (!base) throw new Error('fixture');
+  const withRange = (range: unknown, outside: unknown) => ({ ...base, panes: base.panes.map(p => ({ ...p, settings: { ...p.settings, smith: { ...p.settings.smith, range, outside } } })) });
+  const range = { startHz: 2, stopHz: 5 };
+  expect(migrateWorkspaceV5(JSON.parse(JSON.stringify(withRange(range, 'faint'))))?.panes[0]?.settings.smith).toMatchObject({ range, outside: 'faint' });
+  expect(migrateWorkspaceV5(withRange(undefined, undefined))?.panes[0]?.settings.smith).toMatchObject({ range: null, outside: 'hidden' });
+  expect(migrateWorkspaceV5(withRange({ startHz: 5, stopHz: 2 }, 'hidden'))).toBeNull();
+  expect(migrateWorkspaceV5(withRange({ startHz: '2', stopHz: 5 }, 'hidden'))).toBeNull();
+  expect(migrateWorkspaceV5(withRange({ startHz: 2 }, 'hidden'))).toBeNull();
+  expect(migrateWorkspaceV5(withRange(range, 'invalid'))).toBeNull();
+  let state = initialWorkspaceState();
+  const pane = state.panes.panes[0];
+  if (!pane) throw new Error('pane');
+  state = workspaceReducer(state, { slice: 'panes', limit: 4, action: { type: 'SET_PANE_SETTINGS', payload: { paneId: pane.id, patch: { smith: { ...pane.settings.smith, range, outside: 'faint' } } } } });
+  expect(migrateWorkspaceV5(JSON.parse(JSON.stringify(snapshotFromWorkspace(state))))?.panes[0]?.settings.smith).toMatchObject({ range, outside: 'faint' });
+});
 it('migrates Smith labels and inverted panes and validates current settings', () => {
   const base = migrateWorkspaceV5(fixture('workspace-v4-eight-pane-extension'));
   if (!base || !base.panes[0]) throw new Error('fixture');

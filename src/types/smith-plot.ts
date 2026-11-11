@@ -9,7 +9,7 @@ export interface SmithViewport {
   /** Pixels per unit G, identical on both axes. */
   readonly scale: number;
 }
-export interface SmithSample { readonly frequencyHz: number; readonly gamma: Complex }
+export interface SmithSample { readonly frequencyHz: number; readonly gamma: Complex; readonly synthetic?: boolean }
 export interface SmithTrace {
   /** Stable pane-model trace identity, never derived from samples. */
   readonly traceId: string;

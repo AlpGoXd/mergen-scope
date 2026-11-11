@@ -4,6 +4,7 @@ import type { Marker } from '../../types/marker';
 import type { SmithPoint, SmithSample, SmithViewport } from '../../types/smith-plot';
 import type { Complex } from '../../types/touchstone';
 import { samplesPath, splitByBand } from '../../domain/smith/band';
+import { clipTraceToRange } from '../../domain/smith/range';
 import type { SmithBand } from '../../domain/smith/band';
 import { REAL_AXIS_PATH, UNIT_CIRCLE, buildGrid, circlePath, gridLevelForScale, gridThroughGamma, gridValues } from '../../domain/smith/grid';
 import { gammaAtFrequency, nearestSample, nearestTracePoint } from '../../domain/smith/hit';
@@ -18,6 +19,8 @@ import { directionChevrons, traceEnds } from '../../domain/smith/trace-decor';
 import type { SmithDirectionMode } from '../../domain/smith/trace-decor';
 import { fitViewport, gammaToPoint, panBy, zoomAt } from '../../domain/smith/viewport';
 import './smith-pane.css';
+import { SmithRangeBar } from './SmithRangeBar';
+import type { SmithRangeBarProps } from './SmithRangeBar';
 
 /** One reflection trace, already as Γ referred to `z0`. */
 export interface SmithPaneTrace {
@@ -48,6 +51,7 @@ export interface SmithTraceClick {
 }
 
 export interface SmithPaneProps {
+  readonly rangeBar?: SmithRangeBarProps;
   readonly traces: readonly SmithPaneTrace[];
   /** Existing marker data. Only markers whose `trace` names one of `traces` are shown. */
   readonly markers?: readonly Marker[];
@@ -142,7 +146,7 @@ function inBand(frequencyHz: number, band: SmithBand | null | undefined): boolea
  * scrolling here never moves another pane.
  */
 export function SmithPane({
-  traces, markers = NO_MARKERS, markerNames, selectedMarkerId = null, onSelectMarker, onTraceClick, band = null,
+  traces, markers = NO_MARKERS, markerNames, selectedMarkerId = null, onSelectMarker, onTraceClick, band = null, rangeBar,
   grid = 'z', labels = 'normalised', direction = 'chevrons', readout = DEFAULT_READOUT,
   showMarkers = true, showMarkerTags = true, cursorFrequencyHz = null, onHoverFrequency, fitRequest, size,
 }: SmithPaneProps) {
@@ -199,7 +203,7 @@ export function SmithPane({
   const tracePaths = useMemo(() => traces.map(trace => ({
     trace,
     runs: splitByBand(trace.samples, band).map(run => ({ inBand: run.inBand, path: samplesPath(run.samples) })),
-    ends: traceEnds(trace.samples),
+    ends: traceEnds((band ? clipTraceToRange(trace.samples, { startHz: band.minHz, stopHz: band.maxHz }) : splitByBand(trace.samples).map(run => run.samples)).flatMap(run => run)),
   })), [traces, band]);
 
   const labelZ0 = traces[0]?.z0 ?? 50;
@@ -221,8 +225,8 @@ export function SmithPane({
     : []), [viewport, labels, grid, values, labelZ0, fontPx, endMarks]);
 
   const chevrons = useMemo(() => (viewport && direction === 'chevrons'
-    ? traces.map(trace => ({ trace, items: directionChevrons(trace.samples, viewport) }))
-    : []), [traces, viewport, direction]);
+    ? traces.map(trace => ({ trace, items: (band ? clipTraceToRange(trace.samples, { startHz: band.minHz, stopHz: band.maxHz }) : splitByBand(trace.samples).map(run => run.samples)).flatMap(run => directionChevrons(run, viewport)) }))
+    : []), [traces, viewport, direction, band]);
 
   // ---- Markers ----
   const paneMarkers = useMemo(() => markers.flatMap((marker, index) => {
@@ -296,8 +300,9 @@ export function SmithPane({
     if (!onTraceClick) return;
     const hit = nearestTracePoint(traces, point, viewport, CLICK_REACH_PX);
     if (!hit) return;
-    const sample = nearestSample(traces.filter(trace => trace.traceId === hit.traceId), point, viewport);
-    onTraceClick({ traceId: hit.traceId, frequencyHz: hit.frequencyHz, sampleFrequencyHz: sample?.frequencyHz ?? hit.frequencyHz, ...(sample ? { sampleDistancePx: sample.distancePx } : {}) });
+    const sample = nearestSample(traces.filter(trace => trace.traceId === hit.traceId).map(trace => ({ ...trace, samples: band ? trace.samples.filter(item => item.frequencyHz >= band.minHz && item.frequencyHz <= band.maxHz) : trace.samples })), point, viewport);
+    if (!sample) return;
+    onTraceClick({ traceId: hit.traceId, frequencyHz: hit.frequencyHz, sampleFrequencyHz: sample.frequencyHz, sampleDistancePx: sample.distancePx });
   };
   const onKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>): void => {
     if (event.ctrlKey || event.metaKey || event.altKey) return;
@@ -455,6 +460,7 @@ export function SmithPane({
         )}
       </div>
 
+      {rangeBar && traces.length > 0 && <SmithRangeBar {...rangeBar} />}
       {readout.length > 0 && (
         <div className="smith-strip t-readout" data-testid="smith-readout">
           <button type="button" className="smith-step" aria-label="Previous marker" title="Previous marker" disabled={!onSelectMarker || paneMarkers.length < 2} onClick={() => stepMarker(-1)}>{'‹'}</button>

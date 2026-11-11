@@ -22,7 +22,7 @@ it('passes only a linked visible X range as a Smith band', () => {
   const traces = [{ samples: [{ frequencyHz: 1e9, gamma: { re: 0, im: 0 } }, { frequencyHz: 2e9, gamma: { re: 0, im: 0 } }] }];
   expect(smithLinkedBand(true, { left: 1.2e9, right: 1.8e9 }, traces)).toEqual({ minHz: 1.2e9, maxHz: 1.8e9 });
   expect(smithLinkedBand(true, { left: 0, right: 1 }, traces)).toBeNull();
-  expect(smithLinkedBand(true, { left: 0, right: 3e9 }, traces)).toBeNull();
+  expect(smithLinkedBand(true, { left: 0, right: 3e9 }, traces)).toEqual({ minHz: 0, maxHz: 3e9 });
   expect(smithLinkedBand(false, { left: 1.2e9, right: 1.8e9 }, traces)).toBeNull();
   expect(smithLinkedBand(true, null, traces)).toBeNull();
 });

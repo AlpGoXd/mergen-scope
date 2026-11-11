@@ -200,6 +200,9 @@ export function PaneSettingsPopover({
           {sections.length === 0 && <div>No settings for this pane type yet.</div>}
           {sections.includes('display') && <Section title="Display">
             {current !== 'smith' && <Btn variant="chip" tone="pane" active={settings.showSampleDots} aria-pressed={settings.showSampleDots} aria-label="Samples" data-testid="sample-dots-toggle" style={{ width: '100%' }} onClick={() => patch({ showSampleDots: !settings.showSampleDots })}>Samples</Btn>}
+            {current === 'smith' && <Row label="Outside range">
+              {(['hidden', 'faint'] as const).map(value => <Btn key={value} variant="chip" tone="pane" active={(settings.smith.outside ?? 'hidden') === value} aria-pressed={(settings.smith.outside ?? 'hidden') === value} onClick={() => patch({ smith: { ...settings.smith, outside: value } })}>{value === 'hidden' ? 'Hidden' : 'Faint'}</Btn>)}
+            </Row>}
             <Row label="Show markers">
               <Toggle checked={settings.showMarkers} onChange={v => patch({ showMarkers: v })} />
             </Row>

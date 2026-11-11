@@ -11,6 +11,8 @@
 /** How a chart pane renders its traces. */
 export type PaneRenderMode = "cartesian" | "smith" | "smith-inverted" | "table";
 export interface SmithSettings {
+  readonly range?: { readonly startHz: number; readonly stopHz: number } | null;
+  readonly outside?: 'hidden' | 'faint';
   readonly grid: 'z' | 'y' | 'both';
   readonly labels: 'normalised' | 'ohms' | 'off';
   readonly direction: 'chevrons' | 'ends' | 'off';
@@ -43,7 +45,7 @@ export interface PaneSettings {
 
 export function defaultPaneSettings(): PaneSettings {
   return {
-    smith: { grid: 'z', labels: 'normalised', direction: 'chevrons', readout: ['z', 'gamma', 'vswr'] },
+    smith: { grid: 'z', labels: 'normalised', direction: 'chevrons', readout: ['z', 'gamma', 'vswr'], range: null, outside: 'hidden' },
     gridMajor: true,
     gridMinor: false,
     gridMajorThickness: 1,

@@ -2,11 +2,19 @@ import { describe, expect, it } from "vitest";
 import { buildPanes } from "../../src/domain/pane-math";
 import { buildExportPackage, buildSnapshot, restoreSnapshot } from "../../src/domain/workspace-serialize";
 import { makeTestTrace } from "./helpers";
+import { defaultPaneState, paneReducer } from '../../src/stores/pane-store';
+
+it('new panes copy outside choice but reset the Smith range', () => {
+  const pane = defaultPaneState.panes[0];
+  if (!pane) throw new Error('pane');
+  const state = { ...defaultPaneState, panes: [{ ...pane, settings: { ...pane.settings, smith: { ...pane.settings.smith, range: { startHz: 2, stopHz: 5 }, outside: 'faint' as const } } }] };
+  expect(paneReducer(state, { type: 'SET_PANE_COUNT', payload: 2 }).panes[1]?.settings.smith).toMatchObject({ range: null, outside: 'faint' });
+});
 
 describe("workspace serialization", () => {
   it("round-trips a minimal static workspace snapshot", () => {
     const trace = makeTestTrace();
-    const panes = buildPanes(1);
+    const panes = buildPanes(1).map(pane => ({ ...pane, settings: { ...pane.settings, smith: { ...pane.settings.smith, range: { startHz: 2, stopHz: 5 }, outside: 'faint' as const } } }));
     const snapshot = buildSnapshot({
       files: [{
         id: "file-1",
@@ -76,6 +84,7 @@ describe("workspace serialization", () => {
     expect(restored?.refLines).toHaveLength(1);
     expect(restored?.traceAssignments[trace.name]).toBe("pane-1");
     expect(restored?.panes[0]?.settings.smith.labels).toBe('normalised');
+    expect(restored?.panes[0]?.settings.smith).toMatchObject({ range: { startHz: 2, stopHz: 5 }, outside: 'faint' });
   });
 
   it("restores duplicated v4 data and writes a substantially smaller snapshot", () => {

@@ -23,6 +23,7 @@ export function nearestSample(traces: readonly SmithHitTrace[], pointer: SmithPo
   let best: SmithHit | null = null;
   for (const trace of traces) {
     trace.samples.forEach((sample, sampleIndex) => {
+      if (sample.synthetic) return;
       if (!finiteSample(sample)) return;
       const point = gammaToPoint(sample.gamma, viewport);
       if (!point) return;
