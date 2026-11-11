@@ -7,10 +7,11 @@
   --smith-bg: var(--bg);
   --smith-grid: color-mix(in oklab, var(--border) 62%, var(--border-strong));
   --smith-frame: var(--border-strong);
-  /* Z + Y overlay, as on the classic combined chart: impedance red, admittance blue, both translucent
-     so crossings stay readable and the traces stay on top. */
-  --smith-grid-z-both: oklch(0.58 0.19 27 / 0.5);
-  --smith-grid-y-both: oklch(0.56 0.16 255 / 0.5);
+  /* Z + Y overlay, as on the classic combined chart: impedance warm, admittance cool.
+     Chroma is kept far below the trace palette (0.13 to 0.16), so the grid reads as tinted grey and is
+     never mistaken for a red or blue trace. */
+  --smith-grid-z-both: oklch(0.66 0.065 27 / 0.6);
+  --smith-grid-y-both: oklch(0.64 0.055 255 / 0.6);
   display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; height: 100%;
   background: var(--smith-bg); color: var(--text);
 }
@@ -90,6 +91,6 @@
 .smith-step:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
 .theme-dark .smith-pane {
-  --smith-grid-z-both: oklch(0.70 0.16 27 / 0.5);
-  --smith-grid-y-both: oklch(0.72 0.13 255 / 0.5);
+  --smith-grid-z-both: oklch(0.56 0.06 27 / 0.65);
+  --smith-grid-y-both: oklch(0.56 0.055 255 / 0.65);
 }

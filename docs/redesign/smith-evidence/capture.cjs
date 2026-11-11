@@ -1,6 +1,7 @@
 // Screenshots of the dev-only Smith demo. Run from the worktree root with the dev server up:
 //   npx vite --port 5183 --strictPort
 //   node docs/redesign/smith-evidence/capture.cjs [http://127.0.0.1:5183]
+const fs = require('fs');
 const path = require('path');
 const { chromium } = require('@playwright/test');
 
@@ -18,7 +19,12 @@ async function shot(browser, name, query, viewport, act) {
   await page.evaluate(() => document.fonts.ready);
   if (act) await act(page);
   await page.waitForTimeout(150);
-  await page.screenshot({ path: path.join(out, `${name}.png`) });
+  // On Windows a viewer or indexer can hold the old file for a moment: retry the write.
+  const png = await page.screenshot();
+  for (let attempt = 0; ; attempt++) {
+    try { fs.writeFileSync(path.join(out, `${name}.png`), png); break; }
+    catch (error) { if (attempt >= 20) throw error; await page.waitForTimeout(250); }
+  }
   if (errors.length) throw new Error(`${name}: ${errors.join(' | ')}`);
   await page.close();
   console.log('wrote', name);
