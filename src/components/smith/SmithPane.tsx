@@ -18,6 +18,9 @@ import type { SmithReadout } from '../../domain/smith/readout';
 import { directionChevrons, traceEnds } from '../../domain/smith/trace-decor';
 import type { SmithDirectionMode } from '../../domain/smith/trace-decor';
 import { fitViewport, gammaToPoint, panBy, zoomAt } from '../../domain/smith/viewport';
+import { DOT_RADIUS, planDotsAndSymbols } from '../../domain/dots-and-symbols';
+import type { TraceSymbol as SymbolKind } from '../../domain/trace-palette';
+import { TraceSymbol } from '../shared/TraceSymbol';
 import './smith-pane.css';
 import { SmithRangeBar } from './SmithRangeBar';
 import type { SmithRangeBarProps } from './SmithRangeBar';
@@ -33,6 +36,10 @@ export interface SmithPaneTrace {
   readonly color: string;
   /** Created (ƒ) traces are drawn 2 px wide; source traces 1.5 px. */
   readonly created?: boolean;
+  /** The trace's symbol when colours repeat (or symbols are always on); null or absent for none. */
+  readonly symbol?: SymbolKind | null;
+  /** Frequencies of the measured samples. When given, dots and symbols skip any other point (interpolated range edges). */
+  readonly measured?: ReadonlySet<number>;
   /** Reference impedance in ohms that Γ is referred to (per file, usually 50). */
   readonly z0: number;
   readonly samples: readonly SmithSample[];
@@ -70,6 +77,8 @@ export interface SmithPaneProps {
   readonly readout?: readonly SmithReadoutField[];
   readonly showMarkers?: boolean;
   readonly showMarkerTags?: boolean;
+  /** Samples: a filled dot (radius 2) on every measured sample, as on charts. */
+  readonly showSamples?: boolean;
   /** Frequency under the cursor of a linked pane: drawn as a ghost ring on every trace. */
   readonly cursorFrequencyHz?: number | null;
   /** The frequency under the pointer in this pane (null on leave), for ghost crosshairs elsewhere. */
@@ -148,7 +157,7 @@ function inBand(frequencyHz: number, band: SmithBand | null | undefined): boolea
 export function SmithPane({
   traces, markers = NO_MARKERS, markerNames, selectedMarkerId = null, onSelectMarker, onTraceClick, band = null, rangeBar,
   grid = 'z', labels = 'normalised', direction = 'chevrons', readout = DEFAULT_READOUT,
-  showMarkers = true, showMarkerTags = true, cursorFrequencyHz = null, onHoverFrequency, fitRequest, size,
+  showMarkers = true, showMarkerTags = true, showSamples = false, cursorFrequencyHz = null, onHoverFrequency, fitRequest, size,
 }: SmithPaneProps) {
   const plotRef = useRef<HTMLDivElement>(null);
   const { width, height } = useElementSize(plotRef, size);
@@ -227,6 +236,17 @@ export function SmithPane({
   const chevrons = useMemo(() => (viewport && direction === 'chevrons'
     ? traces.map(trace => ({ trace, items: (band ? clipTraceToRange(trace.samples, { startHz: band.minHz, stopHz: band.maxHz }) : splitByBand(trace.samples).map(run => run.samples)).flatMap(run => directionChevrons(run, viewport)) }))
     : []), [traces, viewport, direction, band]);
+
+  // Sample dots and symbols sit on real samples only; a sample outside the view is skipped, never moved.
+  const samplePlans = useMemo(() => (viewport ? traces.flatMap(trace => {
+    const showSymbols = trace.symbol !== undefined && trace.symbol !== null;
+    if (!showSamples && !showSymbols) return [];
+    const points = trace.samples.map(sample => {
+      const at = gammaToPoint(sample.gamma, viewport);
+      return at && (!trace.measured || trace.measured.has(sample.frequencyHz)) && at.x >= 0 && at.x <= viewport.width && at.y >= 0 && at.y <= viewport.height ? at : { x: Number.NaN, y: Number.NaN };
+    });
+    return [{ trace, points, plan: planDotsAndSymbols({ points, showDots: showSamples, showSymbols }) }];
+  }) : []), [traces, viewport, showSamples]);
 
   // ---- Markers ----
   const paneMarkers = useMemo(() => markers.flatMap((marker, index) => {
@@ -393,6 +413,13 @@ export function SmithPane({
 
             {gridLabels.map(label => (
               <text key={label.key} className="smith-label" x={label.x} y={label.y} textAnchor="middle" dominantBaseline="central">{label.text}</text>
+            ))}
+
+            {samplePlans.map(({ trace, points, plan }) => (
+              <g key={`${trace.traceId}-samples`} pointerEvents="none">
+                {plan.symbols.map((point, index) => <g key={`s${index}`} data-testid="trace-symbol" data-trace={trace.name} data-sample-index={point.sampleIndex} transform={`translate(${point.x} ${point.y})`}><TraceSymbol kind={trace.symbol ?? 'circle'} color={trace.color} background="var(--smith-bg)" hollow={plan.hollow} /></g>)}
+                {plan.dots.map(index => { const point = points[index]; return point ? <circle key={index} data-testid="sample-dot" data-trace={trace.name} data-sample-index={index} cx={point.x} cy={point.y} r={DOT_RADIUS} fill={trace.color} /> : null; })}
+              </g>
             ))}
 
             {chevrons.map(({ trace, items }) => items.map((chevron, index) => (

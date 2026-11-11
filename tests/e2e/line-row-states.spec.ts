@@ -14,8 +14,9 @@ async function oneLine(page: Page, kind: 'v' | 'h') {
   return page.getByTestId(`ref-line-row-${kind.toUpperCase()}1`);
 }
 
-test('Enter in the row sets the value and the line moves; an invalid value gets the danger tint', async ({ page }) => {
+test('Enter in the row sets the value and the line moves; an invalid value keeps the old one and says why', async ({ page }) => {
   const row = await oneLine(page, 'v');
+  await row.getByRole('button', { name: 'V1 value' }).click();
   const input = row.getByRole('textbox');
   const before = Number(await row.getAttribute('data-value'));
   const label = page.getByTestId('chart-plot-pane-1').locator('.ln-label');
@@ -24,15 +25,20 @@ test('Enter in the row sets the value and the line moves; an invalid value gets 
   await input.press('Enter');
   await expect.poll(async () => Number(await row.getAttribute('data-value'))).toBeCloseTo(1.4204e9, -3);
   expect(Number(await row.getAttribute('data-value'))).not.toBe(before);
-  await expect(row.locator('.lp-input')).not.toHaveClass(/is-invalid/);
+  // Saved: the field is plain text again, with no message.
+  await expect(row.getByRole('textbox')).toHaveCount(0);
+  await expect(row.getByRole('alert')).toHaveCount(0);
   const labelAfter = await label.boundingBox();
   expect(Math.abs((labelAfter?.x ?? 0) - (labelBefore?.x ?? 0))).toBeGreaterThan(10);
 
   const current = await row.getAttribute('data-value');
+  await row.getByRole('button', { name: 'V1 value' }).click();
   await row.getByRole('textbox').fill('not a number');
   await row.getByRole('textbox').press('Enter');
-  await expect(row.locator('.lp-input')).toHaveClass(/is-invalid/);
-  await expect(row.locator('.lp-input')).toHaveAttribute('aria-invalid', 'true');
+  await expect(row.getByRole('textbox')).toHaveAttribute('aria-invalid', 'true');
+  await expect(row.getByRole('alert')).toContainText('Not a value');
+  // The message is caption size, under the field; the row keeps its height.
+  expect(await row.getByRole('alert').evaluate(el => getComputedStyle(el).fontSize)).toBe(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--font-caption').trim()));
   expect(await row.getAttribute('data-value')).toBe(current);
 });
 

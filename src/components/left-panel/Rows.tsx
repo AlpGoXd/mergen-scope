@@ -1,6 +1,7 @@
 // Trace row (C02), marker item (C01) and line row (L1).
 import type { CSSProperties, ReactElement } from 'react';
 import type { MarkerItemProps, TraceRowProps } from './types';
+import { EditableValue } from '../shared/EditableValue';
 
 const hueStyle = (hue: number): CSSProperties => ({ ['--h' as string]: hue }) as CSSProperties;
 
@@ -49,9 +50,7 @@ export function MarkerItem(p: MarkerItemProps): ReactElement {
     <div className={cls} style={p.color ? ({ ['--trace' as string]: p.color, ['--tag-bg' as string]: p.color } as CSSProperties) : hueStyle(p.hue)} onClick={p.onSelect}>
       <div className="lp-row">
         <span className={`lp-tag${p.delta ? ' lp-tag--delta' : ''}`}>{p.label}</span>
-        <input className={`lp-input${p.invalid ? ' is-invalid' : ''}`} defaultValue={p.delta ? `Δ ${p.x}` : p.x} aria-label={`${p.label} position`}
-          onClick={(e) => e.stopPropagation()}
-          onKeyDown={(e) => { if (e.key === 'Enter') p.onX(e.currentTarget.value.replace(/^Δ\s*/, '')); }} />
+        <EditableValue className="lp-ev" label={`${p.label} position`} value={p.delta ? `Δ ${p.x}` : p.x} editValue={p.x} onCommit={(text) => p.onX(text.replace(/^Δs*/, ''))} />
         <span className="lp-value">{p.y}</span>
         <button type="button" className="lp-icon-btn" aria-label={`Remove ${p.label}`} onClick={(e) => { e.stopPropagation(); p.onRemove(); }}>×</button>
       </div>

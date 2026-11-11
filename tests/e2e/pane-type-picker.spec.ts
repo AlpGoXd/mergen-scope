@@ -55,7 +55,7 @@ test('an empty chart retains its type after removing a trace and reopening a wor
   await expect(chip).toBeVisible();
   await expect(header.getByTestId('samples-toggle')).toBeVisible();
   await expect(header.getByTitle('Pane settings')).toBeVisible();
-  await expect(header.getByRole('button', { name: 'Pane actions' })).toBeVisible();
+  await expect(header.getByRole('button', { name: 'Pane actions' })).toHaveCount(0);
   await chip.click();
   await expect(page.locator('.ui-popover[aria-label="Chart type"]').getByRole('radio')).toHaveCount(5);
   await page.keyboard.press('Escape');
@@ -71,7 +71,7 @@ test('an empty chart retains its type after removing a trace and reopening a wor
   await expect(pane.locator('.ptp-tile')).toHaveCount(0);
 });
 
-test('settings starts with Chart type and more opens the chip popover', async ({ page }) => {
+test('settings starts with Chart type, then Display and Axes, and ends with the pane actions', async ({ page }) => {
   await page.goto('/app.html');
   await page.getByTestId('chart-pane-pane-1').locator('.ptp-tile').first().click();
   const header = page.getByTestId('chart-pane-header-pane-1');
@@ -82,10 +82,12 @@ test('settings starts with Chart type and more opens the chip popover', async ({
   await expect(settings.getByRole('radio', { name: 'Chart' })).toHaveAttribute('aria-checked', 'true');
   await expect(settings.getByRole('radio', { name: 'Smith' })).not.toHaveAttribute('aria-disabled', 'true');
   await expect(settings.getByRole('radio')).toHaveCount(5);
+  await expect(settings.getByRole('heading')).toHaveText(['Chart type', 'Display', 'Axes']);
+  await expect(settings.getByRole('group', { name: 'Pane 1 actions' }).getByRole('button')).toHaveText(['Copy chart', 'Export…', 'Close pane']);
   await page.keyboard.press('Escape');
-  await header.getByRole('button', { name: 'Pane actions' }).click();
-  await page.getByRole('menu', { name: 'Pane actions' }).getByRole('menuitem', { name: 'Change chart type…' }).click();
-  await expect(page.getByRole('menu', { name: 'Pane actions' })).toHaveCount(0);
+  // The separate ⋯ menu is gone; the chip still opens the chart type popover.
+  await expect(header.getByRole('button', { name: 'Pane actions' })).toHaveCount(0);
+  await chip.click();
   const popup = page.locator('.ui-popover[aria-label="Chart type"]');
   await expect(popup).toBeVisible();
   const anchorBox = await chip.boundingBox(); const popupBox = await popup.boundingBox();
@@ -163,7 +165,7 @@ test('header type popover is above neighbouring panes and closes on Escape', asy
   expect(await chip.evaluate(el => el.previousElementSibling?.textContent?.trim())).toBe('Pane 2');
   await expect(header.getByTestId('samples-toggle')).toBeVisible();
   await expect(header.getByTitle('Pane settings')).toBeVisible();
-  await expect(header.getByRole('button', { name: 'Pane actions' })).toBeVisible();
+  await expect(header.getByRole('button', { name: 'Pane actions' })).toHaveCount(0);
   await chip.click();
   const popup = page.locator('.ui-popover[aria-label="Chart type"]');
   await expect(popup).toBeVisible();

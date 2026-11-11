@@ -18,6 +18,7 @@ it('edits and removes paneless linked rows independently with undo, and preserve
   ]}};
   act(()=>workspace.historyDispatch({type:'change',command:{slice:'restore',state}}));
   const paneless=await screen.findByTestId('ref-line-row-V2');
+  fireEvent.click(within(paneless).getByRole('button',{name:'V2 value'}));
   const input=within(paneless).getByRole('textbox');
   fireEvent.change(input,{target:{value:'3'}}); fireEvent.keyDown(input,{key:'Enter'});
   await waitFor(()=>expect(workspace.state.lines.refLines.map(line=>line.value)).toEqual([1,3]));
@@ -48,10 +49,18 @@ it('formats and parses a paneless saved frequency unit independently of the sele
   const time=makeTestTrace({domain:'time',units:{x:'s',y:'V'}});
   let value=0;
   render(React.createElement(LiveLineRow,{refLine:{id:9,type:'v',value:100,paneIds:[],axisUnit:'Hz:Hz',label:'V9'},lit:false,intersections:[],panes:[],entries:[],paneViews:{},onSelect:()=>{},onHover:()=>{},onList:()=>{},changeLine:(action)=>{if(action.type==='UPDATE_LINE') value=action.payload.updates.value ?? value;},selectedTrace:time,xSpan:20}));
-  const input=within(screen.getByTestId('ref-line-row-V9')).getByRole('textbox');
+  const row=within(screen.getByTestId('ref-line-row-V9'));
+  // The value is plain text until it is clicked; then it is a field holding the value with its unit.
+  fireEvent.click(row.getByRole('button',{name:'V9 value'}));
+  let input=row.getByRole('textbox');
   expect(input).toHaveValue('100 Hz');
   fireEvent.change(input,{target:{value:'2 kHz'}}); fireEvent.keyDown(input,{key:'Enter'});
   expect(value).toBe(2000);
+  fireEvent.click(row.getByRole('button',{name:'V9 value'}));
+  input=row.getByRole('textbox');
   fireEvent.change(input,{target:{value:'3 s'}}); fireEvent.keyDown(input,{key:'Enter'});
   expect(value).toBe(2000);
+  // A refused value keeps the field open, marks it invalid and says why in a caption under it.
+  expect(input).toHaveAttribute('aria-invalid','true');
+  expect(row.getByRole('alert')).toHaveTextContent('Not a value');
 });

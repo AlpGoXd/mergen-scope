@@ -8,6 +8,7 @@ it('edits a signed delta offset relative to its reference', () => {
   const delta: Marker = { ...reference, id: 'm2', freq: 2.412e9, type: 'delta', label: 'D2', refId: 'm1' };
   const update = vi.fn();
   render(<MarkerItem marker={delta} index={1} trace={null} traceColor="#ff0000" xSpan={1e9} isSelected={false} paneNumber={1} refMarker={reference} allMarkers={[reference, delta]} onSelect={() => {}} onRemove={() => {}} onUpdateFreq={update} />);
+  fireEvent.click(screen.getByRole('button', { name: 'D2 position' }));
   const input = screen.getByRole('textbox', { name: 'D2 position' });
   expect((input as HTMLInputElement).value).toContain('+');
   fireEvent.change(input, { target: { value: '-20 MHz' } });

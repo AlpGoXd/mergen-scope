@@ -24,12 +24,10 @@ test('pane popovers appear above neighbouring panes and remain interactive', asy
   await first.getByTitle('Pane settings').click();
   await page.keyboard.press('Escape');
   await expect(settings).toHaveCount(0);
-  await first.getByRole('button', { name: 'Pane actions' }).click();
-  const menu = page.getByRole('menu', { name: 'Pane actions' });
-  await expect(menu).toBeVisible();
-  expect(await topmost('.ui-popover[aria-label="Pane actions popup"]')).toBe(true);
-  await expect(menu.getByText('Sample dots')).toHaveCount(0);
-  await first.getByRole('button', { name: 'Pane actions' }).click();
+  // One pane button: the old ⋯ menu's items live in Pane settings, which closes on an outside click.
+  await expect(first.getByRole('button', { name: 'Pane actions' })).toHaveCount(0);
+  await first.getByTitle('Pane settings').click();
+  await expect(settings.getByRole('group', { name: 'Pane 1 actions' })).toBeVisible();
   await page.mouse.click(5, 5);
-  await expect(menu).toHaveCount(0);
+  await expect(settings).toHaveCount(0);
 });

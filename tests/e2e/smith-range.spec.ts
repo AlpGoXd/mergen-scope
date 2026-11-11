@@ -3,7 +3,7 @@ import type { Locator, Page } from '@playwright/test';
 import { resolve } from 'node:path';
 
 const fullSpan = 'of 10 kHz–8.5 GHz';
-const manualLabel = '2.400 → 2.500 GHz of 10 kHz–8.5 GHz';
+const manualLabel = '2.400 GHz → 2.500 GHz of 10 kHz–8.5 GHz';
 
 async function openSmith(page: Page): Promise<Locator> {
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -176,7 +176,7 @@ test('shared chart zoom follows the chart and disables range controls', async ({
   }
   await expect(pane.getByTestId('smith-range-full')).toBeDisabled();
   // Clearing the shared zoom returns to the saved manual range.
-  await page.getByTestId('chart-pane-header-pane-1').getByTitle('Fit X and Y to traces').click();
+  await page.getByRole('button', { name: 'Fit all' }).click();
   await expect(pane.getByTestId('smith-range-linked')).toHaveCount(0);
   await expect(pane.getByTestId('smith-range-label')).toHaveText(manualLabel);
 });

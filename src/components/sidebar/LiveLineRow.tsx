@@ -22,7 +22,6 @@ export function LiveLineRow({ refLine, panes, entries, intersections, paneViews,
   onSelect: () => void; onHover: (hovered: boolean) => void; onList: () => void;
   changeLine: (action: RefLineAction, message: string, toastKind?: ToastKind) => void;
 }) {
-  const [invalid, setInvalid] = useState(false);
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
   const label = refLine.label ?? (refLine.type === 'v' ? 'V' : 'H');
   const savedUnit = refLine.paneIds.length === 0 && refLine.axisUnit ? (refLine.type === 'v' ? decodeXAxisUnit(refLine.axisUnit)[1] : refLine.axisUnit) : null;
@@ -37,8 +36,8 @@ export function LiveLineRow({ refLine, panes, entries, intersections, paneViews,
   };
   const suffix = refLine.paneIds.length > 1 ? ` from ${refLine.paneIds.length} panes` : refLine.paneIds.length === 1 ? ` from ${paneName(panes, refLine.paneIds[0] ?? '')}` : '';
   return <div data-testid={`ref-line-row-${label}`} data-value={refLine.value} onClick={event => { if (!(event.target instanceof Element) || !event.target.closest('button')) onSelect(); }}>
-    <LineRow key={`${refLine.id}:${value}`} label={label} kind={refLine.type} {...view} lit={lit} selected={selected} invalid={invalid} menuOpen={!!anchor} onHover={onHover}
-      onValue={text => { let result = savedUnit ? parseEngInput(text, { baseUnit: savedUnit }) : null; if (result && !result.ok && result.reason === 'unknown-unit' && savedUnit && text.trim().endsWith(savedUnit)) result = parseEngInput(text.trim().slice(0, -savedUnit.length)); const parsed = result ? (result.ok ? result.value : null) : parseEngineeringInput(text, selectedTrace); if (parsed == null || !Number.isFinite(parsed)) setInvalid(true); else { setInvalid(false); changeLine({ type: 'UPDATE_LINE', payload: { id: refLine.id, updates: { value: parsed } } }, 'Moved line'); } }}
+    <LineRow key={`${refLine.id}:${value}`} label={label} kind={refLine.type} {...view} lit={lit} selected={selected} menuOpen={!!anchor} onHover={onHover}
+      onValue={text => { let result = savedUnit ? parseEngInput(text, { baseUnit: savedUnit }) : null; if (result && !result.ok && result.reason === 'unknown-unit' && savedUnit && text.trim().endsWith(savedUnit)) result = parseEngInput(text.trim().slice(0, -savedUnit.length)); const parsed = result ? (result.ok ? result.value : null) : parseEngineeringInput(text, selectedTrace); if (parsed == null || !Number.isFinite(parsed)) return `Not a value. Try ${value}`; changeLine({ type: 'UPDATE_LINE', payload: { id: refLine.id, updates: { value: parsed } } }, 'Moved line'); return null; }}
       onPanes={element => { if (refLine.type === 'v') setAnchor(element); }} onListCrossings={onList} onRemove={() => changeLine({ type: 'REMOVE_LINE', payload: refLine.id }, `Deleted ${label}${suffix}`, 'delete')} />
     {anchor && <PopoverAt label="Show in" at={anchor} onClose={() => setAnchor(null)}><Menu label="Show in" title="Show in" checklist style={{ width: 220 }} entries={lineShowInEntries(choices, toggle)} /></PopoverAt>}
   </div>;

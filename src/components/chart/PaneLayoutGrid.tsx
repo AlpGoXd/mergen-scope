@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { arrange, flattenLayoutSizes, normalizeSizes, xTickVisibility } from '../../domain/pane-layout';
 import { traceXGroup } from '../../domain/pane-placement';
-import type { LayoutSizes, PresetId } from '../../domain/pane-layout';
+import type { Divider, LayoutSizes, PresetId } from '../../domain/pane-layout';
 import { VisibleRefLinesProvider } from '../../stores/ref-line-store';
 import { traceView, useAggregateWorkspace } from '../../stores/aggregate-workspace-store';
 import { ChartPane } from './ChartPane';
@@ -34,6 +34,7 @@ export function PaneLayoutGrid({ paneIds }: { paneIds: string[] }) {
   const arrangement = arrange(preset, paneIds.length);
   const saved = readSizes(preset, paneIds.length, state.layout.sizes);
   const [live, setLive] = useState<LayoutSizes | null>(null);
+  const [dragged, setDragged] = useState<Divider | null>(null);
   const sizes = live?.kind === preset ? live : saved;
   const gridRef = useRef<HTMLDivElement>(null);
   const [box, setBox] = useState({ width: 0, height: 0 });
@@ -55,14 +56,21 @@ export function PaneLayoutGrid({ paneIds }: { paneIds: string[] }) {
     if (preset === 'grid') return { gridColumn: 2 * (index % 2) + 1, gridRow: 2 * Math.floor(index / 2) + 1 };
     return index === 0 ? { gridColumn: 1, gridRow: `1 / ${rows.length * 2}` } : { gridColumn: 3, gridRow: 2 * index - 1 };
   };
+  // While a divider is dragged, panes that do not touch it are dimmed very slightly.
+  const touches = (index: number, divider: Divider): boolean => {
+    const column = preset === 'columns' ? index : preset === 'grid' ? index % 2 : preset === 'one-side' ? (index === 0 ? 0 : 1) : 0;
+    const row = preset === 'rows' ? index : preset === 'grid' ? Math.floor(index / 2) : preset === 'one-side' ? index - 1 : 0;
+    if (divider.orientation === 'vertical') return divider.tracks.includes(column);
+    return divider.tracks.includes(row) && !(preset === 'one-side' && index === 0);
+  };
   return <div className="pane-layout-scroll"><div ref={gridRef} className="pane-layout-grid" style={{ gridTemplateColumns: tracks(cols, 160), gridTemplateRows: tracks(rows, 120), minWidth: cols.length * 160 + Math.max(0, cols.length - 1) * 8, minHeight: rows.length * 120 + Math.max(0, rows.length - 1) * 8 }}>
-    {paneIds.map((id, index) => <div key={id} className="pane-layout-cell" style={cellStyle(index)}><VisibleRefLinesProvider><ChartPane paneId={id} hideXTicks={visibility[index] === false} /></VisibleRefLinesProvider></div>)}
+    {paneIds.map((id, index) => <div key={id} className={`pane-layout-cell${dragged && !touches(index, dragged) ? ' is-dimmed' : ''}`} style={cellStyle(index)}><VisibleRefLinesProvider><ChartPane paneId={id} hideXTicks={visibility[index] === false} /></VisibleRefLinesProvider></div>)}
     {arrangement.dividers.map(divider => {
       const vertical = divider.orientation === 'vertical';
       const index = divider.tracks[0];
       const style: CSSProperties = vertical ? { gridColumn: 2 * index + 2, gridRow: `1 / ${rows.length * 2}` } : { gridRow: 2 * index + 2, gridColumn: preset === 'one-side' ? 3 : `1 / ${cols.length * 2}` };
       const pixels = vertical ? box.width - (cols.length - 1) * 8 : box.height - (rows.length - 1) * 8;
-      return <LayoutDivider key={divider.key} divider={divider} sizes={sizes} count={paneIds.length} pixels={pixels} style={style} onLive={setLive} onCancel={() => setLive(null)} onCommit={commit} />;
+      return <LayoutDivider key={divider.key} divider={divider} sizes={sizes} count={paneIds.length} pixels={pixels} style={style} onLive={setLive} onCancel={() => setLive(null)} onCommit={commit} onActive={active => setDragged(current => active ? divider : current?.key === divider.key ? null : current)} />;
     })}
   </div></div>;
 }

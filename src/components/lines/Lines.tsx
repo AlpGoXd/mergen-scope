@@ -3,6 +3,7 @@
 // The app owns state, pixel maths, drag, Undo and the shared popover (render the menus in it).
 import type { CSSProperties, ReactElement } from 'react';
 import type { MenuEntry } from '../left-panel/Menu';
+import { EditableValue } from '../shared/EditableValue';
 import type { ChartLineProps, CrossingDotProps, EdgeTagProps, LineRowProps, ShowInPane } from './types';
 
 /* ---------- left panel ---------- */
@@ -25,9 +26,7 @@ export function LineRow(p: LineRowProps): ReactElement {
     <div className={cls} onMouseEnter={() => p.onHover?.(true)} onMouseLeave={() => p.onHover?.(false)}>
       <div className="lp-row">
         <span className="lp-tag lp-tag--line">{p.label}</span>
-        <input className={`lp-input${p.invalid ? ' is-invalid' : ''}`} defaultValue={p.value} aria-label={`${p.label} value`}
-          aria-invalid={p.invalid ? true : undefined}
-          onKeyDown={(e) => { if (e.key === 'Enter') p.onValue(e.currentTarget.value); }} />
+        <EditableValue className="lp-ev" label={`${p.label} value`} value={p.value} onCommit={p.onValue} />
         <button type="button" className="lp-panes" title={badgeTip} aria-label={`${p.label}: ${badgeTip}`}
           aria-haspopup={single ? undefined : 'menu'} aria-expanded={single ? undefined : (p.menuOpen ?? false)}
           aria-disabled={single && !unplaced ? true : undefined}
