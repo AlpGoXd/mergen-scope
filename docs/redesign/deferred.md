@@ -229,4 +229,5 @@ Evidence and the difference list: [analysis-evidence](analysis-evidence/README.m
 - **Tab / Shift+Tab to step Smith markers** (traps keyboard focus); the ‹ › buttons do it.
 - **Y-grid labels in Z + Y mode** (only the Z grid is labelled).
 - **Hover-update test:** a unit test that a hover update does not recompute the converted Smith traces (spy on the converter).
+- **Per-pane X link control:** nothing in the UI changes `zoomAll` (global link) yet; the Smith range follows it only through the shared zoom. Needed before "panes start unlinked" and before an e2e for unlinking a Smith pane.
 
