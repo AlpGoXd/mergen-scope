@@ -10,14 +10,14 @@ This ledger tracks findings that remain open after the Phase 1 foundation and Ph
 | 06 | Adopt the canonical formatter in Sidebar readouts, chart axes with shared visible-range context, and footer/wizard displays. The scalar prefix policy alone does not supply shared axis context. | Phase 4 (Sidebar); Phase 5 (axis); Phase 7 (footer/wizard) | Done: Phase 2 formatter/parser API and Sidebar parser extraction. Deferred: listed display callers. |
 | 07 | The token correction currently routes `--dim` through `--text-muted`; replace remaining consumers and remove the compatibility alias only after a repository search confirms there are no consumers. Audit measured text contrast against the 4.5:1 requirement in Phase 8. | Phase 8, after component migrations | Partial: token correction through alias is in place; the measured contrast audit remains for Phase 8. |
 | 11 | Replace the strip's remaining explicit 11 px / 13 px select and label sizing through shared-control adoption. | Phase 7 | Done: Phase 1 base sizing and Phase 2 shared select. Deferred: strip adoption and sizing. |
-| Ã¢â‚¬â€ | Preserve legacy `glass` theme data when reading v4 workspaces, complete the Phase 3 workspace migration, then remove obsolete compatibility strings only when migration and a no-consumer search show they are safe to remove. | Phase 3 (legacy read/migration); Phase 8 (compatibility removal) | Deferred: compatibility is retained for v4 reads; migration and eventual removal remain. |
-| Ã¢â‚¬â€ | Remove legacy palette aliases after component migrations. Search the repository (including CSS and components) to prove each alias has no consumer before deleting it. | Phase 8 | Deferred: aliases remain while consumers migrate. |
-| Ã¢â‚¬â€ | Migrate remaining component-specific font overrides and complete the type consistency audit across screens and states. | Phases 4, 5 and 7; final audit in Phase 8 | Done: Phase 1 tokens/fonts and Phase 2 shared controls. Deferred: remaining component adoption and full audit. |
-| Ã¢â‚¬â€ | Add the user-facing Settings sheet and Appearance controls. The theme API already separates the `system` / `light` / `dark` preference from resolved appearance and supports manual preference; expose it through the specified settings UI. | Phase 7 | Deferred: API behavior is implemented; Settings UI remains. |
+| — | Preserve legacy `glass` theme data when reading v4 workspaces, complete the Phase 3 workspace migration, then remove obsolete compatibility strings only when migration and a no-consumer search show they are safe to remove. | Phase 3 (legacy read/migration); Phase 8 (compatibility removal) | Deferred: compatibility is retained for v4 reads; migration and eventual removal remain. |
+| — | Remove legacy palette aliases after component migrations. Search the repository (including CSS and components) to prove each alias has no consumer before deleting it. | Phase 8 | Deferred: aliases remain while consumers migrate. |
+| — | Migrate remaining component-specific font overrides and complete the type consistency audit across screens and states. | Phases 4, 5 and 7; final audit in Phase 8 | Done: Phase 1 tokens/fonts and Phase 2 shared controls. Deferred: remaining component adoption and full audit. |
+| — | Add the user-facing Settings sheet and Appearance controls. The theme API already separates the `system` / `light` / `dark` preference from resolved appearance and supports manual preference; expose it through the specified settings UI. | Phase 7 | Deferred: API behavior is implemented; Settings UI remains. |
 
 ## Reference comparison follow-up (8 November)
 
-See [Phase 1Ã¢â‚¬â€œ2 comparison](phase1-2-reference-comparison.md) and [side-by-side images](phase1-2-reference-comparison.html) for evidence and the complete difference register. Every UI phase must repeat this comparison in both themes, using the matching boards and classifying differences as fixed / deferred (phase) / intentional; written v3 wins.
+See [Phase 1–2 comparison](phase1-2-reference-comparison.md) and [side-by-side images](phase1-2-reference-comparison.html) for evidence and the complete difference register. Every UI phase must repeat this comparison in both themes, using the matching boards and classifying differences as fixed / deferred (phase) / intentional; written v3 wins.
 
 | ID | Remaining visual work or evidence | Target phase | Status |
 | --- | --- | --- | --- |
@@ -53,12 +53,12 @@ Phase 7A screenshots and side-by-side comparisons are in [phase7a-evidence](phas
 
 ## Phase 7B footer and app settings follow-up
 
-The candidate comparison is in [phase7b-evidence/comparison.html](phase7b-evidence/comparison.html), with light and dark screenshots of the empty footer, help and settings sheets. Screenshots were captured at 1440 Ãƒâ€” 900 on the 7B worktree before integration; they do not establish integrated behavior.
+The candidate comparison is in [phase7b-evidence/comparison.html](phase7b-evidence/comparison.html), with light and dark screenshots of the empty footer, help and settings sheets. Screenshots were captured at 1440 Ã— 900 on the 7B worktree before integration; they do not establish integrated behavior.
 
 | Remaining work | Target phase | Status and evidence |
 | --- | --- | --- |
 | Connect density, palette, line-style and export-theme preferences to their consumers, with live updates and persistence checks. Theme and the experimental pane limit use existing providers; the remaining preferences have an exported contract but do not yet affect the app. | 7E | Deferred; no end-to-end test covers these preference consumers. |
-| Supply target pane type, free cursor coordinates in axis units (Smith Z and ÃŽâ€œ), exact armed sentence and active trace/file short name to the footer; verify responsive hiding and context-sensitive hints. | 7E | Partial footer implementation; empty-state captures only. No integrated nonempty, armed or Smith state evidence yet. |
+| Supply target pane type, free cursor coordinates in axis units (Smith Z and Î“), exact armed sentence and active trace/file short name to the footer; verify responsive hiding and context-sensitive hints. | 7E | Partial footer implementation; empty-state captures only. No integrated nonempty, armed or Smith state evidence yet. |
 | Capture and compare the feedback menu and nonempty, armed and Smith footer states in light and dark against 41-F1. Verify the two issue links contain only the intended template, app version and browser/OS. | 7E | Deferred; help and empty footer are captured, but these states and privacy behavior lack dedicated evidence. |
 | Refine settings label/control alignment, switch and icon shapes and spacing against 44-S1; verify token colors against reference values. Verify help keycap treatment and footer link wording against 41-F1. | 7E | Palette swatches and themed controls are present; reference color measurements and remaining visual differences are documented in the comparison. |
 | Verify keyboard guards, sheet focus and Escape behavior, preference reset, and the experimental switch including an existing workspace with more than four panes. Remove unused StatusBar when the integration owner can safely update its file. | 7E | Deferred; existing suite does not specifically cover these behaviors. |
@@ -112,9 +112,9 @@ Light and dark populated network, CSV and error captures and comparisons are in 
 
 | Remaining work | Target phase | Status |
 | --- | --- | --- |
-| Connect the pure plot contract and G/Z/Y calculations to pane traces, per-port impedances, marker identities, settings and export. | 5E2�5E3 | Foundation only; legacy renderer remains active. |
-| Build and validate responsive grid, active-load display, interactions, linked frequency and readout; compare light and dark with the written specification and supplied reference. | 5E2�5E4 | No visual changes in 5E1; 2x reference pending. |
-| Handle the explicit ambiguous-boundary and singular numerical results in presentation, including series L/C and DC. | 5E3�5E4 | Numerical status is explicit; presentation and end-to-end behavior remain open. |
+| Connect the pure plot contract and G/Z/Y calculations to pane traces, per-port impedances, marker identities, settings and export. | 5E2–5E3 | Foundation only; legacy renderer remains active. |
+| Build and validate responsive grid, active-load display, interactions, linked frequency and readout; compare light and dark with the written specification and supplied reference. | 5E2–5E4 | No visual changes in 5E1; 2x reference pending. |
+| Handle the explicit ambiguous-boundary and singular numerical results in presentation, including series L/C and DC. | 5E3–5E4 | Numerical status is explicit; presentation and end-to-end behavior remain open. |
 
 ## Show in checklist follow-up
 
@@ -216,3 +216,17 @@ Evidence and the difference list: [analysis-evidence](analysis-evidence/README.m
 | Legacy analysis state still exists behind the new panel and is written to workspaces for the old reader: `analysisOpenState`, the six result maps, `savedNoise`, `savedIP3`, `ANALYSIS_ITEMS`, `use-analysis-target` registry parts, and ui fields `noiseFilter`, `noiseSource`, `ip3Gain`, `traceOpsOpenSections` | Analysis B3 | Deferred |
 | Highlight the `current` crossing row on the chart; Math output names follow their parameters; family colour for the output hue; card "Create trace" | Analysis B3 / 7C | Deferred |
 | The Data tab and the Import/Export card are gone (decisions 1 and 2); the Table pane is the first step of Phase 5 | Phase 5 | Decided |
+
+## Smith pane wired in (11 Nov): left out on purpose, to do later
+
+- **Marker dragging and right-click on Smith** (Add Δ, Delete…): add `onMarkerContextMenu` and a drag along the trace in `SmithPane`, then wire them in `SmithPaneContainer`.
+- **Trace symbols and sample dots on Smith** (the Samples toggle is hidden on Smith panes).
+- **Saved zoom:** the Smith view resets to fit when the pane remounts; lift `{ center, zoom }` into the pane settings if it should be saved.
+- **Decimation:** every sample is drawn; add min/max thinning if 20k-point traces show up on Smith.
+- **Z11 / Y11 on Smith:** greyed with "Smith shows reflections (S11, S22 …)" until a conversion to Γ exists (`impedanceToGamma`, `admittanceToGamma` are ready in `src/domain/smith/numerics.ts`).
+- **Unit-aware X link groups:** the app links all panes through the global `zoomAll` with no per-pane groups; the Smith band uses the shared zoom only when it overlaps the Smith traces' frequency span. The "panes start unlinked (11 Nov)" decision text is not in `design-decisions-2026-11-10.md`; the app still starts with `zoomAll: true`.
+- **Cartesian ghost crosshair from the Smith hover:** the Smith pane publishes its hover frequency, but Cartesian panes do not draw it yet.
+- **Tab / Shift+Tab to step Smith markers** (traps keyboard focus); the ‹ › buttons do it.
+- **Y-grid labels in Z + Y mode** (only the Z grid is labelled).
+- **Hover-update test:** a unit test that a hover update does not recompute the converted Smith traces (spy on the converter).
+
