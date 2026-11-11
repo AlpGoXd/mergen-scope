@@ -18,6 +18,7 @@ import { useMarkerState, useMarkerDispatch } from '../../stores/marker-store';
 import { useRefLineState, useRefLineDispatch } from '../../stores/ref-line-store';
 import { useUiState, useUiDispatch } from '../../stores/ui-store';
 import { useTraceState } from '../../stores/trace-store';
+import { useSharedHoverPublisher } from '../../stores/shared-hover-store';
 import { useTheme } from '../../hooks/use-theme';
 import { usePaneData } from '../../hooks/use-pane-data';
 import { useAnalysisOverlays } from '../../hooks/use-analysis-overlays';
@@ -54,7 +55,7 @@ import { LineCrossingsContext } from '../analysis/line-crossings-context';
 import { lineShowInChoices, linePaneAxisUnit, paneName } from '../../domain/line-view';
 import { formatCrossingValue, } from '../../domain/analysis/crossing-rows';
 import { EmptyChartPane, panePickerTiles } from './EmptyChartPane';
-import { SmithPane } from './SmithPane';
+import { rendererFor } from './pane-renderers';
 import { PaneSettingsPopover } from './PaneSettingsPopover';
 import { PaneActionsMenu } from './PaneActionsMenu';
 import { defaultPaneSettings } from '../../types/pane';
@@ -121,6 +122,8 @@ export function ChartPane({ paneId }: ChartPaneProps) {
   const { limit } = usePaneLimit();
   const importFiles = useFileImport();
   const { allTraces, allKnownTraces, allDisplayTraces, vis } = useTraceState();
+  const publishHover = useSharedHoverPublisher();
+  useEffect(() => () => publishHover(null, paneId), [publishHover, paneId]);
   const colorAssignments = useMemo(() => allocateTraceColors(allKnownTraces, new Map(Object.entries(traceHueSlots))), [allKnownTraces, traceHueSlots]);
   const { colors } = useTheme();
 
@@ -132,6 +135,12 @@ export function ChartPane({ paneId }: ChartPaneProps) {
   const settings = { ...defaultPaneSettings(), ...pane.settings };
 
   const [fitAnchor, setFitAnchor] = useState<HTMLElement | null>(null);
+  const [smithFitRequest, setSmithFitRequest] = useState(0);
+  useEffect(() => {
+    const fit = () => setSmithFitRequest(value => value + 1);
+    window.addEventListener('mergen-fit-all', fit);
+    return () => window.removeEventListener('mergen-fit-all', fit);
+  }, []);
   const [typeAnchor, setTypeAnchor] = useState<HTMLElement | null>(null);
   const [typeChange, setTypeChange] = useState<{ plan: TypeChangePlan; revision: number | undefined } | null>(null);
   const pendingType = typeChange?.plan ?? null;
@@ -154,6 +163,7 @@ export function ChartPane({ paneId }: ChartPaneProps) {
   }, []);
   const paneTypes = createPaneTypeRegistry({ smithCapability: trace => canRenderInPane({ trace, paneIds: [], displayTrace: allDisplayTraces.find(display => display.id === trace.id || display.id === trace.parameters?.['displayTraceId']) }, { ...pane, renderMode: 'smith' }) });
   const currentType = paneTypeOfMode(pane.renderMode);
+  const SmithRenderer = currentType === 'smith' ? rendererFor(currentType) : null;
   const tileFromTarget = (target: EventTarget | null): PickerTileId | null => {
     if (!(target instanceof Element)) return null;
     const tile = target.closest('.ptm-tile');
@@ -714,6 +724,8 @@ export function ChartPane({ paneId }: ChartPaneProps) {
     const freq = resolveEventFreq(e, true);
     if (freq == null || !Number.isFinite(freq)) return;
     setHoverFreq(freq);
+    const xUnit = paneTraces[0]?.units.x;
+    if (xUnit) publishHover({ paneId, xUnit, value: freq }, paneId);
 
     if (draggingMarkerIdx !== null) {
       const marker = markers[draggingMarkerIdx];
@@ -740,6 +752,7 @@ export function ChartPane({ paneId }: ChartPaneProps) {
 
   const handleMouseLeave = () => {
     setHoverFreq(null);
+    publishHover(null, paneId);
     lastPointerClientXRef.current = null;
     lastPointerClientYRef.current = null;
   };
@@ -1217,6 +1230,7 @@ export function ChartPane({ paneId }: ChartPaneProps) {
           {paneTraces.length > 0 && <div className="ph-fit" style={{ display: 'flex' }}>
             <Btn soft style={{ padding: '0.2rem 0.45rem', fontSize: 'var(--font-caption)', minHeight: 'auto', borderRadius: '6px 0 0 6px' }} title="Fit X and Y to traces" onClick={(e) => {
               e.stopPropagation();
+              if (isSmith) { setSmithFitRequest(value => value + 1); return; }
               if (zoomAll) paneDispatch({ type: 'SET_SHARED_ZOOM', payload: null });
               else paneDispatch({ type: 'SET_PANE_ZOOM', payload: { paneId, zoom: null } });
               paneDispatch({ type: 'SET_PANE_Y_ZOOM', payload: { paneId, zoom: null } });
@@ -1225,6 +1239,7 @@ export function ChartPane({ paneId }: ChartPaneProps) {
             {fitAnchor && (
               <PopoverAt label="Fit options" at={fitAnchor} onClose={() => setFitAnchor(null)}><div role="menu" aria-label="Fit options" onClick={e => e.stopPropagation()}>
                 {([['Fit All', () => {
+                  if (isSmith) { setSmithFitRequest(value => value + 1); return; }
                   if (zoomAll) paneDispatch({ type: 'SET_SHARED_ZOOM', payload: null });
                   else paneDispatch({ type: 'SET_PANE_ZOOM', payload: { paneId, zoom: null } });
                   paneDispatch({ type: 'SET_PANE_Y_ZOOM', payload: { paneId, zoom: null } });
@@ -1254,7 +1269,7 @@ export function ChartPane({ paneId }: ChartPaneProps) {
             <Btn className="ph-set-target" soft style={{ padding: '0.2rem 0.55rem', fontSize: 'var(--font-caption)', minHeight: 'auto' }} onClick={(e) => { e.stopPropagation(); paneDispatch({ type: 'SET_ACTIVE_PANE', payload: paneId }); }}>Set Target</Btn>
           )}
           {/* Settings popover */}
-          <Btn variant={settings.showSampleDots ? "armed" : "neutral"} tone="pane" small aria-label="Samples" aria-pressed={settings.showSampleDots} title="Show the measured sample points" data-testid="samples-toggle" onClick={e => { e.stopPropagation(); paneDispatch({ type: "SET_PANE_SETTINGS", payload: { paneId, patch: { showSampleDots: !settings.showSampleDots } } }); }}>Samples</Btn>
+          {!isSmith && <Btn variant={settings.showSampleDots ? "armed" : "neutral"} tone="pane" small aria-label="Samples" aria-pressed={settings.showSampleDots} title="Show the measured sample points" data-testid="samples-toggle" onClick={e => { e.stopPropagation(); paneDispatch({ type: "SET_PANE_SETTINGS", payload: { paneId, patch: { showSampleDots: !settings.showSampleDots } } }); }}>Samples</Btn>}
           <PaneSettingsPopover paneId={paneId} settings={settings} sections={paneTypes[currentType].settings} paneName={paneName(panes, paneId)} current={currentType} tiles={panePickerTiles(Object.values(paneTypes))} pending={pendingType} anchor={settingsAnchor} contentRef={settingsMenuRef} onAnchorChange={anchor => { setTypeChange(null); returnToTileRef.current = null; setTypeAnchor(null); setSettingsAnchor(anchor); if (anchor) typeTriggerRef.current = anchor; else { typeTriggerRef.current?.focus({ preventScroll: true }); typeTriggerRef.current = null; } }} onChoose={id => selectPaneType(paneTypes[id])} onConfirm={() => { if (pendingType) selectPaneType(paneTypes[pendingType.to], true); }} onCancel={cancelTypeChange} />
           <PaneActionsMenu onChangeChartType={() => { setTypeChange(null); setSettingsAnchor(null); setHoveredType(null); setFocusedType(null); typeTriggerRef.current = typeButtonRef.current; setTypeAnchor(typeButtonRef.current); }} />
         </div>
@@ -1263,8 +1278,8 @@ export function ChartPane({ paneId }: ChartPaneProps) {
 
       {/* overflow hidden: pane content must never paint over (and steal clicks from) the next pane's header */}
       <div onClick={() => { if (traceNamesInPane.length === 0 && !isActive) paneDispatch({ type: 'SET_ACTIVE_PANE', payload: paneId }); }} style={{ flex: 1, position: 'relative', minHeight: 0, overflow: 'hidden', containerType: 'size' }}>
-        {isSmith && traceNamesInPane.length > 0 ? (
-          <SmithPane paneId={paneId} traces={paneTraces} renderMode={pane.renderMode as 'smith' | 'smith-inverted'} />
+        {SmithRenderer && traceNamesInPane.length > 0 ? (
+          <SmithRenderer paneId={paneId} fitRequest={smithFitRequest} />
         ) : traceNamesInPane.length === 0 ? (
           <EmptyChartPane mode={allTraces.length > 0 ? 'traces' : 'files'} paneId={paneId} compact={panes.length > 2} types={Object.values(paneTypes)} currentType={currentType} displayState={displayState} paneNumber={panes.findIndex(item => item.id === paneId) + 1} onSelectType={selectPaneType} />
         ) : mergedData.length === 0 ? (

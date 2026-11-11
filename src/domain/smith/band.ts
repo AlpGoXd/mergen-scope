@@ -36,7 +36,10 @@ export function splitByBand(samples: readonly SmithSample[], band?: SmithBand | 
 
   let previous: SmithSample | null = null;
   for (const sample of samples) {
-    if (!finiteSample(sample)) { previous = null; current = null; continue; }
+    if (!finiteSample(sample)) {
+      if (previous && !current) runs.push({ inBand: inside(previous.frequencyHz), samples: [previous] });
+      previous = null; current = null; continue;
+    }
     if (!previous) {
       previous = sample;
       continue;
@@ -58,12 +61,7 @@ export function splitByBand(samples: readonly SmithSample[], band?: SmithBand | 
     previous = sample;
   }
 
-  // A trace of one finite sample still gets a run, so its end dot has a class.
-  if (runs.length === 0) {
-    const only = samples.filter(finiteSample);
-    const first = only[0];
-    if (only.length === 1 && first) return [{ inBand: inside(first.frequencyHz), samples: [first] }];
-  }
+  if (previous && !current) runs.push({ inBand: inside(previous.frequencyHz), samples: [previous] });
   return runs;
 }
 

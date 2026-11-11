@@ -23,6 +23,26 @@ it('accepts optional trace math alignment choices and rejects unknown choices', 
 });
 
 const fixture = (name: string): unknown => JSON.parse(readFileSync(`tests/fixtures/phase3-preservation/${name}.json`, 'utf8'));
+it('migrates Smith labels and inverted panes and validates current settings', () => {
+  const base = migrateWorkspaceV5(fixture('workspace-v4-eight-pane-extension'));
+  if (!base || !base.panes[0]) throw new Error('fixture');
+  const first = base.panes[0];
+  const withSmith = (labels: unknown, renderMode = first.renderMode) => ({ ...base, panes: base.panes.map((pane, index) => index ? pane : { ...pane, renderMode, typed: renderMode === 'smith-inverted' ? true : pane.typed, settings: { ...pane.settings, smith: { ...pane.settings.smith, labels } } }) });
+  expect(migrateWorkspaceV5(withSmith(true))?.panes[0]?.settings.smith.labels).toBe('normalised');
+  expect(migrateWorkspaceV5(withSmith(false))?.panes[0]?.settings.smith.labels).toBe('off');
+  expect(migrateWorkspaceV5(withSmith(undefined))?.panes[0]?.settings.smith.labels).toBe('normalised');
+  expect(migrateWorkspaceV5(withSmith('ohms'))?.panes[0]?.settings.smith.labels).toBe('ohms');
+  let state = initialWorkspaceState();
+  const smith = { ...state.panes.panes[0]?.settings.smith, grid: 'z' as const, labels: 'ohms' as const, direction: 'ends' as const, readout: ['z' as const] };
+  state = workspaceReducer(state, { slice: 'panes', limit: 4, action: { type: 'SET_PANE_SETTINGS', payload: { paneId: 'pane-1', patch: { smith } } } });
+  const saved = snapshotFromWorkspace(state);
+  expect(migrateWorkspaceV5(JSON.parse(JSON.stringify(saved)))?.panes[0]?.settings.smith).toEqual(smith);
+  expect(migrateWorkspaceV5(withSmith('invalid'))).toBeNull();
+  const inverted = migrateWorkspaceV5(withSmith(true, 'smith-inverted'))?.panes[0];
+  expect(inverted?.renderMode).toBe('smith');
+  expect(inverted?.settings.smith.grid).toBe('y');
+  expect(inverted?.settings.smith.readout[0]).toBe('y');
+});
 it('persists typed panes and derives missing types in older workspaces', () => {
   let state = initialWorkspaceState();
   state = workspaceReducer(state, { slice: 'panes', limit: 4, action: { type: 'SET_RENDER_MODE', payload: { paneId: 'pane-1', mode: 'cartesian' } } });

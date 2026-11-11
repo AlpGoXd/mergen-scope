@@ -9,9 +9,11 @@ it('distinguishes a duplicate from a new view or pane', () => {
   expect(planMatrixAdd({ ...input, view: 'Mag' }).kind).toBe('add');
   expect(planMatrixAdd({ ...input, targetPaneId: 'pane-2' }).kind).toBe('add');
   expect(planMatrixAdd({ ...input, targetPaneType: 'smith', col: 1 }).kind).toBe('refused');
+  expect(planMatrixAdd({ ...input, targetPaneType: 'smith', col: 1 })).toEqual({ kind: 'refused', reason: 'Smith shows reflections (S11, S22 …)' });
   expect(planMatrixAdd({ ...input, targetPaneType: 'smith', view: 'Mag' }).kind).toBe('duplicate');
+  expect(planMatrixAdd({ ...input, targetPaneType: 'smith', row: 1, col: 1 }).kind).toBe('add');
   for (const family of ['Z', 'Y'] as const) {
-    expect(planMatrixAdd({ ...input, family, targetPaneType: 'smith' }).kind).toBe('add');
+    expect(planMatrixAdd({ ...input, family, targetPaneType: 'smith' }).kind).toBe('refused');
     expect(planMatrixAdd({ ...input, family, row: 1, col: 1, targetPaneType: 'smith' }).kind).toBe('refused');
   }
   expect(matrixCellTraces(traces, 'S', 0, 0)).toHaveLength(1);

@@ -16,7 +16,7 @@ export function matrixCellTraces(traces: readonly MatrixTrace[], family: Touchst
 
 export function planMatrixAdd({ family, row, col, view, targetPaneId, targetPaneType, traces }: { family: TouchstoneFamily; row: number; col: number; view: TouchstoneView; targetPaneId: string; targetPaneType: string; traces: readonly MatrixTrace[] }) {
   const smith = targetPaneType === 'smith' || targetPaneType === 'smith-inverted';
-  if (smith && !smithParameterCapability(family, row, col).allowed) return { kind: 'refused' as const, reason: 'Smith panes show reflection (Sii) only' };
+  if (smith && !smithParameterCapability(family, row, col).allowed) return { kind: 'refused' as const, reason: 'Smith shows reflections (S11, S22 …)' };
   const duplicate = traces.find(trace => trace.family === family && trace.row === row && trace.col === col && (smith || trace.view === view) && trace.paneIds.includes(targetPaneId));
   if (duplicate) return { kind: 'duplicate' as const, traceName: duplicate.name };
   return { kind: 'add' as const, family, row, col, view, targetPaneId };

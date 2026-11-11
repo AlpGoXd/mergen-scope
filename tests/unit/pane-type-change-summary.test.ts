@@ -7,17 +7,21 @@ const plan = (memberships: PaneTypeChangePlan['memberships']): PaneTypeChangePla
 });
 
 describe('paneTypeCompatibilityNote', () => {
-  it('describes no compatible traces and uses the singular trace label', () => {
+  it('explains the Smith reflection restriction when no traces fit', () => {
     expect(paneTypeCompatibilityNote('Pane 1', 'Smith', 1, []))
-      .toBe('Pane 1 shows 1 trace. Smith cannot show any of them.');
+      .toBe('Smith shows reflections (S11, S22 …)');
   });
-  it('uses names for one or two compatible traces and a count for more', () => {
+  it('uses the common Smith reason for partially compatible sets', () => {
     expect(paneTypeCompatibilityNote('Pane 1', 'Smith', 3, ['S11']))
-      .toBe('Pane 1 shows 3 traces. Smith can only show S11 of them.');
+      .toBe('Smith shows reflections (S11, S22 …)');
     expect(paneTypeCompatibilityNote('Pane 1', 'Smith', 3, ['S11', 'S22']))
-      .toBe('Pane 1 shows 3 traces. Smith can only show S11 and S22 of them.');
+      .toBe('Smith shows reflections (S11, S22 …)');
     expect(paneTypeCompatibilityNote('Pane 1', 'Smith', 4, ['A', 'B', 'C']))
-      .toBe('Pane 1 shows 4 traces. Smith can only show 3 of them.');
+      .toBe('Smith shows reflections (S11, S22 …)');
+  });
+  it('retains generic summaries for other pane types', () => {
+    expect(paneTypeCompatibilityNote('Pane 1', 'Table', 1, [])).toBe('Pane 1 shows 1 trace. Table cannot show any of them.');
+    expect(paneTypeCompatibilityNote('Pane 1', 'Table', 3, ['A', 'B'])).toBe('Pane 1 shows 3 traces. Table can only show A and B of them.');
   });
   it('omits the note when all traces fit', () => {
     expect(paneTypeCompatibilityNote('Pane 1', 'Chart', 1, ['A'])).toBeUndefined();

@@ -32,15 +32,14 @@ export function planEmptyPaneType(registry: Readonly<Record<PaneTypeId, PaneType
   return { mode: choice.type?.renderMode ?? null, reason: choice.reason };
 }
 export function smithParameterCapability(family: string, row: number, col: number): PlacementResult {
-  if (!Number.isInteger(row) || row < 0 || row !== col) return { allowed: false, reason: 'Smith panes require a diagonal reflection parameter.' };
-  if (family !== 'S' && !((family === 'Y' || family === 'Z') && row === 0)) return { allowed: false, reason: 'Smith panes support Sii and converted Z11 or Y11.' };
+  if (family !== 'S' || !Number.isInteger(row) || row < 0 || row !== col) return { allowed: false, reason: 'Smith shows reflections (S11, S22 …)' };
   return { allowed: true };
 }
-/** Smith requires an explicitly complex diagonal S/Y/Z network projection. */
+/** Smith requires an explicitly complex diagonal S network projection. */
 export function canRenderInPane(entry: PlacementTrace, pane: PlacementPane): PlacementResult {
   if (pane.renderMode === 'cartesian' || pane.renderMode === 'table') return { allowed: true };
   const display = entry.displayTrace;
-  if (!display || (display.id !== entry.trace.id && entry.trace.parameters?.['displayTraceId'] !== display.id) || (display.compat?.legacyTraceName !== undefined && display.compat.legacyTraceName !== entry.trace.name) || (entry.trace.parameters?.['datasetId'] !== undefined && entry.trace.parameters['datasetId'] !== display.datasetId) || display.source.sourceType !== 'network-parameter') return { allowed: false, reason: 'Smith panes require the matching network trace.' };
+  if (!display || (display.id !== entry.trace.id && entry.trace.parameters?.['displayTraceId'] !== display.id) || (display.compat?.legacyTraceName !== undefined && display.compat.legacyTraceName !== entry.trace.name) || (entry.trace.parameters?.['datasetId'] !== undefined && entry.trace.parameters['datasetId'] !== display.datasetId) || display.source.sourceType !== 'network-parameter') return { allowed: false, reason: 'Smith shows reflections (S11, S22 …)' };
   const source = display.source;
   const parameter = smithParameterCapability(source.parameterFamily, source.row, source.col);
   if (!parameter.allowed) return parameter;

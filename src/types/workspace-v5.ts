@@ -16,7 +16,7 @@ export interface WorkspacePaneSettingsV5 extends PaneSettings {
   readonly showZeroLine: boolean;
   readonly smith: {
     readonly grid: 'z' | 'y' | 'both';
-    readonly labels: boolean;
+    readonly labels: 'normalised' | 'ohms' | 'off';
     readonly direction: 'chevrons' | 'ends' | 'off';
     readonly readout: readonly ('z' | 'y' | 'gamma' | 'vswr' | 'return-loss')[];
   };

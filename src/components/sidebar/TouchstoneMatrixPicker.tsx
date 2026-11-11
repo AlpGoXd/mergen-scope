@@ -34,7 +34,7 @@ export function TouchstoneMatrixPicker({ portCount, family, onToggle, view, disa
         const name = `${label(r + 1, c + 1)} · ${view}`;
         const action = plan.kind === 'duplicate' ? `${name} is already in ${targetPaneTitle}: click to show it` : `Add ${name} to ${targetPaneTitle}`;
         const tooltip = [reason ?? action, ...cell.map(item => `${label(r + 1, c + 1)} · ${item.view} · ${item.paneIds.map(paneTitle).join(', ') || 'Not in a pane'}`)].join('\n');
-        return <Tooltip key={key} text={tooltip}><button data-testid={`touchstone-cell-${family}${r + 1}${c + 1}`} type="button" role="gridcell" onClick={() => onToggle(r, c, view)} aria-label={action} disabled={!!reason}
+        return <Tooltip key={key} text={tooltip}><button data-testid={`touchstone-cell-${family}${r + 1}${c + 1}`} type="button" role="gridcell" onClick={() => onToggle(r, c, view)} aria-label={action} aria-disabled={!!reason || undefined} disabled={!!reason}
           title={reason ?? action}
           onKeyDown={event => { const delta = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : event.key === 'ArrowDown' ? portCount : event.key === 'ArrowUp' ? -portCount : 0; if (!delta) return; event.preventDefault(); const buttons = Array.from(event.currentTarget.closest('[data-matrix]')?.querySelectorAll<HTMLButtonElement>('button[data-testid]') ?? []); buttons[Math.max(0, Math.min(buttons.length - 1, r * portCount + c + delta))]?.focus(); }}
           className={`lp-cell${r === c ? ' is-diag' : ''}${portCount > 4 ? ' is-small' : ''}`}

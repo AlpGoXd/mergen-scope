@@ -1,5 +1,6 @@
 import React from 'react';
 import type { PaneSettings } from '../../types/pane';
+import type { SmithSettings } from '../../types/pane';
 import { usePaneDispatch } from '../../stores/pane-store';
 import { Btn } from '../shared/Btn';
 import { PopoverAt } from '../shared/Controls';
@@ -198,7 +199,7 @@ export function PaneSettingsPopover({
           </Section>
           {sections.length === 0 && <div>No settings for this pane type yet.</div>}
           {sections.includes('display') && <Section title="Display">
-            <Btn variant="chip" tone="pane" active={settings.showSampleDots} aria-pressed={settings.showSampleDots} aria-label="Samples" data-testid="sample-dots-toggle" style={{ width: '100%' }} onClick={() => patch({ showSampleDots: !settings.showSampleDots })}>Samples</Btn>
+            {current !== 'smith' && <Btn variant="chip" tone="pane" active={settings.showSampleDots} aria-pressed={settings.showSampleDots} aria-label="Samples" data-testid="sample-dots-toggle" style={{ width: '100%' }} onClick={() => patch({ showSampleDots: !settings.showSampleDots })}>Samples</Btn>}
             <Row label="Show markers">
               <Toggle checked={settings.showMarkers} onChange={v => patch({ showMarkers: v })} />
             </Row>
@@ -210,6 +211,25 @@ export function PaneSettingsPopover({
             </Row>
             <Row label="Line labels">
               <Toggle checked={settings.showLineLabels} onChange={v => patch({ showLineLabels: v })} />
+            </Row>
+          </Section>}
+
+          {sections.includes('smith') && <Section title="Smith">
+            {([
+              ['Grid', 'grid', [['z', 'Z'], ['y', 'Y'], ['both', 'Z + Y']]],
+              ['Labels', 'labels', [['normalised', 'Normalised'], ['ohms', 'Ohms'], ['off', 'Off']]],
+              ['Direction', 'direction', [['chevrons', 'Chevrons + ends'], ['ends', 'Ends'], ['off', 'Off']]],
+            ] as const).map(([label, key, options]) => <Row key={key} label={label}>
+              {options.map(([value, text]) => <Btn key={value} variant="chip" tone="pane" active={settings.smith[key] === value} aria-pressed={settings.smith[key] === value} onClick={() => patch({ smith: { ...settings.smith, [key]: value } })}>{text}</Btn>)}
+            </Row>)}
+            <Row label="Readout">
+              {([['z', 'Z'], ['y', 'Y'], ['gamma', '|Γ|∠'], ['vswr', 'VSWR'], ['return-loss', 'RL']] as const).map(([value, label]) => {
+                const selected = settings.smith.readout.includes(value);
+                return <Btn key={value} variant="chip" tone="pane" active={selected} aria-pressed={selected} onClick={() => {
+                  const readout: SmithSettings['readout'] = selected ? settings.smith.readout.filter(field => field !== value) : [...settings.smith.readout, value];
+                  patch({ smith: { ...settings.smith, readout } });
+                }}>{label}</Btn>;
+              })}
             </Row>
           </Section>}
 

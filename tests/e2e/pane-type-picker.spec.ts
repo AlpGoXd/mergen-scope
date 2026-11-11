@@ -22,11 +22,12 @@ test('empty picker has ordered actions and opens the chart empty state', async (
     await expect(tiles.nth(i)).toContainText(labels[i] ?? '');
     await expect(tiles.nth(i)).not.toHaveAttribute('aria-pressed', 'true');
   }
-  for (const label of ['Table', 'Smith', 'Polar', 'Spectrogram']) {
+  for (const label of ['Table', 'Polar', 'Spectrogram']) {
     const tile = pane.locator('.ptp-tile').filter({ hasText: label });
     await expect(tile).toHaveAttribute('aria-disabled', 'true');
     await expect(tile).toContainText(label === 'Spectrogram' ? 'needs data' : 'later');
   }
+  await expect(pane.locator('.ptp-tile').filter({ hasText: 'Smith' })).not.toHaveAttribute('aria-disabled', 'true');
   const header = page.getByTestId('chart-pane-header-pane-1');
   await expect(header).toContainText('Pane 1');
   await expect(header).toContainText('Empty');
@@ -79,6 +80,7 @@ test('settings starts with Chart type and more opens the chip popover', async ({
   const settings = page.locator('.ui-popover[aria-label="Pane 1 settings"]');
   await expect(settings.getByRole('heading').first()).toHaveText('Chart type');
   await expect(settings.getByRole('radio', { name: 'Chart' })).toHaveAttribute('aria-checked', 'true');
+  await expect(settings.getByRole('radio', { name: 'Smith' })).not.toHaveAttribute('aria-disabled', 'true');
   await expect(settings.getByRole('radio')).toHaveCount(5);
   await page.keyboard.press('Escape');
   await header.getByRole('button', { name: 'Pane actions' }).click();
@@ -161,7 +163,7 @@ test('header type popover is above neighbouring panes and closes on Escape', asy
   await expect(popup).toBeVisible();
   await expect(popup.getByRole('radio', { name: 'Chart' })).toBeFocused();
   await expect(popup.getByRole('radio')).toHaveCount(5);
-  await expect(popup.getByRole('radio', { name: 'Smith' })).toHaveAttribute('aria-disabled', 'true');
+  await expect(popup.getByRole('radio', { name: 'Smith' })).not.toHaveAttribute('aria-disabled', 'true');
   const neighbour = await page.getByTestId('chart-pane-pane-2').boundingBox();
   const popupBox = await popup.boundingBox();
   if (!neighbour || !popupBox) throw new Error('Pane or popover has no box');
@@ -173,14 +175,14 @@ test('header type popover is above neighbouring panes and closes on Escape', asy
   await expect(chip).toBeFocused();
 });
 
-test('hovering an unavailable type explains which traces fit', async ({ page }) => {
+test('hovering Smith explains which traces fit', async ({ page }) => {
   await page.goto('/app.html');
   await page.getByTestId('app-open-input').setInputFiles(resolve(process.cwd(), 'test files/cascade_ip3_-12dBm.DAT'));
   await expect(page.getByTestId('chart-plot-pane-1')).toBeVisible();
   await page.getByTestId('chart-pane-header-pane-1').getByRole('button', { name: 'Chart type: Chart. Change chart type' }).click();
   const popup = page.locator('.ui-popover[aria-label="Chart type"]');
   await popup.getByRole('radio', { name: 'Smith' }).hover();
-  await expect(popup.locator('.t-caption')).toHaveText(/^Pane 1 shows \d+ traces?\. Smith cannot show any of them\.$/);
+  await expect(popup.locator('.t-caption')).toHaveText('Smith shows reflections (S11, S22 …)');
 });
 
 

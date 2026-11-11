@@ -54,6 +54,11 @@ describe('Smith hit testing', () => {
     expect(hit?.distancePx).toBeCloseTo(100, 9);
     expect(samplesPath(broken)).toBe('M-0.5,0M0.5,0');
     expect(gammaAtFrequency(broken, 2e9)).toBeNull();
+    expect(splitByBand(broken)).toHaveLength(2);
+    expect(nearestTracePoint([{ traceId: 'a', samples: broken }], { x: 200, y: 200 }, viewport, 10)).toBeNull();
+    expect(nearestSample([{ traceId: 'a', samples: broken }], { x: 200, y: 200 }, viewport, 10)).toBeNull();
+    expect(frequencyAtPoint(broken, { x: 200, y: 200 }, viewport)).not.toBe(2e9);
+    expect(directionChevrons(broken, viewport)).toEqual([]);
   });
 
   it('finds Γ at a frequency for markers, without extrapolating', () => {

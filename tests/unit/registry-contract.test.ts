@@ -18,7 +18,7 @@ describe('Phase 3 registry contracts', () => {
     expect(resolveDataKind(makeTestTrace({ family: 'symbol' })).allowed).toBe(false);
   });
 
-  it('requires the Smith capability adapter and propagates its reason without implementing Smith rules here', () => {
+  it('uses the Smith capability adapter and provides the common refusal reason', () => {
     const smithCapability = (trace: Trace) => trace.name === 'eligible-network'
       ? { allowed: true as const }
       : { allowed: false as const, reason: 'Only eligible reflection data can use Smith.' };
@@ -29,7 +29,7 @@ describe('Phase 3 registry contracts', () => {
     expect(registry.smith.appliesTo(makeTestTrace({ family: 'network', name: 'eligible-network' }))).toEqual({ allowed: true });
     expect(registry.smith.appliesTo(makeTestTrace({ family: 'network' }))).toEqual({
       allowed: false,
-      reason: 'Only eligible reflection data can use Smith.',
+      reason: 'Smith shows reflections (S11, S22 …)',
     });
     expect(registry.chart.appliesTo(makeTestTrace({ family: 'iq' })).allowed).toBe(false);
   });

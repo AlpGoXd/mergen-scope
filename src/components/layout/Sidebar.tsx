@@ -308,7 +308,7 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
                           if (trace) apply({ slice: 'panes', limit, action: { type: 'ADD_MEMBERSHIP', payload: { trace, targetPaneId: paneId, allTraces: currentView.allKnownTraces, displayTraces: currentView.allDisplayTraces } } });
                         }
                         if (actions.length) aggregate.historyDispatch({ type: 'change', command: { slice: 'transaction', actions } });
-                      }} disabled={!aggregate || (smithTarget && pick !== 'All Sii')} title={smithTarget && pick !== 'All Sii' ? 'Smith panes show reflection (Sii) only' : !aggregate ? 'Batch actions require workspace history' : pick}>{pick === 'Lower' ? 'Lower \u25e3' : pick}</button>)}
+                      }} disabled={!aggregate || (smithTarget && pick !== 'All Sii')} title={smithTarget && pick !== 'All Sii' ? 'Smith shows reflections (S11, S22 …)' : !aggregate ? 'Batch actions require workspace history' : pick}>{pick === 'Lower' ? 'Lower \u25e3' : pick}</button>)}
                     </div>}
                       grid={<div style={{ marginLeft: file.touchstoneNetwork.portCount <= 2 ? 51 : 0, maxWidth: file.touchstoneNetwork.portCount <= 2 ? 168 : undefined }}><TouchstoneMatrixPicker
                       portCount={file.touchstoneNetwork.portCount}
@@ -319,7 +319,7 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
                       targetPaneType={targetPane?.renderMode ?? 'cartesian'}
                       targetPaneTitle={targetPane?.title || 'Pane 1'}
                       paneTitle={id => panes.find(pane => pane.id === id)?.title || id}
-                      disabledReason={(row, col) => smithTarget && planMatrixAdd({ family: activeFamily, row, col, view: matrixView, targetPaneId: activePaneId ?? 'pane-1', targetPaneType: targetPane?.renderMode ?? 'cartesian', traces: [] }).kind === 'refused' ? 'Smith panes show reflection (Sii) only' : (matrixView === 'VSWR' || matrixView === 'Return loss') && row !== col ? 'Reflection parameters only' : undefined}
+                      disabledReason={(row, col) => smithTarget && planMatrixAdd({ family: activeFamily, row, col, view: matrixView, targetPaneId: activePaneId ?? 'pane-1', targetPaneType: targetPane?.renderMode ?? 'cartesian', traces: [] }).kind === 'refused' ? 'Smith shows reflections (S11, S22 …)' : (matrixView === 'VSWR' || matrixView === 'Return loss') && row !== col ? 'Reflection parameters only' : undefined}
                       onToggle={toggleMatrix}
                     /></div>} />
                   </div>

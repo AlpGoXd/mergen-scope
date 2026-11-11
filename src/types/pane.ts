@@ -10,6 +10,12 @@
 
 /** How a chart pane renders its traces. */
 export type PaneRenderMode = "cartesian" | "smith" | "smith-inverted" | "table";
+export interface SmithSettings {
+  readonly grid: 'z' | 'y' | 'both';
+  readonly labels: 'normalised' | 'ohms' | 'off';
+  readonly direction: 'chevrons' | 'ends' | 'off';
+  readonly readout: readonly ('z' | 'y' | 'gamma' | 'vswr' | 'return-loss')[];
+}
 
 // ---------------------------------------------------------------------------
 // Pane settings
@@ -17,6 +23,7 @@ export type PaneRenderMode = "cartesian" | "smith" | "smith-inverted" | "table";
 
 /** Per-pane display and grid settings. */
 export interface PaneSettings {
+  smith: SmithSettings;
   // Grid
   gridMajor: boolean;
   gridMinor: boolean;          // state preserved; minor grid not supported by Recharts
@@ -36,6 +43,7 @@ export interface PaneSettings {
 
 export function defaultPaneSettings(): PaneSettings {
   return {
+    smith: { grid: 'z', labels: 'normalised', direction: 'chevrons', readout: ['z', 'gamma', 'vswr'] },
     gridMajor: true,
     gridMinor: false,
     gridMajorThickness: 1,

@@ -75,6 +75,7 @@ describe("workspace serialization", () => {
     expect(restored?.markers).toHaveLength(1);
     expect(restored?.refLines).toHaveLength(1);
     expect(restored?.traceAssignments[trace.name]).toBe("pane-1");
+    expect(restored?.panes[0]?.settings.smith.labels).toBe('normalised');
   });
 
   it("restores duplicated v4 data and writes a substantially smaller snapshot", () => {

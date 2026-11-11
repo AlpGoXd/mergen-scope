@@ -20,6 +20,7 @@ export interface DataKindDefinition {
 }
 
 export type PaneTypeId = 'chart' | 'table' | 'smith' | 'polar' | 'eye' | 'spectrogram';
+export type PaneSettingsSection = 'display' | 'grid' | 'smith' | 'table';
 
 export interface PaneTypeDefinition {
   readonly id: PaneTypeId;
@@ -29,7 +30,7 @@ export interface PaneTypeDefinition {
   readonly status: 'available' | 'later';
   readonly laterReason?: string;
   readonly iconKey: PaneTypeId;
-  readonly settings: readonly string[];
+  readonly settings: readonly PaneSettingsSection[];
   readonly renderMode: PaneRenderMode | null;
   readonly appliesTo: (trace: Trace) => Capability;
 }

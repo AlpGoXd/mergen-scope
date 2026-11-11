@@ -36,6 +36,13 @@ export function useKeyboard() {
 
       if (target && (target.isContentEditable || target.closest('input, textarea, select, button, [contenteditable="true"], [role="menu"], [role="menuitem"]'))) return;
 
+      if ((ev.key === ' ' || ev.key.toLowerCase() === 'f') && !ev.ctrlKey && !ev.metaKey && !ev.altKey) {
+        paneDispatch({ type: 'CLEAR_ALL_ZOOMS' });
+        window.dispatchEvent(new Event('mergen-fit-all'));
+        ev.preventDefault();
+        return;
+      }
+
       // Delete / Backspace: Remove selected marker
       if (ev.key === 'Delete' || ev.key === 'Backspace') {
         if (selectedMkrIdx >= 0 && markers[selectedMkrIdx]) {

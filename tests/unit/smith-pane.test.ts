@@ -132,4 +132,20 @@ describe('SmithPane', () => {
     show({ cursorFrequencyHz: 1.5e9 });
     expect(screen.getAllByTestId('smith-ghost')).toHaveLength(2);
   });
+
+  it('reports the clicked distance to the nearest sample', () => {
+    const onTraceClick = vi.fn();
+    show({ traces: [s11], onTraceClick });
+    const plot = screen.getByTestId('smith-plot');
+    fireEvent(plot, new MouseEvent('pointerdown', { bubbles: true, button: 0, clientX: 300, clientY: 200 }));
+    fireEvent(plot, new MouseEvent('pointerup', { bubbles: true, button: 0, clientX: 300, clientY: 200 }));
+    expect(onTraceClick).toHaveBeenCalledWith(expect.objectContaining({ traceId: 's11', sampleFrequencyHz: 1.5e9, sampleDistancePx: 0 }));
+  });
+
+  it('does not draw a marker whose frequency lies across a gap', () => {
+    const first = s11.samples[0], last = s11.samples[2];
+    if (!first || !last) throw new Error('fixture');
+    show({ traces: [{ ...s11, samples: [first, { frequencyHz: 1.5e9, gamma: { re: NaN, im: NaN } }, last] }], markers: [marker('gap', 1.5e9)], selectedMarkerId: 'gap' });
+    expect(screen.queryByTestId('smith-marker-gap')).toBeNull();
+  });
 });

@@ -33,9 +33,9 @@ export function createPaneTypeRegistry(
       appliesTo: scalarTraceCapability,
     },
     smith: {
-      id: 'smith', title: 'Smith', description: 'Smith: planned (separate build)',
-      status: 'later', laterReason: 'Planned, not built yet', iconKey: 'smith', settings: [], renderMode: 'smith',
-      appliesTo: adapters.smithCapability,
+      id: 'smith', title: 'Smith', description: 'Reflections (S11, S22 …) as impedance.',
+      status: 'available', iconKey: 'smith', settings: ['display', 'smith'], renderMode: 'smith',
+      appliesTo: trace => adapters.smithCapability(trace).allowed ? { allowed: true } : { allowed: false, reason: 'Smith shows reflections (S11, S22 …)' },
     },
     polar: {
       id: 'polar', title: 'Polar', description: 'Polar: planned, added when a data kind needs it',

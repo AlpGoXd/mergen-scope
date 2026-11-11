@@ -292,7 +292,7 @@ function validCurrent(body: Record<string, unknown>): boolean {
     for (const key of ['gridMajorOpacity','gridMinorOpacity']) if (!finite(settings[key]) || Number(settings[key]) < 0 || Number(settings[key]) > 1) return false;
     if (typeof settings.gridDashStyle !== 'string' || !object(settings.smith)) return false;
     const smith = settings.smith;
-    if (!['z','y','both'].includes(String(smith.grid)) || typeof smith.labels !== 'boolean' || !['chevrons','ends','off'].includes(String(smith.direction)) || !strings(smith.readout) || smith.readout.some(x => !['z','y','gamma','vswr','return-loss'].includes(x)) || new Set(smith.readout).size !== smith.readout.length) return false;
+    if (!['z','y','both'].includes(String(smith.grid)) || !['normalised','ohms','off'].includes(String(smith.labels)) || !['chevrons','ends','off'].includes(String(smith.direction)) || !strings(smith.readout) || smith.readout.some(x => !['z','y','gamma','vswr','return-loss'].includes(x)) || new Set(smith.readout).size !== smith.readout.length) return false;
   }
   const layout = body.layout;
   if (!['rows','columns','grid','one-side'].includes(String(layout.preset)) || !strings(layout.paneOrder) || layout.paneOrder.length !== paneIds.size || new Set(layout.paneOrder).size !== paneIds.size || layout.paneOrder.some(id => !paneIds.has(id)) || !object(layout.sizes) || Object.entries(layout.sizes).some(([id,value]) => !paneIds.has(id) || !finite(value) || value <= 0)) return false;
@@ -350,16 +350,24 @@ export function migrateWorkspaceV5(raw: unknown): WorkspaceSnapshotV5 | null {
   if (body.version === 5) {
     const paneOrder = Array.isArray(body.panes) ? body.panes.flatMap(pane => object(pane) && typeof pane.id === 'string' ? [pane.id] : []) : [];
     const refLines = migrateLines(body.refLines, paneOrder);
-    if (!refLines || !validCurrent({ ...body, refLines })) return null;
-    const snapshot = { ...body, refLines } as unknown as WorkspaceSnapshotV5;
+    const panes = Array.isArray(body.panes) ? body.panes.map(pane => {
+      if (!object(pane) || !object(pane.settings) || !object(pane.settings.smith)) return pane;
+      const smith = pane.settings.smith;
+      const labels = smith.labels === true || smith.labels === undefined ? 'normalised' : smith.labels === false ? 'off' : smith.labels;
+      const inverted = pane.renderMode === 'smith-inverted';
+      const readout = inverted && Array.isArray(smith.readout) ? ['y', ...smith.readout.filter(field => field !== 'y')] : smith.readout;
+      return { ...pane, renderMode: inverted ? 'smith' : pane.renderMode, settings: { ...pane.settings, smith: { ...smith, labels, ...(inverted ? { grid: 'y', readout } : {}) } } };
+    }) : body.panes;
+    if (!refLines || !validCurrent({ ...body, panes, refLines })) return null;
+    const snapshot = { ...body, panes, refLines } as unknown as WorkspaceSnapshotV5;
     // Browser preferences and other transient UI keys are not workspace state.
     const { traceColors, traceInterpolations, noiseFilter, noiseSource, ip3Gain } = snapshot.ui;
     const traceHueSlots = hueSlots(snapshot.ui.traceHueSlots);
     if (traceHueSlots === null) return null;
     const selectedRefLineId = selectedLineId(body.ui, body.refLines, refLines);
     const migrated = snapshot.analyses === undefined ? legacyAnalyses(snapshot) : {};
-    const panes = snapshot.panes.map(pane => ({ ...pane, typed: pane.typed === true || pane.renderMode !== 'cartesian' && pane.typed === undefined || Object.values(snapshot.traceAssignments).some(ids => ids.includes(pane.id)) }));
-    return { ...snapshot, panes, ...migrated, ...(snapshot.analyses ? { analyses: withoutLegacyLive(snapshot.analyses, snapshot.derivedTraces) } : {}), ui: { traceColors, traceHueSlots, traceInterpolations, noiseFilter, noiseSource, ip3Gain, ...(selectedRefLineId !== undefined ? { selectedRefLineId } : {}) } };
+    const typedPanes = snapshot.panes.map(pane => ({ ...pane, typed: pane.typed === true || pane.renderMode !== 'cartesian' && pane.typed === undefined || Object.values(snapshot.traceAssignments).some(ids => ids.includes(pane.id)) }));
+    return { ...snapshot, panes: typedPanes, ...migrated, ...(snapshot.analyses ? { analyses: withoutLegacyLive(snapshot.analyses, snapshot.derivedTraces) } : {}), ui: { traceColors, traceHueSlots, traceInterpolations, noiseFilter, noiseSource, ip3Gain, ...(selectedRefLineId !== undefined ? { selectedRefLineId } : {}) } };
   }
   try {
     let normalized = migrateWorkspaceSnapshot(body);
@@ -409,11 +417,12 @@ export function migrateWorkspaceV5(raw: unknown): WorkspaceSnapshotV5 | null {
       const s = object(p.settings) ? p.settings : {};
       const smith = object(s.smith) ? s.smith : {};
       const defaults = defaultPaneSettings();
+      const readout = Array.isArray(smith.readout) ? smith.readout.filter((x): x is 'z' | 'y' | 'gamma' | 'vswr' | 'return-loss' => ['z','y','gamma','vswr','return-loss'].includes(x)) : defaults.smith.readout;
       const bool = (key: keyof typeof defaults): boolean => typeof s[key] === 'boolean' ? s[key] as boolean : defaults[key] as boolean;
       const bounded = (key: keyof typeof defaults, min: number, max: number): number => finite(s[key]) && Number(s[key]) >= min && Number(s[key]) <= max ? Number(s[key]) : defaults[key] as number;
       return {
         id: String(p.id), title: typeof p.title === 'string' ? p.title : '',
-        renderMode: p.renderMode === 'smith' || p.renderMode === 'smith-inverted' || p.renderMode === 'table' ? p.renderMode : 'cartesian',
+        renderMode: p.renderMode === 'smith-inverted' ? 'smith' : p.renderMode === 'smith' || p.renderMode === 'table' ? p.renderMode : 'cartesian',
         typed: typeof p.typed === 'boolean' ? p.typed : p.renderMode === 'smith' || p.renderMode === 'smith-inverted' || p.renderMode === 'table',
         xLinkGroup: typeof p.xLinkGroup === 'string' ? p.xLinkGroup : null,
         settings: {
@@ -427,10 +436,10 @@ export function migrateWorkspaceV5(raw: unknown): WorkspaceSnapshotV5 | null {
           showReadoutNames: typeof s.showReadoutNames === 'boolean' ? s.showReadoutNames : true,
           showZeroLine: typeof s.showZeroLine === 'boolean' ? s.showZeroLine : true,
           smith: {
-            grid: smith.grid === 'y' || smith.grid === 'both' ? smith.grid : 'z',
-            labels: typeof smith.labels === 'boolean' ? smith.labels : true,
+            grid: p.renderMode === 'smith-inverted' ? 'y' : smith.grid === 'y' || smith.grid === 'both' ? smith.grid : 'z',
+            labels: smith.labels === false || smith.labels === 'off' ? 'off' : smith.labels === 'ohms' ? 'ohms' : 'normalised',
             direction: smith.direction === 'ends' || smith.direction === 'off' ? smith.direction : 'chevrons',
-            readout: Array.isArray(smith.readout) ? smith.readout.filter((x): x is 'z' | 'y' | 'gamma' | 'vswr' | 'return-loss' => ['z','y','gamma','vswr','return-loss'].includes(x)) : ['z','gamma'],
+            readout: p.renderMode === 'smith-inverted' ? ['y', ...readout.filter(field => field !== 'y')] : readout,
           },
         },
       };

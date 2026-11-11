@@ -44,6 +44,7 @@ export interface SmithTraceClick {
   readonly frequencyHz: number;
   /** Frequency of the measured sample nearest to the click. */
   readonly sampleFrequencyHz: number;
+  readonly sampleDistancePx?: number;
 }
 
 export interface SmithPaneProps {
@@ -295,8 +296,8 @@ export function SmithPane({
     if (!onTraceClick) return;
     const hit = nearestTracePoint(traces, point, viewport, CLICK_REACH_PX);
     if (!hit) return;
-    const sample = nearestSample(traces.filter(trace => trace.traceId === hit.traceId), hit.point, viewport);
-    onTraceClick({ traceId: hit.traceId, frequencyHz: hit.frequencyHz, sampleFrequencyHz: sample?.frequencyHz ?? hit.frequencyHz });
+    const sample = nearestSample(traces.filter(trace => trace.traceId === hit.traceId), point, viewport);
+    onTraceClick({ traceId: hit.traceId, frequencyHz: hit.frequencyHz, sampleFrequencyHz: sample?.frequencyHz ?? hit.frequencyHz, ...(sample ? { sampleDistancePx: sample.distancePx } : {}) });
   };
   const onKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>): void => {
     if (event.ctrlKey || event.metaKey || event.altKey) return;

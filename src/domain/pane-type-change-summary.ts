@@ -2,6 +2,7 @@ import type { PaneTypeChangePlan } from './pane-placement';
 
 export function paneTypeCompatibilityNote(pane: string, type: string, total: number, accepted: readonly string[]): string | undefined {
   if (accepted.length >= total) return undefined;
+  if (type === 'Smith') return 'Smith shows reflections (S11, S22 …)';
   const prefix = `${pane} shows ${total} ${total === 1 ? 'trace' : 'traces'}. ${type}`;
   if (accepted.length === 0) return `${prefix} cannot show any of them.`;
   const names = accepted.length <= 2 ? accepted.join(' and ') : String(accepted.length);
