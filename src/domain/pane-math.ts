@@ -56,6 +56,7 @@ export function clonePane(pane: Pane | null | undefined, _index: number): Pane |
     id: pane.id,
     title: pane.title || '',
     renderMode: normalizePaneRenderMode(pane.renderMode),
+    typed: pane.typed ?? false,
     settings: {
       ...defaultPaneSettings(),
       ...(pane.settings ?? {}),
@@ -88,6 +89,7 @@ export function buildPanes(
       id,
       title: prev?.title ?? '',
       renderMode: normalizePaneRenderMode(prev?.renderMode),
+      typed: prev?.typed ?? false,
       settings: {
         ...defaultPaneSettings(),
         ...(prev?.settings ?? {}),
@@ -128,6 +130,7 @@ export function normalizePanes(
       id: pane.id,
       title: prev?.title ?? pane.title,
       renderMode: normalizePaneRenderMode(prev?.renderMode ?? pane.renderMode),
+      typed: prev?.typed ?? pane.typed,
       settings: {
         ...defaultPaneSettings(),
         ...(prev?.settings ?? pane.settings ?? {}),

@@ -283,6 +283,8 @@ function validCurrent(body: Record<string, unknown>): boolean {
   const paneIds = new Set<string>();
   for (const pane of body.panes) {
     if (!object(pane) || typeof pane.id !== 'string' || !pane.id || paneIds.has(pane.id) || typeof pane.title !== 'string' || !['cartesian','smith','smith-inverted','table'].includes(String(pane.renderMode)) || !(pane.xLinkGroup === null || typeof pane.xLinkGroup === 'string') || !object(pane.settings)) return false;
+    if (pane.typed !== undefined && typeof pane.typed !== 'boolean') return false;
+    if (pane.typed === false && pane.renderMode !== 'cartesian') return false;
     paneIds.add(pane.id);
     const settings = pane.settings;
     for (const key of ['gridMajor','gridMinor','showMarkers','showReferenceLines','showLineLabels','showMarkerLabels','showSampleDots','showReadoutNames','showZeroLine']) if (typeof settings[key] !== 'boolean') return false;
@@ -356,7 +358,8 @@ export function migrateWorkspaceV5(raw: unknown): WorkspaceSnapshotV5 | null {
     if (traceHueSlots === null) return null;
     const selectedRefLineId = selectedLineId(body.ui, body.refLines, refLines);
     const migrated = snapshot.analyses === undefined ? legacyAnalyses(snapshot) : {};
-    return { ...snapshot, ...migrated, ...(snapshot.analyses ? { analyses: withoutLegacyLive(snapshot.analyses, snapshot.derivedTraces) } : {}), ui: { traceColors, traceHueSlots, traceInterpolations, noiseFilter, noiseSource, ip3Gain, ...(selectedRefLineId !== undefined ? { selectedRefLineId } : {}) } };
+    const panes = snapshot.panes.map(pane => ({ ...pane, typed: pane.typed === true || pane.renderMode !== 'cartesian' && pane.typed === undefined || Object.values(snapshot.traceAssignments).some(ids => ids.includes(pane.id)) }));
+    return { ...snapshot, panes, ...migrated, ...(snapshot.analyses ? { analyses: withoutLegacyLive(snapshot.analyses, snapshot.derivedTraces) } : {}), ui: { traceColors, traceHueSlots, traceInterpolations, noiseFilter, noiseSource, ip3Gain, ...(selectedRefLineId !== undefined ? { selectedRefLineId } : {}) } };
   }
   try {
     let normalized = migrateWorkspaceSnapshot(body);
@@ -411,6 +414,7 @@ export function migrateWorkspaceV5(raw: unknown): WorkspaceSnapshotV5 | null {
       return {
         id: String(p.id), title: typeof p.title === 'string' ? p.title : '',
         renderMode: p.renderMode === 'smith' || p.renderMode === 'smith-inverted' || p.renderMode === 'table' ? p.renderMode : 'cartesian',
+        typed: typeof p.typed === 'boolean' ? p.typed : p.renderMode === 'smith' || p.renderMode === 'smith-inverted' || p.renderMode === 'table',
         xLinkGroup: typeof p.xLinkGroup === 'string' ? p.xLinkGroup : null,
         settings: {
           gridMajor: bool('gridMajor'), gridMinor: bool('gridMinor'),
@@ -464,7 +468,7 @@ export function migrateWorkspaceV5(raw: unknown): WorkspaceSnapshotV5 | null {
     if (body.analyses !== undefined && !validAnalyses(body.analyses, legacy.derivedTraces)) return null;
     if (body.droppedViews !== undefined && (!Number.isSafeInteger(body.droppedViews) || Number(body.droppedViews) < 0)) return null;
     const snapshot: WorkspaceSnapshotV5 = {
-      ...base, version: 5, panes, traceAssignments, paneActiveTraceMap, refLines,
+      ...base, version: 5, panes: panes.map(pane => ({ ...pane, typed: pane.typed || Object.values(traceAssignments).some(ids => ids.includes(pane.id)) })), traceAssignments, paneActiveTraceMap, refLines,
       analysisResults: {
         noiseResults: object(results.noiseResults) ? results.noiseResults as WorkspaceSnapshotV5['analysisResults']['noiseResults'] : {},
         ip3Results: object(results.ip3Results) ? results.ip3Results as WorkspaceSnapshotV5['analysisResults']['ip3Results'] : {},

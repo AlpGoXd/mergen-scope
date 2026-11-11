@@ -3,6 +3,9 @@ import type { PaneSettings } from '../../types/pane';
 import { usePaneDispatch } from '../../stores/pane-store';
 import { Btn } from '../shared/Btn';
 import { PopoverAt } from '../shared/Controls';
+import { ChartTypeTiles, PaneTypeMenu } from '../panes/PaneTypeMenu';
+import type { TypeChangePlan } from '../panes/PaneTypeMenu';
+import type { PickerTile, PickerTileId } from '../panes/PaneTypePicker';
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -11,7 +14,7 @@ import { PopoverAt } from '../shared/Controls';
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div style={{ marginBottom: 10 }}>
-      <div style={{
+      <div role="heading" aria-level={3} style={{
         fontSize: '10px',
         fontWeight: 700,
         textTransform: 'uppercase',
@@ -120,12 +123,31 @@ export function PaneSettingsPopover({
   paneId,
   settings,
   sections,
+  paneName,
+  current,
+  tiles,
+  pending,
+  anchor,
+  onAnchorChange,
+  onChoose,
+  onConfirm,
+  onCancel,
+  contentRef,
 }: {
   paneId: string;
   settings: PaneSettings;
   sections: readonly string[];
+  paneName: string;
+  current: PickerTileId | 'eye';
+  tiles: readonly PickerTile[];
+  pending: TypeChangePlan | null;
+  anchor: HTMLElement | null;
+  onAnchorChange: (anchor: HTMLElement | null) => void;
+  onChoose: (id: PickerTileId) => void;
+  onConfirm: () => void;
+  onCancel: () => void;
+  contentRef: React.RefObject<HTMLDivElement | null>;
 }) {
-  const [anchor, setAnchor] = React.useState<HTMLElement | null>(null);
   const paneDispatch = usePaneDispatch();
 
   const patch = (p: Partial<PaneSettings>) =>
@@ -150,13 +172,14 @@ export function PaneSettingsPopover({
         aria-expanded={anchor !== null}
         style={{ padding: '0.2rem 0.45rem', fontSize: 'var(--font-caption)', minHeight: 'auto' }}
         title="Pane settings"
-        onClick={(e) => { e.stopPropagation(); setAnchor(anchor ? null : e.currentTarget); }}
+        onClick={(e) => { e.stopPropagation(); onAnchorChange(anchor ? null : e.currentTarget); }}
       >
         ⚙
       </Btn>
 
-      {anchor && <PopoverAt label={`Pane ${paneNum} settings`} at={anchor} onClose={() => setAnchor(null)}>
+      {anchor && <PopoverAt label={`Pane ${paneNum} settings`} at={anchor} onClose={() => onAnchorChange(null)}>
         <div
+          ref={contentRef}
           style={{
             background: 'var(--card)',
             padding: '12px 14px',
@@ -165,10 +188,14 @@ export function PaneSettingsPopover({
           }}
           onClick={e => e.stopPropagation()}
         >
+          {pending ? <PaneTypeMenu paneName={paneName} current={current} tiles={tiles} pending={pending} onChoose={onChoose} onConfirm={onConfirm} onCancel={onCancel} /> : <>
           <div style={{ fontWeight: 600, marginBottom: 12, fontSize: 'var(--font-label)', color: 'var(--text)' }}>
             Pane {paneNum} Settings
           </div>
 
+          <Section title="Chart type">
+            {current === 'eye' ? <span className="t-label">This pane belongs to the Eye diagram card on CH1.</span> : <ChartTypeTiles paneName={paneName} current={current} tiles={tiles} onChoose={onChoose} />}
+          </Section>
           {sections.length === 0 && <div>No settings for this pane type yet.</div>}
           {sections.includes('display') && <Section title="Display">
             <Btn variant="chip" tone="pane" active={settings.showSampleDots} aria-pressed={settings.showSampleDots} aria-label="Samples" data-testid="sample-dots-toggle" style={{ width: '100%' }} onClick={() => patch({ showSampleDots: !settings.showSampleDots })}>Samples</Btn>
@@ -209,6 +236,7 @@ export function PaneSettingsPopover({
               </select>
             </Row>
           </Section>}
+          </>}
         </div>
       </PopoverAt>}
     </div>

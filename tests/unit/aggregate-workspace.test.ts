@@ -89,15 +89,6 @@ describe('aggregate workspace transitions', () => {
     expect(engine.present.panes.tracePaneMap.scalar).toEqual(['pane-1']);
     expect(engine.present.panes.panes[0]?.renderMode).toBe('cartesian');
   });
-  it('keeps pane selection transient across snapshots and undo', () => {
-    let engine = initialWorkspaceEngine();
-    engine = workspaceEngineReducer(engine, { type: 'change', command: { slice: 'panes', limit: 4, action: { type: 'SET_PANE_COUNT', payload: 2 } } });
-    engine = workspaceEngineReducer(engine, { type: 'change', command: { slice: 'ui', action: { type: 'SET', payload: { key: 'paneTypeChosen', value: { 'pane-1': true } } } } });
-    expect(snapshotFromWorkspace(engine.present)?.ui).not.toHaveProperty('paneTypeChosen');
-    engine = workspaceEngineReducer(engine, { type: 'undo' });
-    expect(engine.present.ui.paneTypeChosen['pane-1']).toBe(true);
-    expect(engine.present.panes.panes).toHaveLength(1);
-  });
   it('rejects stale confirmation and accepts the current revision in one undo step', () => {
     let engine = initialWorkspaceEngine();
     const revision = engine.present.revision;
@@ -112,15 +103,5 @@ describe('aggregate workspace transitions', () => {
     expect(engine.history.past).toHaveLength(count + 1);
     engine = workspaceEngineReducer(engine, { type: 'undo' });
     expect(engine.present.panes).toEqual(before);
-  });
-  it('clears chosen pane types when loading a workspace with reused pane IDs', () => {
-    let engine = initialWorkspaceEngine();
-    const snapshot = snapshotFromWorkspace(engine.present); if (!snapshot) throw Error('snapshot');
-    engine = workspaceEngineReducer(engine, { type: 'change', command: { slice: 'ui', action: { type: 'SET', payload: { key: 'paneTypeChosen', value: { 'pane-1': true } } } } });
-    engine = workspaceEngineReducer(engine, { type: 'change', command: { slice: 'load', snapshot, legacy: false } });
-    expect(engine.present.ui.paneTypeChosen).toEqual({});
-    expect(snapshotFromWorkspace(engine.present)?.ui).not.toHaveProperty('paneTypeChosen');
-    engine = workspaceEngineReducer(engine, { type: 'undo' }); expect(engine.present.ui.paneTypeChosen).toEqual({});
-    engine = workspaceEngineReducer(engine, { type: 'redo' }); expect(engine.present.ui.paneTypeChosen).toEqual({});
   });
 });

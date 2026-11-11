@@ -18,7 +18,10 @@
 .ptp[data-size="M"] .ptp-grid { gap: 10px; }
 .ptp[data-size="S"] .ptp-grid { gap: 8px; }
 .ptp[data-size="I"] .ptp-grid { grid-template-columns: repeat(3, 34px); gap: 6px; }
-.ptp-cell, .ptp-cell > .ui-tooltip-anchor { display: flex; min-width: 0; }
+/* Every cell is the same width: the tooltip wrapper (disabled tiles) must stretch like a plain button. */
+.ptp-cell { display: flex; min-width: 0; }
+.ptp-cell > .ui-tooltip-anchor { display: flex; flex: 1; min-width: 0; }
+.ptp-cell > .ui-tooltip-anchor > .ptp-tile { flex: 1; }
 
 /* A tile is a neutral button. Icon on its own line ABOVE the name (L, M); icon left of the name (S); icon only (I). */
 .ptp-tile {
@@ -42,10 +45,10 @@
 .ptp-tile[aria-disabled="true"]:hover { border-color: var(--border); }
 /* Open file: dashed, transparent. */
 .ptp-tile--action { border-style: dashed; border-color: var(--border-strong); background: transparent; }
-.ptp-foot { margin-top: 2px; }
 
-/* ---------- header "pane type" chip ---------- */
-/* Sits right after the pane name: "Pane 1  [chart] Chart  3 traces …". Neutral small control, no ▾. */
+/* ---------- header "Chart type" control ---------- */
+/* Sits right after the pane name: "Pane 1  [Chart type  (icon) Chart]  3 traces …". One neutral small control, no ▾.
+   The muted prefix "Chart type" says what it is; it is the first thing to go when the header narrows. */
 .ptc {
   flex: none; height: var(--control-sm-height); display: inline-flex; align-items: center; gap: 5px; padding: 0 7px;
   border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--raised); color: var(--text);
@@ -54,12 +57,18 @@
 .ptc:hover { border-color: var(--border-strong); }
 .ptc[aria-expanded="true"] { background: var(--slate-fill); border-color: var(--slate-line); color: var(--slate-ink); }
 .ptc:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ptc-prefix { color: var(--text-muted); padding-right: 5px; margin-right: 1px; border-right: 1px solid var(--border); }
+.ptc[aria-expanded="true"] .ptc-prefix { color: inherit; border-right-color: var(--slate-line); }
+.ptc-label { font-weight: 600; }
 .ptc[data-compact] { width: calc(var(--control-sm-height) + 2px); padding: 0; justify-content: center; }
 
-/* ---------- pane-type popover content (inside .ui-popover) ---------- */
+/* ---------- Chart type popover content (inside .ui-popover), also used as the first section of Pane settings ---------- */
+.pts { display: flex; flex-direction: column; gap: 6px; }
 .ptm { display: flex; flex-direction: column; gap: 8px; padding: 10px; width: 360px; max-width: calc(100vw - 16px); box-sizing: border-box; }
 .ptm-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
-.ptm-cell, .ptm-cell > .ui-tooltip-anchor { display: flex; min-width: 0; }
+.ptm-cell { display: flex; min-width: 0; }
+.ptm-cell > .ui-tooltip-anchor { display: flex; flex: 1; min-width: 0; }
+.ptm-cell > .ui-tooltip-anchor > .ptm-tile { flex: 1; }
 .ptm-tile {
   flex: 1; min-width: 0; height: 34px; display: flex; align-items: center; gap: 7px; padding: 0 8px;
   border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--raised); color: var(--text);

@@ -69,7 +69,7 @@ export function buildSnapshot(args: BuildSnapshotArgs): WorkspaceSnapshot {
     derivedTraces: [...args.derivedTraces],
     vis: { ...args.vis },
     paneMode: args.paneMode,
-    panes: [...args.panes],
+    panes: args.panes.map(pane => ({ ...pane, typed: pane.typed })),
     paneRenderModes: { ...args.paneRenderModes },
     activePaneId: args.activePaneId,
     traceAssignments: { ...args.traceAssignments },

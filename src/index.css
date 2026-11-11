@@ -276,9 +276,8 @@ table {
 .ph .ph-title { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ph-count { font-size: var(--font-caption); line-height: var(--lh-caption); color: var(--text-muted); }
 @container (max-width: 520px) { .ph .ph-scale { display: none; } }
-@container (max-width: 400px) { .ph .ph-count, .ph .ph-set-target { display: none; } }
-@container (max-width: 400px) { .ph .ph-move { display: none; } }
-@container (max-width: 400px) { .ph .ph-fit { display: none !important; } }
+@container (max-width: 520px) { .ph .ph-set-target, .ph .ph-move { display: none; } .ph .ph-fit { display: none !important; } }
+@container (max-width: 400px) { .ph .ph-count { display: none; } }
 .pane-type-tile { width: 96px; min-height: 88px; }
 @container (max-height: 220px) {
   .pane-type-tiles { flex-wrap: nowrap !important; }

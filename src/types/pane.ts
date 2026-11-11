@@ -65,6 +65,7 @@ export interface Pane {
 
   /** Rendering mode for this pane. */
   readonly renderMode: PaneRenderMode;
+  readonly typed: boolean;
 
   /** Per-pane display and grid settings. */
   readonly settings: PaneSettings;

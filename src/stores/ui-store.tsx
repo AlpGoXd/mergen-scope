@@ -4,7 +4,6 @@ import type { TraceColorAssignment } from '../domain/trace-palette';
 import { readAppPreferences } from '../components/settings/app-preferences';
 
 export interface UiState extends WorkspaceUiState {
-  paneTypeChosen: Record<string, boolean>;
   traceHueSlots: Readonly<Record<string, TraceColorAssignment>>;
   huePalette: 'standard' | 'colour-blind';
   vis: Record<string, boolean>;
@@ -62,7 +61,6 @@ export const defaultUiState: UiState = {
   ip3Gain: '',
   dtTrace: null,
   traceColors: {},
-  paneTypeChosen: {},
   traceHueSlots: {},
   huePalette: 'standard',
   traceInterpolations: {},

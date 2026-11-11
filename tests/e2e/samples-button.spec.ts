@@ -23,7 +23,7 @@ test('header Samples stays in sync, supports undo and remains visible', async ({
   await page.keyboard.press('Escape');
   await page.keyboard.press('4');
   const header = page.getByTestId('chart-pane-header-pane-1');
-  const typeChip = header.getByRole('button', { name: 'Pane type: Chart' });
+  const typeChip = header.getByRole('button', { name: 'Chart type: Chart. Change chart type' });
   const initial = await header.boundingBox();
   await page.addStyleTag({ content: '[data-testid="chart-pane-header-pane-1"] { width: 480px; box-sizing: border-box; }' });
   await expect(header.locator('.ph-scale').first()).toBeHidden();
@@ -33,10 +33,15 @@ test('header Samples stays in sync, supports undo and remains visible', async ({
   await expect(header.locator('.ph-count')).toBeHidden();
   await expect(typeChip).not.toHaveAttribute('data-compact', 'true');
   await page.addStyleTag({ content: '[data-testid="chart-pane-header-pane-1"] { width: 330px; box-sizing: border-box; }' });
+  await expect(typeChip.locator('.ptc-prefix')).toHaveCount(0);
+  await expect(typeChip.locator('.ptc-label')).toHaveText('Chart');
+  await expect(typeChip).not.toHaveAttribute('data-compact', 'true');
+  await page.addStyleTag({ content: '[data-testid="chart-pane-header-pane-1"] { width: 280px; box-sizing: border-box; }' });
   await expect(typeChip).toHaveAttribute('data-compact', 'true');
+  await expect(typeChip.locator('.ptc-label')).toHaveCount(0);
   const h = await header.boundingBox();
   expect(h).not.toBeNull();
-  expect(h?.width).toBeCloseTo(330, 0);
+  expect(h?.width).toBeCloseTo(280, 0);
   expect(h?.height).toBe(initial?.height);
   expect(await header.evaluate(el => getComputedStyle(el).flexWrap)).toBe('nowrap');
   for (const control of [typeChip, button, pane.getByTitle('Pane settings'), pane.getByRole('button', { name: 'Pane actions' })]) {

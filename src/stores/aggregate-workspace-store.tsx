@@ -82,7 +82,6 @@ export function restoreWorkspaceMemento(state: WorkspaceState, memento: Workspac
 /** Build a portable v5 snapshot from the actual live slices, never a history memento. */
 export function snapshotFromWorkspace(state: WorkspaceState): WorkspaceSnapshotV5 | null {
   const { files, traces, panes, markers, lines, analysis, ui } = state;
-  const { paneTypeChosen: _paneTypeChosen, ...portableUi } = ui;
   const paneIds = panes.panes.map(p => p.id);
   const layout = {...state.layout, paneOrder: [...state.layout.paneOrder.filter(id => paneIds.includes(id)), ...paneIds.filter(id => !state.layout.paneOrder.includes(id))], sizes: Object.fromEntries(Object.entries(state.layout.sizes).filter(([id]) => paneIds.includes(id)))};
   const body = {
@@ -91,7 +90,7 @@ export function snapshotFromWorkspace(state: WorkspaceState): WorkspaceSnapshotV
     derivedTraces: traces.derivedTraces, vis: traces.vis, panes: panes.panes, paneMode: panes.panes.length,
     activePaneId: panes.activePaneId, traceAssignments: panes.tracePaneMap, paneActiveTraceMap: panes.paneActiveTraceMap,
     xZoomState: {zoomAll:panes.zoomAll,sharedZoom:panes.sharedZoom,paneXZooms:panes.paneXZooms}, yZoomState:{paneYZooms:panes.paneYZooms},
-    markers:markers.markers, refLines:lines.refLines, ui:{...portableUi, selectedRefLineId:lines.selectedRefLineId}, analysisOpenState:analysis.analysisOpenState, analyses:analysis.analyses,
+    markers:markers.markers, refLines:lines.refLines, ui:{...ui, selectedRefLineId:lines.selectedRefLineId}, analysisOpenState:analysis.analysisOpenState, analyses:analysis.analyses,
     analysisResults: {noiseResults:analysis.noiseResults,ip3Results:analysis.ip3Results,peakResults:analysis.peakResults,bandwidthResults:analysis.bandwidthResults,rippleResults:analysis.rippleResults,rangeStatsResults:analysis.rangeStatsResults},
     savedNoise:[], savedIP3:[], selectedTraceName:ui.selectedTraceName, layout,
   };
@@ -115,20 +114,20 @@ export function workspaceFromSnapshot(current: WorkspaceState, snapshot: Workspa
   for (const entry of entries) {
     const currentEntry = accepted.find(item => item.trace.name === entry.trace.name); if (!currentEntry) return null;
     for (const paneId of entry.paneIds) {
-      if (!canPlaceMembership(currentEntry,paneId,snapshot.panes,accepted).allowed) { if (!sanitizeLegacy) return null; continue; }
+      if (!canPlaceMembership(currentEntry,paneId,snapshot.panes.map(p => ({ ...p, typed: p.typed ?? false })),accepted).allowed) { if (!sanitizeLegacy) return null; continue; }
       currentEntry.paneIds = [...currentEntry.paneIds,paneId];
     }
   }
   const safeAssignments = Object.fromEntries(accepted.map(entry => [entry.trace.name,[...entry.paneIds]]));
   const safeActive = Object.fromEntries(snapshot.panes.map(pane => {const selected=snapshot.paneActiveTraceMap[pane.id]; return [pane.id,selected && safeAssignments[selected]?.includes(pane.id) ? selected : null]}));
-  const orderedPanes = snapshot.layout.paneOrder.map(id => snapshot.panes.find(pane => pane.id === id)).filter(pane => pane !== undefined);
+  const orderedPanes = snapshot.layout.paneOrder.map(id => snapshot.panes.find(pane => pane.id === id)).filter(pane => pane !== undefined).map(pane => ({ ...pane, typed: pane.typed === true || Object.values(safeAssignments).some(ids => ids.includes(pane.id)) || (pane.typed === undefined && pane.renderMode !== 'cartesian') }));
   return {
     ...current, files:fileState, traces:traceState,
     panes:{...current.panes, panes:orderedPanes, tracePaneMap:safeAssignments, issuedPaneIds:orderedPanes.map(p => p.id), paneActiveTraceMap:safeActive, activePaneId:snapshot.activePaneId, zoomAll:snapshot.xZoomState.zoomAll, sharedZoom:snapshot.xZoomState.sharedZoom, paneXZooms:{...snapshot.xZoomState.paneXZooms}, paneYZooms:{...snapshot.yZoomState.paneYZooms}},
     markers:{...current.markers, markers:[...snapshot.markers], selectedMkrIdx:-1, armed:null, nextMarkerSerial:1},
     lines:{...current.lines, refLines:[...snapshot.refLines], refMode:null, selectedRefLineId:(snapshot.ui as typeof snapshot.ui & {selectedRefLineId?: number | null}).selectedRefLineId ?? null},
     analysis:analysisReducer(current.analysis,{type:'RESTORE',payload:{...snapshot.analysisResults, analysisOpenState:snapshot.analysisOpenState, analyses:[...(snapshot.analyses ?? [])]}}),
-    ui:{...current.ui, ...snapshot.ui, paneTypeChosen:{}, traceHueSlots:Object.fromEntries(allocateColourBlindCreated(view.allKnownTraces, new Map(Object.entries(snapshot.ui.traceHueSlots ?? {})))), selectedTraceName:snapshot.selectedTraceName, paneAssignmentWarning:null, activeWizard:null},
+    ui:{...current.ui, ...snapshot.ui, traceHueSlots:Object.fromEntries(allocateColourBlindCreated(view.allKnownTraces, new Map(Object.entries(snapshot.ui.traceHueSlots ?? {})))), selectedTraceName:snapshot.selectedTraceName, paneAssignmentWarning:null, activeWizard:null},
     layout:snapshot.layout,
   };
 }
@@ -191,16 +190,16 @@ function openData(state: WorkspaceState, command: Extract<WorkspaceAction,{slice
       let candidate = target;
       const registry = createPaneTypeRegistry({ smithCapability: () => canRenderInPane(entry, { ...target, renderMode: 'smith' }) });
       const acceptsCurrent = target.renderMode === 'smith' || target.renderMode === 'smith-inverted' ? canRenderInPane(entry, target) : registry[paneTypeOfMode(target.renderMode)].appliesTo(actual);
-      if (!entries.some(member => member.paneIds.includes(target.id)) && !acceptsCurrent.allowed) {
+      if (!target.typed && !entries.some(member => member.paneIds.includes(target.id)) && !acceptsCurrent.allowed) {
         const choice = planEmptyPaneType(registry, target, actual, true);
         if (!choice.mode) return { allowed: false, reason: choice.reason ?? acceptsCurrent.reason };
-        candidate = { ...target, renderMode: choice.mode };
+        candidate = { ...target, renderMode: choice.mode, typed: true };
       }
       const result = canPlaceMembership(entry,pane.id,[...paneById.values()].map(item => item.id === pane.id ? candidate : item),entries);
       if (result.allowed) paneById.set(pane.id, candidate);
       return result;
     },
-    newPane:(_trace,_panes,issued) => {const source=state.panes.panes.find(pane => pane.id===state.panes.activePaneId) ?? state.panes.panes[0]; if (!source) return null; let n=1; while(issued.includes(`pane-${n}`)) n++; const pane={...source,id:`pane-${n}`,title:'',settings:{...source.settings}}; paneById.set(pane.id,pane); return pane;},
+    newPane:(_trace,_panes,issued) => {const source=state.panes.panes.find(pane => pane.id===state.panes.activePaneId) ?? state.panes.panes[0]; if (!source) return null; let n=1; while(issued.includes(`pane-${n}`)) n++; const pane={...source,id:`pane-${n}`,title:'',renderMode:'cartesian' as const,typed:false,settings:{...source.settings}}; paneById.set(pane.id,pane); return pane;},
   });
   if (!plan.ok) return {...state,ui:uiReducer(state.ui,{type:'SET',payload:{key:'paneAssignmentWarning',value:{message:plan.reason,paneId:command.targetPaneId ?? state.panes.activePaneId,traceName:null}}}),revision:state.revision+1};
   const replacedTraceNames = new Set<string>();
@@ -332,7 +331,7 @@ export function workspaceReducer(state: WorkspaceState, command: WorkspaceAction
     panes: paneReducer(state.panes, {type: 'RESTORE', payload: command.state.panes}),
     markers: markerReducer(state.markers, {type: 'RESTORE', payload: command.state.markers}),
     analysis: analysisReducer(state.analysis, {type: 'RESTORE', payload: command.state.analysis}),
-    ui: { ...command.state.ui, paneTypeChosen: {}, theme: state.ui.theme }, revision: state.revision + 1,
+    ui: { ...command.state.ui, theme: state.ui.theme }, revision: state.revision + 1,
   };
   if (command.slice === 'analysis' && (command.action.type === 'CREATE_ANALYSIS_OUTPUT' || command.action.type === 'FREEZE_ANALYSIS_COPY')) {
     const action = command.action;
@@ -406,10 +405,6 @@ export function workspaceReducer(state: WorkspaceState, command: WorkspaceAction
       else next = { ...state, panes: paneReducer(state.panes, action) };
       break;
     }
-  }
-  if (next.panes !== state.panes) {
-    const ids = new Set(next.panes.panes.map(pane => pane.id));
-    next = { ...next, ui: { ...next.ui, paneTypeChosen: Object.fromEntries(Object.entries(next.ui.paneTypeChosen).filter(([id]) => ids.has(id))) } };
   }
   if (next.files === state.files && next.traces === state.traces && next.panes === state.panes && next.markers === state.markers && next.lines === state.lines && next.analysis === state.analysis && next.ui === state.ui) return state;
   if (command.slice === 'analysis' && command.action.type === 'REMOVE_ANALYSIS') {

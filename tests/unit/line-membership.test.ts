@@ -5,7 +5,7 @@ import type { RefLine } from '../../src/types/ref-line';
 import { initialWorkspaceEngine, workspaceEngineReducer } from '../../src/stores/aggregate-workspace-store';
 import { makeTestTrace } from './helpers';
 
-const panes = ['pane-1', 'pane-2', 'pane-3'].map(id => ({ id, title: id, renderMode: 'cartesian' as const, settings: defaultPaneSettings() }));
+const panes = ['pane-1', 'pane-2', 'pane-3'].map(id => ({ id, title: id, renderMode: 'cartesian' as const, typed: true, settings: defaultPaneSettings() }));
 const hz = makeTestTrace({ name: 'hz', units: { x: 'Hz', y: 'dB' } });
 const time = makeTestTrace({ name: 'time', domain: 'time', family: 'waveform', units: { x: 's', y: 'V' } });
 const entries = [{ trace: hz, paneIds: ['pane-1', 'pane-2'] }, { trace: time, paneIds: ['pane-3'] }];

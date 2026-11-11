@@ -6,7 +6,7 @@ import { defaultPaneSettings } from '../../src/types/pane';
 import type { RefLine } from '../../src/types/ref-line';
 import { makeTestTrace } from './helpers';
 
-const pane = (id: string, title = '', renderMode: 'cartesian' | 'smith' | 'table' = 'cartesian') => ({ id, title, renderMode, settings: defaultPaneSettings() });
+const pane = (id: string, title = '', renderMode: 'cartesian' | 'smith' | 'table' = 'cartesian') => ({ id, title, renderMode, typed: true, settings: defaultPaneSettings() });
 const panes = [pane('pane-1'), pane('pane-2'), pane('pane-3'), pane('pane-4', '', 'table'), pane('pane-5')];
 const hz = makeTestTrace({ name: 'hz', units: { x: 'Hz', y: 'dB' } });
 const time = makeTestTrace({ name: 'time', domain: 'time', family: 'waveform', units: { x: 's', y: 'V' } });

@@ -23,6 +23,33 @@ it('accepts optional trace math alignment choices and rejects unknown choices', 
 });
 
 const fixture = (name: string): unknown => JSON.parse(readFileSync(`tests/fixtures/phase3-preservation/${name}.json`, 'utf8'));
+it('persists typed panes and derives missing types in older workspaces', () => {
+  let state = initialWorkspaceState();
+  state = workspaceReducer(state, { slice: 'panes', limit: 4, action: { type: 'SET_RENDER_MODE', payload: { paneId: 'pane-1', mode: 'cartesian' } } });
+  const written = snapshotFromWorkspace(state);
+  if (!written) throw new Error('snapshot');
+  expect(written.panes[0]?.typed).toBe(true);
+  const reloaded = migrateWorkspaceV5(JSON.parse(JSON.stringify(written)));
+  if (!reloaded) throw new Error('reload');
+  expect(workspaceFromSnapshot(initialWorkspaceState(), reloaded)?.panes.panes[0]).toMatchObject({ typed: true, renderMode: 'cartesian' });
+  const base = migrateWorkspaceV5(fixture('workspace-v4-eight-pane-extension'));
+  if (!base || base.panes.length < 2) throw new Error('fixture');
+  const empty = { ...base, traceAssignments: Object.fromEntries(Object.keys(base.traceAssignments).map(name => [name, []])), paneActiveTraceMap: Object.fromEntries(base.panes.map(p => [p.id, null])) };
+  const panes = empty.panes.map((p, i) => ({ ...p, renderMode: i === 1 ? 'smith' as const : 'cartesian' as const, typed: true }));
+  const saved = migrateWorkspaceV5({ ...empty, panes });
+  expect(saved?.panes[0]?.typed).toBe(true);
+  expect(migrateWorkspaceV5(JSON.parse(JSON.stringify(saved)))?.panes[1]).toMatchObject({ typed: true, renderMode: 'smith' });
+  const oldPanes = panes.map(({ typed: _typed, ...pane }) => pane);
+  const old = migrateWorkspaceV5({ ...empty, panes: oldPanes });
+  expect(old?.panes[0]?.typed).toBe(false);
+  expect(old?.panes[1]?.typed).toBe(true);
+  const assigned = migrateWorkspaceV5({ ...base, panes: base.panes.map(({ typed: _typed, ...pane }) => pane) });
+  for (const ids of Object.values(base.traceAssignments)) for (const id of ids) expect(assigned?.panes.find(p => p.id === id)?.typed).toBe(true);
+  expect(migrateWorkspaceV5({ ...empty, panes: panes.map((p, i) => i === 0 ? { ...p, typed: 'yes' } : p) })).toBeNull();
+  for (const renderMode of ['smith', 'smith-inverted', 'table']) {
+    expect(migrateWorkspaceV5({ ...empty, panes: panes.map((p, i) => i === 0 ? { ...p, renderMode, typed: false } : p) })).toBeNull();
+  }
+});
 it('preserves optional hue slots and accepts older snapshots', () => {
   const base = migrateWorkspaceV5(fixture('workspace-v4-eight-pane-extension'));
   if (!base) throw new Error('fixture');

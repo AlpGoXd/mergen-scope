@@ -22,7 +22,7 @@ export interface PickerTile {
 /**
  * Default tiles in display order. The pane owner maps registry availability onto `state`/`reason`.
  * Eye is deliberately absent: an Eye pane is only ever opened by Analysis › Eye diagram.
- * Strings use escapes (… › ’) so a wrong file encoding can't turn them into "?".
+ * This file is UTF-8 (… › ’). Keep it UTF-8 when editing, or these turn into "?".
  */
 export const PICKER_TILES: readonly PickerTile[] = [
   { id: 'chart', label: 'Chart', description: 'Traces against X: frequency, time or anything else.', state: 'available' },
@@ -94,7 +94,7 @@ export function PaneTypePicker({ tiles = PICKER_TILES, onPick, onOpenFile }: {
         {size === 'L' && <div className="ptp-head"><span className="t-title">What should this pane show?</span><span className="t-caption">Pick a type, or drop a file and the pane picks one that fits.</span></div>}
         {size === 'M' && <div className="ptp-head"><span className="t-card-title">What should this pane show?</span></div>}
         {size === 'S' && <div className="ptp-head"><span className="t-caption">Pick a type or drop a file</span></div>}
-        <div ref={grid} className="ptp-grid" role="group" aria-label="Pane type" onKeyDown={onKeyDown}>
+        <div ref={grid} className="ptp-grid" role="group" aria-label="Chart type" onKeyDown={onKeyDown}>
           {tiles.map(tile)}
           <div className="ptp-cell">
             {size === 'I'
@@ -106,7 +106,6 @@ export function PaneTypePicker({ tiles = PICKER_TILES, onPick, onOpenFile }: {
                 </button>}
           </div>
         </div>
-        {(size === 'L' || size === 'M') && <span className="t-caption ptp-foot">Eye diagrams open from Analysis {'›'} Eye diagram.</span>}
       </div>
     </div>
   );

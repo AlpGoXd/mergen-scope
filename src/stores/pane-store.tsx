@@ -68,7 +68,7 @@ export function paneReducer(state: PaneState, action: PaneAction): PaneState {
       if (count === state.panes.length) return state;
       if (count > state.panes.length) {
         const panes = [...state.panes]; const issued = new Set(state.issuedPaneIds);
-        while (panes.length < count) { let n = 1; while (issued.has(`pane-${n}`)) n++; const id = `pane-${n}`; issued.add(id); const target = panes.find(p => p.id === state.activePaneId) ?? panes[0]; if (!target) return state; panes.push({ ...target, id, title: '', settings: { ...target.settings } }); }
+        while (panes.length < count) { let n = 1; while (issued.has(`pane-${n}`)) n++; const id = `pane-${n}`; issued.add(id); const target = panes.find(p => p.id === state.activePaneId) ?? panes[0]; if (!target) return state; panes.push({ ...target, id, title: '', renderMode: 'cartesian', typed: false, settings: { ...target.settings } }); }
         return { ...state, panes, issuedPaneIds: [...issued] };
       }
       if (action.targetPaneId && (count !== state.panes.length - 1 || !state.panes.some(p => p.id === action.targetPaneId))) return state;
@@ -77,7 +77,8 @@ export function paneReducer(state: PaneState, action: PaneAction): PaneState {
       const plan = planPaneRemoval(state.panes, action.traces ?? [], removed); if (!plan.ok || (plan.plan.unplaced.length > 0 && !action.confirmed)) return state;
       const panes = state.panes.filter(p => !removed.includes(p.id)); const valid = new Set(panes.map(p => p.id));
       const keep = <T,>(map: Record<string,T>) => Object.fromEntries(Object.entries(map).filter(([id]) => valid.has(id)));
-      return { ...state, panes, tracePaneMap: Object.fromEntries(Object.entries({...state.tracePaneMap,...plan.plan.memberships}).map(([name, ids]) => [name, [...ids]])), activePaneId: state.activePaneId && valid.has(state.activePaneId) ? state.activePaneId : panes[0]?.id ?? null, paneActiveTraceMap: keep(state.paneActiveTraceMap), paneXZooms: keep(state.paneXZooms), paneYZooms: keep(state.paneYZooms) };
+      const memberships = Object.fromEntries(Object.entries({...state.tracePaneMap,...plan.plan.memberships}).map(([name, ids]) => [name, [...ids]]));
+      return { ...state, panes: panes.map(p => Object.values(memberships).some(ids => ids.includes(p.id)) ? { ...p, typed: true } : p), tracePaneMap: memberships, activePaneId: state.activePaneId && valid.has(state.activePaneId) ? state.activePaneId : panes[0]?.id ?? null, paneActiveTraceMap: keep(state.paneActiveTraceMap), paneXZooms: keep(state.paneXZooms), paneYZooms: keep(state.paneYZooms) };
     }
     case 'CREATE_PANE_WITH_TRACE': {
       const { trace, allTraces, displayTraces = [] } = action.payload;
@@ -87,9 +88,10 @@ export function paneReducer(state: PaneState, action: PaneAction): PaneState {
       if (!pane) return state;
       const displayTrace = displayTraces.find(display => display.id === trace.id || trace.parameters?.['displayTraceId'] === display.id);
       const entry: PlacementTrace = { trace, paneIds: state.tracePaneMap[trace.name] ?? [], displayTrace };
-      const compatible = canRenderInPane(entry, pane).allowed ? created : {
-        ...created, panes: created.panes.map(candidate => candidate.id === pane.id ? { ...candidate, renderMode: 'cartesian' as const } : candidate),
-      };
+      const source = state.panes.find(candidate => candidate.id === state.activePaneId) ?? state.panes[0];
+      const preferred = { ...pane, renderMode: source?.renderMode ?? pane.renderMode };
+      const mode = canRenderInPane(entry, preferred).allowed ? preferred.renderMode : 'cartesian';
+      const compatible = { ...created, panes: created.panes.map(candidate => candidate.id === pane.id ? { ...candidate, renderMode: mode } : candidate) };
       const assigned = paneReducer(compatible, { type: 'ADD_MEMBERSHIP', payload: { trace, targetPaneId: pane.id, allTraces, displayTraces } });
       return assigned.tracePaneMap[trace.name]?.includes(pane.id) ? assigned : state;
     }
@@ -104,7 +106,7 @@ export function paneReducer(state: PaneState, action: PaneAction): PaneState {
       const remaining=action.type === 'MOVE_MEMBERSHIP' ? current.filter(id=>id!==action.payload.fromPaneId) : current;
       const ids=[...new Set([...remaining,targetPaneId])]; const memberships={...state.tracePaneMap,[trace.name]:ids};
       const active=Object.fromEntries(state.panes.map(pane=>{const prior=state.paneActiveTraceMap[pane.id];const names=allTraces.filter(t=>memberships[t.name]?.includes(pane.id)).map(t=>t.name);return [pane.id,prior && names.includes(prior) ? prior : names[0] ?? null]}));
-      return {...state,tracePaneMap:memberships,paneActiveTraceMap:active};
+      return {...state,panes:state.panes.map(p => p.id === targetPaneId ? { ...p, typed: true } : p),tracePaneMap:memberships,paneActiveTraceMap:active};
     }
     case 'REMOVE_MEMBERSHIP': {
       const {traceName,paneId}=action.payload; const current=state.tracePaneMap[traceName] ?? [];const memberships={...state.tracePaneMap,[traceName]:current.filter(id=>id!==paneId)};
@@ -123,18 +125,18 @@ export function paneReducer(state: PaneState, action: PaneAction): PaneState {
     }
     case 'SET_RENDER_MODE': {
       const { paneId, mode } = action.payload;
-      const target = state.panes.find(pane => pane.id === paneId); if (!target || target.renderMode === mode) return state;
+      const target = state.panes.find(pane => pane.id === paneId); if (!target || (target.renderMode === mode && target.typed)) return state;
       if (!action.payload.traces && Object.values(state.tracePaneMap).some(ids => ids.includes(paneId))) return state;
       const plan = planPaneTypeChange(state.panes, action.payload.traces ?? [], paneId, mode);
       if (!plan.ok || (plan.plan.requiresConfirmation && !action.payload.confirmed)) return state;
-      const nextPanes = state.panes.map(p => p.id === paneId ? { ...p, renderMode: mode } : p);
+      const nextPanes = state.panes.map(p => p.id === paneId ? { ...p, renderMode: mode, typed: true } : p);
       const memberships = Object.fromEntries(Object.entries({...state.tracePaneMap,...plan.plan.memberships}).map(([name,ids]) => [name,[...ids]]));
       const paneActiveTraceMap = Object.fromEntries(nextPanes.map(pane => {
         const old = state.paneActiveTraceMap[pane.id];
         const names = (action.payload.traces ?? []).filter(entry => memberships[entry.trace.name]?.includes(pane.id)).map(entry => entry.trace.name);
         return [pane.id,old && names.includes(old) ? old : names[0] ?? null];
       }));
-      return { ...state, panes: nextPanes, tracePaneMap: memberships, paneActiveTraceMap };
+      return { ...state, panes: nextPanes.map(p => Object.values(memberships).some(ids => ids.includes(p.id)) ? { ...p, typed: true } : p), tracePaneMap: memberships, paneActiveTraceMap };
     }
     case 'SET_PANE_TITLE': {
       const { paneId, title } = action.payload;
@@ -181,7 +183,7 @@ export function paneReducer(state: PaneState, action: PaneAction): PaneState {
     case 'RECONCILE': {
       const nextTracePaneMap = normalizeMemberships(state.panes, action.payload.map(trace => ({trace,paneIds:state.tracePaneMap[trace.name] ?? []})));
       const paneActiveTraceMap = Object.fromEntries(state.panes.map(pane => { const current=state.paneActiveTraceMap[pane.id]; const names=action.payload.filter(trace=>nextTracePaneMap[trace.name]?.includes(pane.id)).map(trace=>trace.name); return [pane.id,current && names.includes(current) ? current : names[0] ?? null]; }));
-      return {...state,tracePaneMap:nextTracePaneMap,paneActiveTraceMap};
+      return {...state,panes:state.panes.map(p => Object.values(nextTracePaneMap).some(ids => ids.includes(p.id)) && !p.typed ? { ...p, typed: true } : p),tracePaneMap:nextTracePaneMap,paneActiveTraceMap};
     }
     case 'RESTORE': {
       return {...action.payload,issuedPaneIds:[...new Set([...state.issuedPaneIds,...action.payload.issuedPaneIds,...state.panes.map(p=>p.id),...action.payload.panes.map(p=>p.id)])]};

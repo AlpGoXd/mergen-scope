@@ -26,6 +26,7 @@ import { useFileImport } from '../../hooks/use-file-import';
 import { deriveAxisInfo } from '../../domain/units';
 import { defaultTraceForPane } from '../../domain/default-trace';
 import { canRenderInPane, checkPaneAssignment, planEmptyPaneType, planPaneTypeChange } from '../../domain/pane-placement';
+import { paneDisplayState } from '../../domain/pane-display-state';
 import { createPaneTypeRegistry, paneTypeOfMode } from '../../domain/pane-type-registry';
 import type { PaneTypeDefinition } from '../../types/registry-contract';
 import { PaneTypeChip } from '../panes/PaneTypeChip';
@@ -112,7 +113,7 @@ export function ChartPane({ paneId }: ChartPaneProps) {
   const markerDispatch = useMarkerDispatch();
   const { refLines, refMode, selectedRefLineId, hoveredRefLineId } = useRefLineState();
   const refLineDispatch = useRefLineDispatch();
-  const { selectedTraceName, markerTrace, traceHueSlots, paneTypeChosen } = useUiState();
+  const { selectedTraceName, markerTrace, traceHueSlots } = useUiState();
   const resolveColor = useTraceColors();
   const traceSymbol = useTraceSymbols();
   const uiDispatch = useUiDispatch();
@@ -132,18 +133,22 @@ export function ChartPane({ paneId }: ChartPaneProps) {
 
   const [fitAnchor, setFitAnchor] = useState<HTMLElement | null>(null);
   const [typeAnchor, setTypeAnchor] = useState<HTMLElement | null>(null);
-  const [pendingType, setPendingType] = useState<TypeChangePlan | null>(null);
+  const [typeChange, setTypeChange] = useState<{ plan: TypeChangePlan; revision: number | undefined } | null>(null);
+  const pendingType = typeChange?.plan ?? null;
+  const [settingsAnchor, setSettingsAnchor] = useState<HTMLElement | null>(null);
   const [hoveredType, setHoveredType] = useState<PickerTileId | null>(null);
   const [focusedType, setFocusedType] = useState<PickerTileId | null>(null);
-  const [pendingRevision, setPendingRevision] = useState<number | undefined>();
   const typeButtonRef = useRef<HTMLButtonElement>(null);
   const typeMenuRef = useRef<HTMLDivElement>(null);
+  const settingsMenuRef = useRef<HTMLDivElement>(null);
+  const typeTriggerRef = useRef<HTMLElement | null>(null);
+  const returnToTileRef = useRef<string | null>(null);
   const headerRef = useRef<HTMLDivElement>(null);
-  const [compactType, setCompactType] = useState(false);
+  const [typeFit, setTypeFit] = useState<'full' | 'value' | 'icon'>('full');
   useEffect(() => {
     const header = headerRef.current;
     if (!header) return;
-    const observer = new ResizeObserver(() => setCompactType(header.clientWidth <= 350));
+    const observer = new ResizeObserver(() => setTypeFit(header.clientWidth <= 290 ? 'icon' : header.clientWidth <= 350 ? 'value' : 'full'));
     observer.observe(header);
     return () => observer.disconnect();
   }, []);
@@ -155,39 +160,53 @@ export function ChartPane({ paneId }: ChartPaneProps) {
     if (!tile || !typeMenuRef.current?.contains(tile)) return null;
     return panePickerTiles(Object.values(paneTypes)).find(item => item.label === tile.textContent?.trim())?.id ?? null;
   };
+  const cancelTypeChange = () => {
+    returnToTileRef.current = pendingType?.toLabel ?? null;
+    setTypeChange(null);
+  };
   const selectPaneType = (type: PaneTypeDefinition, confirmed = false) => {
-    if (type.status !== 'available' || type.renderMode === null || type.id === currentType) return;
+    if (type.status !== 'available' || type.renderMode === null || (type.id === currentType && pane.typed)) return;
     const mode = type.renderMode;
     const entries = allKnownTraces.map(trace => ({ trace, paneIds: tracePaneMap[trace.name] ?? [], displayTrace: allDisplayTraces.find(display => display.id === trace.id || display.id === trace.parameters?.['displayTraceId']) }));
     const plan = planPaneTypeChange(panes, entries, paneId, mode);
     if (!plan.ok) return;
     const leaving = entries.filter(entry => entry.paneIds.includes(paneId) && !canRenderInPane(entry, { ...pane, renderMode: mode }).allowed).map(entry => ({ name: entry.trace.name, displayName: entry.trace.dn || entry.trace.name }));
-    if (confirmed && revision !== pendingRevision && !leaving.length) { setPendingType(null); setPendingRevision(revision); return; }
-    if (leaving.length && (!confirmed || revision !== pendingRevision)) {
+    if (confirmed && revision !== typeChange?.revision && !leaving.length) { cancelTypeChange(); return; }
+    if (leaving.length && (!confirmed || revision !== typeChange?.revision)) {
       const summary = summarizePaneTypeChange(plan.plan, leaving, id => paneName(panes, id));
-      setPendingRevision(revision);
-      setPendingType({ to: type.id as PickerTileId, toLabel: type.title, ...summary });
+      setTypeChange({ plan: { to: type.id as PickerTileId, toLabel: type.title, ...summary }, revision });
       return;
     }
-    const action = { type: 'SET_RENDER_MODE' as const, payload: { paneId, mode, confirmed, ...(confirmed && pendingRevision !== undefined ? { expectedRevision: pendingRevision } : {}) } };
+    const action = { type: 'SET_RENDER_MODE' as const, payload: { paneId, mode, confirmed, ...(confirmed && typeChange?.revision !== undefined ? { expectedRevision: typeChange.revision } : {}) } };
     if (historyDispatch) historyDispatch({ type: 'change', command: { slice: 'panes', action, limit } });
     else paneDispatch({ ...action, payload: { ...action.payload, traces: entries } });
-    setPendingType(null);
+    setTypeChange(null);
     setTypeAnchor(null);
-    typeButtonRef.current?.focus();
+    setSettingsAnchor(null);
+    typeTriggerRef.current?.focus({ preventScroll: true });
+    typeTriggerRef.current = null;
   };
 
   useEffect(() => {
-    if (!typeAnchor) return;
-    const target = pendingType ? typeMenuRef.current?.querySelector<HTMLButtonElement>('.ptm-actions .ui-btn--solid') : typeMenuRef.current?.querySelector<HTMLButtonElement>('[role="radio"][aria-checked="true"]');
+    const root = typeAnchor ? typeMenuRef.current : settingsAnchor ? settingsMenuRef.current : null;
+    if (!root) return;
+    if (!pendingType && returnToTileRef.current) {
+      const tiles = Array.from(root.querySelectorAll<HTMLButtonElement>('[role="radio"]'));
+      const target = tiles.find(tile => tile.textContent?.trim() === returnToTileRef.current) ?? tiles[0];
+      returnToTileRef.current = null;
+      target?.focus({ preventScroll: true });
+      return;
+    }
+    const target = pendingType ? root.querySelector<HTMLButtonElement>('.ptm-actions .ui-btn--solid') : typeAnchor ? root.querySelector<HTMLButtonElement>('[role="radio"][aria-checked="true"]') : null;
     target?.focus({ preventScroll: true });
-  }, [typeAnchor, pendingType]);
+  }, [typeAnchor, settingsAnchor, pendingType]);
 
   const traceNamesInPane = useMemo(() => {
     return Object.entries(tracePaneMap)
       .filter(([_, ids]) => ids.includes(paneId))
       .map(([name]) => name);
   }, [tracePaneMap, paneId]);
+  const displayState = paneDisplayState(pane, traceNamesInPane.length);
 
   const currentXZoom = zoomAll ? sharedZoom : (paneXZooms[paneId] || null);
   const xRange = currentXZoom ? { left: currentXZoom.left, right: currentXZoom.right } : null;
@@ -1045,7 +1064,7 @@ export function ChartPane({ paneId }: ChartPaneProps) {
     if (trace) {
       const entry = { trace, paneIds: [], displayTrace: allDisplayTraces.find(display => display.id === trace.id || display.id === trace.parameters?.['displayTraceId']) };
       const acceptsCurrent = pane.renderMode === 'smith' || pane.renderMode === 'smith-inverted' ? canRenderInPane(entry, pane) : paneTypes[currentType].appliesTo(trace);
-      const choice = acceptsCurrent.allowed ? { mode: pane.renderMode, reason: undefined } : planEmptyPaneType(paneTypes, pane, trace, traceNamesInPane.length === 0);
+      const choice = acceptsCurrent.allowed ? { mode: pane.renderMode, reason: undefined } : !pane.typed ? planEmptyPaneType(paneTypes, pane, trace, traceNamesInPane.length === 0) : { mode: null, reason: acceptsCurrent.reason };
       if (!choice.mode) {
         uiDispatch({ type: 'SET', payload: { key: 'paneAssignmentWarning', value: { message: choice.reason ?? 'Cannot assign trace to this pane.', paneId, traceName: trace.name } } });
         return;
@@ -1165,24 +1184,24 @@ export function ChartPane({ paneId }: ChartPaneProps) {
       onDragLeave={(e) => { if (!(e.relatedTarget instanceof Node) || !e.currentTarget.contains(e.relatedTarget)) setPaneDragOver(false); }}
       onDrop={handlePaneDrop}
     >
-      <div ref={headerRef} data-testid={`chart-pane-header-${paneId}`} className="ph" style={{ display: 'flex', flexWrap: 'nowrap', alignItems: 'center', gap: '4px', padding: '6px 6px', background: isActive ? `color-mix(in srgb, ${colors?.accent || 'var(--accent)'} 8%, var(--card))` : 'color-mix(in srgb, var(--card) 96%, white)', borderBottom: '1px solid var(--border)', borderLeft: isActive ? `3px solid ${colors?.accent || 'var(--accent)'}` : '3px solid transparent', cursor: isActive ? 'default' : 'pointer' }} onClick={() => !isActive && paneDispatch({ type: 'SET_ACTIVE_PANE', payload: paneId })}>
-        {traceNamesInPane.length === 0 ? <>
+      <div ref={headerRef} data-testid={`chart-pane-header-${paneId}`} className="ph" style={{ display: 'flex', flexWrap: 'nowrap', alignItems: 'center', gap: '4px', padding: displayState === 'picker' ? '3px 6px' : '6px 6px', background: isActive ? `color-mix(in srgb, ${colors?.accent || 'var(--accent)'} 8%, var(--card))` : 'color-mix(in srgb, var(--card) 96%, white)', borderBottom: '1px solid var(--border)', borderLeft: isActive ? `3px solid ${colors?.accent || 'var(--accent)'}` : '3px solid transparent', cursor: isActive ? 'default' : 'pointer' }} onClick={() => !isActive && paneDispatch({ type: 'SET_ACTIVE_PANE', payload: paneId })}>
+        {displayState === 'picker' ? <>
           <span className="ph-title t-card-title" title={paneName(panes, paneId)} style={{ color: 'var(--text)' }}>{paneName(panes, paneId)}</span>
           <span className="t-caption">Empty</span>
           {canMoveSelectedHere && <Btn soft onClick={event => { event.stopPropagation(); moveSelectedHere(); }}>Move Here</Btn>}
-          {panes.length > 1 && <button type="button" className="ui-btn ui-btn--neutral" aria-label={`Close ${paneName(panes, paneId)}`} style={{ marginLeft: 'auto' }} onClick={event => { event.stopPropagation(); closeEmptyPane(); }}>×</button>}
+          {panes.length > 1 && <button type="button" className="lp-icon-btn" aria-label={`Close ${paneName(panes, paneId)}`} style={{ marginLeft: 'auto', height: 'var(--control-sm-height)', width: 'var(--control-sm-height)' }} onClick={event => { event.stopPropagation(); closeEmptyPane(); }}>×</button>}
         </> : <>
         <span className="ph-title t-card-title" title={paneName(panes, paneId)} style={{ color: 'var(--text)' }}>
           {paneName(panes, paneId)}
         </span>
-        <PaneTypeChip ref={typeButtonRef} icon={paneTypes[currentType].iconKey} label={currentType === 'eye' ? 'Eye · CH1' : paneTypes[currentType].title} open={!!typeAnchor} compact={compactType} onClick={() => { setPendingType(null); setHoveredType(null); setFocusedType(null); setTypeAnchor(typeAnchor ? null : typeButtonRef.current); }} />
-        {typeAnchor && <PopoverAt label="Pane type" at={typeAnchor} onClose={() => { setPendingType(null); setHoveredType(null); setFocusedType(null); setTypeAnchor(null); typeButtonRef.current?.focus(); }}>
+        <PaneTypeChip ref={typeButtonRef} icon={paneTypes[currentType].iconKey} label={currentType === 'eye' ? 'Eye · CH1' : paneTypes[currentType].title} open={!!typeAnchor} fit={typeFit} onClick={() => { setTypeChange(null); returnToTileRef.current = null; setSettingsAnchor(null); setHoveredType(null); setFocusedType(null); typeTriggerRef.current = typeAnchor ? null : typeButtonRef.current; setTypeAnchor(typeAnchor ? null : typeButtonRef.current); }} />
+        {typeAnchor && <PopoverAt label="Chart type" at={typeAnchor} onClose={() => { setTypeChange(null); returnToTileRef.current = null; setHoveredType(null); setFocusedType(null); setTypeAnchor(null); typeTriggerRef.current?.focus({ preventScroll: true }); typeTriggerRef.current = null; }}>
           <div ref={typeMenuRef} onMouseOver={event => setHoveredType(tileFromTarget(event.target))} onMouseOut={event => setHoveredType(tileFromTarget(event.relatedTarget))} onFocus={event => setFocusedType(tileFromTarget(event.target))} onBlur={event => setFocusedType(tileFromTarget(event.relatedTarget))}>
             <PaneTypeMenu paneName={paneName(panes, paneId)} current={currentType} tiles={panePickerTiles(Object.values(paneTypes))} pending={pendingType ?? undefined} lockedNote={currentType === 'eye' ? 'This pane belongs to the Eye diagram card on CH1.' : undefined}
               note={(() => { const id = hoveredType ?? focusedType; if (!id) return undefined; const members = allKnownTraces.filter(trace => traceNamesInPane.includes(trace.name)); const accepted = members.filter(trace => paneTypes[id].appliesTo(trace).allowed).map(trace => trace.dn || trace.name); return paneTypeCompatibilityNote(paneName(panes, paneId), paneTypes[id].title, members.length, accepted); })()}
               onChoose={id => selectPaneType(paneTypes[id])}
               onConfirm={() => { if (pendingType) selectPaneType(paneTypes[pendingType.to], true); }}
-              onCancel={() => setPendingType(null)} />
+              onCancel={cancelTypeChange} />
           </div>
         </PopoverAt>}
         {paneTraces.length > 0 && <span className="ph-count">{paneTraces.length} {paneTraces.length === 1 ? 'trace' : 'traces'}</span>}
@@ -1195,7 +1214,7 @@ export function ChartPane({ paneId }: ChartPaneProps) {
             </>
           )}
           {/* Fit split button */}
-          <div className="ph-fit" style={{ display: 'flex' }}>
+          {paneTraces.length > 0 && <div className="ph-fit" style={{ display: 'flex' }}>
             <Btn soft style={{ padding: '0.2rem 0.45rem', fontSize: 'var(--font-caption)', minHeight: 'auto', borderRadius: '6px 0 0 6px' }} title="Fit X and Y to traces" onClick={(e) => {
               e.stopPropagation();
               if (zoomAll) paneDispatch({ type: 'SET_SHARED_ZOOM', payload: null });
@@ -1224,7 +1243,7 @@ export function ChartPane({ paneId }: ChartPaneProps) {
                 ))}
               </div></PopoverAt>
             )}
-          </div>
+          </div>}
           {/* Move Here */}
           <Btn className="ph-move" soft style={{ padding: '0.2rem 0.55rem', fontSize: 'var(--font-caption)', minHeight: 'auto' }} disabled={!canMoveSelectedHere} onClick={(e) => {
             e.stopPropagation();
@@ -1236,8 +1255,8 @@ export function ChartPane({ paneId }: ChartPaneProps) {
           )}
           {/* Settings popover */}
           <Btn variant={settings.showSampleDots ? "armed" : "neutral"} tone="pane" small aria-label="Samples" aria-pressed={settings.showSampleDots} title="Show the measured sample points" data-testid="samples-toggle" onClick={e => { e.stopPropagation(); paneDispatch({ type: "SET_PANE_SETTINGS", payload: { paneId, patch: { showSampleDots: !settings.showSampleDots } } }); }}>Samples</Btn>
-          <PaneSettingsPopover paneId={paneId} settings={settings} sections={paneTypes[currentType].settings} />
-          <PaneActionsMenu />
+          <PaneSettingsPopover paneId={paneId} settings={settings} sections={paneTypes[currentType].settings} paneName={paneName(panes, paneId)} current={currentType} tiles={panePickerTiles(Object.values(paneTypes))} pending={pendingType} anchor={settingsAnchor} contentRef={settingsMenuRef} onAnchorChange={anchor => { setTypeChange(null); returnToTileRef.current = null; setTypeAnchor(null); setSettingsAnchor(anchor); if (anchor) typeTriggerRef.current = anchor; else { typeTriggerRef.current?.focus({ preventScroll: true }); typeTriggerRef.current = null; } }} onChoose={id => selectPaneType(paneTypes[id])} onConfirm={() => { if (pendingType) selectPaneType(paneTypes[pendingType.to], true); }} onCancel={cancelTypeChange} />
+          <PaneActionsMenu onChangeChartType={() => { setTypeChange(null); setSettingsAnchor(null); setHoveredType(null); setFocusedType(null); typeTriggerRef.current = typeButtonRef.current; setTypeAnchor(typeButtonRef.current); }} />
         </div>
         </>}
       </div>
@@ -1247,7 +1266,7 @@ export function ChartPane({ paneId }: ChartPaneProps) {
         {isSmith && traceNamesInPane.length > 0 ? (
           <SmithPane paneId={paneId} traces={paneTraces} renderMode={pane.renderMode as 'smith' | 'smith-inverted'} />
         ) : traceNamesInPane.length === 0 ? (
-          <EmptyChartPane mode={allTraces.length > 0 ? 'traces' : 'files'} paneId={paneId} compact={panes.length > 2} types={Object.values(paneTypes)} currentType={currentType} chosen={!!paneTypeChosen[paneId]} paneNumber={panes.findIndex(item => item.id === paneId) + 1} onSelectType={type => { uiDispatch({ type: 'SET', payload: { key: 'paneTypeChosen', value: { ...paneTypeChosen, [paneId]: true } } }); selectPaneType(type); }} />
+          <EmptyChartPane mode={allTraces.length > 0 ? 'traces' : 'files'} paneId={paneId} compact={panes.length > 2} types={Object.values(paneTypes)} currentType={currentType} displayState={displayState} paneNumber={panes.findIndex(item => item.id === paneId) + 1} onSelectType={selectPaneType} />
         ) : mergedData.length === 0 ? (
           <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--dim)', fontSize: 'var(--font-title)' }}>No visible traces in this pane.</div>
         ) : (

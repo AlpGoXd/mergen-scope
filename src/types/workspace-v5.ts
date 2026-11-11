@@ -24,6 +24,7 @@ export interface WorkspacePaneSettingsV5 extends PaneSettings {
 export interface WorkspacePaneV5 {
   readonly id: string; readonly title: string;
   readonly renderMode: PaneRenderMode | 'table';
+  readonly typed?: boolean;
   readonly settings: WorkspacePaneSettingsV5;
   readonly xLinkGroup: string | null;
 }
