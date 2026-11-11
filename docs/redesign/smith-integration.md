@@ -54,7 +54,7 @@ A "Smith" section replaces Grid in `PaneSettingsPopover`. The saved shape alread
 
 | Setting | Options | Prop |
 |---|---|---|
-| Grid | Z · Y · Z + Y (in Z + Y the impedance grid is tinted warm and the admittance grid cool, as on the classic combined chart but at low chroma so the grid never reads as a red or blue trace; Y alone is dashed) | `grid: 'z' \| 'y' \| 'both'` |
+| Grid | Z · Y · Z + Y (in Z + Y the impedance grid is red and the admittance grid blue, both translucent, as on the classic combined chart; trace colours are unchanged; Y alone is dashed) | `grid: 'z' \| 'y' \| 'both'` |
 | Labels | Normalised · Ohms | `labels: 'normalised' \| 'ohms' \| 'off'` |
 | Direction | Chevrons + ends · Ends · Off | `direction: 'chevrons' \| 'ends' \| 'off'` |
 | Readout | Z · Y · \|Γ\|∠ · VSWR · RL | `readout: ('z' \| 'y' \| 'gamma' \| 'vswr' \| 'return-loss')[]` |
