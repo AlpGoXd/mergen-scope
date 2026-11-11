@@ -26,8 +26,8 @@ export interface PaneState {
 export type PaneAction =
   | { type: 'SET_PANE_COUNT'; payload: number; traces?: PlacementTrace[]; limit?: 4 | 8; confirmed?: boolean; targetPaneId?: string }
   | { type: 'CREATE_PANE_WITH_TRACE'; payload: { trace: Trace; allTraces: Trace[]; displayTraces?: readonly DisplayTrace[] }; limit?: 4 | 8 }
-  | { type: 'ADD_MEMBERSHIP'; payload: { trace: Trace; targetPaneId: string; allTraces: Trace[]; displayTraces?: readonly DisplayTrace[] } }
-  | { type: 'MOVE_MEMBERSHIP'; payload: { trace: Trace; fromPaneId: string; targetPaneId: string; allTraces: Trace[]; displayTraces?: readonly DisplayTrace[] } }
+  | { type: 'ADD_MEMBERSHIP'; payload: { trace: Trace; targetPaneId: string; allTraces: Trace[]; displayTraces?: readonly DisplayTrace[]; drop?: boolean } }
+  | { type: 'MOVE_MEMBERSHIP'; payload: { trace: Trace; fromPaneId: string; targetPaneId: string; allTraces: Trace[]; displayTraces?: readonly DisplayTrace[]; drop?: boolean } }
   | { type: 'REMOVE_MEMBERSHIP'; payload: { traceName: string; paneId: string } }
   | { type: 'ASSIGN_TRACE_TO_PANE'; payload: { trace: Trace; targetPaneId: string; allTraces: Trace[]; displayTraces?: readonly DisplayTrace[] } }
   | { type: 'SET_ACTIVE_PANE'; payload: string | null }
@@ -102,6 +102,7 @@ export function paneReducer(state: PaneState, action: PaneAction): PaneState {
       const { trace, targetPaneId, allTraces, displayTraces = [] } = action.payload;
       const entry = (t: Trace): PlacementTrace => ({trace:t,paneIds:state.tracePaneMap[t.name] ?? [],displayTrace:displayTraces.find(display=>display.id===t.id || t.parameters?.['displayTraceId']===display.id)});
       const entries = allTraces.map(entry); const current=state.tracePaneMap[trace.name] ?? [];
+      if ((action.type === 'ADD_MEMBERSHIP' || action.type === 'MOVE_MEMBERSHIP') && action.payload.drop && current.includes(targetPaneId)) return state;
       if (action.type === 'MOVE_MEMBERSHIP' && !current.includes(action.payload.fromPaneId)) return state;
       const validation = canPlaceMembership(entry(trace),targetPaneId,state.panes,entries); if (!validation.allowed) return state;
       const remaining=action.type === 'MOVE_MEMBERSHIP' ? current.filter(id=>id!==action.payload.fromPaneId) : current;

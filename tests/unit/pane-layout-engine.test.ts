@@ -1,6 +1,46 @@
 import { expect, it } from 'vitest';
 import { initialWorkspaceEngine, workspaceEngineReducer } from '../../src/stores/aggregate-workspace-store';
 import type { WorkspaceAction } from '../../src/stores/aggregate-workspace-store';
+import { makeTestTrace } from './helpers';
+import { lineView } from '../../src/domain/line-view';
+
+it('swaps pane identities in one silent undo step without moving slot sizes or memberships', () => {
+  let engine = initialWorkspaceEngine();
+  engine = workspaceEngineReducer(engine, { type: 'change', command: { slice: 'panes', limit: 4, action: { type: 'SET_PANE_COUNT', payload: 3 } } });
+  engine = workspaceEngineReducer(engine, { type: 'change', command: { slice: 'panes', limit: 4, action: { type: 'SET_PANE_TITLE', payload: { paneId: 'pane-3', title: 'Custom' } } } });
+  engine = workspaceEngineReducer(engine, { type: 'change', command: { slice: 'layout', action: { type: 'SET_LAYOUT_SIZES', sizes: { 'rows:0': 0.4 } } } });
+  const traces = ['a', 'b', 'c'].map(name => makeTestTrace({ name, id: name }));
+  engine = workspaceEngineReducer(engine, { type: 'change', command: { slice: 'files', action: { type: 'ADD_PARSED_FILE', payload: { id: 'f', fileName: 'f.dat', text: 'source', parsed: { format: 'rs-dat', meta: {}, traces } } } } });
+  traces.forEach((trace, index) => { engine = workspaceEngineReducer(engine, { type: 'change', command: { slice: 'panes', limit: 4, action: { type: 'ASSIGN_TRACE_TO_PANE', payload: { trace, targetPaneId: `pane-${index + 1}`, allTraces: traces } } } }); });
+  const trace = traces[0]; if (!trace) throw new Error('missing trace');
+  engine = workspaceEngineReducer(engine, { type: 'change', command: { slice: 'markers', action: { type: 'PLACE_MARKER', payload: { trace, targetFreq: 0 } } } });
+  engine = workspaceEngineReducer(engine, { type: 'change', command: { slice: 'lines', action: { type: 'ADD_LINE', payload: { id: 1, type: 'v', paneIds: ['pane-1'], value: 0, label: 'V1' } } } });
+  const before = engine.present;
+  const first = before.panes.panes[0]; const last = before.panes.panes[2];
+  const historyLength = engine.history.past.length;
+  if (!first || !last) throw new Error('missing panes');
+  engine = workspaceEngineReducer(engine, { type: 'change', command: { slice: 'layout', action: { type: 'SWAP_PANES', sourcePaneId: first.id, targetPaneId: last.id } } });
+  expect(engine.present.panes.panes.map(p => p.id)).toEqual([last.id, before.panes.panes[1]?.id, first.id]);
+  expect(engine.present.panes.panes.map(p => p.title)).toEqual(['Custom', 'Pane 2', 'Pane 3']);
+  expect(engine.present.layout.paneOrder).toEqual(engine.present.panes.panes.map(p => p.id));
+  expect(engine.present.layout.sizes).toEqual(before.layout.sizes);
+  expect(engine.present.panes.tracePaneMap).toEqual(before.panes.tracePaneMap);
+  expect(engine.present.lines).toEqual(before.lines);
+  expect(engine.present.markers.markers).toEqual(before.markers.markers);
+  expect(engine.present.panes.tracePaneMap.a).toEqual(['pane-1']);
+  const marker = engine.present.markers.markers[0]; if (!marker) throw new Error('missing marker');
+  const markerPane = engine.present.panes.tracePaneMap[marker.trace]?.[0];
+  expect(engine.present.panes.panes.findIndex(pane => pane.id === markerPane) + 1).toBe(3);
+  const line = engine.present.lines.refLines[0]; if (!line) throw new Error('missing line');
+  expect(lineView(line, engine.present.panes.panes, {}, [], '').panes).toEqual(['P3']);
+  expect(engine.history.past).toHaveLength(historyLength + 1);
+  expect(engine.toastMessage).toBeUndefined();
+  engine = workspaceEngineReducer(engine, { type: 'undo' });
+  expect(engine.present.panes).toEqual(before.panes);
+  expect(engine.present.layout).toEqual(before.layout);
+  expect(engine.present.markers.markers).toEqual(before.markers.markers);
+  expect(engine.present.lines.refLines).toEqual(before.lines.refLines);
+});
 
 it('records layouts, order, fallback and undo as workspace changes', () => {
   let engine = initialWorkspaceEngine();

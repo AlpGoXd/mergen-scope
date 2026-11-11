@@ -37,8 +37,17 @@ test("rejecting a trace drop onto another domain shows a warning", async ({ page
   await dropCsv(page, "pane-2", "frequency.csv", frequencyCsv);
   await expect(page.getByTestId("chart-plot-pane-2")).toBeVisible();
 
-  await timeRow.dragTo(page.getByTestId("chart-pane-pane-2"));
-  await expect(page.getByRole("alert")).toContainText("frequency-domain");
+  const target = page.getByTestId("chart-pane-pane-2");
+  const transfer = await page.evaluateHandle(() => new DataTransfer());
+  await timeRow.dispatchEvent("dragstart", { dataTransfer: transfer });
+  await target.dispatchEvent("dragover", { dataTransfer: transfer });
+  const refusal = target.locator(".pane-drag-overlay--refused");
+  await expect(refusal).toContainText("It's a time capture and Pane 2 shows frequency. Drop it on a time pane, an empty pane or + New pane.");
+  await expect(page.getByRole("alert")).toHaveCount(0);
+  await target.dispatchEvent("drop", { dataTransfer: transfer });
+  await timeRow.dispatchEvent("dragend", { dataTransfer: transfer });
+  await expect(target.getByRole("status")).toContainText("Pane 2 shows frequency");
+  await expect(page.getByRole("alert")).toHaveCount(0);
   await expect(timeRow).toContainText("P1");
 });
 
@@ -50,7 +59,8 @@ test("a file dropped onto an incompatible pane is refused", async ({ page }) => 
   await expect(page.getByTestId("chart-plot-pane-2")).toBeVisible();
 
   await dropCsv(page, "pane-2", "time.csv", timeCsv);
-  await expect(page.getByRole("alert")).toContainText("Cannot assign a time-domain trace to a pane containing frequency-domain traces");
+  await expect(page.getByTestId("chart-pane-pane-2").getByRole("status")).toContainText("Cannot assign a time-domain trace to a pane containing frequency-domain traces");
+  await expect(page.getByRole("alert")).toHaveCount(0);
   await expect(page.locator('[data-testid^="trace-row-"]').filter({ hasText: "time.csv" })).toHaveCount(0);
 });
 

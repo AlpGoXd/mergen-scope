@@ -1,0 +1,4 @@
+.pane-drag-overlay { position: absolute; inset: 0; z-index: 10; display: grid; place-items: center; padding: 1rem; text-align: center; pointer-events: none; background: color-mix(in srgb, var(--pane-fill) 75%, transparent); color: var(--pane-ink); }
+.pane-drag-overlay--already { background: color-mix(in srgb, var(--panel) 75%, transparent); color: var(--text); }
+.pane-drag-overlay--refused { background: color-mix(in srgb, var(--panel) 90%, transparent); color: var(--danger-ink); }
+.pane-header-dragging { opacity: .5; }

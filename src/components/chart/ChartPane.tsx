@@ -60,6 +60,9 @@ import { PaneSettingsPopover } from './PaneSettingsPopover';
 import { PaneActionsMenu } from './PaneActionsMenu';
 import { defaultPaneSettings } from '../../types/pane';
 import type { RefLine } from '../../types/ref-line';
+import { usePaneDrag } from './use-pane-drag';
+import { PaneDragOverlay } from './PaneDragOverlay';
+import { refusalGuidance, traceAlreadyInPane } from '../../domain/pane-drop-hints';
 
 /** Non-color glyph shape per marker type (normal = circle, delta = diamond, peak = triangle). */
 function markerGlyphPolygonPoints(type: 'normal' | 'delta' | 'peak', cx: number, cy: number, r: number): string | null {
@@ -116,7 +119,7 @@ export function ChartPane({ paneId, hideXTicks = false }: ChartPaneProps) {
   const markerDispatch = useMarkerDispatch();
   const { refLines, refMode, selectedRefLineId, hoveredRefLineId } = useRefLineState();
   const refLineDispatch = useRefLineDispatch();
-  const { selectedTraceName, markerTrace, traceHueSlots } = useUiState();
+  const { selectedTraceName, markerTrace, traceHueSlots, paneAssignmentWarning } = useUiState();
   const resolveColor = useTraceColors();
   const traceSymbol = useTraceSymbols();
   const uiDispatch = useUiDispatch();
@@ -131,6 +134,12 @@ export function ChartPane({ paneId, hideXTicks = false }: ChartPaneProps) {
 
   const pane = panes.find((item) => item.id === paneId) || panes[0];
   if (!pane) return null;
+  const drag = usePaneDrag({ pane, panes, traces: allKnownTraces, memberships: tracePaneMap, displays: allDisplayTraces }, source => historyDispatch?.({ type: 'change', command: { slice: 'layout', action: { type: 'SWAP_PANES', sourcePaneId: source, targetPaneId: paneId } } }));
+  useEffect(() => {
+    if (paneAssignmentWarning?.source !== 'drop' || paneAssignmentWarning.paneId !== paneId) return;
+    drag.showRefusal(paneAssignmentWarning.message);
+    uiDispatch({ type: 'SET', payload: { key: 'paneAssignmentWarning', value: null } });
+  }, [paneAssignmentWarning, paneId, uiDispatch]);
   const firstPaneId = panes[0]?.id;
   const isActive = activePaneId === paneId;
   const isSmith = pane.renderMode === 'smith' || pane.renderMode === 'smith-inverted';
@@ -1060,6 +1069,7 @@ export function ChartPane({ paneId, hideXTicks = false }: ChartPaneProps) {
   }, [currentXZoom, mergedData, yAxisWidth]);
 
   const handlePaneDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    if (drag.over(e)) return;
     // dataTransfer.files is always empty during dragover; only `types` is readable then.
     if (e.dataTransfer.types.includes('application/x-mergen-trace') || e.dataTransfer.types.includes('text/plain') || e.dataTransfer.types.includes('Files')) {
       e.preventDefault();
@@ -1070,42 +1080,46 @@ export function ChartPane({ paneId, hideXTicks = false }: ChartPaneProps) {
   };
 
   const handlePaneDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    if (drag.drop(e)) return;
     e.preventDefault();
     e.stopPropagation();
     setPaneDragOver(false);
     const traceName = e.dataTransfer.getData('application/x-mergen-trace') || e.dataTransfer.getData('text/plain');
     // Only a known trace name is a trace move; file drags can carry unrelated text/plain too.
-    const trace = traceName ? allTraces.find((item) => item.name === traceName) : undefined;
+    const trace = traceName ? allKnownTraces.find((item) => item.name === traceName) : undefined;
     if (trace) {
+      if (traceAlreadyInPane(tracePaneMap, trace.name, paneId)) return;
       const entry = { trace, paneIds: [], displayTrace: allDisplayTraces.find(display => display.id === trace.id || display.id === trace.parameters?.['displayTraceId']) };
       const acceptsCurrent = pane.renderMode === 'smith' || pane.renderMode === 'smith-inverted' ? canRenderInPane(entry, pane) : paneTypes[currentType].appliesTo(trace);
       const choice = acceptsCurrent.allowed ? { mode: pane.renderMode, reason: undefined } : !pane.typed ? planEmptyPaneType(paneTypes, pane, trace, traceNamesInPane.length === 0) : { mode: null, reason: acceptsCurrent.reason };
       if (!choice.mode) {
-        uiDispatch({ type: 'SET', payload: { key: 'paneAssignmentWarning', value: { message: choice.reason ?? 'Cannot assign trace to this pane.', paneId, traceName: trace.name } } });
+        drag.showRefusal(refusalGuidance(choice.reason ?? 'Cannot assign trace to this pane.', trace, `Pane ${panes.findIndex(item => item.id === paneId) + 1}`, []));
         return;
       }
       const targetPanes = choice.mode ? panes.map(item => item.id === paneId ? { ...item, renderMode: choice.mode ?? item.renderMode } : item) : panes;
-      const validation = checkPaneAssignment(trace, paneId, allTraces, tracePaneMap, targetPanes, allDisplayTraces);
+      const validation = checkPaneAssignment(trace, paneId, allKnownTraces, tracePaneMap, targetPanes, allDisplayTraces);
       if (!validation.allowed) {
-        uiDispatch({ type: 'SET', payload: { key: 'paneAssignmentWarning', value: { message: validation.reason ?? 'Cannot assign trace to this pane.', paneId, traceName: trace.name } } });
+        drag.showRefusal(refusalGuidance(validation.reason, trace, `Pane ${panes.findIndex(item => item.id === paneId) + 1}`, allKnownTraces.filter(item => tracePaneMap[item.name]?.includes(paneId))));
         return;
       }
       const fromPaneId = activePaneId && tracePaneMap[trace.name]?.includes(activePaneId) ? activePaneId : tracePaneMap[trace.name]?.[0];
       if (historyDispatch && choice.mode && choice.mode !== pane.renderMode) {
         const action = fromPaneId
-          ? { type: 'MOVE_MEMBERSHIP' as const, payload: { trace, fromPaneId, targetPaneId: paneId, allTraces } }
-          : { type: 'ADD_MEMBERSHIP' as const, payload: { trace, targetPaneId: paneId, allTraces } };
+          ? { type: 'MOVE_MEMBERSHIP' as const, payload: { trace, fromPaneId, targetPaneId: paneId, allTraces: allKnownTraces, drop: true } }
+          : { type: 'ADD_MEMBERSHIP' as const, payload: { trace, targetPaneId: paneId, allTraces: allKnownTraces, drop: true } };
         historyDispatch({ type: 'change', command: { slice: 'transaction', actions: [{ slice: 'panes', limit, action: { type: 'SET_RENDER_MODE', payload: { paneId, mode: choice.mode } } }, { slice: 'panes', limit, action }] } });
         return;
       }
-      if (fromPaneId) paneDispatch({ type: 'MOVE_MEMBERSHIP', payload: { trace, fromPaneId, targetPaneId: paneId, allTraces } });
-      else paneDispatch({ type: 'ADD_MEMBERSHIP', payload: { trace, targetPaneId: paneId, allTraces } });
-      paneDispatch({ type: 'SET_PANE_ACTIVE_TRACE', payload: { paneId, traceName: trace.name } });
-      paneDispatch({ type: 'SET_ACTIVE_PANE', payload: paneId });
+      if (fromPaneId) paneDispatch({ type: 'MOVE_MEMBERSHIP', payload: { trace, fromPaneId, targetPaneId: paneId, allTraces: allKnownTraces, drop: true } });
+      else paneDispatch({ type: 'ADD_MEMBERSHIP', payload: { trace, targetPaneId: paneId, allTraces: allKnownTraces, drop: true } });
+      if (!aggregate) {
+        paneDispatch({ type: 'SET_PANE_ACTIVE_TRACE', payload: { paneId, traceName: trace.name } });
+        paneDispatch({ type: 'SET_ACTIVE_PANE', payload: paneId });
+      }
       return;
     }
     if (e.dataTransfer.files.length > 0) {
-      void importFiles(e.dataTransfer.files, paneId);
+      void importFiles(e.dataTransfer.files, paneId, false, true);
     }
   };
 
@@ -1193,13 +1207,14 @@ export function ChartPane({ paneId, hideXTicks = false }: ChartPaneProps) {
     <div
       data-testid={`chart-pane-${paneId}`}
       onContextMenu={handlePaneContextMenu}
-      style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: '120px', borderTop: firstPaneId && paneId !== firstPaneId ? '1px solid var(--border)' : 'none', background: 'linear-gradient(180deg, color-mix(in srgb, var(--bg) 97%, white), var(--bg))', userSelect: 'none', outline: paneDragOver ? '2px solid var(--accent)' : undefined, outlineOffset: '-2px' }}
+      style={{ position: 'relative', flex: 1, display: 'flex', flexDirection: 'column', minHeight: '120px', borderTop: firstPaneId && paneId !== firstPaneId ? '1px solid var(--border)' : 'none', background: 'linear-gradient(180deg, color-mix(in srgb, var(--bg) 97%, white), var(--bg))', userSelect: 'none', outline: paneDragOver ? '2px solid var(--accent)' : undefined, outlineOffset: '-2px' }}
       onDragEnter={handlePaneDragOver}
       onDragOver={handlePaneDragOver}
-      onDragLeave={(e) => { if (!(e.relatedTarget instanceof Node) || !e.currentTarget.contains(e.relatedTarget)) setPaneDragOver(false); }}
+      onDragLeave={(e) => { if (!(e.relatedTarget instanceof Node) || !e.currentTarget.contains(e.relatedTarget)) { setPaneDragOver(false); drag.leave(); } }}
       onDrop={handlePaneDrop}
     >
-      <div ref={headerRef} data-testid={`chart-pane-header-${paneId}`} className="ph" style={{ display: 'flex', flexWrap: 'nowrap', alignItems: 'center', gap: '4px', padding: displayState === 'picker' ? '3px 6px' : '6px 6px', background: isActive ? `color-mix(in srgb, ${colors?.accent || 'var(--accent)'} 8%, var(--card))` : 'color-mix(in srgb, var(--card) 96%, white)', borderBottom: '1px solid var(--border)', borderLeft: isActive ? `3px solid ${colors?.accent || 'var(--accent)'}` : '3px solid transparent', cursor: isActive ? 'default' : 'pointer' }} onClick={() => !isActive && paneDispatch({ type: 'SET_ACTIVE_PANE', payload: paneId })}>
+      <PaneDragOverlay hint={drag.hint} />
+      <div ref={headerRef} data-testid={`chart-pane-header-${paneId}`} draggable onPointerDown={drag.pointerDown} onDragStart={drag.start} onDragEnd={drag.end} className={`ph${drag.dragging ? ' pane-header-dragging' : ''}`} style={{ display: 'flex', flexWrap: 'nowrap', alignItems: 'center', gap: '4px', padding: displayState === 'picker' ? '3px 6px' : '6px 6px', background: isActive ? `color-mix(in srgb, ${colors?.accent || 'var(--accent)'} 8%, var(--card))` : 'color-mix(in srgb, var(--card) 96%, white)', borderBottom: '1px solid var(--border)', borderLeft: isActive ? `3px solid ${colors?.accent || 'var(--accent)'}` : '3px solid transparent', cursor: isActive ? 'default' : 'pointer' }} onClick={() => !isActive && paneDispatch({ type: 'SET_ACTIVE_PANE', payload: paneId })}>
         {displayState === 'picker' ? <>
           <span className="ph-title t-card-title" title={paneName(panes, paneId)} style={{ color: 'var(--text)' }}>{paneName(panes, paneId)}</span>
           <span className="t-caption">Empty</span>

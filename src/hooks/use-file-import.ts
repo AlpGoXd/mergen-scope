@@ -21,7 +21,7 @@ export function useFileImport() {
   const stateRef=useRef(workspace.state); stateRef.current=workspace.state;
   const {limit}=usePaneLimit();
   const limitRef=useRef(limit); limitRef.current=limit;
-  return useCallback(async (files: FileList | readonly File[], targetPaneId?:string, workspaceRoute = false):Promise<void> => {
+  return useCallback(async (files: FileList | readonly File[], targetPaneId?:string, workspaceRoute = false, drop = false):Promise<void> => {
     const read = await Promise.all(Array.from(files).map(async file => {
       const id=nextImportId();
       try {
@@ -84,6 +84,6 @@ export function useFileImport() {
       const existing=(workspaceInput?.snapshot.files ?? stateRef.current.files.files).find(file=>file.fileName===input.name);
       chosen.push({...input,choice,expectedFileId:choice==='replace' && existing ? String(existing.id) : undefined}); names.add(input.name);
     }
-    workspace.historyDispatch({type:'change',toastMessage:`Opened ${chosen.length} file${chosen.length === 1 ? '' : 's'}`,toastKind:'opened',command:{slice:'open-data',inputs:chosen,targetPaneId,limit:limitRef.current,workspace:workspaceInput}});
+    workspace.historyDispatch({type:'change',toastMessage:`Opened ${chosen.length} file${chosen.length === 1 ? '' : 's'}`,toastKind:'opened',command:{slice:'open-data',inputs:chosen,targetPaneId,drop,limit:limitRef.current,workspace:workspaceInput}});
   },[workspace.historyDispatch,workspace.dispatch]);
 }

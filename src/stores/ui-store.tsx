@@ -10,6 +10,7 @@ export interface UiState extends WorkspaceUiState {
   selectedTraceName: string | null;
   paneAssignmentWarning: {
     message: string;
+    source?: 'drop';
     paneId: string | null;
     traceName: string | null;
   } | null;
@@ -20,6 +21,10 @@ export interface UiState extends WorkspaceUiState {
     onConfirm: (fileName: string, config: unknown) => void;
     onCancel: (fileName: string) => void;
   } | null;
+}
+
+export function showPaneWarningBanner(warning: UiState['paneAssignmentWarning'], mountedPaneIds: readonly string[]): boolean {
+  return !!warning && (warning.source !== 'drop' || !warning.paneId || !mountedPaneIds.includes(warning.paneId));
 }
 
 export type UiAction =

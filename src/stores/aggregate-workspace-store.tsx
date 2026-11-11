@@ -17,6 +17,7 @@ import { adaptDisplayTracesToLegacyTraces } from '../domain/display-trace-adapte
 import { allocateColourBlindCreated } from '../domain/trace-colors';
 import { migrateWorkspaceV5 } from '../domain/workspace-migrate-v5';
 import { canPlaceMembership, canRenderInPane, planEmptyPaneType, planPaneRemoval, planPaneTypeChange, traceXGroup } from '../domain/pane-placement';
+import { refusalGuidance, traceAlreadyInPane } from '../domain/pane-drop-hints';
 import { createPaneTypeRegistry, paneTypeOfMode } from '../domain/pane-type-registry';
 import type { PlacementTrace } from '../domain/pane-placement';
 import { decodeXAxisUnit, encodeXAxisUnit } from '../types/ref-line';
@@ -46,7 +47,7 @@ type SliceAction =
   | { slice: 'lines'; action: RefLineAction } | { slice: 'analysis'; action: AnalysisAction }
   | { slice: 'ui'; action: UiAction };
 export type OpenDataCommand = PendingOpenInput;
-export type WorkspaceAction = {slice:'layout'; action: {type:'SET_LAYOUT_PRESET'; preset:PresetId; limit:4|8} | {type:'SET_LAYOUT_SIZES'; sizes:Readonly<Record<string,number>>} | {type:'ADD_PANE_AFTER'; targetPaneId:string; limit:4|8}} | {slice:'remove-last-pane'; targetPaneId:string; expectedRevision:number; confirmed:boolean; limit:4|8} | {slice:'remove-empty-pane'; targetPaneId:string; expectedRevision:number; confirmed:boolean; limit:4|8} | {slice:'open-data'; inputs:readonly OpenDataCommand[]; targetPaneId?:string; limit:4|8; resolveWizardId?:string; resolveBatchId?:string; workspace?:{readonly snapshot:WorkspaceSnapshotV5;readonly legacy:boolean;readonly choice?:'replace'|'cancel'}} | SliceAction | { slice: 'restore'; state: WorkspaceState } | { slice: 'transaction'; actions: readonly SliceAction[] } | { slice: 'deleteTrace'; traceId: string } | { slice: 'load'; snapshot: WorkspaceSnapshotV5; legacy: boolean; limit?: 4 | 8 };
+export type WorkspaceAction = {slice:'layout'; action: {type:'SWAP_PANES'; sourcePaneId:string; targetPaneId:string} | {type:'SET_LAYOUT_PRESET'; preset:PresetId; limit:4|8} | {type:'SET_LAYOUT_SIZES'; sizes:Readonly<Record<string,number>>} | {type:'ADD_PANE_AFTER'; targetPaneId:string; limit:4|8}} | {slice:'remove-last-pane'; targetPaneId:string; expectedRevision:number; confirmed:boolean; limit:4|8} | {slice:'remove-empty-pane'; targetPaneId:string; expectedRevision:number; confirmed:boolean; limit:4|8} | {slice:'open-data'; inputs:readonly OpenDataCommand[]; targetPaneId?:string; drop?:boolean; limit:4|8; resolveWizardId?:string; resolveBatchId?:string; workspace?:{readonly snapshot:WorkspaceSnapshotV5;readonly legacy:boolean;readonly choice?:'replace'|'cancel'}} | SliceAction | { slice: 'restore'; state: WorkspaceState } | { slice: 'transaction'; actions: readonly SliceAction[] } | { slice: 'deleteTrace'; traceId: string } | { slice: 'load'; snapshot: WorkspaceSnapshotV5; legacy: boolean; limit?: 4 | 8 };
 
 export function initialWorkspaceState(): WorkspaceState {
   return { files: defaultFileState, traces: defaultTraceState, panes: defaultPaneState, markers: defaultMarkerState, lines: defaultRefLineState, analysis: defaultAnalysisState, ui: getInitialUiState(readThemePreference()), layout: {preset:'rows',paneOrder:['pane-1'],sizes:{}}, revision: 0 };
@@ -204,7 +205,7 @@ function openData(state: WorkspaceState, command: Extract<WorkspaceAction,{slice
     // A copied frequency range may belong to a different file.
     newPane:(_trace,_panes,issued) => {const source=state.panes.panes.find(pane => pane.id===state.panes.activePaneId) ?? state.panes.panes[0]; if (!source) return null; let n=1; while(issued.includes(`pane-${n}`)) n++; const pane={...source,id:`pane-${n}`,title:'',renderMode:'cartesian' as const,typed:false,settings:{...source.settings,smith:{...source.settings.smith,range:null}}}; paneById.set(pane.id,pane); return pane;},
   });
-  if (!plan.ok) return {...state,ui:uiReducer(state.ui,{type:'SET',payload:{key:'paneAssignmentWarning',value:{message:plan.reason,paneId:command.targetPaneId ?? state.panes.activePaneId,traceName:null}}}),revision:state.revision+1};
+  if (!plan.ok) return {...state,ui:uiReducer(state.ui,{type:'SET',payload:{key:'paneAssignmentWarning',value:{message:plan.reason,paneId:command.targetPaneId ?? state.panes.activePaneId,traceName:null,...(command.drop ? {source:'drop' as const} : {})}}}),revision:state.revision+1};
   const replacedTraceNames = new Set<string>();
   let files=[...state.files.files]; const raw={...state.files.rawFileData}; const memberships={...state.panes.tracePaneMap}; const panes=state.panes.panes.map(pane => paneById.get(pane.id) ?? pane); const issued=[...state.panes.issuedPaneIds]; const errors: {fileName:string;message:string}[]=[];
   for (const step of plan.steps) {
@@ -268,6 +269,16 @@ export function planLastPaneLines(state: WorkspaceState, targetPaneId: string, m
 export function workspaceReducer(state: WorkspaceState, command: WorkspaceAction): WorkspaceState {
   if (command.slice === 'layout') {
     const action = command.action;
+    if (action.type === 'SWAP_PANES') {
+      const panes = [...state.panes.panes];
+      const a = panes.findIndex(p => p.id === action.sourcePaneId);
+      const b = panes.findIndex(p => p.id === action.targetPaneId);
+      const first = panes[a]; const second = panes[b];
+      if (a === b || !first || !second) return state;
+      panes[a] = second; panes[b] = first;
+      const ordered = renumberTitles(panes);
+      return { ...state, panes: { ...state.panes, panes: ordered }, layout: { ...state.layout, paneOrder: ordered.map(p => p.id) }, revision: state.revision + 1 };
+    }
     if (action.type === 'SET_LAYOUT_PRESET') {
       const fit = presetFits(action.preset, state.panes.panes.length, action.limit);
       if (!fit.ok) return { ...state, ui: uiReducer(state.ui, { type: 'SET', payload: { key: 'paneAssignmentWarning', value: { message: fit.reason, paneId: null, traceName: null } } }), revision: state.revision + 1 };
@@ -413,6 +424,17 @@ export function workspaceReducer(state: WorkspaceState, command: WorkspaceAction
       const view = traceView(state.files, state.traces);
       const entries = view.allKnownTraces.map(trace => ({ trace, paneIds: state.panes.tracePaneMap[trace.name] ?? [], displayTrace: view.allDisplayTraces.find(display => display.id === trace.id || display.id === trace.parameters?.['displayTraceId']) }));
       const refusal = (message: string, paneId: string | null): WorkspaceState => ({...state,ui:uiReducer(state.ui,{type:'SET',payload:{key:'paneAssignmentWarning',value:{message,paneId,traceName:null}}}),revision:state.revision+1});
+      if ((action.type === 'ADD_MEMBERSHIP' || action.type === 'MOVE_MEMBERSHIP') && action.payload.drop) {
+        const { trace, targetPaneId } = action.payload;
+        if (traceAlreadyInPane(state.panes.tracePaneMap, trace.name, targetPaneId)) return state;
+        const entry = entries.find(item => item.trace.id === trace.id && item.trace.name === trace.name);
+        const result = entry ? canPlaceMembership(entry, targetPaneId, state.panes.panes, entries) : { allowed: false as const, reason: 'The trace is no longer available.' };
+        if (!result.allowed) {
+          const index = state.panes.panes.findIndex(pane => pane.id === targetPaneId);
+          const message = refusalGuidance(result.reason, trace, `Pane ${index + 1}`, entries.filter(item => item.paneIds.includes(targetPaneId)).map(item => item.trace));
+          return { ...state, ui: uiReducer(state.ui, { type: 'SET', payload: { key: 'paneAssignmentWarning', value: { message, paneId: targetPaneId, traceName: trace.name, source: 'drop' } } }), revision: state.revision + 1 };
+        }
+      }
       if (action.type === 'SET_PANE_COUNT' && action.payload < state.panes.panes.length && !action.confirmed) {
         const plan=planPaneRemoval(state.panes.panes,entries,action.targetPaneId ? [action.targetPaneId] : state.panes.panes.slice(action.payload).map(pane => pane.id));
         if (!plan.ok || plan.plan.unplaced.length) return refusal(plan.ok ? 'Removing these panes would leave traces unplaced; confirmation is required.' : plan.reason,state.panes.activePaneId);

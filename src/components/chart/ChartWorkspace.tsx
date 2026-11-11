@@ -1,6 +1,6 @@
 import { useFileDispatch, useFileState } from '../../stores/file-store';
 import { usePaneState } from '../../stores/pane-store';
-import { useUiDispatch, useUiState } from '../../stores/ui-store';
+import { showPaneWarningBanner, useUiDispatch, useUiState } from '../../stores/ui-store';
 import { PaneLayoutGrid } from './PaneLayoutGrid';
 
 /**
@@ -31,7 +31,7 @@ export function ChartWorkspace() {
           onDismiss={() => fileDispatch({ type: 'DISMISS_IMPORT_ERROR', payload: { id: error.id } })}
         />
       ))}
-      {paneAssignmentWarning && (
+      {paneAssignmentWarning && showPaneWarningBanner(paneAssignmentWarning, panes.map(pane => pane.id)) && (
         <Notice
           message={paneAssignmentWarning.message}
           onDismiss={() => uiDispatch({ type: 'SET', payload: { key: 'paneAssignmentWarning', value: null } })}
