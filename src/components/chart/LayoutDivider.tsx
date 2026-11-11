@@ -3,12 +3,16 @@ import type { CSSProperties, KeyboardEvent, PointerEvent } from 'react';
 import { equalSizes, moveDivider, splitPercentages } from '../../domain/pane-layout';
 import type { Divider, LayoutSizes } from '../../domain/pane-layout';
 
-export function LayoutDivider({ divider, sizes, count, pixels, style, onLive, onCommit, onCancel }: {
+export function LayoutDivider({ divider, sizes, count, pixels, style, onLive, onCommit, onCancel, onActive }: {
   divider: Divider; sizes: LayoutSizes; count: number; pixels: number; style: CSSProperties;
   onLive: (sizes: LayoutSizes) => void; onCommit: (sizes: LayoutSizes) => void; onCancel: () => void;
+  /** Told when a pointer drag starts and ends, so the grid can dim the panes that are not being resized. */
+  onActive?: (active: boolean) => void;
 }) {
   const drag = useRef<{ start: number; original: LayoutSizes; latest: LayoutSizes; pointerId: number; element: HTMLDivElement } | null>(null);
   const [active, setActive] = useState(false);
+  const notify = useRef(onActive); notify.current = onActive;
+  useEffect(() => { notify.current?.(active); }, [active]);
   const cancel = () => {
     const current = drag.current; if (!current) return;
     drag.current = null; setActive(false);
@@ -32,7 +36,7 @@ export function LayoutDivider({ divider, sizes, count, pixels, style, onLive, on
     const backward = vertical ? 'ArrowLeft' : 'ArrowUp';
     const forward = vertical ? 'ArrowRight' : 'ArrowDown';
     if (event.key === 'Enter') { event.preventDefault(); reset(); return; }
-    const delta = event.key === backward ? -pixels * (event.shiftKey ? 0.1 : 0.01) : event.key === forward ? pixels * (event.shiftKey ? 0.1 : 0.01) : event.key === 'Home' ? -pixels : event.key === 'End' ? pixels : null;
+    const delta = event.key === backward ? -pixels * (event.shiftKey ? 0.1 : 0.02) : event.key === forward ? pixels * (event.shiftKey ? 0.1 : 0.02) : event.key === 'Home' ? -pixels : event.key === 'End' ? pixels : null;
     if (delta !== null) { event.preventDefault(); onCommit(move(sizes, delta)); }
   };
   const percentages = splitPercentages(sizes, divider.key);
@@ -42,6 +46,6 @@ export function LayoutDivider({ divider, sizes, count, pixels, style, onLive, on
     onPointerUp={event => { const current = drag.current; if (!current) return; drag.current = null; setActive(false); if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); if (JSON.stringify(current.original) === JSON.stringify(current.latest)) onCancel(); else onCommit(current.latest); }}
     onPointerCancel={cancel} onLostPointerCapture={cancel}
     onDoubleClick={reset} onKeyDown={onKeyDown}>
-    {active && percentages && <span className="layout-divider__tag t-caption">{percentages[0]}% · {percentages[1]}%</span>}
+    {active && percentages && <span className="layout-divider__tag t-readout">{percentages[0]}% · {percentages[1]}%</span>}
   </div>;
 }

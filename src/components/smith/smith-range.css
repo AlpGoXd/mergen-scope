@@ -1,11 +1,32 @@
-.smith-range { flex: none; padding: var(--space-1) var(--space-2); border-top: 1px solid var(--border); color: var(--text); background: var(--panel); }
-.smith-range-track { position: relative; height: var(--control-sm-height); margin: 0 var(--space-2); touch-action: none; }
-.smith-range-track::before, .smith-range-fill { content: ''; position: absolute; top: 50%; height: var(--space-1); transform: translateY(-50%); border-radius: var(--radius-control); }
-.smith-range-track::before { left: 0; right: 0; background: var(--border-strong); }
+/*
+ * Smith frequency range: one quiet line under the chart with a 2 px track above it.
+ * Tokens and text roles only. The values are the shared editable value (shared/editable-value.css).
+ */
+.smith-range { flex: none; container-type: inline-size; padding: 0 var(--space-2); border-top: 1px solid var(--border); background: var(--smith-bg, var(--bg)); }
+/* 12 px tall so the 10 px handles have room; the visible track is the 2 px line in the middle. */
+.smith-range-track { position: relative; height: 12px; margin: 0 5px; touch-action: none; }
+.smith-range-track::before, .smith-range-fill { content: ''; position: absolute; top: 5px; height: 2px; border-radius: 1px; }
+.smith-range-track::before { left: 0; right: 0; background: var(--border); }
 .smith-range-fill { background: var(--accent); }
-.smith-range-handle { position: absolute; top: 50%; transform: translate(-50%, -50%); width: var(--control-sm-height); height: var(--control-sm-height); border: 1px solid var(--accent); border-radius: var(--radius-control); background: var(--raised); cursor: ew-resize; touch-action: none; }
-.smith-range-controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-1); }
-.smith-range-value { color: inherit; border: 0; padding: 0; background: transparent; cursor: pointer; }
-.smith-range-value:disabled, .smith-range-handle:disabled { opacity: 0.6; cursor: default; }
-.smith-range-input { width: 10ch; color: var(--text); background: var(--bg); border: 1px solid var(--border); }
-.smith-range-input.is-invalid { border-color: var(--danger); }
+.smith-range-handle {
+  position: absolute; top: 1px; width: 10px; height: 10px; margin-left: -5px; padding: 0; box-sizing: border-box;
+  border: 2px solid var(--accent); border-radius: 50%; background: var(--raised); cursor: ew-resize; touch-action: none;
+}
+.smith-range-handle:hover:not(:disabled), .smith-range-handle:active:not(:disabled) { background: var(--accent); }
+.smith-range-handle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.smith-range-handle:disabled { border-color: var(--border-strong); cursor: default; }
+.smith-range:has(.smith-range-handle:disabled) .smith-range-fill { background: var(--border-strong); }
+.smith-range-line { display: flex; align-items: center; gap: var(--space-2); min-width: 0; height: var(--footer-height); white-space: nowrap; }
+.smith-range-text { display: inline-flex; align-items: center; min-width: 0; }
+.smith-range-arrow, .smith-range-of { white-space: pre; }
+.smith-range-full {
+  margin-left: auto; flex: none; padding: 0 var(--space-1); height: var(--control-sm-height);
+  border: 1px solid transparent; border-radius: var(--radius-badge); background: transparent; cursor: pointer;
+}
+.smith-range .smith-range-full:not(:disabled) { color: var(--accent); }
+.smith-range-full:hover:not(:disabled) { background: var(--raised); border-color: var(--border-strong); }
+.smith-range-full:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.smith-range-full:disabled { opacity: 0.55; cursor: default; }
+/* Narrow panes: the "of …" part goes first, then the word "Range"; the two values always stay. */
+@container (max-width: 400px) { .smith-range-of { display: none; } }
+@container (max-width: 280px) { .smith-range-word { display: none; } }

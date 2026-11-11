@@ -1,0 +1,28 @@
+/*
+ * Editable value (shared). Text is the Readout role (Mono 400, caption size); colours are app tokens.
+ * The rest text and the field share one box (1 px border, same padding), so nothing moves on click.
+ */
+.ev { position: relative; display: inline-flex; align-items: center; min-width: 0; max-width: 100%; }
+.ev-rest, .ev-input {
+  box-sizing: border-box; height: var(--control-sm-height); min-width: 0; max-width: 100%;
+  padding: 0 var(--space-1); border: 1px solid transparent; border-radius: var(--radius-badge);
+}
+.ev-rest {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; background: transparent; cursor: text;
+  text-decoration: underline dotted; text-decoration-color: var(--border-strong); text-decoration-thickness: 1px; text-underline-offset: 3px;
+}
+.ev-rest:hover:not(:disabled) { background: var(--raised); border-color: var(--border-strong); text-decoration-color: transparent; }
+.ev-rest:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.ev-rest:disabled { color: var(--text-muted); text-decoration: none; cursor: default; }
+.ev-input { background: var(--bg); border-color: var(--border-strong); outline: none; }
+/* One focus ring only: the global input outline is replaced by the 2 px accent edge. */
+.ev .ev-input:focus, .ev .ev-input:focus-visible { outline: none; border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.ev .ev-input[aria-invalid="true"] { border-color: var(--danger-line); box-shadow: 0 0 0 1px var(--danger-line); }
+/* The message floats, so a fixed-height row keeps its height. Two classes beat the caption role's colour. */
+.ev .ev-msg {
+  position: absolute; left: 0; z-index: 5; white-space: nowrap; pointer-events: none;
+  padding: 0 var(--space-1); border: 1px solid var(--danger-line); border-radius: var(--radius-badge);
+  background: var(--raised); color: var(--danger-ink);
+}
+.ev .ev-msg--below { top: calc(100% + 2px); }
+.ev .ev-msg--above { bottom: calc(100% + 2px); }

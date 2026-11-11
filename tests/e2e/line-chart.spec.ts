@@ -46,8 +46,8 @@ test('hovering the row lights every chart copy', async ({ page }) => {
 
 test('dragging a copy moves the one line in every pane', async ({ page }) => {
   await twoPanesWithLine(page);
-  const input = page.getByTestId('ref-line-row-V1').getByRole('textbox');
-  const before = await input.inputValue();
+  const value = page.getByTestId('ref-line-row-V1').getByRole('button', { name: 'V1 value' });
+  const before = await value.innerText();
   const label = page.getByTestId('chart-plot-pane-2').locator('.ln-label');
   const box = await label.boundingBox();
   if (!box) throw new Error('no label box');
@@ -58,7 +58,7 @@ test('dragging a copy moves the one line in every pane', async ({ page }) => {
   await page.mouse.down();
   await page.mouse.move(x + 40, y, { steps: 6 });
   await page.mouse.up();
-  await expect.poll(() => input.inputValue()).not.toBe(before);
+  await expect.poll(() => value.innerText()).not.toBe(before);
   const after = await label.boundingBox();
   const other = await page.getByTestId('chart-plot-pane-1').locator('.ln-label').boundingBox();
   expect(Math.abs((after?.x ?? 0) - (box.x + 40))).toBeLessThan(6);
@@ -116,6 +116,7 @@ test('a line outside the visible range shows an edge tag that pans to it', async
 
 test('a line outside the data range keeps its edge tag when revealed (the pane never goes blank)', async ({ page }) => {
   await twoPanesWithLine(page);
+  await page.getByTestId('ref-line-row-V1').getByRole('button', { name: 'V1 value' }).click();
   const input = page.getByTestId('ref-line-row-V1').getByRole('textbox');
   await input.fill('1.43GHz');
   await input.press('Enter');

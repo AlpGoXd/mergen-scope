@@ -120,8 +120,8 @@ export interface MarkerItemProps {
   delta?: { from: string; fromHue: Hue; at: string; onChangeRef: (anchor: HTMLElement) => void };
   selected?: boolean;
   related?: boolean;
-  invalid?: boolean;
-  onX: (text: string) => void;
+  /** Save the typed X. Return a message to refuse it; the marker then stays where it is. */
+  onX: (text: string) => string | null | void;
   onSelect: () => void;
   onRemove: () => void;
 }

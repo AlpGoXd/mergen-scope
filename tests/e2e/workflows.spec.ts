@@ -72,8 +72,11 @@ test("multi-pane assignment survives workspace save and reload", async ({ page }
   await expect(page.getByTestId("chart-pane-pane-2")).toBeVisible();
   await expect(page.getByTestId("empty-trace-pane-dropzone")).toContainText(/Pick a type/);
 
-  await firstTraceRow(page).click();
-  await page.getByTestId("chart-pane-header-pane-2").getByRole("button", { name: "Move Here" }).click();
+  // Move the trace to Pane 2 from its Show in badges (the header has no Move Here button any more).
+  await firstTraceRow(page).getByTitle("Show in panes").click();
+  await page.getByRole("menu", { name: "Show in" }).getByRole("menuitemcheckbox", { name: /Pane 2/ }).click();
+  await page.getByRole("menu", { name: "Show in" }).getByRole("menuitemcheckbox", { name: /Pane 1/ }).click();
+  await page.keyboard.press("Escape");
   await expect(firstTraceRow(page)).toContainText("P2");
 
   const workspaceDownloadPromise = page.waitForEvent("download");
@@ -144,9 +147,10 @@ test("reference-line placement creates, edits, and deletes sidebar state", async
   const refLine = page.getByTestId("ref-line-row-V1");
   await expect(refLine).toBeVisible();
   await refLine.click();
+  await refLine.getByRole("button", { name: "V1 value" }).click();
   await refLine.getByRole("textbox").fill("1.4204GHz");
   await refLine.getByRole("textbox").press("Enter");
-  await expect(refLine.getByRole("textbox")).toHaveValue(/1\.420|1420400000/);
+  await expect(refLine.getByRole("button", { name: "V1 value" })).toHaveText(/1\.420|1420400000/);
 
   await refLine.getByRole("button", { name: "Delete V1" }).click();
   await expect(page.getByTestId("ref-line-row-V1")).toHaveCount(0);
@@ -242,8 +246,10 @@ test("loading a workspace keeps traces in their saved pane even when another pan
   await expect(page.locator(".lp-file--header .lp-name").filter({ hasText: "cascade_ip3_-12dBm.DAT" })).toBeVisible();
   await page.getByRole("button", { name: "+ Pane" }).click();
 
-  await firstTraceRow(page).click();
-  await page.getByTestId("chart-pane-header-pane-2").getByRole("button", { name: "Move Here" }).click();
+  await firstTraceRow(page).getByTitle("Show in panes").click();
+  await page.getByRole("menu", { name: "Show in" }).getByRole("menuitemcheckbox", { name: /Pane 2/ }).click();
+  await page.getByRole("menu", { name: "Show in" }).getByRole("menuitemcheckbox", { name: /Pane 1/ }).click();
+  await page.keyboard.press("Escape");
   await expect(firstTraceRow(page)).toContainText("P2");
   await page.getByTestId("chart-pane-header-pane-1").getByText("Pane 1", { exact: true }).click();
 

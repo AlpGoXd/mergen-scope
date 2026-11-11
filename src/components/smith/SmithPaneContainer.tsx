@@ -6,6 +6,7 @@ import { useRefLineDispatch } from '../../stores/ref-line-store';
 import { useUiState } from '../../stores/ui-store';
 import { useLinkedHoverFrequency, useSharedHoverPublisher } from '../../stores/shared-hover-store';
 import { useTraceColors } from '../../hooks/use-trace-colors';
+import { useTraceSymbols } from '../../hooks/use-trace-symbols';
 import { canRenderInPane } from '../../domain/pane-placement';
 import { allocateTraceColors, traceWidth } from '../../domain/trace-palette';
 import { smithLinkedBand, smithLinkedPaneLabel, smithMarkerFrequency, smithTraceSamples, smithRangeModel } from '../../domain/smith-pane-model';
@@ -23,9 +24,12 @@ export function SmithPaneContainer({ paneId, fitRequest = 0 }: { paneId: string;
   const markerDispatch = useMarkerDispatch();
   const lineDispatch = useRefLineDispatch();
   const color = useTraceColors();
+  const symbol = useTraceSymbols();
   const assignments = useMemo(() => allocateTraceColors(allKnownTraces, new Map(Object.entries(traceHueSlots))), [allKnownTraces, traceHueSlots]);
   const pane = panes.find(item => item.id === paneId);
   const eligible = useMemo(() => pane ? allTraces.filter(trace => (tracePaneMap[trace.name] ?? []).includes(paneId) && vis[trace.name] !== false && canRenderInPane({ trace, paneIds: [paneId], displayTrace: allDisplayTraces.find(display => display.id === trace.id || display.id === trace.parameters?.['displayTraceId']) }, pane).allowed) : [], [pane, allTraces, tracePaneMap, paneId, vis, allDisplayTraces]);
+  // `symbol` is a new closure on every render; this key changes only when a trace's symbol does.
+  const symbolKey = eligible.map(trace => symbol(trace.id) ?? '').join(',');
   const traces = useMemo(() => {
     let z0: number | undefined;
     return eligible.flatMap(trace => {
@@ -33,9 +37,9 @@ export function SmithPaneContainer({ paneId, fitRequest = 0 }: { paneId: string;
       if (!model) return [];
       z0 ??= model.z0;
       const assignment = assignments.get(trace.id);
-      return [{ traceId: trace.id, name: trace.name, shortName: model.shortName, color: color(trace), created: assignment ? traceWidth(assignment) === 2 : false, z0: model.z0, samples: model.samples }];
+      return [{ traceId: trace.id, name: trace.name, shortName: model.shortName, color: color(trace), created: assignment ? traceWidth(assignment) === 2 : false, symbol: symbol(trace.id), z0: model.z0, samples: model.samples, measured: new Set(model.samples.map(sample => sample.frequencyHz)) }];
     });
-  }, [eligible, assignments, color]);
+  }, [eligible, assignments, color, symbolKey]);
   const band = useMemo(() => smithLinkedBand(zoomAll, sharedZoom, traces), [zoomAll, sharedZoom, traces]);
   if (!pane) return null;
   const smith = pane.settings.smith;
@@ -58,5 +62,5 @@ export function SmithPaneContainer({ paneId, fitRequest = 0 }: { paneId: string;
     onHoverFrequency={value => publish(value === null ? null : { paneId, xUnit: 'Hz', value }, paneId)}
     grid={smith?.grid ?? (pane.renderMode === 'smith-inverted' ? 'y' : 'z')} labels={smith?.labels ?? 'normalised'}
     direction={smith?.direction ?? 'chevrons'} readout={smith?.readout ?? ['z', 'gamma', 'vswr']}
-    showMarkers={pane.settings.showMarkers} showMarkerTags={pane.settings.showMarkerLabels} fitRequest={fitRequest} />;
+    showMarkers={pane.settings.showMarkers} showMarkerTags={pane.settings.showMarkerLabels} showSamples={pane.settings.showSampleDots} fitRequest={fitRequest} />;
 }

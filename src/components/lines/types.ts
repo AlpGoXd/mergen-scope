@@ -17,9 +17,9 @@ export interface LineRowProps {
   /** Hover or selection of any copy on a chart lights the row too. */
   lit?: boolean;
   selected?: boolean;
-  invalid?: boolean;
   menuOpen?: boolean;
-  onValue: (text: string) => void;
+  /** Save the typed value. Return a message to refuse it; the line then stays where it is. */
+  onValue: (text: string) => string | null | void;
   /** Opens "Show in" (V lines). H lines have one pane, so the badge only shows a tooltip. */
   onPanes: (anchor: HTMLElement) => void;
   onListCrossings: () => void;

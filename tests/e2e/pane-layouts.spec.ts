@@ -87,7 +87,8 @@ test('dragging, minimums, reset and keyboard resize are undoable', async ({ page
   const before = await box(pane(page, 1));
   await moveDivider(page, divider, 0, 80);
   await expect(divider.locator('.layout-divider__tag')).toHaveText(/\d+% · \d+%/);
-  const colours = await divider.evaluate(el => ({ actual: getComputedStyle(el).backgroundColor, accent: getComputedStyle(el).getPropertyValue('--accent').trim() }));
+  const colours = await divider.evaluate(el => ({ actual: getComputedStyle(el, '::after').backgroundColor, opacity: getComputedStyle(el, '::after').opacity, thickness: getComputedStyle(el, '::after').height, accent: getComputedStyle(el).getPropertyValue('--accent').trim() }));
+  expect(colours.opacity).toBe('1'); expect(colours.thickness).toBe('2px');
   const resolvedAccent = await divider.evaluate((el, accent) => { const probe = document.createElement('span'); probe.style.color = accent; el.appendChild(probe); const value = getComputedStyle(probe).color; probe.remove(); return value; }, colours.accent);
   expect(colours.actual).toBe(resolvedAccent);
   await page.mouse.up(); await expect.poll(async () => (await box(pane(page, 1))).height).toBeGreaterThan(before.height + 30);
@@ -179,8 +180,12 @@ test('adding a fifth pane falls back from grid to Rows', async ({ page }) => {
 
 test('closing the last pane moves a trace to the nearest compatible pane', async ({ page }) => {
   await loadTrace(page); await addPanes(page, 2);
-  const trace = page.locator('[data-testid^="trace-row-"]').first(); await trace.click();
-  await page.getByTestId('chart-pane-header-pane-2').getByRole('button', { name: 'Move Here' }).click(); await expect(trace).toContainText('P2');
+  const trace = page.locator('[data-testid^="trace-row-"]').first();
+  await trace.getByTitle('Show in panes').click();
+  await page.getByRole('menu', { name: 'Show in' }).getByRole('menuitemcheckbox', { name: /Pane 2/ }).click();
+  await page.getByRole('menu', { name: 'Show in' }).getByRole('menuitemcheckbox', { name: /Pane 1/ }).click();
+  await page.keyboard.press('Escape');
+  await expect(trace).toContainText('P2'); await expect(trace).not.toContainText('P1');
   await page.getByRole('button', { name: '- Pane', exact: true }).click();
   await expect(pane(page, 2)).toHaveCount(0); await expect(trace).toContainText('P1');
 });

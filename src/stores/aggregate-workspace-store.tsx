@@ -47,7 +47,7 @@ type SliceAction =
   | { slice: 'lines'; action: RefLineAction } | { slice: 'analysis'; action: AnalysisAction }
   | { slice: 'ui'; action: UiAction };
 export type OpenDataCommand = PendingOpenInput;
-export type WorkspaceAction = {slice:'layout'; action: {type:'SWAP_PANES'; sourcePaneId:string; targetPaneId:string} | {type:'SET_LAYOUT_PRESET'; preset:PresetId; limit:4|8} | {type:'SET_LAYOUT_SIZES'; sizes:Readonly<Record<string,number>>} | {type:'ADD_PANE_AFTER'; targetPaneId:string; limit:4|8}} | {slice:'remove-last-pane'; targetPaneId:string; expectedRevision:number; confirmed:boolean; limit:4|8} | {slice:'remove-empty-pane'; targetPaneId:string; expectedRevision:number; confirmed:boolean; limit:4|8} | {slice:'open-data'; inputs:readonly OpenDataCommand[]; targetPaneId?:string; drop?:boolean; limit:4|8; resolveWizardId?:string; resolveBatchId?:string; workspace?:{readonly snapshot:WorkspaceSnapshotV5;readonly legacy:boolean;readonly choice?:'replace'|'cancel'}} | SliceAction | { slice: 'restore'; state: WorkspaceState } | { slice: 'transaction'; actions: readonly SliceAction[] } | { slice: 'deleteTrace'; traceId: string } | { slice: 'load'; snapshot: WorkspaceSnapshotV5; legacy: boolean; limit?: 4 | 8 };
+export type WorkspaceAction = {slice:'layout'; action: {type:'SWAP_PANES'; sourcePaneId:string; targetPaneId:string} | {type:'SET_LAYOUT_PRESET'; preset:PresetId; limit:4|8} | {type:'SET_LAYOUT_SIZES'; sizes:Readonly<Record<string,number>>} | {type:'ADD_PANE_AFTER'; targetPaneId:string; limit:4|8}} | {slice:'remove-last-pane'; targetPaneId:string; expectedRevision:number; confirmed:boolean; limit:4|8} | {slice:'remove-empty-pane'; targetPaneId:string; expectedRevision:number; confirmed:boolean; limit:4|8} | {slice:'remove-pane'; targetPaneId:string; expectedRevision:number; confirmed:boolean; limit:4|8} | {slice:'open-data'; inputs:readonly OpenDataCommand[]; targetPaneId?:string; drop?:boolean; limit:4|8; resolveWizardId?:string; resolveBatchId?:string; workspace?:{readonly snapshot:WorkspaceSnapshotV5;readonly legacy:boolean;readonly choice?:'replace'|'cancel'}} | SliceAction | { slice: 'restore'; state: WorkspaceState } | { slice: 'transaction'; actions: readonly SliceAction[] } | { slice: 'deleteTrace'; traceId: string } | { slice: 'load'; snapshot: WorkspaceSnapshotV5; legacy: boolean; limit?: 4 | 8 };
 
 export function initialWorkspaceState(): WorkspaceState {
   return { files: defaultFileState, traces: defaultTraceState, panes: defaultPaneState, markers: defaultMarkerState, lines: defaultRefLineState, analysis: defaultAnalysisState, ui: getInitialUiState(readThemePreference()), layout: {preset:'rows',paneOrder:['pane-1'],sizes:{}}, revision: 0 };
@@ -302,7 +302,8 @@ export function workspaceReducer(state: WorkspaceState, command: WorkspaceAction
     const ordered = renumberTitles(panes);
     return { ...state, panes: { ...added, panes: ordered }, layout: { ...state.layout, preset: fallbackPreset(state.layout.preset, ordered.length, action.limit), paneOrder: ordered.map(p => p.id) }, revision: state.revision + 1 };
   }
-  if (command.slice === 'remove-last-pane' || command.slice === 'remove-empty-pane') {
+  // 'remove-pane' closes any pane (Pane settings > Close pane); its traces and lines move by the closing-pane rule.
+  if (command.slice === 'remove-last-pane' || command.slice === 'remove-empty-pane' || command.slice === 'remove-pane') {
     if (state.revision !== command.expectedRevision) return state;
     const view = traceView(state.files, state.traces);
     const entries = view.allKnownTraces.map(trace => ({ trace, paneIds: state.panes.tracePaneMap[trace.name] ?? [], displayTrace: view.allDisplayTraces.find(display => display.id === trace.id || display.id === trace.parameters?.['displayTraceId']) }));
@@ -530,7 +531,7 @@ function sameValue(a: unknown, b: unknown, seen = new WeakMap<object, object>())
 }
 function recordable(command: WorkspaceAction): boolean {
   if (command.slice === 'layout') return true;
-  if (command.slice === 'remove-last-pane' || command.slice === 'remove-empty-pane' || command.slice === 'open-data' || command.slice === 'transaction' || command.slice === 'restore' || command.slice === 'deleteTrace' || command.slice === 'load') return true;
+  if (command.slice === 'remove-last-pane' || command.slice === 'remove-empty-pane' || command.slice === 'remove-pane' || command.slice === 'open-data' || command.slice === 'transaction' || command.slice === 'restore' || command.slice === 'deleteTrace' || command.slice === 'load') return true;
   if (command.slice === 'files') return true;
   if (command.slice === 'traces') return command.action.type !== 'RECONCILE';
   if (command.slice === 'panes') return command.action.type !== 'RECONCILE';

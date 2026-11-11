@@ -18,6 +18,7 @@ test('List adds a "V1 crossings" card with only the changing value; it has no Ma
   await expect(card).not.toHaveText(/e[+-]\d/i);
   await expect(card.getByRole('button', { name: 'Manual threshold' })).toHaveCount(0);
   const oldSource = await card.locator('.an-card__source').innerText();
+  await row.getByRole('button', { name: 'V1 value' }).click();
   await row.getByRole('textbox').fill('1.4204GHz');
   await row.getByRole('textbox').press('Enter');
   await expect.poll(() => card.locator('.an-card__source').innerText()).not.toBe(oldSource);
