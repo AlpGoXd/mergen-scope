@@ -64,7 +64,7 @@ export function MarkerItem(p: MarkerItemProps): ReactElement {
                 onClick={(e) => { e.stopPropagation(); p.delta?.onChangeRef(e.currentTarget); }}>{p.delta.from} ▾</button>}
               {' · at '}<span className="lp-mono">{p.delta.at}</span>
             </>
-          ) : p.traceName}
+          ) : <>{p.traceName}{p.roleControl ? <> {p.roleControl}</> : null}</>}
         </span>
         {p.panes.map((pn) => <span key={pn} className="lp-pane">{pn}</span>)}
         <span>{p.mode === 'snap' ? '● snap' : '≈ interp'}</span>

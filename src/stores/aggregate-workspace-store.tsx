@@ -403,7 +403,7 @@ export function workspaceReducer(state: WorkspaceState, command: WorkspaceAction
     case 'traces': next = { ...state, traces: traceReducer(state.traces, command.action) }; break;
     case 'markers': {
       const markers = markerReducer(state.markers, command.action);
-      const selects = ((command.action.type === 'PLACE_MARKER' || command.action.type === 'PLACE_MARKERS') && markers !== state.markers) || (command.action.type === 'SET_SELECTED_IDX' && command.action.payload >= 0);
+      const selects = ((command.action.type === 'PLACE_MARKER' || command.action.type === 'PLACE_MARKERS' || command.action.type === 'SET_ROLE_MARKERS') && markers !== state.markers) || (command.action.type === 'SET_SELECTED_IDX' && command.action.payload >= 0);
       next = { ...state, markers, lines: selects && markers.selectedMkrIdx >= 0 ? { ...state.lines, selectedRefLineId: null } : state.lines, ui: selects && markers.selectedMkrIdx >= 0 ? { ...state.ui, selectedTraceName: null } : state.ui }; break;
     }
     case 'lines': {

@@ -4,7 +4,7 @@ import { resolve } from 'node:path';
 
 // Builds demo-assets/demo.json with the app's own Save, from sample files already in the repo.
 // Run: BUILD_DEMO=1 npx playwright test tests/e2e/demo-build.spec.ts
-// Files used: test files/cascaded chain.s2p (S11, S21, S12, S22) and test files/waveform_sinc_test.csv (scope capture).
+// Files used: test files/cascaded chain.s2p (S11, S21, S12, S22), test files/waveform_sinc_test.csv (scope capture) and test files/cascade_ip3_-12dBm.DAT (two-tone spectrum for IP3).
 test('build the demo workspace', async ({ page }) => {
   test.skip(!process.env['BUILD_DEMO'], 'set BUILD_DEMO=1 to rebuild demo-assets/demo.json');
   test.setTimeout(120_000);
@@ -57,9 +57,19 @@ test('build the demo workspace', async ({ page }) => {
   if (await add.isVisible({ timeout: 3000 }).catch(() => false)) await add.click();
   await expect(page.getByTestId('chart-pane-pane-3')).toBeVisible();
 
-  // Layout: 1 + side.
+  // Pane 4: the two-tone capture for IP3, in its own Chart pane.
+  await page.getByTestId('chart-pane-header-pane-3').click({ position: { x: 20, y: 10 } });
+  await page.getByRole('button', { name: '+ Pane' }).click();
+  const pane4 = page.getByTestId('chart-pane-pane-4');
+  await expect(pane4).toBeVisible();
+  await pane4.locator('.ptp-tile').first().click();
+  await page.getByTestId('chart-pane-header-pane-4').click({ position: { x: 20, y: 10 } });
+  await page.getByTestId('app-open-input').setInputFiles(resolve('test files/cascade_ip3_-12dBm.DAT'));
+  await expect(pane4.locator('.recharts-line-curve').first()).toBeVisible();
+
+  // Layout: 2 x 2.
   await page.getByRole('button', { name: /^Layout:/ }).click();
-  await page.locator('.ui-popover[aria-label="Layout"]').getByRole('button', { name: /1 \+ side/ }).click();
+  await page.locator('.ui-popover[aria-label="Layout"]').getByRole('button', { name: /2 × 2/ }).click();
   await page.keyboard.press('Escape');
 
   // Analysis: Bandwidth on S21 and one Smooth trace.
@@ -71,6 +81,15 @@ test('build the demo workspace', async ({ page }) => {
   await page.getByRole('dialog', { name: 'Add analysis' }).getByRole('option', { name: /^Smooth/ }).click();
   const smooth = page.locator('.an-card').filter({ has: page.locator('.an-card__title').filter({ hasText: 'Smooth' }) }).first();
   await smooth.getByRole('button', { name: 'Create trace' }).click();
+  await page.keyboard.press('Escape');
+
+  // IP3 on the two-tone capture: Auto-place markers finds F1, F2, IM3L and IM3U.
+  await rows.filter({ hasText: 'cascade_ip3' }).first().locator('.lp-name').click();
+  await page.locator('.an-panel__head').getByRole('button', { name: '+ Add analysis' }).click();
+  await page.getByRole('dialog', { name: 'Add analysis' }).getByRole('option', { name: /^IP3/ }).click();
+  const ip3 = page.locator('.an-card').filter({ has: page.locator('.an-card__title').filter({ hasText: 'IP3' }) }).first();
+  await ip3.getByRole('button', { name: 'Auto-place markers' }).click();
+  await expect(ip3).toContainText('OIP3');
   await page.keyboard.press('Escape');
 
   const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Save', exact: true }).click()]);

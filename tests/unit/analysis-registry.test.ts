@@ -18,7 +18,8 @@ describe('analysis registry', () => {
     expect(items.some(item => item.id === 'line-crossings')).toBe(false);
     expect(items.find(item => item.id === 'ripple')?.open).toBe(true);
     expect(items.find(item => item.id === 'occupied-bandwidth')?.disabledReason).toBe('Select a trace with power units (dBm or dBW).');
-    expect(items.find(item => item.id === 'ip3')?.disabledReason).toBe('Place F1, F2, IM3L and IM3U markers');
+    // IP3 can be added without role markers: its card explains the missing markers and offers Auto-place markers.
+    expect(items.find(item => item.id === 'ip3')?.disabledReason).toBeUndefined();
     expect(items.find(item => item.id === 'trace-math')?.disabledReason).toBeUndefined();
   });
   it('allows defining a Math card before a source is available', () => {

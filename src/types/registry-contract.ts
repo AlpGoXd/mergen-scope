@@ -138,6 +138,8 @@ export interface AnalysisTool<
 > {
   readonly kind: AnalysisToolKind;
   readonly addable?: boolean;
+  /** The card explains and fixes missing inputs itself (for example IP3's Auto-place markers), so the Add menu does not block it. */
+  readonly cardGuidesInputs?: boolean;
   readonly parameterUnits?: Readonly<Record<string, string>>;
   readonly appliesToInputs?: (inputs: AnalysisInputs) => Capability;
   readonly meta: AnalysisToolMetadata;

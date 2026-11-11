@@ -108,6 +108,8 @@ export interface MarkerItemProps {
   hue: Hue;
   color?: string;
   referenceControl?: ReactNode;
+  /** Optional control after the trace name of a normal marker (the IP3 role menu). */
+  roleControl?: ReactNode;
   /** Editable X text, already formatted: "2.437 00 GHz" or "+12.00 MHz" for deltas. */
   x: string;
   y: string;

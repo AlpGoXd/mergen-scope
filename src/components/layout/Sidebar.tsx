@@ -485,6 +485,7 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
                     paneNumbers={panes.flatMap((pane, index) => (tracePaneMap[marker.trace] ?? []).includes(pane.id) ? [index + 1] : [])}
                     onSelect={() => { uiDispatch({ type: 'SET', payload: { key: 'selectedTraceName', value: null } }); refLineDispatch({ type: 'SET_SELECTED', payload: null }); markerDispatch({ type: 'SET_SELECTED_IDX', payload: index }); }}
                     onRemove={() => changeMarker({ type: 'REMOVE_MARKER', payload: index }, 'Removed marker', 'delete')}
+                    onSetRole={label => changeMarker({ type: 'SET_MARKER_ROLE', payload: { idx: index, label } }, 'Set marker role')}
                     compact={compactSidebar}
                     paneNumber={paneNumber}
                     refMarker={refMarker}

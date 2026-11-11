@@ -28,7 +28,7 @@ export interface AddableToolTarget {
 export function listAddableTools(target: AddableToolTarget) {
   return ANALYSIS_TOOLS.filter(tool => tool.addable !== false && tool.kind !== 'view').map(tool => {
     const capability: Capability = tool.kind === 'math' ? { allowed: true } : target.trace ? tool.appliesTo(target.trace) : { allowed: false, reason: 'Select a trace.' };
-    const inputCapability = capability.allowed && tool.kind !== 'math' ? tool.appliesToInputs?.(target.inputs) : capability;
+    const inputCapability = capability.allowed && tool.kind !== 'math' && !tool.cardGuidesInputs ? tool.appliesToInputs?.(target.inputs) : capability;
     const failure = !capability.allowed ? capability : inputCapability && !inputCapability.allowed ? inputCapability : undefined;
     return { id: tool.meta.id, kind: tool.kind, title: tool.meta.title, description: tool.meta.description, open: target.analyses.some(instance => instance.toolId === tool.meta.id), ...(failure ? { disabledReason: failure.reason } : {}) };
   }).sort((a, b) => a.title.localeCompare(b.title));

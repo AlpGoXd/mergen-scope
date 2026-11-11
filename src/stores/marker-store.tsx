@@ -25,6 +25,10 @@ export type MarkerAction =
       }
     }
   | { type: 'REMOVE_MARKER'; payload: number } // remove by idx
+  /** Replace the markers that carry these role labels (F1, F2, IM3L, IM3U) with new ones on `trace`. One state change. */
+  | { type: 'SET_ROLE_MARKERS'; payload: { trace: Trace; items: readonly { freq: number; label: string }[] } }
+  /** Give a normal marker a role label (or clear it with null); the same role on another marker is cleared first. */
+  | { type: 'SET_MARKER_ROLE'; payload: { idx: number; label: string | null } }
   | { type: 'REMOVE_MARKERS_FOR_TRACES'; payload: string[] }
   | { type: 'CLEAR_ALL' }
   // Internal resolved-position command: callers use placeMarker before dispatch.
@@ -53,6 +57,26 @@ export function markerReducer(state: MarkerState, action: MarkerAction): MarkerS
         if (!Number.isFinite(targetFreq) || current.markers.some(marker => marker.trace === trace.name && marker.freq === targetFreq)) return current;
         return markerReducer(current, { type: 'PLACE_MARKER', payload: { trace, targetFreq } });
       }, state);
+    }
+    case 'SET_ROLE_MARKERS': {
+      const { trace, items } = action.payload;
+      const roles = new Set(items.map(item => item.label));
+      let current = state;
+      for (let index = current.markers.length - 1; index >= 0; index--) {
+        const marker = current.markers[index];
+        if (marker?.label && roles.has(marker.label)) current = markerReducer(current, { type: 'REMOVE_MARKER', payload: index });
+      }
+      for (const item of items) {
+        if (!Number.isFinite(item.freq)) continue;
+        current = markerReducer(current, { type: 'PLACE_MARKER', payload: { trace, targetFreq: item.freq, label: item.label } });
+      }
+      return current;
+    }
+    case 'SET_MARKER_ROLE': {
+      const { idx, label } = action.payload;
+      const target = state.markers[idx];
+      if (!target || target.type === 'delta') return state;
+      return { ...state, markers: state.markers.map((marker, index) => index === idx ? { ...marker, label } : (label && marker.label === label ? { ...marker, label: null } : marker)) };
     }
     case 'PLACE_MARKER': {
       const { targetFreq, trace, markerType = 'normal', label = null, refId = null, magneticSnap } = action.payload;

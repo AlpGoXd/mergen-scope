@@ -33,8 +33,8 @@ test('+ Add analysis: search, Math / Measure filter, greyed tools with their rea
   expect(titles).toEqual([...titles].sort((a, b) => a.localeCompare(b)));
   expect(titles).not.toContain('VSWR');
   // Reasons replace the note and grey the item.
-  await expect(menu.getByRole('option', { name: /^IP3/ })).toHaveAttribute('aria-disabled', 'true');
-  await expect(menu.getByRole('option', { name: /^IP3/ })).toContainText('Place F1, F2, IM3L and IM3U markers');
+  // IP3 is addable without role markers: its card offers Auto-place markers.
+  await expect(menu.getByRole('option', { name: /^IP3/ })).not.toHaveAttribute('aria-disabled', 'true');
   await expect(menu.getByRole('option', { name: /^Channel power/ })).toHaveAttribute('aria-disabled', 'true');
   await expect(menu.getByRole('option', { name: /^Channel power/ })).toContainText('spectral density units');
   // Filter chips and search.

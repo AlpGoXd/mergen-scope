@@ -10,6 +10,7 @@ import type { ParamField } from './kit/types';
 import { Menu as KitMenu } from '../left-panel/Menu';
 import { PopoverAt } from '../shared/Controls';
 import { useAnalysisContext } from '../../hooks/use-analysis-context';
+import { autoPickIp3 } from '../../domain/analysis/ip3-auto';
 import { useAnalysisDispatch, useAnalysisState } from '../../stores/analysis-store';
 import { useOptionalAggregateWorkspace } from '../../stores/aggregate-workspace-store';
 import { useTraceDispatch, useTraceState } from '../../stores/trace-store';
@@ -54,6 +55,7 @@ export function AnalysisInstanceCard({ instance }: { instance: AnalysisInstance 
   const [editingOutput, setEditingOutput] = useState(false);
   const [select, setSelect] = useState<SelectState | null>(null);
   const [menu, setMenu] = useState<HTMLElement | null>(null);
+  const [ip3Note, setIp3Note] = useState<string | null>(null);
   const [invalidKey, setInvalidKey] = useState<string | null>(null);
   const [currentRow, setCurrentRow] = useState<string | null>(null);
 
@@ -161,6 +163,18 @@ export function AnalysisInstanceCard({ instance }: { instance: AnalysisInstance 
     setMenu(null);
   };
 
+  // IP3 needs four role markers (F1, F2, IM3L, IM3U). Auto-place finds the two tones and their third-order products
+  // on the card's trace and places the four markers in one undo step, replacing earlier role markers.
+  const autoPlaceIp3 = () => {
+    if (!source) return;
+    const pick = autoPickIp3(source.data);
+    if (!pick.ok) { setIp3Note(pick.reason); setMenu(null); return; }
+    setIp3Note(null); setMenu(null);
+    const action = { type: 'SET_ROLE_MARKERS' as const, payload: { trace: source, items: pick.items.map(item => ({ freq: item.freq, label: item.label })) } };
+    if (aggregate) aggregate.historyDispatch({ type: 'change', command: { slice: 'markers', action } });
+    else markerDispatch(action);
+  };
+
   const copy = (text: string) => { void navigator.clipboard?.writeText(text).catch(() => undefined); };
   const remove = () => {
     const action = { type: 'REMOVE_ANALYSIS' as const, payload: { id: instance.id } };
@@ -181,8 +195,9 @@ export function AnalysisInstanceCard({ instance }: { instance: AnalysisInstance 
         <Results>
         {stimulus && !stimulus.identical && !stimulus.domainMismatch && source && second ? <CardMsg tone="warning" text={`Stimulus mismatch. A: ${stimulus.aCount} points, ${formatCrossingValue(stimulus.aRange[0], source.units.x, significantStep(stimulus.aRange[0], 6))} to ${formatCrossingValue(stimulus.aRange[1], source.units.x, significantStep(stimulus.aRange[1], 6))}. B: ${stimulus.bCount} points, ${formatCrossingValue(stimulus.bRange[0], second.units.x, significantStep(stimulus.bRange[0], 6))} to ${formatCrossingValue(stimulus.bRange[1], second.units.x, significantStep(stimulus.bRange[1], 6))}.`} /> : null}
         {mathWarning ? <CardMsg tone="warning" text={mathWarning} /> : null}
+        {ip3Note ? <CardMsg tone="warning" text={ip3Note} /> : null}
         {(view?.message ?? result.reason)
-          ? <CardMsg tone="warning" text={view?.message ?? result.reason ?? ''} {...(!NO_SOURCE_PICKER.has(instance.toolId) && !source ? { action: { label: 'Pick a trace', onClick: () => { const button = document.querySelector<HTMLElement>(`[data-testid="analysis-card-${instance.id}"] .an-select`); if (button) pickTrace(button); } } } : {})} />
+          ? <CardMsg tone="warning" text={view?.message ?? result.reason ?? ''} {...(instance.toolId === 'ip3' && source ? { action: { label: 'Auto-place markers', onClick: autoPlaceIp3 } } : {})} {...(!NO_SOURCE_PICKER.has(instance.toolId) && !source ? { action: { label: 'Pick a trace', onClick: () => { const button = document.querySelector<HTMLElement>(`[data-testid="analysis-card-${instance.id}"] .an-select`); if (button) pickTrace(button); } } } : {})} />
           : null}
         {!result.reason && numbers?.result ? <Result {...numbers.result} /> : null}
         {!result.reason && instance.toolId === 'peak-table' && peakRows.length ? <div className="an-peak-rows">{peakRows.map(row => {
@@ -220,6 +235,7 @@ export function AnalysisInstanceCard({ instance }: { instance: AnalysisInstance 
       {menu ? (
         <PopoverAt label={`${title} actions`} at={menu} onClose={() => setMenu(null)}>
           <KitMenu label={`${title} actions`} entries={[
+            ...(instance.toolId === 'ip3' ? [{ label: 'Auto-place markers', ...(!source ? { disabledReason: 'Pick a trace first' } : {}), onSelect: autoPlaceIp3 }] : []),
             ...(instance.toolId === 'peak-table' ? [{ label: 'Add all as markers', ...(!missingPeaks.length || !source ? { disabledReason: 'All peaks already have markers' } : {}), onSelect: addAllMarkers }] : []),
             ...(tool.kind === 'math' && output ? [{ label: 'Freeze as a copy', onSelect: () => { setMenu(null); analysisDispatch({ type: 'FREEZE_ANALYSIS_COPY', payload: { id: instance.id } }); } }] : []),
             ...(output && instance.autoName !== undefined && output.dn !== instance.autoName ? [{ label: 'Reset name', onSelect: () => { setMenu(null); renameOutput(''); } }] : []),
