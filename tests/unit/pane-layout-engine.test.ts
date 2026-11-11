@@ -1,0 +1,30 @@
+import { expect, it } from 'vitest';
+import { initialWorkspaceEngine, workspaceEngineReducer } from '../../src/stores/aggregate-workspace-store';
+import type { WorkspaceAction } from '../../src/stores/aggregate-workspace-store';
+
+it('records layouts, order, fallback and undo as workspace changes', () => {
+  let engine = initialWorkspaceEngine();
+  const change = (command: WorkspaceAction) => { engine = workspaceEngineReducer(engine, { type: 'change', command }); };
+  change({ slice: 'layout', action: { type: 'SET_LAYOUT_PRESET', preset: 'grid', limit: 4 } });
+  expect(engine.present.layout.preset).toBe('rows');
+  expect(engine.present.ui.paneAssignmentWarning?.message).toBe('2 × 2 needs exactly 4 panes');
+  change({ slice: 'layout', action: { type: 'SET_LAYOUT_SIZES', sizes: { 'rows:0': 0.7 } } });
+  change({ slice: 'layout', action: { type: 'SET_LAYOUT_PRESET', preset: 'columns', limit: 4 } });
+  change({ slice: 'layout', action: { type: 'SET_LAYOUT_SIZES', sizes: { 'columns:0': 0.4 } } });
+  change({ slice: 'layout', action: { type: 'SET_LAYOUT_PRESET', preset: 'rows', limit: 4 } });
+  expect(engine.present.layout.sizes).toEqual({ 'rows:0': 0.7, 'columns:0': 0.4 });
+  change({ slice: 'panes', limit: 4, action: { type: 'SET_PANE_COUNT', payload: 3 } });
+  change({ slice: 'layout', action: { type: 'ADD_PANE_AFTER', targetPaneId: 'pane-1', limit: 4 } });
+  expect(engine.present.panes.panes.map(p => p.id)).toEqual(['pane-1', 'pane-4', 'pane-2', 'pane-3']);
+  expect(engine.present.panes.panes.map(p => p.title)).toEqual(['Pane 1', 'Pane 2', 'Pane 3', 'Pane 4']);
+  expect(engine.present.layout.paneOrder).toEqual(engine.present.panes.panes.map(p => p.id));
+  change({ slice: 'layout', action: { type: 'SET_LAYOUT_PRESET', preset: 'grid', limit: 4 } });
+  const before = engine.present;
+  change({ slice: 'remove-empty-pane', targetPaneId: 'pane-4', expectedRevision: before.revision, confirmed: true, limit: 4 });
+  expect(engine.present.layout.preset).toBe('rows');
+  engine = workspaceEngineReducer(engine, { type: 'undo' });
+  expect(engine.present.layout).toEqual(before.layout);
+  expect(engine.present.panes.panes).toEqual(before.panes.panes);
+  change({ slice: 'panes', limit: 4, action: { type: 'SET_PANE_COUNT', payload: 3, confirmed: true } });
+  expect(engine.present.layout.preset).toBe('rows');
+});

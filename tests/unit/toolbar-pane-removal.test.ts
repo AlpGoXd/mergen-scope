@@ -163,3 +163,25 @@ it('closing the last pane moves a line to the nearest compatible pane, like a tr
   const next=workspaceReducer(state,{slice:'remove-last-pane',targetPaneId:'pane-3',expectedRevision:state.revision,confirmed:true,limit:4});
   expect(next.lines.refLines.map(line => [line.id, line.paneIds])).toEqual([[81, ['pane-2']]]);
 });
+
+it('chooses the nearest compatible line destination on either side', () => {
+  const freq = makeTestTrace({ name: 'freq', id: 'freq', units: { x: 'Hz', y: 'dB' } });
+  const time = makeTestTrace({ name: 'time', id: 'time', domain: 'time', family: 'waveform', units: { x: 's', y: 'V' } });
+  let state = initialWorkspaceEngine().present;
+  state = workspaceReducer(state, { slice: 'files', action: { type: 'ADD_PARSED_FILE', payload: { id: 'f', fileName: 'data.dat', text: 'source', parsed: { format: 'rs-dat', meta: {}, traces: [freq, time] } } } });
+  state = workspaceReducer(state, { slice: 'panes', limit: 4, action: { type: 'SET_PANE_COUNT', payload: 4 } });
+  for (const [trace, targetPaneId] of [[freq, 'pane-1'], [time, 'pane-2'], [freq, 'pane-3'], [freq, 'pane-4']] as const) state = workspaceReducer(state, { slice: 'panes', limit: 4, action: { type: 'ASSIGN_TRACE_TO_PANE', payload: { trace, targetPaneId, allTraces: [freq, time] } } });
+  state = workspaceReducer(state, { slice: 'lines', action: { type: 'ADD_LINE', payload: { id: 91, type: 'v', value: 1, paneIds: ['pane-3'], label: 'V1' } } });
+  expect(planLastPaneLines(state, 'pane-3', state.panes.tracePaneMap)[0]?.to).toBe('pane-4');
+});
+
+it('does not move a horizontal line to a pane with a different X unit', () => {
+  const freq = makeTestTrace({ name: 'freq', id: 'freq', units: { x: 'Hz', y: 'V' } });
+  const time = makeTestTrace({ name: 'time', id: 'time', domain: 'time', family: 'waveform', units: { x: 's', y: 'V' } });
+  let state = initialWorkspaceEngine().present;
+  state = workspaceReducer(state, { slice: 'files', action: { type: 'ADD_PARSED_FILE', payload: { id: 'f', fileName: 'data.dat', text: 'source', parsed: { format: 'rs-dat', meta: {}, traces: [freq, time] } } } });
+  state = workspaceReducer(state, { slice: 'panes', limit: 4, action: { type: 'SET_PANE_COUNT', payload: 2 } });
+  for (const [trace, targetPaneId] of [[freq, 'pane-1'], [time, 'pane-2']] as const) state = workspaceReducer(state, { slice: 'panes', limit: 4, action: { type: 'ASSIGN_TRACE_TO_PANE', payload: { trace, targetPaneId, allTraces: [freq, time] } } });
+  state = workspaceReducer(state, { slice: 'lines', action: { type: 'ADD_LINE', payload: { id: 92, type: 'h', value: 1, paneIds: ['pane-2'], label: 'H1' } } });
+  expect(planLastPaneLines(state, 'pane-2', state.panes.tracePaneMap)[0]?.to).toBeNull();
+});

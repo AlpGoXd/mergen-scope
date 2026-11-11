@@ -8,7 +8,7 @@ import { useLinkedHoverFrequency, useSharedHoverPublisher } from '../../stores/s
 import { useTraceColors } from '../../hooks/use-trace-colors';
 import { canRenderInPane } from '../../domain/pane-placement';
 import { allocateTraceColors, traceWidth } from '../../domain/trace-palette';
-import { smithLinkedBand, smithMarkerFrequency, smithTraceSamples, smithRangeModel } from '../../domain/smith-pane-model';
+import { smithLinkedBand, smithLinkedPaneLabel, smithMarkerFrequency, smithTraceSamples, smithRangeModel } from '../../domain/smith-pane-model';
 import { SmithPane } from './SmithPane';
 
 export function SmithPaneContainer({ paneId, fitRequest = 0 }: { paneId: string; fitRequest?: number }) {
@@ -40,12 +40,12 @@ export function SmithPaneContainer({ paneId, fitRequest = 0 }: { paneId: string;
   if (!pane) return null;
   const smith = pane.settings.smith;
   // A shared zoom may have several Hz panes; use the lowest pane number as its stable label.
-  const linkedPane = band ? panes.filter(candidate => candidate.id !== paneId && candidate.renderMode === 'cartesian' && allTraces.some(trace => (tracePaneMap[trace.name] ?? []).includes(candidate.id) && vis[trace.name] !== false && trace.domain === 'frequency')).sort((a, b) => Number(a.id.split('-').pop()) - Number(b.id.split('-').pop()))[0] : undefined;
+  const linkedPane = band ? panes.find(candidate => candidate.id !== paneId && candidate.renderMode === 'cartesian' && allTraces.some(trace => (tracePaneMap[trace.name] ?? []).includes(candidate.id) && vis[trace.name] !== false && trace.domain === 'frequency')) : undefined;
   const linked = linkedPane && band ? { startHz: band.minHz, stopHz: band.maxHz } : null;
   const model = smithRangeModel(traces, smith.range ?? null, linked, smith.outside ?? 'hidden');
   const setRange = (range: typeof smith.range) => paneDispatch({ type: 'SET_PANE_SETTINGS', payload: { paneId, patch: { smith: { ...smith, range } } } });
   return <SmithPane traces={model.traces} markers={markers} selectedMarkerId={markers[selectedMkrIdx]?.id ?? null}
-    rangeBar={model.full && model.range ? { full: model.full, range: model.range, linkedLabel: linkedPane ? `Linked to Pane ${linkedPane.id.split('-').pop()}` : null, onChange: setRange, onFull: () => setRange(null) } : undefined}
+    rangeBar={model.full && model.range ? { full: model.full, range: model.range, linkedLabel: linkedPane ? smithLinkedPaneLabel(panes, linkedPane.id) : null, onChange: setRange, onFull: () => setRange(null) } : undefined}
     onSelectMarker={id => { lineDispatch({ type: 'SET_SELECTED', payload: null }); markerDispatch({ type: 'SET_SELECTED_IDX', payload: markers.findIndex(marker => marker.id === id) }); }}
     onTraceClick={click => {
       if (!armed) return;

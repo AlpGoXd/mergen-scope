@@ -154,8 +154,6 @@ export function PaneSettingsPopover({
   const patch = (p: Partial<PaneSettings>) =>
     paneDispatch({ type: 'SET_PANE_SETTINGS', payload: { paneId, patch: p } });
 
-  const paneNum = paneId.split('-')[1];
-
   const selectStyle: React.CSSProperties = {
     fontSize: 'var(--font-caption)',
     padding: '2px 4px',
@@ -178,7 +176,7 @@ export function PaneSettingsPopover({
         ⚙
       </Btn>
 
-      {anchor && <PopoverAt label={`Pane ${paneNum} settings`} at={anchor} onClose={() => onAnchorChange(null)}>
+      {anchor && <PopoverAt label={`${paneName} settings`} at={anchor} onClose={() => onAnchorChange(null)}>
         <div
           ref={contentRef}
           style={{
@@ -191,7 +189,7 @@ export function PaneSettingsPopover({
         >
           {pending ? <PaneTypeMenu paneName={paneName} current={current} tiles={tiles} pending={pending} onChoose={onChoose} onConfirm={onConfirm} onCancel={onCancel} /> : <>
           <div style={{ fontWeight: 600, marginBottom: 12, fontSize: 'var(--font-label)', color: 'var(--text)' }}>
-            Pane {paneNum} Settings
+            {paneName} Settings
           </div>
 
           <Section title="Chart type">

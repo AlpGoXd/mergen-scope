@@ -23,6 +23,30 @@ it('accepts optional trace math alignment choices and rejects unknown choices', 
 });
 
 const fixture = (name: string): unknown => JSON.parse(readFileSync(`tests/fixtures/phase3-preservation/${name}.json`, 'utf8'));
+it('validates per-preset layout size keys', () => {
+  const base = migrateWorkspaceV5(fixture('workspace-v4-eight-pane-extension'));
+  if (!base) throw new Error('fixture');
+  const sizes = { 'rows:0': 0.6, 'columns:0': 0.4, 'grid:c0': 0.5, 'side:main': 0.7 };
+  expect(migrateWorkspaceV5({ ...base, layout: { ...base.layout, sizes } })?.layout.sizes).toEqual(sizes);
+  expect(migrateWorkspaceV5({ ...base, layout: { ...base.layout, sizes: { bad: 1 } } })).toBeNull();
+  const legacySizes = Object.fromEntries(base.panes.map((pane, index) => [pane.id, index + 1]));
+  expect(migrateWorkspaceV5({ ...base, layout: { ...base.layout, sizes: legacySizes } })?.layout).toMatchObject({ preset: 'rows', sizes: {} });
+  expect(migrateWorkspaceV5({ ...base, layout: { ...base.layout, sizes: { ...legacySizes, bad: 1 } } })).toBeNull();
+  expect(migrateWorkspaceV5({ ...base, layout: { ...base.layout, sizes: { 'rows:0': Infinity } } })).toBeNull();
+  expect(migrateWorkspaceV5({ ...base, layout: { ...base.layout, sizes: { 'rows:0': 1e308, 'rows:1': 1e308 } } })).toBeNull();
+  expect(migrateWorkspaceV5({ ...base, layout: { ...base.layout, preset: 'grid', sizes: {} } })?.layout).toMatchObject({ preset: 'rows', sizes: {} });
+  expect(migrateWorkspaceV5({ ...base, layout: { paneOrder: base.layout.paneOrder } })?.layout).toMatchObject({ preset: 'rows', sizes: {} });
+});
+it('restores incompatible saved presets as Rows', () => {
+  for (const [count, preset] of [[3, 'grid'], [1, 'one-side']] as const) {
+    let state = initialWorkspaceState();
+    if (count > 1) state = workspaceReducer(state, { slice: 'panes', limit: 4, action: { type: 'SET_PANE_COUNT', payload: count } });
+    const snapshot = snapshotFromWorkspace(state); if (!snapshot) throw new Error('snapshot');
+    const saved = migrateWorkspaceV5({ ...snapshot, layout: { ...snapshot.layout, preset, sizes: { 'rows:0': 1 } } });
+    if (!saved) throw new Error('migration');
+    expect(workspaceFromSnapshot(initialWorkspaceState(), saved)?.layout.preset).toBe('rows');
+  }
+});
 it('preserves and validates Smith ranges', () => {
   const base = migrateWorkspaceV5(fixture('workspace-v4-eight-pane-extension'));
   if (!base) throw new Error('fixture');

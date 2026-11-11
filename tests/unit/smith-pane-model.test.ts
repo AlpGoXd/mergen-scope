@@ -1,7 +1,13 @@
 import { expect, it } from 'vitest';
-import { smithLinkedBand, smithMarkerFrequency, smithTraceSamples } from '../../src/domain/smith-pane-model';
+import { smithLinkedBand, smithLinkedPaneLabel, smithMarkerFrequency, smithTraceSamples } from '../../src/domain/smith-pane-model';
 import type { RawTrace } from '../../src/types/trace';
 import { makeTestTrace } from './helpers';
+
+it('labels linked panes by position while preserving custom names', () => {
+  const panes = [{ id: 'pane-7', title: 'Pane 7' }, { id: 'pane-1', title: 'Reference' }];
+  expect(smithLinkedPaneLabel(panes, 'pane-7')).toBe('Linked to Pane 1');
+  expect(smithLinkedPaneLabel(panes, 'pane-1')).toBe('Linked to Reference');
+});
 
 it('extracts reflection samples and renormalises them to the pane impedance', () => {
   const trace: RawTrace = {

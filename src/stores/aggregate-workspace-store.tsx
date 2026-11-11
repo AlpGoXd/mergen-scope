@@ -33,6 +33,8 @@ import { useOptionalToast } from './toast-store';
 import type { ToastKind } from './toast-store';
 import { autoOutputName, makeAnalysisOutput, recomputeOutputs } from '../domain/analysis/instances';
 import { getAnalysisTool } from '../domain/analysis/tool-registry';
+import { defaultTitle, equalSizes, fallbackPreset, flattenLayoutSizes, presetFits, renumberTitles } from '../domain/pane-layout';
+import type { PresetId } from '../domain/pane-layout';
 
 export interface WorkspaceState {
   files: FileState; traces: TraceState; panes: PaneState; markers: MarkerState;
@@ -44,7 +46,7 @@ type SliceAction =
   | { slice: 'lines'; action: RefLineAction } | { slice: 'analysis'; action: AnalysisAction }
   | { slice: 'ui'; action: UiAction };
 export type OpenDataCommand = PendingOpenInput;
-export type WorkspaceAction = {slice:'remove-last-pane'; targetPaneId:string; expectedRevision:number; confirmed:boolean; limit:4|8} | {slice:'remove-empty-pane'; targetPaneId:string; expectedRevision:number; confirmed:boolean; limit:4|8} | {slice:'open-data'; inputs:readonly OpenDataCommand[]; targetPaneId?:string; limit:4|8; resolveWizardId?:string; resolveBatchId?:string; workspace?:{readonly snapshot:WorkspaceSnapshotV5;readonly legacy:boolean;readonly choice?:'replace'|'cancel'}} | SliceAction | { slice: 'restore'; state: WorkspaceState } | { slice: 'transaction'; actions: readonly SliceAction[] } | { slice: 'deleteTrace'; traceId: string } | { slice: 'load'; snapshot: WorkspaceSnapshotV5; legacy: boolean };
+export type WorkspaceAction = {slice:'layout'; action: {type:'SET_LAYOUT_PRESET'; preset:PresetId; limit:4|8} | {type:'SET_LAYOUT_SIZES'; sizes:Readonly<Record<string,number>>} | {type:'ADD_PANE_AFTER'; targetPaneId:string; limit:4|8}} | {slice:'remove-last-pane'; targetPaneId:string; expectedRevision:number; confirmed:boolean; limit:4|8} | {slice:'remove-empty-pane'; targetPaneId:string; expectedRevision:number; confirmed:boolean; limit:4|8} | {slice:'open-data'; inputs:readonly OpenDataCommand[]; targetPaneId?:string; limit:4|8; resolveWizardId?:string; resolveBatchId?:string; workspace?:{readonly snapshot:WorkspaceSnapshotV5;readonly legacy:boolean;readonly choice?:'replace'|'cancel'}} | SliceAction | { slice: 'restore'; state: WorkspaceState } | { slice: 'transaction'; actions: readonly SliceAction[] } | { slice: 'deleteTrace'; traceId: string } | { slice: 'load'; snapshot: WorkspaceSnapshotV5; legacy: boolean; limit?: 4 | 8 };
 
 export function initialWorkspaceState(): WorkspaceState {
   return { files: defaultFileState, traces: defaultTraceState, panes: defaultPaneState, markers: defaultMarkerState, lines: defaultRefLineState, analysis: defaultAnalysisState, ui: getInitialUiState(readThemePreference()), layout: {preset:'rows',paneOrder:['pane-1'],sizes:{}}, revision: 0 };
@@ -83,7 +85,7 @@ export function restoreWorkspaceMemento(state: WorkspaceState, memento: Workspac
 export function snapshotFromWorkspace(state: WorkspaceState): WorkspaceSnapshotV5 | null {
   const { files, traces, panes, markers, lines, analysis, ui } = state;
   const paneIds = panes.panes.map(p => p.id);
-  const layout = {...state.layout, paneOrder: [...state.layout.paneOrder.filter(id => paneIds.includes(id)), ...paneIds.filter(id => !state.layout.paneOrder.includes(id))], sizes: Object.fromEntries(Object.entries(state.layout.sizes).filter(([id]) => paneIds.includes(id)))};
+  const layout = {...state.layout, paneOrder: paneIds, sizes: state.layout.sizes};
   const body = {
     version: 4, files: files.files.map(file => ({...file, ...(files.rawFileData[String(file.id)] !== undefined ? {rawText:files.rawFileData[String(file.id)]} : {})})),
     datasets: files.files.flatMap(file => file.datasets ?? []), displayTraces: files.files.flatMap(file => file.displayTraces ?? []),
@@ -103,7 +105,7 @@ export function snapshotFromWorkspace(state: WorkspaceState): WorkspaceSnapshotV
 }
 
 /** Build a complete candidate first. Invalid memberships refuse restore without mutation. */
-export function workspaceFromSnapshot(current: WorkspaceState, snapshot: WorkspaceSnapshotV5, sanitizeLegacy = false): WorkspaceState | null {
+export function workspaceFromSnapshot(current: WorkspaceState, snapshot: WorkspaceSnapshotV5, sanitizeLegacy = false, limit: 4 | 8 = 8): WorkspaceState | null {
   const files = snapshot.files.map(({rawText: _rawText, ...file}) => file as RawFileRecord);
   const rawFileData = Object.fromEntries(snapshot.files.flatMap(file => typeof file.rawText === 'string' ? [[String(file.id),file.rawText]] : []));
   const fileState: FileState = {...current.files, files, rawFileData, vis:{...snapshot.vis}, wizardQueue:[]};
@@ -128,7 +130,7 @@ export function workspaceFromSnapshot(current: WorkspaceState, snapshot: Workspa
     lines:{...current.lines, refLines:[...snapshot.refLines], refMode:null, selectedRefLineId:(snapshot.ui as typeof snapshot.ui & {selectedRefLineId?: number | null}).selectedRefLineId ?? null},
     analysis:analysisReducer(current.analysis,{type:'RESTORE',payload:{...snapshot.analysisResults, analysisOpenState:snapshot.analysisOpenState, analyses:[...(snapshot.analyses ?? [])]}}),
     ui:{...current.ui, ...snapshot.ui, traceHueSlots:Object.fromEntries(allocateColourBlindCreated(view.allKnownTraces, new Map(Object.entries(snapshot.ui.traceHueSlots ?? {})))), selectedTraceName:snapshot.selectedTraceName, paneAssignmentWarning:null, activeWizard:null},
-    layout:snapshot.layout,
+    layout:{ ...snapshot.layout, preset: fallbackPreset(snapshot.layout.preset, orderedPanes.length, limit) },
   };
 }
 
@@ -148,8 +150,8 @@ function openData(state: WorkspaceState, command: Extract<WorkspaceAction,{slice
     const work = state.files.files.length > 0 || state.traces.derivedTraces.length > 0 || state.markers.markers.length > 0 || state.lines.refLines.length > 0 || state.panes.panes.length > 1;
     if (command.workspace.choice === 'cancel') return state;
     if (work && command.workspace.choice !== 'replace') return {...state,ui:uiReducer(state.ui,{type:'SET',payload:{key:'paneAssignmentWarning',value:{message:'Opening the workspace requires a replacement decision.',paneId:null,traceName:null}}}),revision:state.revision+1};
-    if (!workspaceFromSnapshot(state,command.workspace.snapshot,command.workspace.legacy)) return {...state,ui:uiReducer(state.ui,{type:'SET',payload:{key:'paneAssignmentWarning',value:{message:'Workspace has incompatible pane memberships; it was not loaded.',paneId:null,traceName:null}}}),revision:state.revision+1};
-    const loaded=workspaceReducer(state,{slice:'load',snapshot:command.workspace.snapshot,legacy:command.workspace.legacy});
+    if (!workspaceFromSnapshot(state,command.workspace.snapshot,command.workspace.legacy,command.limit)) return {...state,ui:uiReducer(state.ui,{type:'SET',payload:{key:'paneAssignmentWarning',value:{message:'Workspace has incompatible pane memberships; it was not loaded.',paneId:null,traceName:null}}}),revision:state.revision+1};
+    const loaded=workspaceReducer(state,{slice:'load',snapshot:command.workspace.snapshot,legacy:command.workspace.legacy,limit:command.limit});
     const opened=openData(loaded,{...command,workspace:undefined,targetPaneId:undefined});
     if (opened.ui.paneAssignmentWarning !== loaded.ui.paneAssignmentWarning && opened.ui.paneAssignmentWarning) return {...state,ui:{...state.ui,paneAssignmentWarning:opened.ui.paneAssignmentWarning},revision:state.revision+1};
     return opened;
@@ -251,17 +253,44 @@ export function planLastPaneLines(state: WorkspaceState, targetPaneId: string, m
     const units = members.map(trace => type === 'v' ? (trace.units.x && traceXGroup(trace) ? encodeXAxisUnit(traceXGroup(trace)!, trace.units.x) : null) : trace.units.y);
     return units.length && units[0] && units.every(unit => unit === units[0]) ? units[0] : null;
   };
-  const remaining = state.panes.panes.filter(pane => pane.id !== targetPaneId).reverse();
+  const pivot = state.panes.panes.findIndex(pane => pane.id === targetPaneId);
+  const remaining = state.panes.panes.map((pane, index) => ({ pane, index })).filter(item => item.pane.id !== targetPaneId).sort((a, b) => Math.abs(a.index - pivot) - Math.abs(b.index - pivot) || a.index - b.index).map(item => item.pane);
   return state.lines.refLines.filter(line => line.paneIds.includes(targetPaneId)).map(line => {
     const originalUnit = unitFor(targetPaneId, line.type, state.panes.tracePaneMap) ?? line.axisUnit ?? null;
     const axisUnit = originalUnit && line.type === 'v' ? encodeXAxisUnit(...decodeXAxisUnit(originalUnit)) : originalUnit;
-    const destination = axisUnit ? remaining.find(pane => unitFor(pane.id, line.type, memberships) === axisUnit) : undefined;
+    const sourceX = unitFor(targetPaneId, 'v', state.panes.tracePaneMap);
+    const destination = axisUnit ? remaining.find(pane => unitFor(pane.id, line.type, memberships) === axisUnit && (line.type === 'v' || (sourceX !== null && unitFor(pane.id, 'v', memberships) === sourceX))) : undefined;
     return { line, to: destination?.id ?? null, axisUnit };
   });
 }
 
 /** One reducer owns every workspace slice. Reconciliation runs inside the same transition. */
 export function workspaceReducer(state: WorkspaceState, command: WorkspaceAction): WorkspaceState {
+  if (command.slice === 'layout') {
+    const action = command.action;
+    if (action.type === 'SET_LAYOUT_PRESET') {
+      const fit = presetFits(action.preset, state.panes.panes.length, action.limit);
+      if (!fit.ok) return { ...state, ui: uiReducer(state.ui, { type: 'SET', payload: { key: 'paneAssignmentWarning', value: { message: fit.reason, paneId: null, traceName: null } } }), revision: state.revision + 1 };
+      if (action.preset === state.layout.preset) return state;
+      const prefix = action.preset === 'one-side' ? 'side:' : `${action.preset}:`;
+      const sizes = Object.keys(state.layout.sizes).some(key => key.startsWith(prefix)) ? state.layout.sizes : { ...state.layout.sizes, ...flattenLayoutSizes(equalSizes(action.preset, state.panes.panes.length)) };
+      return { ...state, layout: { ...state.layout, preset: action.preset, sizes }, revision: state.revision + 1 };
+    }
+    if (action.type === 'SET_LAYOUT_SIZES') {
+      if (Object.entries(action.sizes).some(([key, value]) => !/^(?:rows:\d+|columns:\d+|grid:[cr][01]|side:main|side:s\d+)$/.test(key) || !Number.isFinite(value) || value <= 0 || value > 1e6)) return state;
+      const prefixes = new Set(Object.keys(action.sizes).map(key => key.split(':')[0]));
+      const previous = Object.fromEntries(Object.entries(state.layout.sizes).filter(([key]) => !prefixes.has(key.split(':')[0])));
+      return { ...state, layout: { ...state.layout, sizes: { ...previous, ...action.sizes } }, revision: state.revision + 1 };
+    }
+    const index = state.panes.panes.findIndex(p => p.id === action.targetPaneId);
+    if (index < 0) return state;
+    const added = paneReducer(state.panes, { type: 'SET_PANE_COUNT', payload: state.panes.panes.length + 1, limit: action.limit });
+    const created = added.panes.find(p => !state.panes.panes.some(old => old.id === p.id));
+    if (!created) return state;
+    const panes = [...state.panes.panes]; panes.splice(index + 1, 0, { ...created, title: defaultTitle(index + 1) });
+    const ordered = renumberTitles(panes);
+    return { ...state, panes: { ...added, panes: ordered }, layout: { ...state.layout, preset: fallbackPreset(state.layout.preset, ordered.length, action.limit), paneOrder: ordered.map(p => p.id) }, revision: state.revision + 1 };
+  }
   if (command.slice === 'remove-last-pane' || command.slice === 'remove-empty-pane') {
     if (state.revision !== command.expectedRevision) return state;
     const view = traceView(state.files, state.traces);
@@ -314,7 +343,7 @@ export function workspaceReducer(state: WorkspaceState, command: WorkspaceAction
     return result === state ? state : {...result, revision:state.revision + 1};
   }
   if (command.slice === 'load') {
-    const candidate = workspaceFromSnapshot(state,command.snapshot,command.legacy);
+    const candidate = workspaceFromSnapshot(state,command.snapshot,command.legacy,command.limit);
     if (!candidate) return {...state,ui:uiReducer(state.ui,{type:'SET',payload:{key:'paneAssignmentWarning',value:{message:'Workspace has incompatible pane memberships; it was not loaded.',paneId:null,traceName:null}}}),revision:state.revision+1};
     return workspaceReducer(state,{slice:'restore',state:candidate});
   }
@@ -454,7 +483,10 @@ export function workspaceReducer(state: WorkspaceState, command: WorkspaceAction
     const visible = traceView(next.files,next.traces).allTraces;
     if (next.ui.selectedTraceName && !visible.some(trace => trace.name === next.ui.selectedTraceName && next.traces.vis[trace.name])) next={...next,ui:{...next.ui,selectedTraceName:null}};
   }
-  if (next.panes.panes !== state.panes.panes) next = { ...next, lines: refLineReducer(next.lines, { type: 'CLEANUP_ORPHANED_LINES', payload: { paneIds: next.panes.panes.map(p => p.id) } }) };
+  if (next.panes.panes !== state.panes.panes) {
+    const panes = renumberTitles(next.panes.panes.map((pane, index) => pane.title === '' ? { ...pane, title: defaultTitle(index) } : pane));
+    next = { ...next, panes: { ...next.panes, panes }, layout: { ...next.layout, paneOrder: panes.map(p => p.id), preset: fallbackPreset(next.layout.preset, panes.length, command.slice === 'panes' ? command.limit : 8) }, lines: refLineReducer(next.lines, { type: 'CLEANUP_ORPHANED_LINES', payload: { paneIds: panes.map(p => p.id) } }) };
+  }
   return { ...next, revision: state.revision + 1 };
 }
 
@@ -475,6 +507,7 @@ function sameValue(a: unknown, b: unknown, seen = new WeakMap<object, object>())
   return keysA.length === keysB.length && keysA.every(key => Object.prototype.hasOwnProperty.call(b,key) && sameValue((a as Record<string,unknown>)[key],(b as Record<string,unknown>)[key],seen));
 }
 function recordable(command: WorkspaceAction): boolean {
+  if (command.slice === 'layout') return true;
   if (command.slice === 'remove-last-pane' || command.slice === 'remove-empty-pane' || command.slice === 'open-data' || command.slice === 'transaction' || command.slice === 'restore' || command.slice === 'deleteTrace' || command.slice === 'load') return true;
   if (command.slice === 'files') return true;
   if (command.slice === 'traces') return command.action.type !== 'RECONCILE';

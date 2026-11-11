@@ -6,10 +6,12 @@ import { useTraceState } from '../../stores/trace-store';
 import { useRefLineState, useRefLineDispatch } from '../../stores/ref-line-store';
 import { findAbsoluteMax, findAbsoluteMin, findNextLocalExtremum } from '../../domain/markers';
 import { defaultTraceForPane } from '../../domain/default-trace';
+import { paneName } from '../../domain/line-view';
 import { useInteractionMode } from '../../hooks/use-interaction-mode';
 import { Btn } from '../shared/Btn';
 import { PopoverAt } from '../shared/Controls';
 import { planLastPaneLines, planLastPaneRemoval, useOptionalAggregateWorkspace } from '../../stores/aggregate-workspace-store';
+import { LayoutMenu } from '../chart/LayoutMenu';
 
 /**
  * ToolbarStrip component for chart-local actions in the active pane.
@@ -121,11 +123,11 @@ export function ToolbarStrip() {
     const { moved, unplaced } = result.plan;
     const linePlan = planLastPaneLines(aggregate.state, removed.id, result.plan.memberships);
     if (unplaced.length || linePlan.length) {
-      const lines = [...moved.map(move => `${move.traceName} -> ${panes.find(pane => pane.id === move.to)?.title || move.to}`), ...unplaced.map(name => `${name} -> not in a pane`), ...linePlan.map(move => `${move.line.label || `Line ${move.line.id}`} -> ${move.to ? (panes.find(pane => pane.id === move.to)?.title || move.to) : 'not in a pane'}`)];
+      const lines = [...moved.map(move => `${move.traceName} -> ${paneName(panes, move.to)}`), ...unplaced.map(name => `${name} -> not in a pane`), ...linePlan.map(move => `${move.line.label || `Line ${move.line.id}`} -> ${move.to ? paneName(panes, move.to) : 'not in a pane'}`)];
       if (!window.confirm(`Remove the last pane? Traces will remain available.\n\n${lines.join('\n')}`)) return;
     }
     {
-      const destinations = [...new Set(moved.map(move => panes.find(pane => pane.id === move.to)?.title || move.to))];
+      const destinations = [...new Set(moved.map(move => paneName(panes, move.to)))];
       const message = moved.length ? `${moved.length} trace${moved.length === 1 ? '' : 's'} moved to ${destinations.join(', ')}` : 'Pane removed';
       aggregate.historyDispatch({ type: 'change', command: { slice: 'remove-last-pane', targetPaneId: removed.id, expectedRevision: aggregate.state.revision, confirmed: unplaced.length > 0 || linePlan.length > 0, limit }, ...(moved.length ? { toastMessage: message, toastKind: 'moved' as const } : {}) });
     }
@@ -165,8 +167,8 @@ export function ToolbarStrip() {
       <Btn small variant="armed" tone="lines" active={refMode === 'h'} aria-pressed={refMode === 'h'} aria-label="H-Line" title="Place horizontal line" onClick={() => toggleRefPlacement('h')}>H line</Btn>
     </>)}
     {showPaneTools && group('Pane', 'pane', <>
-      <Btn small disabled title="Layout presets will be available after integration">Layout: Rows ▾</Btn>
-      <Btn small disabled={panes.length >= limit} title={panes.length >= limit ? `Maximum ${limit} panes` : 'Add a pane'} onClick={() => paneDispatch({ type: 'SET_PANE_COUNT', payload: panes.length + 1, limit })}>+ Pane</Btn>
+      {aggregate && <LayoutMenu paneCount={panes.length} limit={limit} />}
+      <Btn small disabled={panes.length >= limit || !aggregate} title={panes.length >= limit ? `Maximum ${limit} panes` : 'Add a pane'} onClick={() => { const targetPaneId = activePaneId ?? panes[0]?.id; if (targetPaneId) aggregate?.dispatch({ slice: 'layout', action: { type: 'ADD_PANE_AFTER', targetPaneId, limit } }); }}>+ Pane</Btn>
       <Btn small disabled={panes.length <= 1 || !aggregate} title={panes.length <= 1 ? "At least one pane must remain" : !aggregate ? "Pane removal requires workspace history" : "Remove the last pane"} onClick={removeLastPane}>- Pane</Btn>
       <Btn small title="Fit all panes" onClick={() => paneDispatch({ type: 'CLEAR_ALL_ZOOMS' })}>Fit all</Btn>
     </>)}

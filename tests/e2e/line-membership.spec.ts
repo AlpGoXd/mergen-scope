@@ -44,7 +44,11 @@ test('a line goes only into the clicked pane, even with X-linked panes; more pan
 
   // A new pane never receives existing lines.
   await page.getByRole('button', { name: '+ Pane', exact: true }).click();
-  await expect(vRow).toContainText('Shown in P1, P2');
-  await expect(vRow).not.toContainText('P3');
+  await expect(page.getByTestId('chart-pane-header-pane-2').locator('.ph-title')).toHaveText('Pane 3');
+  await expect(page.getByTestId('chart-pane-header-pane-3').locator('.ph-title')).toHaveText('Pane 2');
+  await expect(vRow).toContainText('Shown in P1, P3');
+  await expect(vRow).not.toContainText('P2');
+  await expect(page.getByTestId('chart-pane-pane-3').locator('.ln-g')).toHaveCount(0);
+  await expect(page.getByTestId('chart-plot-pane-2').locator('.ln-g')).toHaveCount(1);
   await expect(page.locator('[data-testid^="ref-line-row-"]')).toHaveCount(2);
 });

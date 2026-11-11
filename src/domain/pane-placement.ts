@@ -115,7 +115,7 @@ export function planPaneRemoval(panes: readonly PlacementPane[], traces: readonl
     const from = entry.paneIds.filter(id => removed.has(id));
     if (!from.length || (memberships[entry.trace.name]?.length ?? 0) > 0) return [];
     const pivot = Math.min(...from.map(id => panes.findIndex(pane => pane.id === id)).filter(index => index >= 0));
-    const candidates = [...panes.slice(0, pivot).reverse(), ...panes.slice(pivot + 1)].filter(pane => !removed.has(pane.id));
+    const candidates = panes.map((pane, index) => ({ pane, index })).filter(item => !removed.has(item.pane.id)).sort((a, b) => Math.abs(a.index - pivot) - Math.abs(b.index - pivot) || a.index - b.index).map(item => item.pane);
     return [{ entry, from, candidates }];
   });
   const working = traces.map(entry => ({ ...entry, paneIds: memberships[entry.trace.name] ?? [] }));

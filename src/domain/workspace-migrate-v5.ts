@@ -297,7 +297,7 @@ function validCurrent(body: Record<string, unknown>): boolean {
     if (!['z','y','both'].includes(String(smith.grid)) || !['normalised','ohms','off'].includes(String(smith.labels)) || !['chevrons','ends','off'].includes(String(smith.direction)) || !strings(smith.readout) || smith.readout.some(x => !['z','y','gamma','vswr','return-loss'].includes(x)) || new Set(smith.readout).size !== smith.readout.length) return false;
   }
   const layout = body.layout;
-  if (!['rows','columns','grid','one-side'].includes(String(layout.preset)) || !strings(layout.paneOrder) || layout.paneOrder.length !== paneIds.size || new Set(layout.paneOrder).size !== paneIds.size || layout.paneOrder.some(id => !paneIds.has(id)) || !object(layout.sizes) || Object.entries(layout.sizes).some(([id,value]) => !paneIds.has(id) || !finite(value) || value <= 0)) return false;
+  if (!['rows','columns','grid','one-side'].includes(String(layout.preset)) || !strings(layout.paneOrder) || layout.paneOrder.length !== paneIds.size || new Set(layout.paneOrder).size !== paneIds.size || layout.paneOrder.some(id => !paneIds.has(id)) || !object(layout.sizes) || Object.entries(layout.sizes).some(([id,value]) => !/^(?:rows:\d+|columns:\d+|grid:[cr][01]|side:main|side:s\d+)$/.test(id) || !finite(value) || value <= 0 || value > 1e6)) return false;
   if (typeof body.activePaneId !== 'string' || !paneIds.has(body.activePaneId) || !stringMap(body.ui.traceColors) || !object(body.ui.traceInterpolations) || Object.values(body.ui.traceInterpolations).some(v => !interpolation(v) || v === undefined)) return false;
   const analysisResults = body.analysisResults;
   if (typeof body.ui.noiseFilter !== 'string' || !(body.ui.noiseSource === null || typeof body.ui.noiseSource === 'string') || typeof body.ui.ip3Gain !== 'string' || ['noiseResults','ip3Results','peakResults','bandwidthResults','rippleResults','rangeStatsResults'].some(key => !object(analysisResults[key]))) return false;
@@ -350,6 +350,13 @@ export function migrateWorkspaceV5(raw: unknown): WorkspaceSnapshotV5 | null {
   if (body.traceAssignments !== undefined && !object(body.traceAssignments)) return null;
   if (object(body.ui) && hueSlots(body.ui.traceHueSlots) === null) return null;
   if (body.version === 5) {
+    const rawLayout = object(body.layout) ? body.layout : {};
+    const oldPaneIds = new Set(Array.isArray(body.panes) ? body.panes.flatMap(pane => object(pane) && typeof pane.id === 'string' ? [pane.id] : []) : []);
+    const sizeEntries = object(rawLayout.sizes) ? Object.entries(rawLayout.sizes) : [];
+    const legacySizes = sizeEntries.length > 0 && sizeEntries.every(([key, value]) => oldPaneIds.has(key) && finite(value) && value > 0);
+    const layout = !object(rawLayout.sizes) || sizeEntries.length === 0 || legacySizes
+      ? { ...rawLayout, preset: 'rows', paneOrder: Array.isArray(rawLayout.paneOrder) ? rawLayout.paneOrder : Array.isArray(body.panes) ? body.panes.flatMap(pane => object(pane) && typeof pane.id === 'string' ? [pane.id] : []) : [], sizes: {} }
+      : rawLayout;
     const paneOrder = Array.isArray(body.panes) ? body.panes.flatMap(pane => object(pane) && typeof pane.id === 'string' ? [pane.id] : []) : [];
     const refLines = migrateLines(body.refLines, paneOrder);
     const panes = Array.isArray(body.panes) ? body.panes.map(pane => {
@@ -360,8 +367,8 @@ export function migrateWorkspaceV5(raw: unknown): WorkspaceSnapshotV5 | null {
       const readout = inverted && Array.isArray(smith.readout) ? ['y', ...smith.readout.filter(field => field !== 'y')] : smith.readout;
       return { ...pane, renderMode: inverted ? 'smith' : pane.renderMode, settings: { ...pane.settings, smith: { ...smith, range: smith.range === undefined ? null : smith.range, outside: smith.outside === undefined ? 'hidden' : smith.outside, labels, ...(inverted ? { grid: 'y', readout } : {}) } } };
     }) : body.panes;
-    if (!refLines || !validCurrent({ ...body, panes, refLines })) return null;
-    const snapshot = { ...body, panes, refLines } as unknown as WorkspaceSnapshotV5;
+    if (!refLines || !validCurrent({ ...body, layout, panes, refLines })) return null;
+    const snapshot = { ...body, layout, panes, refLines } as unknown as WorkspaceSnapshotV5;
     // Browser preferences and other transient UI keys are not workspace state.
     const { traceColors, traceInterpolations, noiseFilter, noiseSource, ip3Gain } = snapshot.ui;
     const traceHueSlots = hueSlots(snapshot.ui.traceHueSlots);
@@ -491,7 +498,7 @@ export function migrateWorkspaceV5(raw: unknown): WorkspaceSnapshotV5 | null {
         rangeStatsResults: object(results.rangeStatsResults) ? results.rangeStatsResults as WorkspaceSnapshotV5['analysisResults']['rangeStatsResults'] : {},
       },
       activePaneId: typeof body.activePaneId === 'string' && valid.has(body.activePaneId) ? body.activePaneId : panes[0]?.id ?? 'pane-1',
-      layout: { preset, paneOrder, sizes: object(layout.sizes) ? Object.fromEntries(Object.entries(layout.sizes).filter(([,v]) => typeof v === 'number' && Number.isFinite(v))) as Record<string, number> : {} },
+      layout: { preset, paneOrder, sizes: object(layout.sizes) ? Object.fromEntries(Object.entries(layout.sizes).filter(([key,v]) => /^(?:rows:\d+|columns:\d+|grid:[cr][01]|side:main|side:s\d+)$/.test(key) && typeof v === 'number' && Number.isFinite(v) && v > 0 && v <= 1e6)) as Record<string, number> : {} },
       ui: { traceColors: legacy.ui.traceColors, ...(object(body.ui) && hueSlots(body.ui.traceHueSlots) ? { traceHueSlots: hueSlots(body.ui.traceHueSlots) ?? undefined } : {}), traceInterpolations: legacy.ui.traceInterpolations, noiseFilter: legacy.ui.noiseFilter, noiseSource: legacy.ui.noiseSource, ip3Gain: legacy.ui.ip3Gain, ...(selectedLineId(body.ui, body.refLines, refLines) !== undefined ? { selectedRefLineId: selectedLineId(body.ui, body.refLines, refLines) } : {}) },
       ...(body.analyses !== undefined ? { analyses: withoutLegacyLive(body.analyses as AnalysisInstance[], legacy.derivedTraces) } : {}),
       ...(body.droppedViews !== undefined ? { droppedViews: Number(body.droppedViews) } : {}),

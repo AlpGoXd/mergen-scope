@@ -9,12 +9,13 @@ import { FeedbackLinks, HelpSheet } from '../help/HelpSheet';
 import { SettingsSheet } from '../settings/SettingsSheet';
 import { useInteractionMode } from '../../hooks/use-interaction-mode';
 import { PopoverAt } from '../shared/Controls';
+import { paneName } from '../../domain/line-view';
 
 /** Optional display values are supplied by the pane integration when available. */
 export interface FooterBarProps { cursor?: string; paneType?: 'chart' | 'smith' | 'table'; armedSentence?: string }
 export function FooterBar({ cursor, paneType = 'chart', armedSentence }: FooterBarProps = {}) {
   const { files } = useFileState();
-  const { activePaneId, paneActiveTraceMap, tracePaneMap } = usePaneState();
+  const { activePaneId, paneActiveTraceMap, tracePaneMap, panes } = usePaneState();
   const { selectedTraceName } = useUiState();
   const { armed } = useMarkerState();
   const { refMode } = useRefLineState();
@@ -40,7 +41,7 @@ export function FooterBar({ cursor, paneType = 'chart', armedSentence }: FooterB
   const hints = isArmed ? 'Click place · Esc cancel' : paneType === 'smith' ? 'Scroll zoom · Ctrl+drag pan · Double-click fit' : 'Right-drag X zoom · Scroll Y scale · Ctrl+drag pan · Double-click fit';
   return <footer className="footer-bar" style={{ position: 'relative', flexShrink: 0, height: 'var(--footer-height)', borderTop: '1px solid var(--border)', background: 'var(--panel)', color: 'var(--text-muted)', fontSize: 'var(--font-caption)', display: 'flex', alignItems: 'center', gap: 8, padding: '0 8px', whiteSpace: 'nowrap' }}>
     <style>{'.footer-bar button{font:inherit;color:var(--text-muted);background:transparent;border:1px solid transparent;border-radius:4px;cursor:pointer;padding:1px 4px}.footer-bar button:hover{background:var(--raised);border-color:var(--border)} .footer-bar a{color:var(--text)} @media(max-width:1279px){.footer-hints{display:none}} @media(max-width:999px){.footer-action-label{display:none}} @media(max-width:819px){.footer-trace{display:none}}'}</style>
-    {files.length ? <><span style={isArmed ? { color: 'var(--text)', background: 'var(--raised)', border: '1px solid var(--border)', borderRadius: 3, padding: '1px 4px' } : { color: 'var(--text)' }}>{sentence}</span><span>· Target <strong style={{ color: 'var(--text)' }}>Pane {activePaneId?.split('-')[1] ?? '—'}</strong></span><span className="footer-trace">· Trace <strong style={{ color: 'var(--text)' }} title={traceLabel}>{traceLabel.length > 16 ? `${traceLabel.slice(0, 15)}…` : traceLabel}</strong></span>{cursor && <span style={{ color: 'var(--text)', fontFamily: 'var(--font-mono)' }}>· {cursor}</span>}</> : <span style={{ color: 'var(--text)' }}>No file open</span>}
+    {files.length ? <><span style={isArmed ? { color: 'var(--text)', background: 'var(--raised)', border: '1px solid var(--border)', borderRadius: 3, padding: '1px 4px' } : { color: 'var(--text)' }}>{sentence}</span><span>· Target <strong style={{ color: 'var(--text)' }}>{activePaneId ? paneName(panes, activePaneId) : '—'}</strong></span><span className="footer-trace">· Trace <strong style={{ color: 'var(--text)' }} title={traceLabel}>{traceLabel.length > 16 ? `${traceLabel.slice(0, 15)}…` : traceLabel}</strong></span>{cursor && <span style={{ color: 'var(--text)', fontFamily: 'var(--font-mono)' }}>· {cursor}</span>}</> : <span style={{ color: 'var(--text)' }}>No file open</span>}
     <span style={{ flex: 1 }} /><span className="footer-hints">{files.length ? hints : 'Drop files anywhere · Ctrl+O open'}</span>
     <span title="Your files are read in this browser; nothing is uploaded" aria-label="Local only">♢ <span className="footer-action-label">Local only</span></span>
     <button type="button" aria-expanded={feedback !== null} onClick={event => { setFeedback(feedback ? null : event.currentTarget); setSheet(null); }} title="Feedback">▣ <span className="footer-action-label">Feedback</span></button>

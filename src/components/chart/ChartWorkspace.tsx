@@ -1,8 +1,7 @@
-import { VisibleRefLinesProvider } from '../../stores/ref-line-store';
 import { useFileDispatch, useFileState } from '../../stores/file-store';
 import { usePaneState } from '../../stores/pane-store';
 import { useUiDispatch, useUiState } from '../../stores/ui-store';
-import { ChartPane } from './ChartPane';
+import { PaneLayoutGrid } from './PaneLayoutGrid';
 
 /**
  * ChartWorkspace component for rendering multiple stacked chart panes.
@@ -38,9 +37,7 @@ export function ChartWorkspace() {
           onDismiss={() => uiDispatch({ type: 'SET', payload: { key: 'paneAssignmentWarning', value: null } })}
         />
       )}
-      {panes.map((pane) => (
-        <VisibleRefLinesProvider key={pane.id}><ChartPane paneId={pane.id} /></VisibleRefLinesProvider>
-      ))}
+      <PaneLayoutGrid paneIds={panes.map(pane => pane.id)} />
     </div>
   );
 }

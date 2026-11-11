@@ -3,6 +3,17 @@ import { buildPanes } from "../../src/domain/pane-math";
 import { buildExportPackage, buildSnapshot, restoreSnapshot } from "../../src/domain/workspace-serialize";
 import { makeTestTrace } from "./helpers";
 import { defaultPaneState, paneReducer } from '../../src/stores/pane-store';
+import { initialWorkspaceState, snapshotFromWorkspace } from '../../src/stores/aggregate-workspace-store';
+import { migrateWorkspaceV5 } from '../../src/domain/workspace-migrate-v5';
+
+it('round trips saved layout sizes and defaults old layouts', () => {
+  const state = initialWorkspaceState();
+  const sizes = { 'rows:0': 0.6, 'columns:0': 0.4 };
+  const snapshot = snapshotFromWorkspace({ ...state, layout: { ...state.layout, sizes } });
+  expect(snapshot?.layout.sizes).toEqual(sizes);
+  expect(migrateWorkspaceV5(snapshot)?.layout.sizes).toEqual(sizes);
+  expect(snapshotFromWorkspace(state)?.layout).toMatchObject({ preset: 'rows', sizes: {} });
+});
 
 it('new panes copy outside choice but reset the Smith range', () => {
   const pane = defaultPaneState.panes[0];

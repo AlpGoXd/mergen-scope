@@ -11,6 +11,7 @@ import { planMatrixAdd } from '../../domain/matrix-add';
 import type { MatrixTrace } from '../../domain/matrix-add';
 import { orderTracesForList } from '../../domain/trace-order';
 import { defaultTraceForPane } from '../../domain/default-trace';
+import { paneName } from '../../domain/line-view';
 import { canPlaceMembership } from '../../domain/pane-placement';
 import { useMemo, useRef, useState, type ReactNode } from 'react';
 import { computeLineIntersections } from '../../domain/ref-lines';
@@ -317,8 +318,8 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
                       traces={matrixTraces}
                       targetPaneId={activePaneId ?? 'pane-1'}
                       targetPaneType={targetPane?.renderMode ?? 'cartesian'}
-                      targetPaneTitle={targetPane?.title || 'Pane 1'}
-                      paneTitle={id => panes.find(pane => pane.id === id)?.title || id}
+                      targetPaneTitle={targetPane ? paneName(panes, targetPane.id) : 'Pane 1'}
+                      paneTitle={id => paneName(panes, id)}
                       disabledReason={(row, col) => smithTarget && planMatrixAdd({ family: activeFamily, row, col, view: matrixView, targetPaneId: activePaneId ?? 'pane-1', targetPaneType: targetPane?.renderMode ?? 'cartesian', traces: [] }).kind === 'refused' ? 'Smith shows reflections (S11, S22 …)' : (matrixView === 'VSWR' || matrixView === 'Return loss') && row !== col ? 'Reflection parameters only' : undefined}
                       onToggle={toggleMatrix}
                     /></div>} />
@@ -390,11 +391,11 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
                   isVisible={!!vis[trace.name]}
                   isSelected={selectedTraceName === trace.name}
                   paneIds={tracePaneMap[trace.name] ?? []}
-                  panes={panes.map((pane, paneIndex) => {
+                  panes={panes.map(pane => {
                     const entries = allKnownTraces.map(item => ({ trace: item, paneIds: tracePaneMap[item.name] ?? [], displayTrace: allDisplayTraces.find(display => display.id === item.id) }));
                     const entry = entries.find(item => item.trace.name === trace.name);
                     const result = entry && canPlaceMembership(entry, pane.id, panes, entries);
-                    return { id: pane.id, title: pane.title || `Pane ${paneIndex + 1}`, type: pane.renderMode, disabledReason: !(tracePaneMap[trace.name] ?? []).includes(pane.id) && result && !result.allowed ? result.reason : undefined };
+                    return { id: pane.id, title: paneName(panes, pane.id), type: pane.renderMode, disabledReason: !(tracePaneMap[trace.name] ?? []).includes(pane.id) && result && !result.allowed ? result.reason : undefined };
                   })}
                   newPaneDisabledReason={panes.length >= limit ? `The current limit is ${limit} panes.` : undefined}
                   onNewPane={() => {
@@ -465,7 +466,7 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
                   ? resolveTraceColor(trace, Math.max(traceIndex, 0))
                   : (colors?.mn ?? 'var(--accent)');
                 const paneId = tracePaneMap[marker.trace]?.[0] ?? 'pane-1';
-                const paneNumber = parseInt(paneId.replace('pane-', ''), 10);
+                const paneNumber = panes.findIndex(pane => pane.id === paneId) + 1;
 
                 const refMarker = marker.refId ? markers.find(item => item.id === marker.refId) ?? null : null;
 
@@ -481,7 +482,7 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
                     isVisible={!!vis[marker.trace]}
                     isRelated={!!hoveredMarkerId && (marker.refId === hoveredMarkerId || markers.some(other => other.id === hoveredMarkerId && other.refId === marker.id))}
                     onHover={(hovered) => setHoveredMarkerId(hovered ? marker.id : null)}
-                    paneNumbers={(tracePaneMap[marker.trace] ?? []).map(id => panes.findIndex(pane => pane.id === id) + 1).filter(n => n > 0)}
+                    paneNumbers={panes.flatMap((pane, index) => (tracePaneMap[marker.trace] ?? []).includes(pane.id) ? [index + 1] : [])}
                     onSelect={() => { uiDispatch({ type: 'SET', payload: { key: 'selectedTraceName', value: null } }); refLineDispatch({ type: 'SET_SELECTED', payload: null }); markerDispatch({ type: 'SET_SELECTED_IDX', payload: index }); }}
                     onRemove={() => changeMarker({ type: 'REMOVE_MARKER', payload: index }, 'Removed marker', 'delete')}
                     compact={compactSidebar}

@@ -86,6 +86,7 @@ function nextLineLabel(type: 'v' | 'h', lines: readonly RefLine[]): string {
 
 export interface ChartPaneProps {
   paneId: string;
+  hideXTicks?: boolean;
 }
 
 interface ChartMouseEvent {
@@ -104,7 +105,8 @@ const CHART_MARGIN_RIGHT = 20;
 const CHART_MARGIN_TOP = 10;
 const CHART_X_AXIS_HEIGHT = 35; // approximate height for x-axis ticks + label
 
-export function ChartPane({ paneId }: ChartPaneProps) {
+export function ChartPane({ paneId, hideXTicks = false }: ChartPaneProps) {
+  const xAxisHeight = hideXTicks ? 0 : CHART_X_AXIS_HEIGHT;
   const overlays = useAnalysisOverlays(paneId);
   const aggregate = useOptionalAggregateWorkspace();
   const historyDispatch = aggregate?.historyDispatch;
@@ -338,12 +340,12 @@ export function ChartPane({ paneId }: ChartPaneProps) {
     if (!el) return;
     const observer = new ResizeObserver(([entry]) => {
       if (!entry) return;
-      const height = Math.max(0, entry.contentRect.height - CHART_MARGIN_TOP - CHART_X_AXIS_HEIGHT - 10);
+      const height = Math.max(0, entry.contentRect.height - CHART_MARGIN_TOP - xAxisHeight - 10);
       setPlotHeight(current => current === height ? current : height);
     });
     observer.observe(el);
     return () => observer.disconnect();
-  }, [hasChart]);
+  }, [hasChart, xAxisHeight]);
   useEffect(() => {
     const clear = () => setPaneDragOver(false);
     window.addEventListener('dragend', clear);
@@ -494,14 +496,14 @@ export function ChartPane({ paneId }: ChartPaneProps) {
 
   const computeRefLineYTolerance = React.useCallback((): number => {
     const chartEl = chartAreaRef.current;
-    const plotHeight = chartEl ? chartEl.getBoundingClientRect().height - CHART_MARGIN_TOP - CHART_X_AXIS_HEIGHT : 0;
+    const plotHeight = chartEl ? chartEl.getBoundingClientRect().height - CHART_MARGIN_TOP - xAxisHeight : 0;
     if (plotHeight <= 0) return 0;
     if (Array.isArray(yDomain) && yDomain[0] !== 'auto') {
       const span = (yDomain[1] as number) - (yDomain[0] as number);
       return (span / plotHeight) * 8;
     }
     return 0;
-  }, [yDomain]);
+  }, [yDomain, xAxisHeight]);
 
   const computeMarkerHitTolerance = React.useCallback((): number => {
     const chartEl = chartAreaRef.current;
@@ -560,7 +562,7 @@ export function ChartPane({ paneId }: ChartPaneProps) {
       return yMax - (gy / geometry.plot.height) * (yMax - yMin);
     }
     const rect = chartEl.getBoundingClientRect();
-    const plotHeight = rect.height - CHART_MARGIN_TOP - CHART_X_AXIS_HEIGHT;
+    const plotHeight = rect.height - CHART_MARGIN_TOP - xAxisHeight;
     if (plotHeight <= 0) return null;
     const y = Math.max(0, Math.min(plotHeight, clientY - rect.top - CHART_MARGIN_TOP));
     return yMax - (y / plotHeight) * (yMax - yMin);
@@ -904,7 +906,7 @@ export function ChartPane({ paneId }: ChartPaneProps) {
     if (!result.ok) { window.alert(result.reason); return; }
     const lines = planLastPaneLines(state, paneId, result.plan.memberships);
     if (lines.length) {
-      const details = lines.map(move => `${move.line.label || `Line ${move.line.id}`} -> ${move.to ? (panes.find(item => item.id === move.to)?.title || move.to) : 'not in a pane'}`);
+      const details = lines.map(move => `${move.line.label || `Line ${move.line.id}`} -> ${move.to ? paneName(panes, move.to) : 'not in a pane'}`);
       if (!window.confirm(`Remove ${paneName(panes, paneId)}? Traces will remain available.\n\n${details.join('\n')}`)) return;
     }
     aggregate.historyDispatch({ type: 'change', command: { slice: 'remove-empty-pane', targetPaneId: paneId, expectedRevision: state.revision, confirmed: lines.length > 0, limit } });
@@ -1304,13 +1306,14 @@ export function ChartPane({ paneId }: ChartPaneProps) {
                   domain={xDomain ? [xDomain.min, xDomain.max] : ['dataMin', 'dataMax']}
                   allowDataOverflow={!!xDomain}
                   ticks={xTickValues}
+                  {...(hideXTicks ? { tick: false, height: 0 } : {})}
                   stroke="var(--muted)"
                   fontSize={'var(--font-label)'}
                   tickFormatter={(value) => xTickLabelMap.get(Number(value)) ?? formatAdaptiveXAxisValue(Number(value), visibleXSpan, {
                     domain: activePaneTrace?.domain ?? 'frequency',
                     unit: activePaneTrace?.units.x ?? (activePaneTrace?.domain === 'time' ? 's' : 'Hz'),
                   })}
-                  label={{ value: xAxisLabelText, position: 'insideBottom', offset: -5, style: { fontSize: 'var(--font-label)', fill: 'var(--muted)', textAnchor: 'middle' } }}
+                  label={hideXTicks ? undefined : { value: xAxisLabelText, position: 'insideBottom', offset: -5, style: { fontSize: 'var(--font-label)', fill: 'var(--muted)', textAnchor: 'middle' } }}
                 />
                 <YAxis
                   domain={yDomain}

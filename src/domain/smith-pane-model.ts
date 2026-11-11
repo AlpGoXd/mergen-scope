@@ -6,6 +6,7 @@ import { getResolvedInterpolationStrategy } from './interpolation';
 import { clipTraceToRange } from './smith/range';
 import type { SmithRange } from './smith/range';
 import { effectiveRange, fullRangeOf } from './smith/range';
+import { paneName } from './line-view';
 
 /** Produce separate gap-free visible runs for a Smith trace. */
 export function smithVisibleRuns(samples: readonly SmithSample[], range: SmithRange): readonly (readonly SmithSample[])[] {
@@ -53,4 +54,7 @@ export function smithMarkerFrequency(trace: Trace, click: { frequencyHz: number;
   const strategy = getResolvedInterpolationStrategy(trace.family, trace.interpolation, trace.isUniform ?? false);
   return strategy === 'snap' || strategy === 'exact' || (click.sampleDistancePx !== undefined && click.sampleDistancePx <= 10)
     ? click.sampleFrequencyHz : click.frequencyHz;
+}
+export function smithLinkedPaneLabel(panes: readonly { id: string; title: string }[], paneId: string): string {
+  return `Linked to ${paneName(panes, paneId)}`;
 }

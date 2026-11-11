@@ -4,6 +4,7 @@ import { canSetLinePanes, linePaneXGroup } from './ref-lines';
 import { traceXGroup } from './pane-placement';
 import type { PlacementPane, PlacementTrace } from './pane-placement';
 import { decodeXAxisUnit, encodeXAxisUnit } from '../types/ref-line';
+import { defaultTitle, isDefaultTitle } from './pane-layout';
 
 type View = { x: readonly [number, number] | null; y: readonly [number, number] | null };
 
@@ -31,7 +32,7 @@ export function lineView(
 export function paneName(panes: readonly { id: string; title: string }[], paneId: string): string {
   const index = panes.findIndex(pane => pane.id === paneId);
   const pane = panes[index];
-  return pane?.title || (index >= 0 ? `Pane ${index + 1}` : 'pane');
+  return pane && pane.title && !isDefaultTitle(pane.title) ? pane.title : (index >= 0 ? defaultTitle(index) : 'pane');
 }
 
 /** The axis unit a line has in a pane: Y unit for H lines, the encoded X group for V lines (null when mixed or unknown). */

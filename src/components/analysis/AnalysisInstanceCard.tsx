@@ -24,6 +24,7 @@ import type { CardUnits } from '../../domain/analysis/card-view';
 import { formatCrossingValue, significantStep } from '../../domain/analysis/crossing-rows';
 import { oklchHue } from '../../domain/color-hue';
 import { parseEngInput } from '../../domain/units';
+import { paneName } from '../../domain/line-view';
 import type { AnalysisInstance } from '../../types/analysis-instance';
 import type { AnalysisTool, ParameterField, ParameterSchema, ParameterValue } from '../../types/registry-contract';
 import type { Trace } from '../../types/trace';
@@ -62,7 +63,7 @@ export function AnalysisInstanceCard({ instance }: { instance: AnalysisInstance 
   const line = instance.source.lineId != null ? ctx.refLines.find(item => item.id === instance.source.lineId) : undefined;
   const result = useMemo<InstanceResult>(() => tool?.kind === 'measure' || (tool?.kind === 'math' && !instance.outputTraceId) ? computeInstance(instance, ctx.inputs) : { outputs: [] }, [instance, ctx.inputs, tool]);
   const units: CardUnits = { x: source?.units.x ?? ctx.targetTrace?.units.x ?? 'Hz', y: source?.units.y ?? ctx.targetTrace?.units.y };
-  const paneTitle = (paneId: string): string => { const index = ctx.panes.findIndex(pane => pane.id === paneId); return ctx.panes[index]?.title || `Pane ${index + 1}`; };
+  const paneTitle = (paneId: string): string => paneName(ctx.panes, paneId);
   const paneBadge = (paneId: string): string => `P${ctx.panes.findIndex(pane => pane.id === paneId) + 1}`;
   const hueOf = (traceName: string): number => {
     const trace = ctx.allKnownTraces.find(item => item.name === traceName);
