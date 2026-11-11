@@ -24,7 +24,7 @@ export interface PaneState {
 }
 
 export type PaneAction =
-  | { type: 'SET_PANE_COUNT'; payload: number; traces?: PlacementTrace[]; limit?: 4 | 8; confirmed?: boolean }
+  | { type: 'SET_PANE_COUNT'; payload: number; traces?: PlacementTrace[]; limit?: 4 | 8; confirmed?: boolean; targetPaneId?: string }
   | { type: 'CREATE_PANE_WITH_TRACE'; payload: { trace: Trace; allTraces: Trace[]; displayTraces?: readonly DisplayTrace[] }; limit?: 4 | 8 }
   | { type: 'ADD_MEMBERSHIP'; payload: { trace: Trace; targetPaneId: string; allTraces: Trace[]; displayTraces?: readonly DisplayTrace[] } }
   | { type: 'MOVE_MEMBERSHIP'; payload: { trace: Trace; fromPaneId: string; targetPaneId: string; allTraces: Trace[]; displayTraces?: readonly DisplayTrace[] } }
@@ -71,7 +71,8 @@ export function paneReducer(state: PaneState, action: PaneAction): PaneState {
         while (panes.length < count) { let n = 1; while (issued.has(`pane-${n}`)) n++; const id = `pane-${n}`; issued.add(id); const target = panes.find(p => p.id === state.activePaneId) ?? panes[0]; if (!target) return state; panes.push({ ...target, id, title: '', settings: { ...target.settings } }); }
         return { ...state, panes, issuedPaneIds: [...issued] };
       }
-      const removed = state.panes.slice(count).map(p => p.id);
+      if (action.targetPaneId && (count !== state.panes.length - 1 || !state.panes.some(p => p.id === action.targetPaneId))) return state;
+      const removed = action.targetPaneId ? [action.targetPaneId] : state.panes.slice(count).map(p => p.id);
       if (!action.traces && Object.values(state.tracePaneMap).some(ids => ids.some(id => removed.includes(id)))) return state;
       const plan = planPaneRemoval(state.panes, action.traces ?? [], removed); if (!plan.ok || (plan.plan.unplaced.length > 0 && !action.confirmed)) return state;
       const panes = state.panes.filter(p => !removed.includes(p.id)); const valid = new Set(panes.map(p => p.id));

@@ -13,5 +13,5 @@ export function rendererFor(typeId: PaneTypeId): ComponentType<{ paneId: string 
 
 // P2 adds the Table empty state.
 export function emptyStateFor(typeId: PaneTypeId): { title: string; sentence: (paneNumber: number) => string } | null {
-  return typeId === 'chart' ? { title: 'Empty chart', sentence: paneNumber => `Drop a file here, or tick traces in the Traces list and use Show in ? Pane ${paneNumber}.` } : null;
+  return typeId === 'chart' ? { title: 'Empty chart', sentence: paneNumber => `Drop a file here, or tick traces in the Traces list and use Show in › Pane ${paneNumber}.` } : null;
 }

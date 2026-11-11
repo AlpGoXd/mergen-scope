@@ -41,7 +41,7 @@ test('matrix creates a new view in the target pane and marks other views', async
   await page.goto('/app.html');
   await page.getByTestId('app-open-input').setInputFiles(resolve(process.cwd(), 'test files/cascaded chain.s2p'));
   await page.getByRole('button', { name: '+ Pane', exact: true }).click();
-  await page.getByTestId('chart-pane-pane-2').getByRole('button', { name: 'Set Target' }).click();
+  await page.getByTestId('chart-pane-header-pane-2').getByText('Pane 2', { exact: true }).click();
   await page.getByTestId('touchstone-cell-S12').click();
   const row = page.locator('[data-testid^="trace-row-"]').filter({ hasText: 'S12' });
   await expect(row).toContainText('P2');

@@ -172,8 +172,12 @@ test("four empty panes fit without covering each other's headers", async ({ page
   // Before the fix, each pane's drop box spilled over the next header and intercepted these clicks.
   for (const paneId of ["pane-2", "pane-3", "pane-4"]) {
     const header = page.getByTestId(`chart-pane-header-${paneId}`);
-    await header.getByRole("button", { name: "Set Target" }).click({ timeout: 5000 });
-    await expect(header).toContainText("Target");
+    const name = `Pane ${paneId.slice(-1)}`;
+    await expect(header.getByText(name, { exact: true })).toBeVisible();
+    await expect(header.getByText("Empty", { exact: true })).toBeVisible();
+    await expect(header.getByRole("button", { name: `Close ${name}` })).toBeVisible();
+    await header.getByText(name, { exact: true }).click({ timeout: 5000 });
+    await expect(header).toHaveCSS('border-left-color', /^(?!rgba\(0, 0, 0, 0\)).+/);
   }
 });
 
@@ -231,7 +235,7 @@ test("loading a workspace keeps traces in their saved pane even when another pan
   await firstTraceRow(page).click();
   await page.getByTestId("chart-pane-header-pane-2").getByRole("button", { name: "Move Here" }).click();
   await expect(firstTraceRow(page)).toContainText("P2");
-  await page.getByTestId("chart-pane-header-pane-1").getByRole("button", { name: "Set Target" }).click();
+  await page.getByTestId("chart-pane-header-pane-1").getByText("Pane 1", { exact: true }).click();
 
   const downloadPromise = page.waitForEvent("download");
   await page.getByTitle("Save Workspace JSON").click();

@@ -1,6 +1,30 @@
 import { expect, it } from 'vitest';
-import { initialWorkspaceEngine, workspaceEngineReducer, workspaceReducer, planLastPaneRemoval } from '../../src/stores/aggregate-workspace-store';
+import { initialWorkspaceEngine, workspaceEngineReducer, workspaceReducer, planLastPaneLines, planLastPaneRemoval, planWorkspacePaneRemoval } from '../../src/stores/aggregate-workspace-store';
 import { makeTestTrace } from './helpers';
+import { encodeXAxisUnit } from '../../src/types/ref-line';
+
+it('requires confirmation for a line in an empty pane and moves it in one undo step when compatible', () => {
+  const trace = makeTestTrace({ name: 'freq', id: 'freq', units: { x: 'Hz', y: 'dB' } });
+  let engine = initialWorkspaceEngine();
+  const change = (command: Parameters<typeof workspaceReducer>[1]) => { engine = workspaceEngineReducer(engine, { type: 'change', command }); };
+  change({ slice: 'files', action: { type: 'ADD_PARSED_FILE', payload: { id: 'f', fileName: 'f.dat', text: 'source', parsed: { format: 'rs-dat', meta: {}, traces: [trace] } } } });
+  change({ slice: 'panes', limit: 4, action: { type: 'SET_PANE_COUNT', payload: 2 } });
+  change({ slice: 'panes', limit: 4, action: { type: 'ASSIGN_TRACE_TO_PANE', payload: { trace, targetPaneId: 'pane-1', allTraces: [trace] } } });
+  change({ slice: 'lines', action: { type: 'ADD_LINE', payload: { id: 9, type: 'v', value: 1, paneIds: ['pane-2'], axisUnit: encodeXAxisUnit('Hz', 'Hz'), label: 'V1' } } });
+  const before = engine.present;
+  const plan = planWorkspacePaneRemoval(before, 'pane-2');
+  if (!plan.ok) throw new Error(plan.reason);
+  expect(planLastPaneLines(before, 'pane-2', plan.plan.memberships)[0]?.to).toBe('pane-1');
+  const command = { slice: 'remove-empty-pane' as const, targetPaneId: 'pane-2', expectedRevision: before.revision, confirmed: false, limit: 4 as const };
+  expect(workspaceReducer(before, command)).toBe(before);
+  const count = engine.history.past.length;
+  change({ ...command, confirmed: true });
+  expect(engine.history.past).toHaveLength(count + 1);
+  expect(engine.present.lines.refLines[0]?.paneIds).toEqual(['pane-1']);
+  engine = workspaceEngineReducer(engine, { type: 'undo' });
+  expect(engine.present.lines.refLines[0]?.paneIds).toEqual(['pane-2']);
+  expect(engine.present.panes.panes).toHaveLength(2);
+});
 
 it('binds removal to the current target and revision, and restores trace data through undo and redo', () => {
   const trace = makeTestTrace({name:'one', id:'one'});

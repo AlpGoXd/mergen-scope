@@ -82,7 +82,7 @@ describe('aggregate workspace transitions', () => {
     engine = workspaceEngineReducer(engine, { type: 'change', command: { slice: 'panes', limit: 4, action: { type: 'SET_PANE_COUNT', payload: 2 } } });
     engine = workspaceEngineReducer(engine, { type: 'change', command: { slice: 'panes', limit: 4, action: { type: 'ASSIGN_TRACE_TO_PANE', payload: { trace, targetPaneId: 'pane-1', allTraces: [trace] } } } });
     const before = engine.history.past.length;
-    engine = workspaceEngineReducer(engine, { type: 'change', command: { slice: 'panes', limit: 4, action: { type: 'SET_RENDER_MODE', payload: { paneId: 'pane-1', mode: 'smith', confirmed: true } } } });
+    engine = workspaceEngineReducer(engine, { type: 'change', command: { slice: 'panes', limit: 4, action: { type: 'SET_RENDER_MODE', payload: { paneId: 'pane-1', mode: 'smith', confirmed: true, expectedRevision: engine.present.revision } } } });
     expect(engine.history.past).toHaveLength(before + 1);
     expect(engine.present.panes.tracePaneMap.scalar).toEqual(['pane-2']);
     engine = workspaceEngineReducer(engine, { type: 'undo' });
