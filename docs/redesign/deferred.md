@@ -231,4 +231,6 @@ Evidence and the difference list: [analysis-evidence](analysis-evidence/README.m
 - **Hover-update test:** a unit test that a hover update does not recompute the converted Smith traces (spy on the converter).
 - **Per-pane X link control:** nothing in the UI changes `zoomAll` (global link) yet; the Smith range follows it only through the shared zoom. Needed before "panes start unlinked" and before an e2e for unlinking a Smith pane.
 - **Swap and drop hints (11 Nov):** a file-drop refusal is swallowed when the target pane is removed before the asynchronous file read finishes (fall back to the workspace-level banner Notice; test it); an "automatic title" flag in the saved pane shape, so a custom title such as "Pane 42" is not renumbered by a layout change or swap; keyboard alternative for swapping panes.
+- **Trace colour input:** `<input type="color">` in the Traces list rows gets an `oklch(...)` value, which browsers reject (console warning, picker starts black): convert to `#rrggbb` for the input only (a small pure helper in `src/domain/`).
+- **LaTeX / image / PDF export** is not built (Phase 6); the demo script says so.
 
