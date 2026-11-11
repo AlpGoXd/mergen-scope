@@ -142,3 +142,44 @@ test('linked chart zoom dims out-of-band Smith data and publishes the cursor', a
   await page.mouse.move(box.x + box.width * 0.65, y);
   await expect(ghost).not.toHaveAttribute('cx', before ?? '');
 });
+
+test('a marker drags along its own Smith trace as one undo step', async ({ page }) => {
+  await openNetwork(page);
+  const pane = await chooseSecondSmith(page);
+  await page.getByTestId('touchstone-cell-S11').click();
+  const path = pane.locator('[data-testid^="smith-trace-"] path').first();
+  await expect(path).toBeAttached();
+  const at = async (fraction: number) => path.evaluate((element, f) => {
+    const curve = element as SVGPathElement;
+    const point = curve.getPointAtLength(curve.getTotalLength() * f);
+    const matrix = curve.getScreenCTM();
+    if (!matrix) throw new Error('no transform');
+    const screen = new DOMPoint(point.x, point.y).matrixTransform(matrix);
+    return { x: screen.x, y: screen.y };
+  }, fraction);
+  const from = await at(0.3), to = await at(0.36);
+  await pane.getByTestId('smith-plot').focus();
+  await page.keyboard.press('n');
+  await page.mouse.click(from.x, from.y);
+  const marker = pane.locator('[data-testid^="smith-marker-"]');
+  await expect(marker).toHaveCount(1);
+  const frequency = pane.getByTestId('smith-readout').locator('[data-field="frequency"]');
+  const before = await frequency.innerText();
+  const glyph = async () => (await marker.locator('.smith-marker-glyph').boundingBox())!;
+  const start = await glyph();
+  await page.mouse.move(start.x + start.width / 2, start.y + start.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(to.x, to.y, { steps: 8 });
+  await expect(frequency).not.toHaveText(before);
+  await page.mouse.up();
+  // The marker followed the pointer and stayed on the trace; no second marker was placed.
+  await expect(marker).toHaveCount(1);
+  const end = await glyph();
+  expect(Math.hypot(end.x + end.width / 2 - to.x, end.y + end.height / 2 - to.y)).toBeLessThan(12);
+  const after = await frequency.innerText();
+  expect(after).not.toBe(before);
+  await page.keyboard.press('Control+z');
+  await expect(frequency).toHaveText(before);
+  await page.keyboard.press('Control+y');
+  await expect(frequency).toHaveText(after);
+});

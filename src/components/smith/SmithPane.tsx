@@ -68,6 +68,10 @@ export interface SmithPaneProps {
   readonly onSelectMarker?: (markerId: string) => void;
   /** A click on a trace: the caller decides whether that places a marker. */
   readonly onTraceClick?: (click: SmithTraceClick) => void;
+  /** Dragging a marker along its own trace: called on every move with the point under the pointer. */
+  readonly onMoveMarker?: (markerId: string, to: SmithTraceClick) => void;
+  /** The marker drag ended (one Undo step for the whole drag). */
+  readonly onMoveMarkerEnd?: () => void;
   /** Visible range of the linked Hz pane: inside is drawn in full colour, the rest faint. */
   readonly band?: SmithBand | null;
   readonly grid?: SmithGridMode;
@@ -155,7 +159,7 @@ function inBand(frequencyHz: number, band: SmithBand | null | undefined): boolea
  * scrolling here never moves another pane.
  */
 export function SmithPane({
-  traces, markers = NO_MARKERS, markerNames, selectedMarkerId = null, onSelectMarker, onTraceClick, band = null, rangeBar,
+  traces, markers = NO_MARKERS, markerNames, selectedMarkerId = null, onSelectMarker, onTraceClick, onMoveMarker, onMoveMarkerEnd, band = null, rangeBar,
   grid = 'z', labels = 'normalised', direction = 'chevrons', readout = DEFAULT_READOUT,
   showMarkers = true, showMarkerTags = true, showSamples = false, cursorFrequencyHz = null, onHoverFrequency, fitRequest, size,
 }: SmithPaneProps) {
@@ -165,7 +169,7 @@ export function SmithPane({
   const [view, setView] = useState<View>(FIT_VIEW);
   const [hover, setHover] = useState<Hover | null>(null);
   const [panning, setPanning] = useState(false);
-  const drag = useRef<{ pointerId: number; x: number; y: number; startX: number; startY: number; pan: boolean } | null>(null);
+  const drag = useRef<{ pointerId: number; x: number; y: number; startX: number; startY: number; pan: boolean; markerId?: string; moved?: boolean } | null>(null);
 
   // Fit: the unit circle plus any |Γ| > 1 samples, with room for the rim labels.
   const allGammas = useMemo(() => traces.flatMap(trace => trace.samples.map(sample => sample.gamma)), [traces]);
@@ -273,11 +277,27 @@ export function SmithPane({
   const clearHover = (): void => {
     if (hover) { setHover(null); onHoverFrequency?.(null); }
   };
+  /** The marker under a screen point, the selected one first when several overlap. */
+  const markerAt = (point: SmithPoint) => {
+    if (!showMarkers || !viewport) return undefined;
+    const near = paneMarkers.filter(entry => {
+      const at = entry.gamma ? gammaToPoint(entry.gamma, viewport) : null;
+      return !!at && Math.hypot(at.x - point.x, at.y - point.y) <= MARKER_REACH_PX;
+    });
+    return near.find(entry => entry.marker.id === selectedMarkerId) ?? near[near.length - 1];
+  };
   const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>): void => {
     const pan = event.button === 1 || (event.button === 0 && event.ctrlKey);
     if (!pan && event.button !== 0) return;
     if (pan) event.preventDefault();
     drag.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, pan };
+    // A press on a marker starts dragging it along its trace.
+    const grabbed = !pan && onMoveMarker ? markerAt(localPoint(event)) : undefined;
+    if (grabbed) {
+      drag.current.markerId = grabbed.marker.id;
+      event.currentTarget.setPointerCapture?.(event.pointerId);
+      clearHover();
+    }
     if (pan) {
       event.currentTarget.setPointerCapture?.(event.pointerId);
       setPanning(true);
@@ -295,6 +315,19 @@ export function SmithPane({
       return;
     }
     if (!viewport) return;
+    if (active?.markerId && active.pointerId === event.pointerId) {
+      if (!active.moved && Math.hypot(event.clientX - active.startX, event.clientY - active.startY) <= CLICK_SLOP_PX) return;
+      const entry = paneMarkers.find(item => item.marker.id === active.markerId);
+      // Only the marker's own trace is a target, however close another trace is.
+      const own = entry ? traces.filter(trace => trace.traceId === entry.trace.traceId) : [];
+      const point = localPoint(event);
+      const hit = nearestTracePoint(own, point, viewport);
+      if (!entry || !hit) return;
+      const sample = nearestSample(own, hit.point, viewport);
+      if (!active.moved) { active.moved = true; setPanning(true); onSelectMarker?.(entry.marker.id); }
+      onMoveMarker?.(entry.marker.id, { traceId: hit.traceId, frequencyHz: hit.frequencyHz, sampleFrequencyHz: sample?.frequencyHz ?? hit.frequencyHz, sampleDistancePx: sample?.distancePx });
+      return;
+    }
     const hit = nearestTracePoint(traces, localPoint(event), viewport, HOVER_REACH_PX);
     if (!hit) { clearHover(); return; }
     if (hover && hover.traceId === hit.traceId && hover.frequencyHz === hit.frequencyHz) return;
@@ -310,12 +343,13 @@ export function SmithPane({
       setPanning(false);
       return;
     }
+    if (active.markerId) {
+      event.currentTarget.releasePointerCapture?.(event.pointerId);
+      if (active.moved) { setPanning(false); onMoveMarkerEnd?.(); return; }
+    }
     if (!viewport || Math.hypot(event.clientX - active.startX, event.clientY - active.startY) > CLICK_SLOP_PX) return;
     const point = localPoint(event);
-    const onMarker = showMarkers ? paneMarkers.find(entry => {
-      const at = entry.gamma ? gammaToPoint(entry.gamma, viewport) : null;
-      return !!at && Math.hypot(at.x - point.x, at.y - point.y) <= MARKER_REACH_PX;
-    }) : undefined;
+    const onMarker = markerAt(point);
     if (onMarker) { onSelectMarker?.(onMarker.marker.id); return; }
     if (!onTraceClick) return;
     const hit = nearestTracePoint(traces, point, viewport, CLICK_REACH_PX);
@@ -375,7 +409,7 @@ export function SmithPane({
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
-        onPointerLeave={() => { if (!drag.current?.pan) clearHover(); }}
+        onPointerLeave={() => { if (!drag.current?.pan && !drag.current?.markerId) clearHover(); }}
         onMouseDown={event => { if (event.button === 1) event.preventDefault(); }}
         onDoubleClick={fitView}
         onKeyDown={onKeyDown}

@@ -10,6 +10,8 @@ import { useTraceSymbols } from '../../hooks/use-trace-symbols';
 import { canRenderInPane } from '../../domain/pane-placement';
 import { allocateTraceColors, traceWidth } from '../../domain/trace-palette';
 import { smithLinkedBand, smithLinkedPaneLabel, smithMarkerFrequency, smithTraceSamples, smithRangeModel } from '../../domain/smith-pane-model';
+import { placeMarker } from '../../domain/markers';
+import { useOptionalAggregateWorkspace } from '../../stores/aggregate-workspace-store';
 import { SmithPane } from './SmithPane';
 
 export function SmithPaneContainer({ paneId, fitRequest = 0 }: { paneId: string; fitRequest?: number }) {
@@ -22,6 +24,7 @@ export function SmithPaneContainer({ paneId, fitRequest = 0 }: { paneId: string;
   const cursorFrequencyHz = useLinkedHoverFrequency(paneId, zoomAll);
   useEffect(() => () => publish(null, paneId), [publish, paneId]);
   const markerDispatch = useMarkerDispatch();
+  const historyDispatch = useOptionalAggregateWorkspace()?.historyDispatch;
   const lineDispatch = useRefLineDispatch();
   const color = useTraceColors();
   const symbol = useTraceSymbols();
@@ -58,6 +61,17 @@ export function SmithPaneContainer({ paneId, fitRequest = 0 }: { paneId: string;
       lineDispatch({ type: 'SET_SELECTED', payload: null });
       markerDispatch({ type: 'PLACE_MARKER', payload: { trace, targetFreq: smithMarkerFrequency(trace, click), markerType: armed.kind, refId: armed.kind === 'delta' ? armed.refId : null } });
     }}
+    onMoveMarker={(id, to) => {
+      // Same rule as a chart drag: the marker stays on its own trace and follows the trace's snap or interpolate setting.
+      const idx = markers.findIndex(marker => marker.id === id);
+      const trace = eligible.find(item => item.id === to.traceId);
+      if (idx < 0 || !trace || markers[idx]?.trace !== trace.name) return;
+      const placement = placeMarker(trace, smithMarkerFrequency(trace, to));
+      // Starting a gesture twice is a no-op, so every move of one drag lands in the same Undo step.
+      historyDispatch?.({ type: 'begin-gesture' });
+      markerDispatch({ type: 'UPDATE_MARKER', payload: { idx, updates: { requestedFreq: placement.requestedFreq, freq: placement.freq, amp: placement.amp, interpolated: placement.interpolated } } });
+    }}
+    onMoveMarkerEnd={() => historyDispatch?.({ type: 'commit-gesture' })}
     band={model.band} cursorFrequencyHz={cursorFrequencyHz}
     onHoverFrequency={value => publish(value === null ? null : { paneId, xUnit: 'Hz', value }, paneId)}
     grid={smith?.grid ?? (pane.renderMode === 'smith-inverted' ? 'y' : 'z')} labels={smith?.labels ?? 'normalised'}
