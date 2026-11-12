@@ -95,6 +95,8 @@ export interface AnalysisInputs {
   readonly traces: readonly Trace[];
   readonly markers?: readonly Marker[];
   readonly visibleRange?: { readonly left: number; readonly right: number } | null;
+  /** The x range each pane shows, by pane id: lets a tool read the view of the pane that holds its source trace. */
+  readonly paneRanges?: Readonly<Record<string, { readonly left: number; readonly right: number }>>;
   readonly lines?: readonly RefLine[];
   readonly lineId?: number | null;
   readonly tracePaneMap?: Readonly<Record<string, readonly string[]>>;
@@ -108,7 +110,9 @@ export type OverlayShape =
   | { readonly kind: 'triangle'; readonly x: number; readonly y: number; readonly n: number }
   | { readonly kind: 'dot'; readonly x: number; readonly y: number }
   | { readonly kind: 'band'; readonly x1: number; readonly x2: number; readonly y1?: number; readonly y2?: number }
-  | { readonly kind: 'tick'; readonly x: number; readonly y: number };
+  | { readonly kind: 'tick'; readonly x: number; readonly y: number }
+  /** A thin dashed horizontal line at `y` from x1 to x2 (a reference level over part of the trace). */
+  | { readonly kind: 'level'; readonly x1: number; readonly x2: number; readonly y: number };
 
 export type AnalysisOutput =
   | { readonly type: 'numbers'; readonly values: Readonly<Record<string, number>> }
@@ -141,7 +145,8 @@ export interface AnalysisTool<
   /** The card explains and fixes missing inputs itself (for example IP3's Auto-place markers), so the Add menu does not block it. */
   readonly cardGuidesInputs?: boolean;
   readonly parameterUnits?: Readonly<Record<string, string>>;
-  readonly appliesToInputs?: (inputs: AnalysisInputs) => Capability;
+  /** `params` is passed when the instance is computed; the Add menu calls it without. */
+  readonly appliesToInputs?: (inputs: AnalysisInputs, params?: ParameterValues<Schema>) => Capability;
   readonly meta: AnalysisToolMetadata;
   readonly params: Schema;
   readonly outputs: Declarations;

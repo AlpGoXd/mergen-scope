@@ -25,7 +25,15 @@ export interface MathOutput {
   panes: string[];      // ["P1"]
 }
 /** Before a Math card has made its trace: nothing is created until the user presses the button. */
-export interface CreateRowProps { label?: string; disabledReason?: string; onCreate: () => void }
+export interface CreateRowProps {
+  label?: string;
+  disabledReason?: string;
+  /** The trace it will make, shown as an output row ("→ FFT · CH1") with the button at its end. */
+  name?: string;
+  /** Where the trace goes; defaults to under its input, in the same pane. */
+  note?: string;
+  onCreate: () => void;
+}
 
 export interface AnalysisCardProps {
   id: string;

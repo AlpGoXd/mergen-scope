@@ -8,6 +8,7 @@ import { useTraceState } from '../stores/trace-store';
 import type { AnalysisInputs } from '../types/registry-contract';
 import type { Trace } from '../types/trace';
 import { defaultTraceForPane } from '../domain/default-trace';
+import { paneRangesOf } from '../domain/analysis/instances';
 import { useUiState } from '../stores/ui-store';
 
 /** Everything an analysis card needs from the stores, in one place. Cards stay presentational. */
@@ -23,10 +24,12 @@ export function useAnalysisContext() {
   const visibleTraces = useMemo(() => allTraces.filter(trace => vis[trace.name] !== false), [allTraces, vis]);
   const view = activePaneId ? paneViews[activePaneId] : undefined;
   const visibleRange = view?.x ? { left: view.x[0], right: view.x[1] } : null;
+  // Every pane's range, so Waveform and FFT read the view of the pane that shows their source.
+  const paneRanges = useMemo(() => paneRangesOf(paneViews), [paneViews]);
 
   const inputs = useMemo<AnalysisInputs>(() => ({
-    traces: allKnownTraces, markers, visibleRange, lines: refLines, tracePaneMap, vis, touchstone: target.touchstone ?? null,
-  }), [allKnownTraces, markers, visibleRange?.left, visibleRange?.right, refLines, tracePaneMap, vis, target.touchstone]);
+    traces: allKnownTraces, markers, visibleRange, paneRanges, lines: refLines, tracePaneMap, vis, touchstone: target.touchstone ?? null,
+  }), [allKnownTraces, markers, visibleRange?.left, visibleRange?.right, paneRanges, refLines, tracePaneMap, vis, target.touchstone]);
 
   // The trace a new analysis starts on: the selected or active one, else the first visible trace of the active pane, else any visible trace.
   const targetTrace = useMemo<Trace | null>(() => {

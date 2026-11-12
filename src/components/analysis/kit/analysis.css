@@ -219,6 +219,10 @@
 /* Math: create step, then the output row */
 .an-create { display: flex; align-items: center; gap: 8px; padding-top: 6px; border-top: 1px solid var(--border); }
 .an-create__note { font-size: calc(var(--font-caption) - 0.5px); color: var(--text-muted); }
+/* a named create row reads like the output row it becomes: "→ FFT · CH1 … [Create trace]", the note below */
+.an-create--named { flex-wrap: wrap; gap: 4px 6px; font-size: var(--font-caption); }
+.an-create__name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+.an-create--named .an-create__note { flex-basis: 100%; }
 .an-btn--primary { background: var(--slate-fill); color: var(--slate-ink); border-color: var(--slate-line); font-weight: 600; }
 .an-output__fx { flex: none; color: var(--analysis-ink); }
 .an-output__note { flex: none; font-size: calc(var(--font-caption) - 0.5px); color: var(--text-muted); }

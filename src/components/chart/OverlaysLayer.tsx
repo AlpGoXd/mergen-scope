@@ -16,6 +16,7 @@ export function OverlaysLayer({ overlays, xAxisMap, yAxisMap, offset }: ChartSca
       const common = { 'data-analysis-id': overlay.id, pointerEvents: 'none' as const };
       if (geometry.kind === 'band') return <rect key={index} {...common} data-testid="analysis-shape-band" x={geometry.x} y={geometry.y} width={geometry.width} height={geometry.height} fill={colour} fillOpacity={0.12} stroke="none" />;
       if (geometry.kind === 'dot') return <circle key={index} {...common} data-testid="analysis-shape-dot" cx={geometry.x} cy={geometry.y} r={4} fill="none" stroke={colour} strokeWidth={1.5} />;
+      if (geometry.kind === 'level') return <line key={index} {...common} data-testid="analysis-shape-level" x1={geometry.x1} x2={geometry.x2} y1={geometry.y} y2={geometry.y} stroke={colour} strokeWidth={1} strokeDasharray="4 3" />;
       if (geometry.kind === 'tick') return <line key={index} {...common} data-testid="analysis-shape-tick" x1={geometry.x} x2={geometry.x} y1={geometry.y - 4} y2={geometry.y + 4} stroke={colour} strokeWidth={1.5} />;
       const highlighted = overlay.highlightedPeak === geometry.n;
       const size = highlighted ? 7 : 5;

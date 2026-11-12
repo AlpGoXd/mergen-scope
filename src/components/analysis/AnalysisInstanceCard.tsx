@@ -1,7 +1,7 @@
 // One analysis instance rendered with the Analysis kit (AC-3): generic over the registry tool.
 // The tool's params become the generated form, its outputs become key/value rows, a headline result,
 // crossings, or a created trace row. All formatting comes from domain/analysis/card-view.ts.
-import { useMemo, useState } from 'react';
+import { useContext, useMemo, useState } from 'react';
 import type { CSSProperties } from 'react';
 import './kit/analysis.css';
 import './peak-rows.css';
@@ -16,8 +16,9 @@ import { useOptionalAggregateWorkspace } from '../../stores/aggregate-workspace-
 import { useTraceDispatch, useTraceState } from '../../stores/trace-store';
 import { useUiDispatch } from '../../stores/ui-store';
 import { useMarkerDispatch } from '../../stores/marker-store';
+import { PaneLimitContext } from '../../stores/pane-store';
 import { getAnalysisTool } from '../../domain/analysis/tool-registry';
-import { computeInstance } from '../../domain/analysis/instances';
+import { autoOutputName, computeInstance } from '../../domain/analysis/instances';
 import { describeStimulus } from '../../domain/analysis/trace-math-align';
 import type { InstanceResult } from '../../domain/analysis/instances';
 import { crossingsCsv, describeInstance, resultsText, traceMathAdvice } from '../../domain/analysis/card-view';
@@ -32,9 +33,10 @@ import type { Trace } from '../../types/trace';
 import type { TraceMathOp } from '../../domain/trace-math-units';
 
 const NO_SOURCE_PICKER = new Set(['line-crossings', 'reciprocity-isolation', 'stability', 'ip3']);
-const SEGMENT_LABELS: Record<string, string> = { visible: 'Visible', all: 'All', add: '+', subtract: '−', multiply: '×', divide: '÷', gaussian: 'Gaussian', flattop: 'Flat top', fivepole: 'Five-pole' };
+const SEGMENT_LABELS: Record<string, string> = { visible: 'Visible', all: 'All', add: '+', subtract: '−', multiply: '×', divide: '÷', gaussian: 'Gaussian', flattop: 'Flat top', fivepole: 'Five-pole', dbv: 'dBV', v: 'V', dbm: 'dBm 50 Ω', auto: 'Auto' };
 const LABELS: Record<string, string> = {
   'moving-average': 'Moving average', 'median-filter': 'Median filter', 'savitzky-golay': 'Savitzky–Golay', none: 'None',
+  hann: 'Hann', rectangular: 'Rectangular', 'blackman-harris': 'Blackman-Harris',
 };
 
 const labelOf = (value: string): string => ({ a: "A's", b: "B's", both: 'Both', linear: 'Linear', cubic: 'Cubic', nearest: 'Nearest', previous: 'Previous', next: 'Next', sinc: 'Sinc', '': 'Choose…' } as Record<string, string>)[value] ?? SEGMENT_LABELS[value] ?? LABELS[value] ?? value;
@@ -58,12 +60,15 @@ export function AnalysisInstanceCard({ instance }: { instance: AnalysisInstance 
   const [ip3Note, setIp3Note] = useState<string | null>(null);
   const [invalidKey, setInvalidKey] = useState<string | null>(null);
   const [currentRow, setCurrentRow] = useState<string | null>(null);
+  const paneLimit = useContext(PaneLimitContext)?.limit ?? 4;
 
   const tool = getAnalysisTool(instance.toolId) as unknown as AnalysisTool<ParameterSchema> | undefined;
   const source = instance.source.traceId ? ctx.traceById.get(instance.source.traceId) : undefined;
   const second = instance.source.secondTraceId ? ctx.traceById.get(instance.source.secondTraceId) : undefined;
   const line = instance.source.lineId != null ? ctx.refLines.find(item => item.id === instance.source.lineId) : undefined;
-  const result = useMemo<InstanceResult>(() => tool?.kind === 'measure' || (tool?.kind === 'math' && !instance.outputTraceId) ? computeInstance(instance, ctx.inputs) : { outputs: [] }, [instance, ctx.inputs, tool]);
+  // A Math tool that also reads values (FFT) keeps computing after it has made its trace.
+  const hasNumbers = tool?.outputs.some(item => item.type === 'numbers') ?? false;
+  const result = useMemo<InstanceResult>(() => tool?.kind === 'measure' || (tool?.kind === 'math' && (!instance.outputTraceId || hasNumbers)) ? computeInstance(instance, ctx.inputs) : { outputs: [] }, [instance, ctx.inputs, tool, hasNumbers]);
   const units: CardUnits = { x: source?.units.x ?? ctx.targetTrace?.units.x ?? 'Hz', y: source?.units.y ?? ctx.targetTrace?.units.y };
   const paneTitle = (paneId: string): string => paneName(ctx.panes, paneId);
   const paneBadge = (paneId: string): string => `P${ctx.panes.findIndex(pane => pane.id === paneId) + 1}`;
@@ -123,6 +128,11 @@ export function AnalysisInstanceCard({ instance }: { instance: AnalysisInstance 
       fields.push({ id: key, label: field.title, control: { type: 'number', value: String(current ?? field.defaultValue), ...(unit ? { unit } : {}), invalid: invalidKey === key, onCommit: text => commitNumber(key, field, text) } });
     } else if (field.kind === 'choice') {
       const value = String(current ?? field.defaultValue);
+      const pointsUsed = key === 'points' ? result.outputs?.find(item => item.type === 'numbers') : undefined;
+      if (pointsUsed?.type === 'numbers' && value === 'auto' && Number.isFinite(pointsUsed.values['points'])) {
+        fields.push({ id: key, label: field.title, control: { type: 'select', value: `Auto · ${pointsUsed.values['points']}`, title: 'Largest power of two that fits the samples in range', onOpen: anchor => openSelect(anchor, field.title, field.options.map(option => ({ value: option, label: labelOf(option) })), value, next => setParam(key, next)) } });
+        continue;
+      }
       if (field.options.length <= 4 && field.options.every(option => labelOf(option).length <= 9)) {
         fields.push({ id: key, label: field.title, control: { type: 'segmented', value, options: field.options.map(option => ({ value: option, label: labelOf(option) })), onChange: next => setParam(key, next) } });
       } else {
@@ -131,7 +141,7 @@ export function AnalysisInstanceCard({ instance }: { instance: AnalysisInstance 
     }
   }
 
-  const view = tool.kind === 'measure' ? describeInstance(instance, result, units, { paneOrder: ctx.panes.map(pane => pane.id), paneId: firstPane ?? ctx.activePaneId ?? 'pane-1', traceName: source?.name ?? '', ...(line ? { lineType: line.type } : {}) }) : null;
+  const view = tool.kind === 'measure' || hasNumbers ? describeInstance(instance, result, units, { paneOrder: ctx.panes.map(pane => pane.id), paneId: firstPane ?? ctx.activePaneId ?? 'pane-1', traceName: source?.name ?? '', ...(line ? { lineType: line.type } : {}) }) : null;
   const { numbers = null, crossings = null, valueLabel = 'X' } = view ?? {};
   const shortName = (name: string): string => { const trace = ctx.allKnownTraces.find(item => item.name === name); return trace ? traceLabel(trace) : name; };
   const crossingGroups = crossings?.groups.map(group => ({
@@ -148,6 +158,8 @@ export function AnalysisInstanceCard({ instance }: { instance: AnalysisInstance 
   };
   const disabledReason = instance.toolId === 'trace-math' && (!source || !second) ? 'Pick trace A and trace B.' : result.reason ?? (!source ? 'Pick a trace.' : undefined);
   const mathWarning = instance.toolId === 'trace-math' && source && second ? traceMathAdvice((instance.params['operation'] ?? 'add') as TraceMathOp, source, second) : undefined;
+  // FFT names its trace before it exists and makes it in a frequency pane; its refusal reads once, on the Create row.
+  const createNote = instance.toolId === 'fft' ? { name: source ? autoOutputName(instance, ctx.allKnownTraces) : 'FFT', note: 'Adds the spectrum in a frequency pane.' } : undefined;
   const summary = numbers?.summary ?? (crossings ? `${crossings.total} crossing${crossings.total === 1 ? '' : 's'}` : output ? `→ ${traceLabel(output)}` : undefined);
 
   const peakTable = instance.toolId === 'peak-table' ? result.outputs?.find(item => item.type === 'table') : undefined;
@@ -196,7 +208,7 @@ export function AnalysisInstanceCard({ instance }: { instance: AnalysisInstance 
         {stimulus && !stimulus.identical && !stimulus.domainMismatch && source && second ? <CardMsg tone="warning" text={`Stimulus mismatch. A: ${stimulus.aCount} points, ${formatCrossingValue(stimulus.aRange[0], source.units.x, significantStep(stimulus.aRange[0], 6))} to ${formatCrossingValue(stimulus.aRange[1], source.units.x, significantStep(stimulus.aRange[1], 6))}. B: ${stimulus.bCount} points, ${formatCrossingValue(stimulus.bRange[0], second.units.x, significantStep(stimulus.bRange[0], 6))} to ${formatCrossingValue(stimulus.bRange[1], second.units.x, significantStep(stimulus.bRange[1], 6))}.`} /> : null}
         {mathWarning ? <CardMsg tone="warning" text={mathWarning} /> : null}
         {ip3Note ? <CardMsg tone="warning" text={ip3Note} /> : null}
-        {(view?.message ?? result.reason)
+        {(view?.message ?? result.reason) && !(createNote && !output)
           ? <CardMsg tone="warning" text={view?.message ?? result.reason ?? ''} {...(instance.toolId === 'ip3' && source ? { action: { label: 'Auto-place markers', onClick: autoPlaceIp3 } } : {})} {...(!NO_SOURCE_PICKER.has(instance.toolId) && !source ? { action: { label: 'Pick a trace', onClick: () => { const button = document.querySelector<HTMLElement>(`[data-testid="analysis-card-${instance.id}"] .an-select`); if (button) pickTrace(button); } } } : {})} />
           : null}
         {!result.reason && numbers?.result ? <Result {...numbers.result} /> : null}
@@ -222,7 +234,7 @@ export function AnalysisInstanceCard({ instance }: { instance: AnalysisInstance 
                 {editingOutput ? <input className="an-output__name" aria-label="Trace name" data-testid="trace-name-input" defaultValue={traceLabel(output)} ref={el => { if (el && document.activeElement !== el) { el.focus(); el.select(); } }} onBlur={event => { renameOutput(event.currentTarget.value); setEditingOutput(false); }} onKeyDown={event => { event.stopPropagation(); if (event.key === 'Enter') event.currentTarget.blur(); if (event.key === 'Escape') { event.preventDefault(); setEditingOutput(false); } }} /> : <span className="an-output__name" onDoubleClick={() => setEditingOutput(true)}>{traceLabel(output)}</span>}
                 {(ctx.tracePaneMap[output.name] ?? []).map(paneBadge).map(pane => <span key={pane} className="an-pane-badge">{pane}</span>)}<span className="an-output__note">follows inputs</span>
               </div>
-            : <CreateRow {...(disabledReason ? { disabledReason } : {})} onCreate={() => analysisDispatch({ type: 'CREATE_ANALYSIS_OUTPUT', payload: { id: instance.id } })} />
+            : <CreateRow {...(disabledReason ? { disabledReason } : {})} {...createNote} onCreate={() => analysisDispatch({ type: 'CREATE_ANALYSIS_OUTPUT', payload: { id: instance.id, paneLimit } })} />
         ) : null}
         </Results>
       </AnalysisCard>

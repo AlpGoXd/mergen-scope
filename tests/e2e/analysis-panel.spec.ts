@@ -39,7 +39,7 @@ test('+ Add analysis: search, Math / Measure filter, greyed tools with their rea
   await expect(menu.getByRole('option', { name: /^Channel power/ })).toContainText('spectral density units');
   // Filter chips and search.
   await menu.getByRole('button', { name: /Math/ }).click();
-  await expect(menu.getByRole('option')).toHaveCount(3);
+  await expect(menu.getByRole('option')).toHaveCount(4); // Offset / Scale, Smooth, Trace math, FFT
   await menu.getByRole('button', { name: 'All' }).click();
   await menu.getByRole('textbox', { name: 'Search analyses' }).fill('rank');
   await expect(menu.getByRole('option')).toHaveCount(1);

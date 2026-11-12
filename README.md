@@ -37,6 +37,7 @@ Mergen Scope has grown from a simple file viewer into a small measurement workbe
 |------|-------|
 | Spectrum | Noise PSD, IP3 / TOI, occupied bandwidth, guarded channel power |
 | General trace analysis | Peak table, range statistics, 3 dB / 10 dB bandwidth, threshold crossings, ripple / flatness |
+| Time / waveform | Waveform measurements (frequency, period, Vpp, mean, RMS, 10–90 % rise / fall, overshoot, duty cycle), windowed FFT (fundamental, harmonics 2–5 in dBc, THD, noise floor; creates a spectrum trace in a frequency pane) |
 | Touchstone / network | VSWR, return loss, group delay, reciprocity / isolation, 2-port stability |
 | Touchstone derived traces | `K`, `mu1`, `mu2`, `|delta|` |
 

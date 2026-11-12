@@ -32,7 +32,8 @@ export type AnalysisAction =
   | { type: 'SET_ANALYSIS_COLLAPSED'; payload: { id: string; collapsed: boolean } }
   | { type: 'SET_ANALYSIS_OVERLAY'; payload: { id: string; overlay: boolean } }
   | { type: 'MOVE_ANALYSIS'; payload: { id: string; index: number } }
-  | { type: 'CREATE_ANALYSIS_OUTPUT'; payload: { id: string } }
+  /** `paneLimit` bounds a new pane, when the output needs one (an FFT of a time trace goes to a frequency pane). */
+  | { type: 'CREATE_ANALYSIS_OUTPUT'; payload: { id: string; paneLimit?: 4 | 8 } }
   | { type: 'FREEZE_ANALYSIS_COPY'; payload: { id: string } }
   | { type: 'TOGGLE_PANEL'; payload: { id: string; forceValue?: boolean } }
   | { type: 'CLEAR_ALL_PANELS' }

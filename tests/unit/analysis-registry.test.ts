@@ -4,11 +4,11 @@ import { makeTestTrace } from './helpers';
 
 describe('analysis registry', () => {
   it('has unique tool IDs and excludes matrix views', () => {
-    expect(new Set(ANALYSIS_TOOL_IDS).size).toBe(15);
+    expect(new Set(ANALYSIS_TOOL_IDS).size).toBe(17);
     expect(ANALYSIS_TOOL_IDS).not.toContain('vswr');
     expect(ANALYSIS_TOOL_IDS).not.toContain('return-loss');
     expect(ANALYSIS_TOOL_IDS).not.toContain('group-delay');
-    expect(ANALYSIS_TOOLS.filter(tool => tool.kind === 'math')).toHaveLength(3);
+    expect(ANALYSIS_TOOLS.filter(tool => tool.kind === 'math')).toHaveLength(4);
     expect(getAnalysisTool('stability')?.kind).toBe('measure');
   });
   it('sorts addable tools and reports open and disabled states', () => {

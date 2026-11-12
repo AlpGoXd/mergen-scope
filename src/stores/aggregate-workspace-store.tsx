@@ -32,7 +32,8 @@ import { createTransactionHistory, recordTransaction, undoTransaction, redoTrans
 import type { TransactionHistory } from '../domain/transaction-history';
 import { useOptionalToast } from './toast-store';
 import type { ToastKind } from './toast-store';
-import { autoOutputName, makeAnalysisOutput, recomputeOutputs } from '../domain/analysis/instances';
+import { autoOutputName, makeAnalysisOutput, outputsFollowView, paneRangesOf, recomputeOutputs } from '../domain/analysis/instances';
+import type { Trace } from '../types/trace';
 import { getAnalysisTool } from '../domain/analysis/tool-registry';
 import { defaultTitle, equalSizes, fallbackPreset, flattenLayoutSizes, presetFits, renumberTitles } from '../domain/pane-layout';
 import type { PresetId } from '../domain/pane-layout';
@@ -269,6 +270,38 @@ export function planLastPaneLines(state: WorkspaceState, targetPaneId: string, m
   });
 }
 
+/** What the panes show, for analysis outputs whose Range is Visible. */
+function analysisView(state: WorkspaceState) {
+  return { tracePaneMap: state.panes.tracePaneMap, paneRanges: paneRangesOf(state.lines.paneViews) };
+}
+
+/**
+ * Place an analysis output whose x axis differs from its source's (the FFT of a time trace) in a pane of its own axis:
+ * the first pane that already shows that axis, else an empty chart pane, else a new pane. Panes on different axes
+ * cannot share a zoom, so linked zoom is switched off (each pane keeps its current zoom).
+ */
+function placeOnOwnAxis(state: WorkspaceState, trace: Trace, limit: 4 | 8): WorkspaceState {
+  const view = traceView(state.files, state.traces);
+  const entries: PlacementTrace[] = view.allKnownTraces.map(item => ({ trace: item, paneIds: state.panes.tracePaneMap[item.name] ?? [], displayTrace: view.allDisplayTraces.find(display => display.id === item.id || display.id === item.parameters?.['displayTraceId']) }));
+  const entry: PlacementTrace = entries.find(item => item.trace.id === trace.id) ?? { trace, paneIds: [] };
+  const group = traceXGroup(trace);
+  const members = (paneId: string) => entries.filter(item => item.trace.name !== trace.name && item.paneIds.includes(paneId));
+  const panes = state.panes.panes;
+  const sameAxis = panes.find(pane => members(pane.id).some(item => traceXGroup(item.trace) === group) && canPlaceMembership(entry, pane.id, panes, entries).allowed);
+  const target = sameAxis ?? panes.find(pane => pane.renderMode === 'cartesian' && members(pane.id).length === 0);
+  const { sharedZoom } = state.panes;
+  const unlinked: WorkspaceState = state.panes.zoomAll
+    ? { ...state, panes: { ...state.panes, zoomAll: false, paneXZooms: sharedZoom ? Object.fromEntries(panes.map(pane => [pane.id, sharedZoom])) : state.panes.paneXZooms } }
+    : state;
+  const action: PaneAction = target
+    ? { type: 'ADD_MEMBERSHIP', payload: { trace, targetPaneId: target.id, allTraces: [] } }
+    : { type: 'CREATE_PANE_WITH_TRACE', payload: { trace, allTraces: [] }, limit };
+  const placed = workspaceReducer(unlinked, { slice: 'panes', action, limit });
+  if ((placed.panes.tracePaneMap[trace.name] ?? []).length) return placed;
+  const message = `${trace.dn || trace.name} needs a ${group === 'Hz' ? 'frequency' : group ?? 'separate'} pane and there is no room for a new one. Drag it from the trace list into a pane.`;
+  return { ...unlinked, ui: uiReducer(unlinked.ui, { type: 'SET', payload: { key: 'paneAssignmentWarning', value: { message, paneId: null, traceName: trace.name } } }) };
+}
+
 /** One reducer owns every workspace slice. Reconciliation runs inside the same transition. */
 export function workspaceReducer(state: WorkspaceState, command: WorkspaceAction): WorkspaceState {
   if (command.slice === 'layout') {
@@ -392,7 +425,7 @@ export function workspaceReducer(state: WorkspaceState, command: WorkspaceAction
     let id = base; let serial = 2;
     while (all.some(trace => trace.id === id || trace.name === id)) { id = `${base}-${serial}`; serial += 1; }
     const autoName = autoOutputName(instance, all);
-    const created = action.type === 'CREATE_ANALYSIS_OUTPUT' ? makeAnalysisOutput(instance, { traces: all }, id, id) : null;
+    const created = action.type === 'CREATE_ANALYSIS_OUTPUT' ? makeAnalysisOutput(instance, { traces: all, ...analysisView(state) }, id, id) : null;
     const output = created ? { ...created, dn: autoName } : existing && existing.kind === 'derived' && action.type === 'FREEZE_ANALYSIS_COPY' ? (() => {
       const { analysisId: _analysisId, ...copy } = existing;
       return { ...copy, id, name: id, dn: `${existing.dn || existing.name} (copy)`, data: existing.data.map(point => ({ ...point })), parameters: { ...existing.parameters, analysisFrozen: true } };
@@ -400,7 +433,10 @@ export function workspaceReducer(state: WorkspaceState, command: WorkspaceAction
     if (!output) return state;
     const paneSource = created ? source : existing;
     const analyses = created ? state.analysis.analyses.map(item => item.id === instance.id ? { ...item, outputTraceId: id, autoName } : item) : state.analysis.analyses;
-    return { ...state, revision: state.revision + 1, analysis: { ...state.analysis, analyses }, traces: { ...state.traces, derivedTraces: [...state.traces.derivedTraces, output], vis: { ...state.traces.vis, [id]: true } }, panes: { ...state.panes, tracePaneMap: { ...state.panes.tracePaneMap, [id]: [...(paneSource ? state.panes.tracePaneMap[paneSource.name] ?? [] : [])] } } };
+    // An output on another x axis (the FFT of a time trace) cannot join its source's panes.
+    const otherAxis = paneSource !== undefined && traceXGroup(output) !== traceXGroup(paneSource);
+    const added: WorkspaceState = { ...state, revision: state.revision + 1, analysis: { ...state.analysis, analyses }, traces: { ...state.traces, derivedTraces: [...state.traces.derivedTraces, output], vis: { ...state.traces.vis, [id]: true } }, panes: { ...state.panes, tracePaneMap: { ...state.panes.tracePaneMap, [id]: otherAxis ? [] : [...(paneSource ? state.panes.tracePaneMap[paneSource.name] ?? [] : [])] } } };
+    return otherAxis ? placeOnOwnAxis(added, output, action.type === 'CREATE_ANALYSIS_OUTPUT' ? action.payload.paneLimit ?? 4 : 4) : added;
   }
   let next = state;
   switch (command.slice) {
@@ -477,9 +513,11 @@ export function workspaceReducer(state: WorkspaceState, command: WorkspaceAction
     const previous = state.analysis.analyses.find(old => old.id === item.id);
     return !previous || JSON.stringify(previous.params) !== JSON.stringify(item.params) || JSON.stringify(previous.source) !== JSON.stringify(item.source);
   });
-  if (next.files !== state.files || next.traces !== state.traces || analysisInputsChanged) {
+  // An FFT with Range: Visible follows the pan and zoom of its source's pane.
+  const viewChanged = (next.lines.paneViews !== state.lines.paneViews || next.panes.tracePaneMap !== state.panes.tracePaneMap) && outputsFollowView(next.analysis.analyses);
+  if (next.files !== state.files || next.traces !== state.traces || analysisInputsChanged || viewChanged) {
     const view = traceView(next.files, next.traces);
-    const outputs = recomputeOutputs({ analyses: next.analysis.analyses, traces: view.allKnownTraces.filter(trace => trace.kind !== 'derived'), derivedTraces: next.traces.derivedTraces });
+    const outputs = recomputeOutputs({ analyses: next.analysis.analyses, traces: view.allKnownTraces.filter(trace => trace.kind !== 'derived'), derivedTraces: next.traces.derivedTraces, view: analysisView(next) });
     if (outputs.analyses.some((item, index) => item !== next.analysis.analyses[index])) next = { ...next, analysis: { ...next.analysis, analyses: outputs.analyses } };
     if (outputs.derivedTraces.some((item, index) => item !== next.traces.derivedTraces[index])) next = { ...next, traces: { ...next.traces, derivedTraces: outputs.derivedTraces } };
   }
@@ -496,7 +534,7 @@ export function workspaceReducer(state: WorkspaceState, command: WorkspaceAction
     const vis = { ...reconciled.vis }; let changed = false;
     for (const trace of view.allTraces) if (vis[trace.name] === undefined) { vis[trace.name] = true; changed = true; }
     next = { ...next, traces: changed ? { ...reconciled, vis } : reconciled };
-    const afterLegacy = recomputeOutputs({ analyses: next.analysis.analyses, traces: raw, derivedTraces: next.traces.derivedTraces });
+    const afterLegacy = recomputeOutputs({ analyses: next.analysis.analyses, traces: raw, derivedTraces: next.traces.derivedTraces, view: analysisView(next) });
     if (afterLegacy.analyses.some((item, index) => item !== next.analysis.analyses[index])) next = { ...next, analysis: { ...next.analysis, analyses: afterLegacy.analyses } };
     if (afterLegacy.derivedTraces.some((item, index) => item !== next.traces.derivedTraces[index])) next = { ...next, traces: { ...next.traces, derivedTraces: afterLegacy.derivedTraces } };
     const known = traceView(next.files, next.traces).allKnownTraces;

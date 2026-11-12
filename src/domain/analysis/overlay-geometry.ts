@@ -7,7 +7,8 @@ export type ShapeGeometry =
   | { kind: 'band'; x: number; y: number; width: number; height: number }
   | { kind: 'triangle'; x: number; y: number; n: number }
   | { kind: 'dot'; x: number; y: number }
-  | { kind: 'tick'; x: number; y: number };
+  | { kind: 'tick'; x: number; y: number }
+  | { kind: 'level'; x1: number; x2: number; y: number };
 
 /** Convert data coordinates to clipped plot coordinates. */
 export function shapeGeometry(shape: OverlayShape, xScale: Scale, yScale: Scale, rect: OverlayRect): ShapeGeometry | null {
@@ -20,6 +21,12 @@ export function shapeGeometry(shape: OverlayShape, xScale: Scale, yScale: Scale,
     const x = Math.max(rect.left, Math.min(...xs)), endX = Math.min(right, Math.max(...xs));
     const y = Math.max(rect.top, Math.min(...ys)), endY = Math.min(bottom, Math.max(...ys));
     return endX > x && endY > y ? { kind: 'band', x, y, width: endX - x, height: endY - y } : null;
+  }
+  if (shape.kind === 'level') {
+    const xs = [xScale(shape.x1), xScale(shape.x2)], y = yScale(shape.y);
+    if (![...xs, y].every(Number.isFinite) || y < rect.top || y > bottom) return null;
+    const x1 = Math.max(rect.left, Math.min(...xs)), x2 = Math.min(right, Math.max(...xs));
+    return x2 > x1 ? { kind: 'level', x1, x2, y } : null;
   }
   const x = xScale(shape.x), y = yScale(shape.y);
   if (!Number.isFinite(x) || !Number.isFinite(y) || x < rect.left || x > right || y < rect.top || y > bottom) return null;

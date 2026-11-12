@@ -15,8 +15,10 @@ import { stabilityTool } from './tools/stability';
 import { offsetScaleTool } from './tools/offset-scale';
 import { smoothTool } from './tools/smooth';
 import { traceMathTool } from './tools/trace-math';
+import { waveformTool } from './tools/waveform';
+import { fftTool } from './tools/fft';
 
-export const ANALYSIS_TOOLS = [noisePsdTool, ip3Tool, peakTableTool, rangeStatsTool, bandwidthTool, crossingsTool, lineCrossingsTool, rippleTool, occupiedBandwidthTool, channelPowerTool, reciprocityIsolationTool, stabilityTool, offsetScaleTool, smoothTool, traceMathTool] as const;
+export const ANALYSIS_TOOLS = [noisePsdTool, ip3Tool, peakTableTool, rangeStatsTool, bandwidthTool, crossingsTool, lineCrossingsTool, rippleTool, occupiedBandwidthTool, channelPowerTool, reciprocityIsolationTool, stabilityTool, offsetScaleTool, smoothTool, traceMathTool, waveformTool, fftTool] as const;
 export const ANALYSIS_TOOL_IDS: readonly string[] = ANALYSIS_TOOLS.map(tool => tool.meta.id);
 export function getAnalysisTool(id: string) { return ANALYSIS_TOOLS.find(tool => tool.meta.id === id); }
 
@@ -27,7 +29,8 @@ export interface AddableToolTarget {
 }
 export function listAddableTools(target: AddableToolTarget) {
   return ANALYSIS_TOOLS.filter(tool => tool.addable !== false && tool.kind !== 'view').map(tool => {
-    const capability: Capability = tool.kind === 'math' ? { allowed: true } : target.trace ? tool.appliesTo(target.trace) : { allowed: false, reason: 'Select a trace.' };
+    // A Math card may be defined before its source exists; with a target trace it still respects the tool's trace rule (FFT: time traces only).
+    const capability: Capability = target.trace ? tool.appliesTo(target.trace) : tool.kind === 'math' ? { allowed: true } : { allowed: false, reason: 'Select a trace.' };
     const inputCapability = capability.allowed && tool.kind !== 'math' && !tool.cardGuidesInputs ? tool.appliesToInputs?.(target.inputs) : capability;
     const failure = !capability.allowed ? capability : inputCapability && !inputCapability.allowed ? inputCapability : undefined;
     return { id: tool.meta.id, kind: tool.kind, title: tool.meta.title, description: tool.meta.description, open: target.analyses.some(instance => instance.toolId === tool.meta.id), ...(failure ? { disabledReason: failure.reason } : {}) };

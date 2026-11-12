@@ -163,11 +163,22 @@ export function Results({ children }: { children?: ReactNode }): ReactElement {
 }
 
 /** A Math card before it has made a trace. */
-export function CreateRow({ label = 'Create trace', disabledReason, onCreate }: CreateRowProps): ReactElement {
+export function CreateRow({ label = 'Create trace', disabledReason, name, note = 'Adds a new trace under its input, in the same pane.', onCreate }: CreateRowProps): ReactElement {
+  const button = <button type="button" className="an-btn an-btn--primary" disabled={Boolean(disabledReason)} title={disabledReason} onClick={onCreate}>{label}</button>;
+  if (name === undefined) {
+    return (
+      <div className="an-create">
+        {button}
+        <span className="an-create__note">{disabledReason ?? note}</span>
+      </div>
+    );
+  }
   return (
-    <div className="an-create">
-      <button type="button" className="an-btn an-btn--primary" disabled={Boolean(disabledReason)} title={disabledReason} onClick={onCreate}>{label}</button>
-      <span className="an-create__note">{disabledReason ?? 'Adds a new trace under its input, in the same pane.'}</span>
+    <div className="an-create an-create--named">
+      <span className="an-output__arrow" aria-hidden="true">→</span>
+      <span className="an-create__name" title={name}>{name}</span>
+      {button}
+      <span className="an-create__note">{disabledReason ?? note}</span>
     </div>
   );
 }

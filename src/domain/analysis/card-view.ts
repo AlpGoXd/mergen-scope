@@ -1,15 +1,17 @@
 // Presentation data for analysis cards: turns a tool's raw outputs into the strings the Analysis kit shows
 // (key/value rows, the headline result, crossing groups). Pure: no React, no stores; every number goes through formatEng.
-import type { AnalysisOutput } from '../../types/registry-contract';
+import type { AnalysisOutput, ParameterValue } from '../../types/registry-contract';
 import type { AnalysisInstance } from '../../types/analysis-instance';
 import type { InstanceResult } from './instances';
 import type { Trace } from '../../types/trace';
 import type { TraceMathOp } from '../trace-math-units';
 import { traceMathUnit } from '../trace-math-units';
 import { formatCrossingValue, significantStep } from './crossing-rows';
+import { FFT_SCALE_UNITS } from './fft';
+import type { FftScale } from './fft';
 
 export interface CardUnits { x: string | null | undefined; y: string | null | undefined }
-export interface CardRow { label: string; value: string }
+export interface CardRow { label: string; value: string; title?: string }
 export interface CardResult { value: string; unit?: string; note?: string }
 export interface CardNumbersView { result?: CardResult; rows: CardRow[]; summary: string }
 
@@ -38,7 +40,7 @@ function numbersOf(outputs: readonly AnalysisOutput[]): Readonly<Record<string, 
 }
 
 /** Rows, headline and collapsed summary for the numeric (Measure) tools. */
-export function describeNumbers(toolId: string, outputs: readonly AnalysisOutput[], units: CardUnits): CardNumbersView | null {
+export function describeNumbers(toolId: string, outputs: readonly AnalysisOutput[], units: CardUnits, params: Readonly<Record<string, ParameterValue>> = {}): CardNumbersView | null {
   const v = numbersOf(outputs);
   const table = outputs.find(output => output.type === 'table');
   if (toolId === 'peak-table' && table && table.type === 'table') {
@@ -99,6 +101,36 @@ export function describeNumbers(toolId: string, outputs: readonly AnalysisOutput
         { label: '|Δ| min → max', value: `${fmtPlain(v['minDelta'] ?? NaN, 4)} → ${fmtPlain(v['maxDelta'] ?? NaN, 4)}` },
         { label: 'Unstable points', value: `${v['unstableCount'] ?? 0} of ${v['count'] ?? 0}` },
       ], summary: (v['unstableCount'] ?? 0) === 0 ? 'unconditionally stable' : `${v['unstableCount']} unstable` };
+    case 'waveform': {
+      // Levels below a billionth of Vpp are rounding noise: a sine's mean reads 0 V, not 12 aV.
+      const vpp = v['vpp'] ?? NaN;
+      const level = (key: string) => { const x = v[key] ?? NaN; return fmtY(Math.abs(x) < Math.abs(vpp) * 1e-9 ? 0 : x, units); };
+      const time = (key: string) => formatCrossingValue(v[key] ?? NaN, 's', significantStep(v[key] ?? NaN, 4));
+      const percent = (key: string) => formatCrossingValue(v[key] ?? NaN, '%', 0.1);
+      const frequency = formatCrossingValue(v['frequency'] ?? NaN, 'Hz', significantStep(v['frequency'] ?? NaN, 5));
+      return { rows: [
+        { label: 'Frequency', value: frequency }, { label: 'Period', value: time('period') },
+        { label: 'Vpp', value: level('vpp') }, { label: 'Max', value: level('max') }, { label: 'Min', value: level('min') },
+        { label: 'Mean', value: level('mean') }, { label: 'RMS', value: level('rms') },
+        { label: 'Rise time', value: time('riseTime') }, { label: 'Fall time', value: time('fallTime') },
+        { label: 'Overshoot', value: percent('overshoot') }, { label: 'Duty cycle', value: percent('dutyCycle') },
+      ], summary: Number.isFinite(v['frequency']) ? frequency : `${level('vpp')} pp` };
+    }
+    case 'fft': {
+      // FFT levels are in the card's Scale, not the source trace's unit.
+      const scale = params['scale'];
+      const unit = FFT_SCALE_UNITS[(scale === 'v' || scale === 'dbm' ? scale : 'dbv') satisfies FftScale];
+      const levelStep = unit === 'V' ? significantStep(v['fundamentalLevel'] ?? NaN, 4) : 0.01;
+      const level = formatCrossingValue(v['fundamentalLevel'] ?? NaN, unit, levelStep);
+      const dbc = (key: string) => formatCrossingValue(v[key] ?? NaN, 'dBc', 0.1);
+      const noiseStep = unit === 'V' ? significantStep(v['noiseFloor'] ?? NaN, 3) : 0.1;
+      return { result: { ...splitUnit(level), note: `${fmtPlain(v['points'] ?? NaN, 6)} points · bin ${formatCrossingValue(v['binHz'] ?? NaN, 'Hz', significantStep(v['binHz'] ?? NaN, 4))}` }, rows: [
+        { label: 'Fundamental', value: formatCrossingValue(v['fundamentalHz'] ?? NaN, 'Hz', significantStep(v['fundamentalHz'] ?? NaN, 6)) },
+        { label: 'H2', value: dbc('h2') }, { label: 'H3', value: dbc('h3') }, { label: 'H4', value: dbc('h4') }, { label: 'H5', value: dbc('h5') },
+        { label: 'THD', value: formatCrossingValue(v['thd'] ?? NaN, '%', significantStep(v['thd'] ?? NaN, 3)) },
+        { label: 'Noise floor', value: formatCrossingValue(v['noiseFloor'] ?? NaN, unit, noiseStep), title: 'Mean noise level per bin' },
+      ], summary: level };
+    }
     default:
       return { rows: Object.entries(v).map(([label, value]) => ({ label, value: fmtPlain(value) })), summary: '' };
   }
@@ -130,7 +162,7 @@ export function describeInstance(instance: AnalysisInstance, result: InstanceRes
   const outputs = result.outputs ?? [];
   const isLine = instance.toolId === 'line-crossings';
   const isCrossings = isLine || instance.toolId === 'crossings';
-  const numbers = isCrossings ? null : describeNumbers(instance.toolId, outputs, units);
+  const numbers = isCrossings ? null : describeNumbers(instance.toolId, outputs, units, instance.params);
   const table = outputs.find(output => output.type === 'table');
   const vertical = isLine && options.lineType === 'v';
   const crossings = isCrossings && table?.type === 'table' && (!isLine || options.lineType)

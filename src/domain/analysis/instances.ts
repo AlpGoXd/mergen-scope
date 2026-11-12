@@ -55,7 +55,7 @@ export function computeInstance(instance: AnalysisInstance, inputs: AnalysisInpu
   const selected = instance.toolId === 'line-crossings' ? inputs.traces : [primary, second].filter((trace): trace is Trace => trace !== undefined);
   const resolved: AnalysisInputs = { ...inputs, traces: selected, lineId: instance.source.lineId };
   if (primary) { const capability = tool.appliesTo(primary); if (!capability.allowed) return { reason: capability.reason }; }
-  const capability = tool.appliesToInputs?.(resolved);
+  const capability = tool.appliesToInputs?.(resolved, validated.values);
   if (capability && !capability.allowed) return { reason: capability.reason };
   if (instance.toolId === 'trace-math' && primary && second) {
     const operation = validated.values['operation'] as BinaryOp;
@@ -88,6 +88,22 @@ export function makeAnalysisOutput(instance: AnalysisInstance, inputs: AnalysisI
   return { ...output.trace, id, name, dn: name, analysisId: instance.id };
 }
 
+/**
+ * A channel's short name for a derived name: "scope.csv ch1 (v)" → "CH1". Drops the file name (the card shows it)
+ * and a trailing unit (an FFT is not in V), and takes the header's case back from the trace name when the
+ * tabular importer lowercased it in the display name.
+ */
+export function shortTraceLabel(trace: Trace): string {
+  const label = trace.dn || trace.name;
+  const file = trace.file ?? '';
+  let short = file && label.toLowerCase().startsWith(`${file.toLowerCase()} `) ? label.slice(file.length + 1) : label;
+  if (short && short === short.toLowerCase()) {
+    const at = trace.name.toLowerCase().indexOf(short);
+    if (at >= 0) short = trace.name.slice(at, at + short.length);
+  }
+  return short.replace(/\s*\([^()]*\)\s*$/, '').trim() || label;
+}
+
 export function autoOutputName(instance: AnalysisInstance, traces: readonly Trace[]): string {
   const source = traces.find(trace => trace.id === instance.source.traceId);
   const a = source?.dn || source?.name || 'Trace';
@@ -97,6 +113,7 @@ export function autoOutputName(instance: AnalysisInstance, traces: readonly Trac
     const symbol = op === 'subtract' ? '−' : op === 'multiply' ? '×' : op === 'divide' ? '÷' : '+';
     return `${a} ${symbol} ${second?.dn || second?.name || 'Trace'}`;
   }
+  if (instance.toolId === 'fft') return `FFT · ${source ? shortTraceLabel(source) : 'Trace'}`;
   if (instance.toolId === 'smooth') {
     const method = instance.params['method'];
     const label = method === 'median-filter' ? 'Median' : method === 'savitzky-golay' ? 'SG' : method === 'none' ? 'None' : 'MA';
@@ -112,6 +129,20 @@ export interface AnalysisOutputState {
   readonly analyses: readonly AnalysisInstance[];
   readonly traces: readonly Trace[];
   readonly derivedTraces: readonly Trace[];
+  /** What the panes show, for outputs whose Range is Visible (FFT). */
+  readonly view?: Pick<AnalysisInputs, 'paneRanges' | 'tracePaneMap'>;
+}
+
+/** Pane x ranges from the charts' reported views, for `AnalysisInputs.paneRanges`. */
+export function paneRangesOf(views: Readonly<Record<string, { readonly x: readonly [number, number] | null }>>): Record<string, { left: number; right: number }> {
+  const ranges: Record<string, { left: number; right: number }> = {};
+  for (const [paneId, view] of Object.entries(views)) if (view.x) ranges[paneId] = { left: view.x[0], right: view.x[1] };
+  return ranges;
+}
+
+/** Some created output depends on what a pane shows, so a pan or zoom must recompute it. */
+export function outputsFollowView(analyses: readonly AnalysisInstance[]): boolean {
+  return analyses.some(instance => instance.outputTraceId !== null && instance.params['range'] === 'visible');
 }
 
 export function recomputeOutputs(state: AnalysisOutputState): { analyses: AnalysisInstance[]; derivedTraces: Trace[] } {
@@ -136,7 +167,7 @@ export function recomputeOutputs(state: AnalysisOutputState): { analyses: Analys
     if (!missing) {
       const outputIndex = derivedTraces.findIndex(trace => trace.id === instance.outputTraceId);
       const old = derivedTraces[outputIndex];
-      const result = computeInstance(instance, { traces: [...sources.values()] });
+      const result = computeInstance(instance, { traces: [...sources.values()], ...state.view });
       const output = result.outputs?.find(item => item.type === 'trace');
       if (old && old.kind === 'derived' && output?.type === 'trace' && output.trace.kind === 'derived') {
         const data = output.trace.data;
