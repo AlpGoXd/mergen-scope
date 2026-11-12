@@ -26,7 +26,7 @@ export function Select(props: React.ComponentPropsWithoutRef<'select'> & { reaso
   return disabled && reason ? <Tooltip text={reason}>{select}</Tooltip> : select;
 }
 
-export function Segmented<T extends string>({ label, options, value, onChange }: { label: string; options: readonly { value: T; label: string; disabled?: boolean; reason?: string }[]; value: T; onChange: (value: T) => void }) {
+export function Segmented<T extends string>({ label, options, value, onChange }: { label: string; options: readonly { value: T; label: string; ariaLabel?: string; disabled?: boolean; reason?: string }[]; value: T; onChange: (value: T) => void }) {
   const ref = useRef<HTMLDivElement>(null);
   function keys(e: React.KeyboardEvent<HTMLDivElement>) {
     if (!['ArrowRight','ArrowDown','ArrowLeft','ArrowUp','Home','End'].includes(e.key)) return;
@@ -35,7 +35,7 @@ export function Segmented<T extends string>({ label, options, value, onChange }:
     const next = e.key === 'Home' ? 0 : e.key === 'End' ? enabled.length - 1 : (index + delta + enabled.length) % enabled.length;
     const option = enabled[next]; if (option) { onChange(option.value); ref.current?.querySelector<HTMLButtonElement>(`[data-option-index="${options.indexOf(option)}"]`)?.focus(); }
   }
-  return <div ref={ref} role="radiogroup" aria-label={label} className="ui-segmented" onKeyDown={keys}>{options.map((option, index) => { const button = <Btn role="radio" data-option-index={index} variant="slate" active={option.value === value} disabled={option.disabled} aria-checked={option.value === value} tabIndex={option.value === value ? 0 : -1} onClick={() => onChange(option.value)}>{option.label}</Btn>; return <React.Fragment key={option.value}>{option.disabled && option.reason ? <Tooltip text={option.reason}>{button}</Tooltip> : button}</React.Fragment>; })}</div>;
+  return <div ref={ref} role="radiogroup" aria-label={label} className="ui-segmented" onKeyDown={keys}>{options.map((option, index) => { const button = <Btn role="radio" data-option-index={index} variant="slate" active={option.value === value} disabled={option.disabled} aria-checked={option.value === value} aria-label={option.ariaLabel} tabIndex={option.value === value ? 0 : -1} onClick={() => onChange(option.value)}>{option.label}</Btn>; return <React.Fragment key={option.value}>{option.disabled && option.reason ? <Tooltip text={option.reason}>{button}</Tooltip> : button}</React.Fragment>; })}</div>;
 }
 
 export interface MenuItem { label: string; onSelect: () => void; disabled?: boolean; reason?: string }

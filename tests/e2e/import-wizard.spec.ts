@@ -11,21 +11,25 @@ test('imports a CSV through the one-screen wizard, and Edit columns opens pre-fi
   await page.goto('/app.html');
   await page.getByTestId('app-open-input').setInputFiles({ name: 'scope_capture_04.csv', mimeType: 'text/csv', buffer: Buffer.from(csv) });
 
-  const wizard = page.getByRole('dialog', { name: 'Import table' });
+  const wizard = page.getByRole('dialog', { name: 'Open scope_capture_04.csv' });
   await expect(wizard).toBeVisible();
   await expect(page.getByTestId('import-wizard-detected')).toHaveText('Detected: time (high confidence)');
   await expect(page.getByTestId('import-wizard-caption')).toHaveText('first 8 of 20 rows · rows 1–3 skipped');
   await expect(wizard.getByRole('radio', { name: 'Comma' })).toHaveAttribute('aria-checked', 'true');
-  await expect(page.getByTestId('wizard-chip-0')).toHaveText('X');
-  await expect(page.getByTestId('wizard-chip-2')).toHaveText('Y');
+  await expect(page.getByTestId('wizard-chip-0')).toHaveAttribute('data-role', 'x');
+  await expect(page.getByTestId('wizard-chip-2')).toHaveAttribute('data-role', 'y');
   await expect(page.getByTestId('import-wizard-summary')).toContainText('Will create 2 traces:');
   await expect(wizard.getByRole('button', { name: 'Add 2 traces' })).toBeEnabled();
+  await expect(page.getByTestId('wizard-col-1')).toContainText('CH1 (V)');
+  await expect(wizard.getByLabel('Y in')).toHaveValue('V');
+  await expect(page.getByTestId('import-wizard-plot').locator('polyline')).toHaveCount(2);
 
   // CH2 → skip.
   await page.getByTestId('wizard-chip-2').click();
   await page.getByRole('menuitemradio', { name: /Skip/ }).click();
-  await expect(page.getByTestId('wizard-chip-2')).toHaveText('—');
+  await expect(page.getByTestId('wizard-chip-2')).toHaveAttribute('data-role', 'skip');
   await expect(page.getByTestId('import-wizard-summary')).not.toContainText('CH2');
+  await expect(page.getByTestId('import-wizard-plot').locator('polyline')).toHaveCount(1);
 
   // No X: the button explains why it is unavailable.
   await page.getByTestId('wizard-chip-0').click();
@@ -44,8 +48,8 @@ test('imports a CSV through the one-screen wizard, and Edit columns opens pre-fi
   const edit = page.getByRole('dialog', { name: 'Edit columns' });
   await expect(edit).toBeVisible();
   // Pre-filled with the last settings: CH2 still skipped.
-  await expect(page.getByTestId('wizard-chip-2')).toHaveText('—');
-  await expect(page.getByTestId('wizard-chip-1')).toHaveText('Y');
+  await expect(page.getByTestId('wizard-chip-2')).toHaveAttribute('data-role', 'skip');
+  await expect(page.getByTestId('wizard-chip-1')).toHaveAttribute('data-role', 'y');
   await expect(edit.getByText('Traces whose column still exists keep their colour, markers and pane.')).toBeVisible();
 
   // Turning CH1 off warns that its trace goes away.

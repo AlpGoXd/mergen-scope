@@ -73,7 +73,7 @@ describe("store and component behavior", () => {
       </StoreRoot>,
     );
 
-    expect(await screen.findByRole("dialog", { name: "Import table" })).toBeInTheDocument();
+    expect(await screen.findByRole("dialog", { name: "Open ambiguous.csv" })).toBeInTheDocument();
     expect(screen.getByTestId("wizard-count")).toHaveTextContent("1");
 
     await user.click(screen.getByRole("button", { name: "Add 1 trace" }));
@@ -92,7 +92,7 @@ describe("store and component behavior", () => {
       </StoreRoot>,
     );
 
-    expect(await screen.findByRole("dialog", { name: "Import table" })).toBeInTheDocument();
+    expect(await screen.findByRole("dialog", { name: "Open ambiguous.csv" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Cancel" }));
 
     await waitFor(() => expect(screen.getByTestId("wizard-count")).toHaveTextContent("0"));

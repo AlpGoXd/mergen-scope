@@ -115,3 +115,37 @@ export function listNames(names: readonly string[]): string {
   if (names.length <= 1) return names[0] ?? "";
   return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
 }
+
+/** Header as shown in the wizard: with the picked unit when the file's own name carries none. */
+export function columnDisplayName(header: string, role: ColumnRole, config: Pick<WizardConfig, "xUnit" | "yUnit">): string {
+  if (/[([]/.test(header)) return header;
+  const unit = role === "x" ? config.xUnit : role === "y" ? config.yUnit : undefined;
+  return unit ? `${header} (${unit})` : header;
+}
+
+export interface PreviewPlot {
+  /** One polyline per Y column, in 0–1 plot coordinates (y up is 0). */
+  readonly series: readonly (readonly { x: number; y: number }[])[];
+}
+
+/** The previewed rows as normalised lines: every Y column over the X column, on one shared Y scale. */
+export function previewPlot(rows: readonly (readonly string[])[], xCol: number, yCols: readonly number[]): PreviewPlot {
+  const num = (cell: string | undefined): number | null => {
+    if (cell === undefined || cell.trim() === "") return null;
+    const value = Number(cell);
+    return Number.isFinite(value) ? value : null;
+  };
+  const raw = yCols.map((col) => rows.flatMap((row) => {
+    const x = num(row[xCol]);
+    const y = num(row[col]);
+    return x === null || y === null ? [] : [{ x, y }];
+  }));
+  const points = raw.flat();
+  if (points.length === 0) return { series: raw.map(() => []) };
+  const xs = points.map((p) => p.x);
+  const ys = points.map((p) => p.y);
+  const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+  const sx = (x: number) => (x1 > x0 ? (x - x0) / (x1 - x0) : 0.5);
+  const sy = (y: number) => (y1 > y0 ? 1 - (y - y0) / (y1 - y0) : 0.5);
+  return { series: raw.map((line) => line.map((p) => ({ x: sx(p.x), y: sy(p.y) }))) };
+}

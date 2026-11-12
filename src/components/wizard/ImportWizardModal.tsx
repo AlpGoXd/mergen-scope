@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type React from 'react';
 import { useFileDispatch, useFileState } from '../../stores/file-store';
 import type { WizardEntry } from '../../stores/file-store';
 import { useOptionalAggregateWorkspace } from '../../stores/aggregate-workspace-store';
@@ -7,16 +6,17 @@ import { useTraceState } from '../../stores/trace-store';
 import { useMarkerState } from '../../stores/marker-store';
 import type { OpenChoice } from '../../types/open-files-plan';
 import type { WizardConfig } from '../../types/file';
-import { detectTabular } from '../../domain/parsers/tabular-detect';
+import { detectTabular, splitCells } from '../../domain/parsers/tabular-detect';
 import {
-  columnRole, hasColumnNames, importableYCols, listNames, matchPriorColumns, previewCaption,
-  setColumnRole, wizardBlocker, wizardLayout,
+  columnDisplayName, columnRole, hasColumnNames, importableYCols, listNames, matchPriorColumns, previewCaption,
+  previewPlot, setColumnRole, wizardBlocker, wizardLayout,
 } from '../../domain/import-wizard';
 import { useWizardTraceColors } from '../../hooks/use-wizard-trace-colors';
 import { Btn } from '../shared/Btn';
-import { MessageBar } from '../shared/Controls';
+import { Icon, MessageBar } from '../shared/Controls';
 import { WizardPreviewTable, PREVIEW_ROWS } from './WizardPreviewTable';
 import { WizardSettings } from './WizardSettings';
+import { WizardPreviewPlot } from './WizardPreviewPlot';
 import './import-wizard.css';
 
 function configFor(entry: WizardEntry): WizardConfig {
@@ -162,9 +162,12 @@ function WizardDialog({ entry, position, total, others, queue, priorFile }: Wiza
     return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
 
-  const traceNames = yCols.map(col => headers[col] ?? `Column ${col + 1}`);
+  const roles = headers.map((_, col) => columnRole(config, col));
+  const names = headers.map((header, col) => columnDisplayName(header, roles[col] ?? 'skip', config));
+  const traceNames = yCols.map(col => names[col] ?? `Column ${col + 1}`);
+  const previewRows = layout.lines.slice(config.skipRows, config.skipRows + PREVIEW_ROWS).map(line => splitCells(line, config.delimiter));
+  const plot = previewPlot(previewRows, config.xCol, yCols);
   const mainLabel = editing ? 'Apply' : `Add ${yCols.length} trace${yCols.length === 1 ? '' : 's'}`;
-  const title = editing ? 'Edit columns' : total > 1 ? `Import table · File ${position} of ${total}` : 'Import table';
   const removedNames = removed.map(item => item.identity.header ?? `Column ${item.identity.index + 1}`);
   const removedText = removedNames.length === 0 ? null
     : `${listNames(removedNames)} ${removedNames.length === 1 ? 'is no longer a Y column: its trace' : 'are no longer Y columns: their traces'}${removedMarkers ? ` and ${removedMarkers} marker${removedMarkers === 1 ? '' : 's'}` : ''} will be removed.`;
@@ -173,8 +176,11 @@ function WizardDialog({ entry, position, total, others, queue, priorFile }: Wiza
     <div className="ui-dialog-backdrop">
       <div ref={dialogRef} className="ui-dialog iw-dialog" role="dialog" aria-modal="true" aria-labelledby="import-wizard-title" data-testid="import-wizard" tabIndex={-1}>
         <header className="iw-head">
-          <h2 id="import-wizard-title" className="t-title">{title}</h2>
-          <span className="t-caption" title={entry.fileName}>{entry.fileName}</span>
+          <h2 id="import-wizard-title" className="iw-title t-title">
+            {editing ? 'Edit columns' : 'Open'} <span className="iw-file" title={entry.fileName}>{entry.fileName}</span>
+          </h2>
+          {total > 1 && <span className="t-caption" data-testid="import-wizard-queue">File {position} of {total}</span>}
+          <button type="button" className="iw-close" aria-label="Close" title="Cancel (Esc)" onClick={cancel}><Icon name="close" /></button>
         </header>
 
         <div className="iw-body">
@@ -195,21 +201,18 @@ function WizardDialog({ entry, position, total, others, queue, priorFile }: Wiza
               delimiter={config.delimiter}
               skipRows={config.skipRows}
               headers={headers}
-              roles={headers.map((_, col) => columnRole(config, col))}
+              names={names}
+              roles={roles}
               colors={colors}
               numeric={layout.numeric}
               onRole={(col, role) => setConfig(prev => setColumnRole(prev, col, role))}
             />
+            <WizardPreviewPlot plot={plot} colors={yColors} />
             {!blocker && (
-              <div className="iw-result t-label" data-testid="import-wizard-summary">
-                <span>Will {editing ? 'show' : 'create'} {yCols.length} trace{yCols.length === 1 ? '' : 's'}:</span>
-                <span>{entry.fileName}</span>
-                {traceNames.map((name, index) => (
-                  <span key={`${name}-${index}`} className="iw-result-name" style={{ '--iw-trace': yColors[index] ?? 'var(--accent)' } as React.CSSProperties}>
-                    <span aria-hidden="true">·</span><span className="iw-swatch" aria-hidden="true" />{name}
-                  </span>
-                ))}
-              </div>
+              <p className="iw-result t-caption" data-testid="import-wizard-summary">
+                Will {editing ? 'show' : 'create'} {yCols.length} trace{yCols.length === 1 ? '' : 's'}: <span className="t-card-title">{entry.fileName}</span>
+                {traceNames.map((name, index) => <span key={`${name}-${index}`}> · {name}</span>)}
+              </p>
             )}
             {editing && <MessageBar status="info">Traces whose column still exists keep their colour, markers and pane.</MessageBar>}
             {editing && removedText && <MessageBar status="warning">{removedText}</MessageBar>}
@@ -223,13 +226,11 @@ function WizardDialog({ entry, position, total, others, queue, priorFile }: Wiza
               Use these settings for the other {others.length === 1 ? 'file' : `${others.length} files`}
             </label>
           )}
-          <div className="iw-actions">
-            {!editing && total > 1 && <Btn onClick={skipFile}>Skip file</Btn>}
-            <Btn onClick={cancel} title="Esc">Cancel</Btn>
-            <span className="iw-spacer" />
-            {blocker && <span className="iw-blocker t-caption" data-testid="import-wizard-blocker">{blocker}</span>}
-            <Btn variant="solid" onClick={confirm} disabled={!!blocker} title="Enter" data-testid="import-wizard-confirm">{mainLabel}</Btn>
-          </div>
+          <span className="iw-spacer" />
+          {blocker && <span className="iw-blocker t-caption" data-testid="import-wizard-blocker">{blocker}</span>}
+          {!editing && total > 1 && <Btn onClick={skipFile}>Skip file</Btn>}
+          <Btn onClick={cancel} title="Esc">Cancel</Btn>
+          <Btn variant="solid" onClick={confirm} disabled={!!blocker} title="Enter" data-testid="import-wizard-confirm">{mainLabel}</Btn>
         </footer>
       </div>
     </div>

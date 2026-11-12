@@ -140,9 +140,10 @@ export function detectTabular(text: string): TabularDetection {
 
   const xHeader = hasNames ? headers[xCol] ?? "" : "";
   const xFound = detectXUnit(xHeader);
-  const xUnit = findXUnit(domain, xFound?.domain === domain ? xFound.unit : undefined) ?? { id: baseXUnit(domain), factor: 1, base: baseXUnit(domain) };
+  const xUnit = findXUnit(domain, xFound?.domain === domain ? xFound.unit : undefined) ?? { id: baseXUnit(domain), factor: 1, base: baseXUnit(domain), name: baseXUnit(domain) };
   const yFound = hasNames ? yCols.map((col) => detectYUnit(headers[col] ?? "")).find((unit) => unit !== null) : undefined;
-  const yUnit = findYUnit(yFound ?? "") ?? { id: "", factor: 1, base: "" };
+  // Time-domain captures are almost always voltages; frequency data keeps "no unit" unless named.
+  const yUnit = findYUnit(yFound ?? (domain === "time" ? "V" : "")) ?? { id: "", factor: 1, base: "", name: "no unit" };
 
   return {
     domainConfidence,

@@ -53,7 +53,7 @@ test("routes ambiguous CSV imports through the import wizard", async ({ page }) 
     buffer: Buffer.from("1,2\n2,3\n"),
   });
 
-  await expect(page.getByRole("dialog", { name: "Import table" })).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "Open ambiguous.csv" })).toBeVisible();
   await page.getByRole("button", { name: "Add 1 trace" }).click();
   await expect(page.locator(".lp-file--header .lp-name").filter({ hasText: "ambiguous.csv" })).toBeVisible();
 });
@@ -68,19 +68,22 @@ test("import wizard walks several files and can reuse the settings", async ({ pa
   ]);
 
   const wizard = page.getByTestId("import-wizard");
-  await expect(page.getByRole("dialog", { name: "Import table · File 1 of 3" })).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "Open first.csv" })).toBeVisible();
+  await expect(page.getByTestId("import-wizard-queue")).toHaveText("File 1 of 3");
   await expect(page.getByTestId("import-wizard-caption")).toHaveText("first 3 of 3 rows · rows 1–2 skipped");
   await expect(page.getByTestId("wizard-col-1")).toContainText("a");
-  await expect(page.getByTestId("wizard-chip-0")).toHaveText("X");
+  await expect(page.getByTestId("wizard-chip-0")).toHaveAttribute("data-role", "x");
 
   // Skip rows decides where the column names come from.
-  await wizard.getByRole("button", { name: "Skip one row fewer" }).click();
+  const skipRows = wizard.getByLabel("Skip rows");
+  await skipRows.press("ArrowDown");
   await expect(page.getByTestId("wizard-col-1")).toContainText("Column 2");
-  await wizard.getByRole("button", { name: "Skip one more row" }).click();
+  await skipRows.press("ArrowUp");
   await expect(page.getByTestId("wizard-col-1")).toContainText("a");
 
   await wizard.getByRole("button", { name: "Skip file" }).click();
-  await expect(page.getByRole("dialog", { name: "Import table · File 2 of 3" })).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "Open second.csv" })).toBeVisible();
+  await expect(page.getByTestId("import-wizard-queue")).toHaveText("File 2 of 3");
   await wizard.getByLabel("Use these settings for the other file").check();
   await wizard.getByRole("button", { name: "Add 3 traces" }).click();
   await expect(wizard).toHaveCount(0);

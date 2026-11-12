@@ -12,6 +12,8 @@ export interface WizardPreviewTableProps {
   delimiter: string;
   skipRows: number;
   headers: readonly string[];
+  /** Header text as shown (with the picked unit). */
+  names: readonly string[];
   roles: readonly ColumnRole[];
   /** Colour per column for Y columns (trace colour the column will get). */
   colors: readonly (string | undefined)[];
@@ -19,11 +21,11 @@ export interface WizardPreviewTableProps {
   onRole: (col: number, role: ColumnRole) => void;
 }
 
-const ROLE_TEXT: Record<ColumnRole, string> = { x: 'X', y: 'Y', skip: '—' };
+const ROLE_TEXT: Record<ColumnRole, string> = { x: 'X', y: 'Y', skip: '— skip' };
 const ROLE_NAME: Record<ColumnRole, string> = { x: 'X', y: 'Y', skip: 'Skip' };
 const ROLE_HINT: Record<ColumnRole, string> = { x: 'Horizontal axis', y: 'One trace', skip: 'Not imported' };
 
-export function WizardPreviewTable({ lines, delimiter, skipRows, headers, roles, colors, numeric, onRole }: WizardPreviewTableProps) {
+export function WizardPreviewTable({ lines, delimiter, skipRows, headers, names, roles, colors, numeric, onRole }: WizardPreviewTableProps) {
   const [menu, setMenu] = useState<{ col: number; at: HTMLElement } | null>(null);
   const rows = lines.slice(skipRows, skipRows + PREVIEW_ROWS).map(line => splitCells(line, delimiter));
   const close = () => setMenu(null);
@@ -38,19 +40,20 @@ export function WizardPreviewTable({ lines, delimiter, skipRows, headers, roles,
               return (
                 <th key={col} className={`is-${role}`} style={style} data-testid={`wizard-col-${col}`} scope="col">
                   <div className="iw-colhead">
+                    <span className="iw-colname t-caption" title={names[col] ?? header}>{names[col] ?? header}</span>
                     <button
                       type="button"
-                      className={`iw-chip t-card-title is-${role}`}
+                      className={`iw-chip t-caption is-${role}`}
                       data-testid={`wizard-chip-${col}`}
+                      data-role={role}
                       aria-haspopup="menu"
                       aria-expanded={menu?.col === col}
                       aria-label={`${header}: ${ROLE_NAME[role]}. Change role`}
                       onClick={event => { const at = event.currentTarget; setMenu(current => (current?.col === col ? null : { col, at })); }}
                     >
-                      {role === 'y' && <span className="iw-swatch" aria-hidden="true" />}
-                      {ROLE_TEXT[role]}
+                      <span className="iw-chip-role">{ROLE_TEXT[role]}</span>
+                      <span aria-hidden="true">▾</span>
                     </button>
-                    <span className="iw-colname t-label" title={header}>{header}</span>
                   </div>
                 </th>
               );
@@ -82,7 +85,7 @@ export function WizardPreviewTable({ lines, delimiter, skipRows, headers, roles,
                   title={disabled ? 'This column has no numbers' : undefined}
                   onClick={() => { if (disabled) return; const at = menu.at; onRole(menu.col, role); close(); at.focus(); }}
                 >
-                  <span className="iw-role-key t-card-title">{ROLE_TEXT[role]}</span>
+                  <span className="iw-role-key t-card-title">{role === 'skip' ? '—' : ROLE_TEXT[role]}</span>
                   <span className="t-label">{ROLE_NAME[role]}</span>
                   <span className="t-caption">{ROLE_HINT[role]}</span>
                 </button>
