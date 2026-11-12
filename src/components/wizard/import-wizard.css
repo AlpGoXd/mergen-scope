@@ -1,0 +1,54 @@
+/* Import wizard / Edit columns: one screen, settings left, live preview right.
+   Sizes and type come from tokens (index.css) and text roles (text-roles.css) only. */
+.ui-dialog.iw-dialog { width: min(1040px, calc(100vw - 32px)); max-height: calc(100vh - 32px); padding: 0; gap: 0; grid-template-rows: auto minmax(0, 1fr) auto; overflow: hidden; outline: none; }
+.iw-head { display: flex; align-items: baseline; gap: var(--space-2); padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--border); min-width: 0; }
+.iw-head .t-caption { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.iw-body { display: grid; grid-template-columns: minmax(220px, 260px) minmax(0, 1fr); min-height: 0; }
+.iw-settings { display: grid; align-content: start; gap: var(--space-4); padding: var(--space-4); background: var(--panel); border-right: 1px solid var(--border); overflow: auto; }
+.iw-group { display: grid; gap: var(--space-2); }
+.iw-field { display: grid; gap: var(--space-1); }
+.iw-row { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+.iw-stepper { display: inline-flex; align-items: center; gap: var(--space-1); }
+.iw-input { min-height: var(--control-height); width: 7ch; border: 1px solid var(--border); border-radius: var(--radius-input); padding: 0 var(--space-2); background: var(--raised); color: var(--text); font: inherit; font-variant-numeric: tabular-nums; }
+.iw-input--mult { width: 12ch; }
+.iw-settings .ui-select { width: 100%; }
+.iw-settings .ui-message, .iw-main .ui-message { align-items: flex-start; }
+.iw-main { display: grid; align-content: start; gap: var(--space-3); padding: var(--space-4); min-width: 0; overflow: auto; }
+.iw-preview-head { display: flex; align-items: baseline; gap: var(--space-2); flex-wrap: wrap; }
+.iw-table-wrap { border: 1px solid var(--border); border-radius: var(--radius-card); overflow: auto; background: var(--raised); }
+.iw-table { width: 100%; border-collapse: collapse; }
+.iw-table th, .iw-table td { padding: var(--space-1) var(--space-2); text-align: left; white-space: nowrap; border-bottom: 1px solid var(--border); }
+.iw-table tbody tr:last-child td { border-bottom: 0; }
+.iw-table th { vertical-align: top; background: var(--panel); border-top: 3px solid transparent; }
+.iw-table th.is-x { border-top-color: var(--text); }
+.iw-table th.is-y { border-top-color: var(--iw-trace); }
+.iw-table th.is-skip .iw-colname, .iw-table td.is-skip { color: var(--text-muted); }
+.iw-table td.is-skip { opacity: 0.7; }
+.iw-colhead { display: grid; gap: var(--space-1); justify-items: start; }
+.iw-colname { max-width: 24ch; overflow: hidden; text-overflow: ellipsis; }
+.iw-chip { min-height: var(--control-sm-height); min-width: 4ch; padding: 0 var(--space-2); display: inline-flex; align-items: center; gap: var(--space-1); border-radius: var(--radius-badge); border: 1px solid var(--border-strong); background: var(--raised); color: var(--text-muted); cursor: pointer; }
+.iw-chip:hover { border-color: var(--text-muted); }
+.iw-chip.is-x { background: var(--text); border-color: var(--text); color: var(--bg); }
+.iw-chip.is-y { background: color-mix(in oklch, var(--iw-trace) 14%, var(--raised)); border-color: var(--iw-trace); color: var(--text); }
+.iw-swatch { width: 8px; height: 8px; border-radius: 50%; background: var(--iw-trace); flex: none; }
+.iw-role-menu { display: grid; min-width: 168px; }
+.iw-role-menu [role=menuitemradio] { display: flex; align-items: center; gap: var(--space-2); width: 100%; border: 0; border-radius: var(--radius-input); padding: var(--space-1) var(--space-2); text-align: left; background: transparent; color: var(--text); font: inherit; cursor: pointer; }
+.iw-role-menu [role=menuitemradio]:hover, .iw-role-menu [role=menuitemradio]:focus-visible { background: var(--panel); }
+.iw-role-menu [aria-checked=true] { background: var(--sel-bg); color: var(--sel-ink); }
+.iw-role-key { width: 3ch; color: var(--text-muted); }
+.iw-result { display: flex; gap: var(--space-1); flex-wrap: wrap; align-items: baseline; }
+.iw-result-name { display: inline-flex; align-items: center; gap: var(--space-1); }
+.iw-foot { display: grid; gap: var(--space-2); padding: var(--space-3) var(--space-4); border-top: 1px solid var(--border); background: var(--raised); }
+.iw-check { display: inline-flex; align-items: center; gap: var(--space-2); cursor: pointer; }
+.iw-actions { display: flex; align-items: center; gap: var(--space-2); }
+.iw-spacer { flex: 1; }
+.iw-blocker { color: var(--danger-ink); text-align: right; }
+@media (max-width: 720px) {
+  .iw-body { grid-template-columns: minmax(0, 1fr); overflow: auto; }
+  .iw-settings { border-right: 0; border-bottom: 1px solid var(--border); overflow: visible; }
+  .iw-main { overflow: visible; }
+  .iw-actions { flex-wrap: wrap; }
+}
+/* The role menu is portaled to body; it has to sit above the dialog backdrop (z 150). */
+.ui-popover:has(> .iw-role-menu) { z-index: 160; }
+.ui-dialog.iw-dialog:focus-visible { outline: none; }

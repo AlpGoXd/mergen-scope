@@ -1,11 +1,14 @@
 import { test, expect } from '@playwright/test';
 
+import { acceptImport } from './import-helpers';
+
 for (const theme of ['light', 'dark'] as const) {
   test(`sample dots are independent, undoable and survive save and reload (${theme})`, async ({ page }) => {
     await page.addInitScript(value => localStorage.setItem('mergen-theme-preference', value), theme);
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/app.html');
     await page.getByTestId('app-open-input').setInputFiles({name:'voltage.csv', mimeType:'text/csv', buffer:Buffer.from('Time (s),CH1 (V)\n0,1\n0.5,2\n1,3\n')});
+    await acceptImport(page);
     await page.keyboard.press('2');
     const row = page.locator('[data-testid^="trace-row-"]').first();
     await row.getByTitle('Show in panes').click();

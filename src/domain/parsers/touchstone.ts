@@ -122,6 +122,22 @@ function parseTouchstoneKeyword(trimmed: string, state: ParserState): boolean {
 // Touchstone parser
 // ---------------------------------------------------------------------------
 
+/**
+ * Port count of a v1 file without an .sNp name: one row per frequency of 1 + 2·N² numbers.
+ * 1- and 2-port rows fit on one line; larger ones wrap, so the stride with rising frequencies wins.
+ */
+function inferTouchstonePortCount(tokens: readonly number[], firstLineCount: number): number | null {
+  if (firstLineCount === 3 || firstLineCount === 9) return firstLineCount === 3 ? 1 : 2;
+  for (let ports = 3; ports <= 16; ports++) {
+    const stride = 1 + 2 * ports * ports;
+    if (tokens.length < stride || tokens.length % stride !== 0) continue;
+    let rising = true;
+    for (let i = stride; i < tokens.length && rising; i += stride) rising = (tokens[i] ?? 0) > (tokens[i - stride] ?? 0);
+    if (rising) return ports;
+  }
+  return null;
+}
+
 /** Parse a Touchstone (.sNp) file. */
 export function parseTouchstoneFile(text: string, fileName: string): ParsedFile {
   incrementFileCounter();
@@ -140,6 +156,7 @@ export function parseTouchstoneFile(text: string, fileName: string): ParsedFile 
   };
 
   let dataTokens: number[] = [];
+  let firstDataLineCount = 0;
 
   for (const rawLine of lines) {
     let raw = rawLine.replace(/^\uFEFF/, "");
@@ -155,10 +172,13 @@ export function parseTouchstoneFile(text: string, fileName: string): ParsedFile 
     if (trimmed.charAt(0) === "#") { parseTouchstoneOptionLine(trimmed, state); state.sawOptionLine = true; continue; }
     if (!state.sawOptionLine) throw new Error("Touchstone data encountered before the option line.");
     const nums = trimmed.split(/\s+/).filter(Boolean).map(Number).filter(Number.isFinite);
+    if (!firstDataLineCount) firstDataLineCount = nums.length;
     dataTokens = dataTokens.concat(nums);
   }
 
   if (!state.sawOptionLine) throw new Error("Touchstone file is missing an option line.");
+  // Opened by content under another name: infer the port count from the data layout.
+  state.portCount ??= inferTouchstonePortCount(dataTokens, firstDataLineCount);
   if (!state.portCount) throw new Error("Unable to determine the Touchstone port count.");
   const filePortCount = getTouchstonePortCountFromFileName(fileNameStr);
   if (filePortCount && filePortCount !== state.portCount) {

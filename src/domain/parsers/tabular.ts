@@ -10,6 +10,7 @@ import { makeTrace } from "../trace-model.ts";
 import { buildScalarDisplayTraceFromSeriesDataset, buildSeriesDatasetFromTrace } from "../dataset-builders.ts";
 import { incrementFileCounter } from "./rs-dat.ts";
 import { normalizeTraceData } from "./helpers.ts";
+import { baseXUnit, storedYUnit } from "../import-units.ts";
 
 // ---------------------------------------------------------------------------
 // Wizard preview summary
@@ -172,7 +173,9 @@ export function parseTabularFile(
   const traces: RawTrace[] = [];
   const datasetFamily = config.domain === 'time' ? 'waveform' : 'spectrum';
   const xHeader = sourceHeaders?.[config.xCol] ?? config.headers?.[config.xCol] ?? "";
-  const xUnit = inferUnit(xHeader, "x") ?? (config.domain === "time" ? "s" : "Hz");
+  // A wizard-picked unit means xMult already converts to the base unit.
+  const xUnit = config.xUnit !== undefined ? baseXUnit(config.domain) : inferUnit(xHeader, "x") ?? baseXUnit(config.domain);
+  const pickedYUnit = config.yUnit;
 
   for (let yIdx = 0; yIdx < config.yCols.length; yIdx++) {
     const yColIdx = config.yCols[yIdx]!;
@@ -183,7 +186,7 @@ export function parseTabularFile(
     (trace as { dn: string }).dn = `${fileName} ${name.toLowerCase()}`;
     (trace as { units: { x: string | null; y: string | null } }).units = {
       x: xUnit,
-      y: inferUnit(String(name), "y"),
+      y: pickedYUnit !== undefined ? storedYUnit(pickedYUnit) : inferUnit(String(name), "y"),
     };
     traces.push(trace);
   }

@@ -1,4 +1,6 @@
 ﻿import { test, expect } from '@playwright/test';
+
+import { acceptImport } from './import-helpers';
 import { resolve } from 'node:path';
 
 test('network matrix and info remain open together', async ({ page }) => {
@@ -16,6 +18,7 @@ test('network matrix and info remain open together', async ({ page }) => {
 test('multi-column CSV exposes individual column toggles', async ({ page }) => {
   await page.goto('/app.html');
   await page.getByTestId('app-open-input').setInputFiles({ name: 'channels.csv', mimeType: 'text/csv', buffer: Buffer.from('Time (s),CH1 (V),CH2 (V)\n0,1,2\n1,3,4\n2,5,6\n') });
+  await acceptImport(page);
   const columns = page.getByRole('button', { name: 'Columns', exact: true });
   await expect(columns).toBeVisible();
   await columns.click();

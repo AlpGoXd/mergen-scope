@@ -1,5 +1,7 @@
 import { test, expect } from '@playwright/test';
 
+import { acceptImport } from './import-helpers';
+
 const datasets = [
   { name: 'voltage.csv', csv: 'Time (s),CH1 (V)\n0,1\n0.5,2\n1,3\n' },
   { name: 'large.csv', csv: 'Time (s),CH1 (V)\n0,-1234567890123\n0.5,0\n1,9876543210123\n' },
@@ -11,6 +13,7 @@ for (const dataset of datasets) {
     await page.setViewportSize({ width: 1024, height: 900 });
     await page.goto('/app.html');
     await page.getByTestId('app-open-input').setInputFiles({ name: dataset.name, mimeType: 'text/csv', buffer: Buffer.from(dataset.csv) });
+    await acceptImport(page);
     await page.keyboard.press('4');
     const row = page.locator('[data-testid^="trace-row-"]').first();
     await row.getByTitle('Show in panes').click();
@@ -45,6 +48,7 @@ for (const theme of ['light', 'dark'] as const) {
     await page.goto('/app.html');
     await expect(page.locator(`.theme-${theme}`).first()).toBeAttached();
     await page.getByTestId('app-open-input').setInputFiles({ name: datasets[0].name, mimeType: 'text/csv', buffer: Buffer.from(datasets[0].csv) });
+    await acceptImport(page);
     await page.keyboard.press('4');
     const row = page.locator('[data-testid^="trace-row-"]').first();
     await row.getByTitle('Show in panes').click();

@@ -50,9 +50,9 @@ describe("import robustness", () => {
 
   it("still treats a real Touchstone option line as Touchstone", () => {
     const text = "# GHz S MA R 50\n1 0.5 10 0.1 20 0.1 30 0.5 40\n2 0.5 10 0.1 20 0.1 30 0.5 40\n";
-    // A .dat name gives no port count, so reaching the Touchstone parser shows up as its port-count error.
-    expect(() => parseMeasurementFile(text, "net.dat")).toThrow(/Touchstone/);
-    expect(() => parseMeasurementFile(text.replace("R 50", "R 50 ! calibrated"), "net.dat")).toThrow(/Touchstone/);
+    // A .dat name gives no port count; the Touchstone parser reads it from the 9-number data rows.
+    expect(parseMeasurementFile(text, "net.dat").touchstoneNetwork?.portCount).toBe(2);
+    expect(parseMeasurementFile(text.replace("R 50", "R 50 ! calibrated"), "net.dat").touchstoneNetwork?.portCount).toBe(2);
   });
 
   it("summarizes what the wizard settings would read from the preview", () => {

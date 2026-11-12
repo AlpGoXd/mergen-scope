@@ -1,4 +1,6 @@
 import { test, expect } from '@playwright/test';
+
+import { acceptImport } from './import-helpers';
 import { resolve } from 'node:path';
 
 test.use({ deviceScaleFactor: 2 });
@@ -37,12 +39,14 @@ for (const theme of ['light', 'dark'] as const) {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/app.html');
     await page.getByTestId('app-open-input').setInputFiles({ name: 'time.csv', mimeType: 'text/csv', buffer: Buffer.from('Time (s),CH1 (V)\n0,1\n0.5,2\n1,3\n') });
+    await acceptImport(page);
     await page.keyboard.press('2');
     await page.getByTestId('chart-pane-pane-2').evaluate(target => {
       const dataTransfer = new DataTransfer();
       dataTransfer.items.add(new File(['Frequency (Hz),Magnitude (dBm)\n100,1\n200,2\n300,3\n'], 'frequency.csv', { type: 'text/csv' }));
       for (const type of ['dragenter', 'dragover', 'drop']) target.dispatchEvent(new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer }));
     });
+    await acceptImport(page);
     const row = page.locator('[data-testid^="trace-row-"]').filter({ hasText: 'time.csv' }).first();
     await expect(page.getByTestId('chart-plot-pane-2')).toBeVisible();
     await row.getByTitle('Show in panes').click();

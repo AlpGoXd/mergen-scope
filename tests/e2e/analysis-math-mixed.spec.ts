@@ -1,4 +1,6 @@
 import { expect, test } from '@playwright/test';
+
+import { acceptImport } from './import-helpers';
 import { resolve } from 'node:path';
 import { addAnalysis } from './analysis-helpers';
 
@@ -26,6 +28,7 @@ test('time and frequency inputs explain why creation is disabled', async ({ page
   await page.goto('/app.html');
   await page.getByTestId('app-open-input').setInputFiles(resolve('test files/cascade_ip3_-12dBm.DAT'));
   await page.getByTestId('app-open-input').setInputFiles({ name: 'time.csv', mimeType: 'text/csv', buffer: Buffer.from('Time (s),CH1 (V)\n0,1\n0.001,2\n0.002,3\n') });
+  await acceptImport(page);
   await expect(page.locator('[data-testid^="trace-row-"]').filter({ hasText: 'time.csv' })).toBeVisible();
   const card = await addAnalysis(page, 'Trace math');
   await card.locator('.an-select').first().click();

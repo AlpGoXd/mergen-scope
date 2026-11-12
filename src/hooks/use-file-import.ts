@@ -1,7 +1,6 @@
 import { useCallback, useRef } from 'react';
 import { flushSync } from 'react-dom';
-import { parseMeasurementFile } from '../domain/parsers/parse-file';
-import { classify } from '../domain/parsers/classifier';
+import { parseForImport } from '../domain/parsers/parse-file';
 import { migrateWorkspaceV5 } from '../domain/workspace-migrate-v5';
 import type { WorkspaceSnapshotV5 } from '../types/workspace-v5';
 import { syncParserFileCounter } from '../domain/parsers/rs-dat';
@@ -44,9 +43,8 @@ export function useFileImport() {
           const body=raw && typeof raw==='object' && 'kind' in raw && raw.kind==='mergen-scope-workspace' && 'snapshot' in raw ? raw.snapshot : raw;
           return {kind:'workspace' as const,snapshot,legacy:!(body && typeof body==='object' && 'version' in body && body.version===5)};
         }
-        const profile=classify(text,file.name);
-        if (profile.format === 'binary') return {kind:'data' as const,input:{id,name:file.name,text,parsed:null,error:'Binary files cannot be opened as measurement data.'}};
-        return {kind:'data' as const,input:{id,name:file.name,text,parsed:parseMeasurementFile(text,file.name,profile)}};
+        if (text.includes(String.fromCharCode(0))) return {kind:'data' as const,input:{id,name:file.name,text,parsed:null,error:'Binary files cannot be opened as measurement data.'}};
+        return {kind:'data' as const,input:{id,name:file.name,text,parsed:parseForImport(text,file.name)}};
       } catch(error) {
         if (/\.json$/i.test(file.name) || workspaceRoute) return {kind:'invalid-workspace' as const,name:file.name};
         return {kind:'data' as const,input:{id,name:file.name,text:'',parsed:null,error:error instanceof Error ? error.message : 'Could not read this file.'}};

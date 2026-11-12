@@ -65,16 +65,18 @@ export interface WorkspaceMemento {
   readonly layout: WorkspaceState['layout'];
   readonly ui: Pick<UiState, 'traceColors' | 'traceHueSlots' | 'traceInterpolations' | 'noiseFilter' | 'noiseSource' | 'ip3Gain' | 'selectedTraceName'>;
 }
+/** Open-batch wizards and Edit columns are not workspace content: undo neither records nor restores them. */
+function transientWizard(entry: FileState['wizardQueue'][number]): boolean { return !!entry.pendingBatch || entry.mode === 'edit'; }
 export function captureWorkspace(state: WorkspaceState): WorkspaceMemento {
   const {traceColors, traceHueSlots, traceInterpolations, noiseFilter, noiseSource, ip3Gain, selectedTraceName} = state.ui;
-  return {files:{...state.files,wizardQueue:state.files.wizardQueue.filter(entry => !entry.pendingBatch)}, traces:state.traces, panes:state.panes, markers:state.markers.markers, lines:state.lines.refLines, analysis:{...state.analysis, highlightedPeak:null}, layout:state.layout, ui:{traceColors,traceHueSlots,traceInterpolations,noiseFilter,noiseSource,ip3Gain,selectedTraceName}};
+  return {files:{...state.files,wizardQueue:state.files.wizardQueue.filter(entry => !transientWizard(entry))}, traces:state.traces, panes:state.panes, markers:state.markers.markers, lines:state.lines.refLines, analysis:{...state.analysis, highlightedPeak:null}, layout:state.layout, ui:{traceColors,traceHueSlots,traceInterpolations,noiseFilter,noiseSource,ip3Gain,selectedTraceName}};
 }
 export function sameWorkspaceMemento(a: WorkspaceMemento, b: WorkspaceMemento): boolean {
   return a.files === b.files && a.traces === b.traces && a.panes === b.panes && a.markers === b.markers && a.lines === b.lines && sameValue(a.analysis, b.analysis) && a.layout === b.layout && a.ui.traceColors === b.ui.traceColors && a.ui.traceInterpolations === b.ui.traceInterpolations && a.ui.noiseFilter === b.ui.noiseFilter && a.ui.noiseSource === b.ui.noiseSource && a.ui.ip3Gain === b.ui.ip3Gain && a.ui.selectedTraceName === b.ui.selectedTraceName;
 }
 export function restoreWorkspaceMemento(state: WorkspaceState, memento: WorkspaceMemento): WorkspaceState {
   return {
-    ...state, files:{...memento.files,wizardQueue:[...memento.files.wizardQueue,...state.files.wizardQueue.filter(entry => entry.pendingBatch)]}, traces:memento.traces,
+    ...state, files:{...memento.files,wizardQueue:[...memento.files.wizardQueue,...state.files.wizardQueue.filter(transientWizard)]}, traces:memento.traces,
     panes:paneReducer(state.panes,{type:'RESTORE',payload:memento.panes}),
     markers:markerReducer(state.markers,{type:'RESTORE',payload:{...state.markers,markers:memento.markers,armed:null,selectedMkrIdx:-1}}),
     lines:{...state.lines,refLines:memento.lines,refMode:null,selectedRefLineId:null}, analysis:analysisReducer(state.analysis,{type:'RESTORE',payload:memento.analysis}),
@@ -143,7 +145,7 @@ function openData(state: WorkspaceState, command: Extract<WorkspaceAction,{slice
   const matchingKeys = new Map<string,string>();
   const pendingWizards = command.inputs.filter(input => input.parsed?.format === 'needs-import-wizard');
   if (pendingWizards.length && !command.resolveBatchId) {
-    const batch={id:command.inputs[0]?.id ?? '',inputs:command.inputs,targetPaneId:command.targetPaneId,workspace:command.workspace};
+    const batch={id:command.inputs[0]?.id ?? '',inputs:command.inputs,targetPaneId:command.targetPaneId,workspace:command.workspace,...(command.drop ? {drop:true} : {})};
     const entries=pendingWizards.map(input => ({id:input.id,fileName:input.name,rawText:input.text,previewLines:input.parsed?.previewLines ?? [],suggestedConfig:input.parsed?.suggestedConfig,targetPaneId:command.targetPaneId,duplicateChoice:input.choice,pendingBatch:batch}));
     return {...state,files:{...state.files,wizardQueue:[...state.files.wizardQueue,...entries]},revision:state.revision+1};
   }
@@ -205,7 +207,9 @@ function openData(state: WorkspaceState, command: Extract<WorkspaceAction,{slice
     // A copied frequency range may belong to a different file.
     newPane:(_trace,_panes,issued) => {const source=state.panes.panes.find(pane => pane.id===state.panes.activePaneId) ?? state.panes.panes[0]; if (!source) return null; let n=1; while(issued.includes(`pane-${n}`)) n++; const pane={...source,id:`pane-${n}`,title:'',renderMode:'cartesian' as const,typed:false,settings:{...source.settings,smith:{...source.settings.smith,range:null}}}; paneById.set(pane.id,pane); return pane;},
   });
-  if (!plan.ok) return {...state,ui:uiReducer(state.ui,{type:'SET',payload:{key:'paneAssignmentWarning',value:{message:plan.reason,paneId:command.targetPaneId ?? state.panes.activePaneId,traceName:null,...(command.drop ? {source:'drop' as const} : {})}}}),revision:state.revision+1};
+  // A refused open still ends the wizard that asked for it; the warning explains why nothing opened.
+  const resolvedQueue = command.resolveWizardId || command.resolveBatchId ? state.files.wizardQueue.filter(entry => entry.id !== command.resolveWizardId && (!command.resolveBatchId || entry.pendingBatch?.id !== command.resolveBatchId)) : state.files.wizardQueue;
+  if (!plan.ok) return {...state,files:resolvedQueue === state.files.wizardQueue ? state.files : {...state.files,wizardQueue:resolvedQueue},ui:uiReducer(state.ui,{type:'SET',payload:{key:'paneAssignmentWarning',value:{message:plan.reason,paneId:command.targetPaneId ?? state.panes.activePaneId,traceName:null,...(command.drop ? {source:'drop' as const} : {})}}}),revision:state.revision+1};
   const replacedTraceNames = new Set<string>();
   let files=[...state.files.files]; const raw={...state.files.rawFileData}; const memberships={...state.panes.tracePaneMap}; const panes=state.panes.panes.map(pane => paneById.get(pane.id) ?? pane); const issued=[...state.panes.issuedPaneIds]; const errors: {fileName:string;message:string}[]=[];
   for (const step of plan.steps) {
@@ -334,7 +338,7 @@ export function workspaceReducer(state: WorkspaceState, command: WorkspaceAction
         const batch={...entry.pendingBatch,workspace:entry.pendingBatch.workspace && workspaceChoice ? {...entry.pendingBatch.workspace,choice:workspaceChoice} : entry.pendingBatch.workspace,inputs:entry.pendingBatch.inputs.map(input => ({...(input.id===entry.id ? {...input,parsed,wizardConfig:config} : input),...decisions?.[input.id]}))};
         const remaining=state.files.wizardQueue.filter(item => item.pendingBatch?.id===batch.id && item.id!==entry.id);
         if (remaining.length) return {...state,files:{...state.files,wizardQueue:state.files.wizardQueue.filter(item=>item.id!==entry.id).map(item=>item.pendingBatch?.id===batch.id ? {...item,pendingBatch:batch} : item)},revision:state.revision+1};
-        return openData(state,{slice:'open-data',inputs:batch.inputs,targetPaneId:batch.targetPaneId,limit:command.limit ?? 4,resolveBatchId:batch.id,workspace:batch.workspace});
+        return openData(state,{slice:'open-data',inputs:batch.inputs,targetPaneId:batch.targetPaneId,limit:command.limit ?? 4,resolveBatchId:batch.id,workspace:batch.workspace,drop:batch.drop});
       }
       return openData(state,{slice:'open-data',inputs:[{id:prior ? `${entry.id}:reimport:${state.revision}` : entry.id,name:entry.fileName,text:entry.rawText,parsed,choice:prior ? 'replace' : entry.duplicateChoice,wizardConfig:config}],targetPaneId:entry.targetPaneId,limit:command.limit ?? 4,resolveWizardId:entry.id});
     } catch(error) {

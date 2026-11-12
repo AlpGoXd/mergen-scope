@@ -1,10 +1,13 @@
 import { expect, test } from '@playwright/test';
+
+import { acceptImport } from './import-helpers';
 import { readFileSync } from 'node:fs';
 
 test('header Samples stays in sync, supports undo and remains visible', async ({ page }) => {
   await page.setViewportSize({ width: 1024, height: 640 });
   await page.goto('/app.html');
   await page.getByTestId('app-open-input').setInputFiles({ name: 'samples.csv', mimeType: 'text/csv', buffer: Buffer.from('Time (s),CH1 (V)\n0,1\n0.5,2\n1,3\n') });
+  await acceptImport(page);
   const pane = page.getByTestId('chart-pane-pane-1');
   const button = pane.getByTestId('samples-toggle');
   await button.click();
@@ -74,6 +77,7 @@ test('header Samples stays in sync, supports undo and remains visible', async ({
 test('a long saved pane title leaves header controls visible at 330px', async ({ page }) => {
   await page.goto('/app.html');
   await page.getByTestId('app-open-input').setInputFiles({ name: 'samples.csv', mimeType: 'text/csv', buffer: Buffer.from('Time (s),CH1 (V)\n0,1\n1,2\n') });
+  await acceptImport(page);
   await expect(page.getByTestId('chart-plot-pane-1')).toBeVisible();
   const download = page.waitForEvent('download');
   await page.getByTitle('Save Workspace JSON').click();

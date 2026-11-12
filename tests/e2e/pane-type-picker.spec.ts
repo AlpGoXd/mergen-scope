@@ -1,4 +1,6 @@
 import { test, expect } from '@playwright/test';
+
+import { acceptImport } from './import-helpers';
 import { resolve } from 'node:path';
 import { readFileSync } from 'node:fs';
 
@@ -45,6 +47,7 @@ test('an empty chart retains its type after removing a trace and reopening a wor
   const header = page.getByTestId('chart-pane-header-pane-1');
   await pane.locator('.ptp-tile').first().click();
   await page.getByTestId('app-open-input').setInputFiles({ name: 'one.csv', mimeType: 'text/csv', buffer: Buffer.from('Time (s),CH1 (V)\n0,1\n1,2\n') });
+  await acceptImport(page);
   await expect(page.getByTestId('chart-plot-pane-1')).toBeVisible();
   const row = page.locator('[data-testid^="trace-row-"]').first();
   await row.getByTitle('Show in panes').click();
@@ -149,6 +152,7 @@ test('header type popover is above neighbouring panes and closes on Escape', asy
   await page.setViewportSize({ width: 1024, height: 640 });
   await page.goto('/app.html');
   await page.getByTestId('app-open-input').setInputFiles({ name: 'data.csv', mimeType: 'text/csv', buffer: Buffer.from('Time (s),CH1 (V)\n0,1\n1,2\n') });
+  await acceptImport(page);
   await expect(page.getByTestId('chart-plot-pane-1')).toBeVisible();
   await page.getByRole('button', { name: '+ Pane' }).click();
   const traceRow = page.locator('[data-testid^="trace-row-"]').first();
@@ -202,6 +206,7 @@ test('opening a file in the second empty pane targets that pane', async ({ page 
   await page.getByTestId('chart-pane-pane-2').getByRole('button', { name: 'Open file…' }).click();
   const chooser = await chooserPromise;
   await chooser.setFiles({ name: 'second.csv', mimeType: 'text/csv', buffer: Buffer.from('Time (s),CH1 (V)\n0,1\n1,2\n') });
+  await acceptImport(page);
   await expect(page.getByTestId('chart-plot-pane-2')).toBeVisible();
 });
 
@@ -230,6 +235,7 @@ test('closing an empty pane removes that pane and can be undone', async ({ page 
 test('cancelling an empty-pane close preserves an unplaceable reference line', async ({ page }) => {
   await page.goto('/app.html');
   await page.getByTestId('app-open-input').setInputFiles({ name: 'time.csv', mimeType: 'text/csv', buffer: Buffer.from('Time (s),CH1 (V)\n0,1\n1,2\n') });
+  await acceptImport(page);
   await expect(page.getByTestId('chart-plot-pane-1')).toBeVisible();
   await page.getByRole('button', { name: '+ Pane' }).click();
   const download = page.waitForEvent('download');

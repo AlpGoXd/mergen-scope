@@ -1,9 +1,12 @@
 import { expect, test } from '@playwright/test';
 
+import { acceptImport } from './import-helpers';
+
 test('pane popovers appear above neighbouring panes and remain interactive', async ({ page }) => {
   await page.setViewportSize({ width: 1200, height: 800 });
   await page.goto('/app.html');
   await page.getByTestId('app-open-input').setInputFiles({ name: 'samples.csv', mimeType: 'text/csv', buffer: Buffer.from('Time (s),CH1 (V)\n0,1\n0.5,2\n1,3\n') });
+  await acceptImport(page);
   await page.keyboard.press('2');
   const first = page.getByTestId('chart-pane-pane-1');
   await expect(page.getByTestId('chart-pane-pane-2')).toBeVisible();

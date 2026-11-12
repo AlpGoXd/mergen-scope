@@ -1,4 +1,6 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
+
+import { acceptImport } from "./import-helpers";
 import { readFileSync } from "fs";
 import { addAnalysis, analysisCard, openAnalysisPanel } from "./analysis-helpers";
 import { resolve } from "path";
@@ -26,11 +28,13 @@ async function dropCsv(page: Page, paneId: string, name: string, text: string) {
       target.dispatchEvent(new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer }));
     }
   }, { name, text });
+  await acceptImport(page);
 }
 
 test("rejecting a trace drop onto another domain shows a warning", async ({ page }) => {
   await page.goto("/app.html");
   await page.getByTestId("app-open-input").setInputFiles({ name: "time.csv", mimeType: "text/csv", buffer: Buffer.from(timeCsv) });
+  await acceptImport(page);
   const timeRow = page.locator('[data-testid^="trace-row-"]').filter({ hasText: "time.csv" }).first();
   await expect(timeRow).toContainText("P1");
   await page.keyboard.press("2");
@@ -206,6 +210,7 @@ test("a multi-channel time CSV fills one new pane instead of one pane per channe
     mimeType: "text/csv",
     buffer: Buffer.from(rows.join("\n")),
   });
+  await acceptImport(page);
 
   await expect(page.getByTestId("chart-pane-pane-2")).toBeVisible();
   await expect(page.getByTestId("chart-pane-pane-3")).toHaveCount(0);
@@ -233,7 +238,8 @@ test("a broken file shows an import error instead of crashing the app", async ({
   await page.getByTestId("app-open-input").setInputFiles({
     name: "broken.s2p",
     mimeType: "text/plain",
-    buffer: Buffer.from("this is not a network file"),
+    // A Touchstone option line routes it to the Touchstone parser, which rejects the short data row.
+    buffer: Buffer.from("# GHz S MA R 50\n1 2 3\n"),
   });
 
   await expect(page.getByTestId("import-error")).toContainText("broken.s2p");

@@ -168,6 +168,16 @@ export interface WizardConfig {
   /** Y value multiplier (for unit conversion). */
   readonly yMult: number;
 
+  /**
+   * Unit the X column is written in (e.g. "ms", "MHz"), as picked in the wizard. When set, X is
+   * stored in the domain's base unit (s / Hz) after xMult. Absent in older configs: the unit is
+   * then read from the column header and values are kept as written.
+   */
+  readonly xUnit?: string;
+
+  /** Unit the Y columns are written in (e.g. "mV", "dBm"; "" = none). Absent: read per header. */
+  readonly yUnit?: string;
+
   /** Detected signal domain. */
   readonly domain: TraceDomain;
 

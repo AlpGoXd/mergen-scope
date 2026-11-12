@@ -76,7 +76,7 @@ describe("store and component behavior", () => {
     expect(await screen.findByRole("dialog", { name: "Import table" })).toBeInTheDocument();
     expect(screen.getByTestId("wizard-count")).toHaveTextContent("1");
 
-    await user.click(screen.getByRole("button", { name: "Confirm" }));
+    await user.click(screen.getByRole("button", { name: "Add 1 trace" }));
 
     await waitFor(() => expect(screen.getByTestId("file-count")).toHaveTextContent("1"));
     expect(screen.getByTestId("wizard-count")).toHaveTextContent("0");
@@ -93,7 +93,7 @@ describe("store and component behavior", () => {
     );
 
     expect(await screen.findByRole("dialog", { name: "Import table" })).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Skip" }));
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
 
     await waitFor(() => expect(screen.getByTestId("wizard-count")).toHaveTextContent("0"));
     expect(screen.getByTestId("file-count")).toHaveTextContent("0");

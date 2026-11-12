@@ -1,4 +1,6 @@
 import { expect, test } from '@playwright/test';
+
+import { acceptImport } from './import-helpers';
 import type { Locator, Page } from '@playwright/test';
 import { resolve } from 'path';
 
@@ -192,7 +194,7 @@ test('closing the last pane moves a trace to the nearest compatible pane', async
 
 test('closing an incompatible pane leaves its trace unplaced', async ({ page }) => {
   await loadTrace(page); await addPanes(page, 2);
-  await pane(page, 2).evaluate(target => { const transfer = new DataTransfer(); transfer.items.add(new File(['Time (s),CH1 (V)\n0,1\n1,2\n'], 'time.csv', { type: 'text/csv' })); for (const type of ['dragenter', 'dragover', 'drop']) target.dispatchEvent(new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer: transfer })); });
+  await pane(page, 2).evaluate(target => { const transfer = new DataTransfer(); transfer.items.add(new File(['Time (s),CH1 (V)\n0,1\n1,2\n'], 'time.csv', { type: 'text/csv' })); for (const type of ['dragenter', 'dragover', 'drop']) target.dispatchEvent(new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer: transfer })); }); await acceptImport(page);
   const trace = page.locator('[data-testid^="trace-row-"]').filter({ hasText: 'time.csv' }).first(); await expect(trace).toContainText('P2');
   page.once('dialog', dialog => dialog.accept()); await page.getByRole('button', { name: '- Pane', exact: true }).click();
   await expect(pane(page, 2)).toHaveCount(0); await expect(trace.getByTitle('Show in panes')).toContainText('—');

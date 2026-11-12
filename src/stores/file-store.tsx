@@ -8,11 +8,22 @@ import type { InterpolationStrategy } from '../types/interpolation';
 import { parseMeasurementFile } from '../domain/parsers/parse-file';
 import { classify } from '../domain/parsers/classifier';
 import { parseTabularFile } from '../domain/parsers/tabular';
+import { detectTabular } from '../domain/parsers/tabular-detect';
+import type { TraceDomain } from '../types/trace';
+
+/**
+ * Settings that reproduce an import made before the wizard recorded its settings:
+ * the detected layout with the columns that were actually imported, values and units read as before.
+ */
+function lastImportConfig(text: string, yCols: readonly number[] | undefined, domain: TraceDomain | undefined): WizardConfig {
+  const { xUnit: _xUnit, yUnit: _yUnit, ...detected } = detectTabular(text).config;
+  return { ...detected, xMult: 1, yMult: 1, ...(yCols?.length ? { yCols: yCols.filter(col => col !== detected.xCol) } : {}), ...(domain ? { domain } : {}) };
+}
 import { adaptDisplayTracesToLegacyTraces } from '../domain/display-trace-adapter';
 import { buildScalarDisplayTraceFromSeriesDataset, buildSeriesDatasetFromTrace, buildNetworkDatasetFromTouchstone } from '../domain/dataset-builders';
 
 export interface PendingOpenInput { readonly id:string; readonly name:string; readonly text:string; readonly parsed:ParsedFile | null; readonly error?:string; readonly choice?:OpenChoice; readonly expectedFileId?:string; readonly wizardConfig?:WizardConfig }
-export interface PendingOpenBatch { readonly id:string; readonly inputs:readonly PendingOpenInput[]; readonly targetPaneId?:string; readonly workspace?:{readonly snapshot:WorkspaceSnapshotV5;readonly legacy:boolean;readonly choice?:'replace'|'cancel'} }
+export interface PendingOpenBatch { readonly id:string; readonly inputs:readonly PendingOpenInput[]; readonly targetPaneId?:string; readonly drop?:boolean; readonly workspace?:{readonly snapshot:WorkspaceSnapshotV5;readonly legacy:boolean;readonly choice?:'replace'|'cancel'} }
 export interface WizardEntry {
   id: string;
   fileName: string;
@@ -22,6 +33,8 @@ export interface WizardEntry {
   targetPaneId?: string;
   duplicateChoice?: OpenChoice;
   pendingBatch?: PendingOpenBatch;
+  /** 'edit' = Edit columns on a file that is already open (not part of undo history while open). */
+  mode?: 'edit';
 }
 
 export interface ImportError {
@@ -242,13 +255,9 @@ export function fileReducer(state: FileState, action: FileAction): FileState {
       if (!text) return state; // can't rerun without text
       if (state.wizardQueue.some((entry) => entry.id === fileId)) return state;
 
-      let suggestedConfig: WizardConfig | undefined = state.files.find(file => String(file.id) === fileId)?.wizardConfig;
-      try {
-        // Prefer the actual previous choice; fall back to parser inference for older files.
-        suggestedConfig ??= parseTabularFile(text, fileName, null).suggestedConfig;
-      } catch {
-        suggestedConfig = undefined;
-      }
+      const file = state.files.find(item => String(item.id) === fileId);
+      // Prefer the actual previous choice; older files get the columns they actually imported.
+      const suggestedConfig = file?.wizardConfig ?? lastImportConfig(text, file?.columnIdentities?.map(column => column.index), file?.traces[0]?.domain);
 
       const newEntry: WizardEntry = {
         id: fileId,
@@ -256,7 +265,8 @@ export function fileReducer(state: FileState, action: FileAction): FileState {
         rawText: text,
         previewLines: nonEmptyPreviewLines(text),
         suggestedConfig,
-        targetPaneId: state.files.find((file) => String(file.id) === fileId)?.targetPaneId,
+        targetPaneId: file?.targetPaneId,
+        mode: 'edit',
       };
 
       return {

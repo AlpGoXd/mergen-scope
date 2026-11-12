@@ -1,9 +1,12 @@
 import { expect, test } from '@playwright/test';
 
+import { acceptImport } from './import-helpers';
+
 test('normal zoom places symbols about 90 pixels apart', async ({ page }) => {
   await page.goto('/app.html');
   const rows = Array.from({ length: 300 }, (_, i) => `${i},${i}`).join('\n');
   await page.getByTestId('app-open-input').setInputFiles({ name: 'ramp.csv', mimeType: 'text/csv', buffer: Buffer.from(`Time (s),CH1 (V)\n${rows}\n`) });
+  await acceptImport(page);
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
   await page.getByRole('button', { name: 'Always', exact: true }).click();
   await page.getByRole('button', { name: 'Close settings' }).click();
@@ -38,6 +41,7 @@ test('normal zoom places symbols about 90 pixels apart', async ({ page }) => {
 test('tiny trace keeps all dots centred in hollow symbols', async ({ page }) => {
   await page.goto('/app.html');
   await page.getByTestId('app-open-input').setInputFiles({ name: 'tiny.csv', mimeType: 'text/csv', buffer: Buffer.from('Time (s),CH1 (V)\n0,1\n0.5,2\n1,3\n') });
+  await acceptImport(page);
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
   await page.getByRole('button', { name: 'Always', exact: true }).click();
   await page.getByRole('button', { name: 'Close settings' }).click();

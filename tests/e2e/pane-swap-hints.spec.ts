@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { resolve } from 'path';
+import { acceptImport } from './import-helpers';
 
 const fixture = resolve(process.cwd(), 'test files/cascade_ip3_-12dBm.DAT');
 const frequencyCsv = 'Frequency (Hz),Magnitude (dBm)\n100,1\n200,2\n300,3\n';
@@ -23,6 +24,7 @@ async function dropCsv(page: Page, id: number, name: string, text: string) {
     transfer.items.add(new File([file.text], file.name, { type: 'text/csv' }));
     for (const type of ['dragenter', 'dragover', 'drop']) target.dispatchEvent(new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer: transfer }));
   }, { name, text });
+  await acceptImport(page);
 }
 
 test('pane swap follows position, is one undo step, and self drops and cancellation do nothing', async ({ page }) => {

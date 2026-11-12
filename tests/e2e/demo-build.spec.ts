@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { acceptImport } from './import-helpers';
 import { copyFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
@@ -53,6 +54,7 @@ test('build the demo workspace', async ({ page }) => {
 
   // Pane 3: a scope CSV (time domain gets its own pane).
   await page.getByTestId('app-open-input').setInputFiles(resolve('test files/waveform_sinc_test.csv'));
+  await acceptImport(page);
   const add = page.getByRole('button', { name: /^Add \d+ traces?$/ });
   if (await add.isVisible({ timeout: 3000 }).catch(() => false)) await add.click();
   await expect(page.getByTestId('chart-pane-pane-3')).toBeVisible();

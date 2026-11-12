@@ -1,5 +1,7 @@
 import { test, expect } from '@playwright/test';
 
+import { acceptImport } from './import-helpers';
+
 test.use({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2 });
 
 for (const theme of ['light', 'dark'] as const) {
@@ -36,12 +38,14 @@ test('experimental limit supports eight panes', async ({ page }) => {
 test('incompatible removal confirms and keeps a paneless line out of the remaining chart', async ({ page }) => {
   await page.goto('/app.html');
   await page.getByTestId('app-open-input').setInputFiles({ name:'time.csv', mimeType:'text/csv', buffer:Buffer.from('Time (s),CH1 (V)\n0,1\n0.5,2\n1,3\n') });
+  await acceptImport(page);
   await page.getByRole('button',{name:'+ Pane',exact:true}).click();
   await page.getByTestId('chart-pane-pane-2').evaluate(target => {
     const transfer=new DataTransfer();
     transfer.items.add(new File(['Frequency (Hz),Magnitude (dBm)\n100,1\n200,2\n300,3\n'],'frequency.csv',{type:'text/csv'}));
     for(const type of ['dragenter','dragover','drop']) target.dispatchEvent(new DragEvent(type,{bubbles:true,cancelable:true,dataTransfer:transfer}));
   });
+  await acceptImport(page);
   const pane2=page.getByTestId('chart-plot-pane-2');
   await expect(pane2).toBeVisible();
   await pane2.click({position:{x:260,y:100}});

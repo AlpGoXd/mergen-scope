@@ -24,6 +24,13 @@ function delayedFile(name: string) {
 function harness() {
   return { open:useFileImport(), workspace:useAggregateWorkspace(), panes:usePaneState(), pane:usePaneDispatch(), limit:usePaneLimit(), files:useFileState(), file:useFileDispatch(), traces:useTraceState(), traceDispatch:useTraceDispatch(), markers:useMarkerState(), marker:useMarkerDispatch(), ui:useUiState(), setUi:useUiDispatch() };
 }
+/** CSVs always open the import wizard; accept its detected settings like pressing Enter would. */
+function acceptWizards(result: {current: ReturnType<typeof harness>}) {
+  for (let guard = 0; guard < 10 && result.current.files.wizardQueue.length; guard++) {
+    const entry = result.current.files.wizardQueue[0]!;
+    act(() => result.current.file({type:'RESOLVE_WIZARD',payload:{id:entry.id,config:entry.suggestedConfig!}}));
+  }
+}
 const wrapper = ({children}:{children:React.ReactNode}) => <StoreRoot>{children}</StoreRoot>;
 beforeEach(() => { const values = new Map<string,string>(); vi.stubGlobal('localStorage', {getItem:(key:string)=>values.get(key) ?? null, setItem:(key:string,value:string)=>values.set(key,value), removeItem:(key:string)=>values.delete(key)}); });
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
@@ -49,7 +56,7 @@ describe('mounted opening controller', () => {
     act(() => { opening=result.current.open([pending.file]); });
     act(() => result.current.pane({type:'SET_ACTIVE_PANE',payload:'pane-2'}));
     act(() => result.current.workspace.historyDispatch({type:'undo'}));
-    await act(async () => {pending.resolve(csv); await opening;});
+    await act(async () => {pending.resolve(csv); await opening;}); acceptWizards(result);
     expect(result.current.panes.panes.map(p=>p.id)).toEqual(['pane-1','pane-2']);
     expect(result.current.panes.activePaneId).toBe('pane-1');
     const trace=result.current.traces.allKnownTraces[0]; expect(trace).toBeDefined();
@@ -65,7 +72,7 @@ describe('mounted opening controller', () => {
     const pending=delayedFile('new.csv'); let opening!:Promise<void>;
     act(() => { opening=result.current.open([pending.file]); });
     act(() => result.current.limit.setExperimental(true));
-    await act(async () => {pending.resolve(csv); await opening;});
+    await act(async () => {pending.resolve(csv); await opening;}); acceptWizards(result);
     expect(result.current.panes.panes).toHaveLength(5);
     const trace=result.current.traces.allKnownTraces.find(t=>t.name!==hz.name); expect(trace).toBeDefined();
     expect(result.current.panes.tracePaneMap[trace!.name]).toEqual([result.current.panes.panes[4]!.id]);
@@ -76,7 +83,7 @@ describe('mounted opening controller', () => {
     const {result}=renderHook(harness,{wrapper:appWrapper});
     const pending=delayedFile('app.csv'); let opening!:Promise<void>;
     act(()=>{opening=result.current.open([pending.file]);});
-    await act(async()=>{pending.resolve(csv); await opening;});
+    await act(async()=>{pending.resolve(csv); await opening;}); acceptWizards(result);
     expect(result.current.files.files).toHaveLength(1);
     act(()=>result.current.workspace.historyDispatch({type:'undo'}));
     expect(result.current.files.files).toHaveLength(0);
@@ -87,7 +94,7 @@ describe('mounted opening controller', () => {
     const {result}=renderHook(harness,{wrapper});
     const first=delayedFile('same.csv'); let opening!:Promise<void>;
     act(() => {opening=result.current.open([first.file]);});
-    await act(async()=>{first.resolve(csv); await opening;});
+    await act(async()=>{first.resolve(csv); await opening;}); acceptWizards(result);
     const trace=result.current.traces.allKnownTraces[0]; const file=result.current.files.files[0];
     expect(trace).toBeDefined(); expect(file).toBeDefined();
     act(()=>result.current.pane({type:'SET_PANE_COUNT',payload:2}));
@@ -97,7 +104,7 @@ describe('mounted opening controller', () => {
     act(()=>result.current.traceDispatch({type:'SET_VISIBILITY',name:trace!.name,visible:false}));
     const beforeMembership=result.current.panes.tracePaneMap[trace!.name]; const markerId=result.current.markers.markers[0]!.id;
     const second=delayedFile('same.csv'); act(()=>{opening=result.current.open([second.file]);});
-    await act(async()=>{second.resolve(changedCsv); await opening;});
+    await act(async()=>{second.resolve(changedCsv); await opening;}); acceptWizards(result);
     expect(result.current.traces.allKnownTraces[0]?.id).toBe(trace!.id);
     expect(result.current.panes.tracePaneMap[trace!.name]).toEqual(beforeMembership);
     expect(result.current.markers.markers[0]?.id).toBe(markerId);
@@ -121,7 +128,7 @@ describe('mounted opening controller', () => {
     const trace=makeTestTrace({id:'other',name:'other'});
     act(()=>result.current.file({type:'ADD_PARSED_FILE',payload:{id:'other-file',fileName:'same.csv',text:'other',parsed:{format:'rs-dat',meta:{},traces:[trace]}}}));
     const prompt=vi.spyOn(window,'prompt').mockReturnValue('copy');
-    fireEvent.click(screen.getByRole('button',{name:'Confirm'}));
+    fireEvent.click(screen.getByRole('button',{name:'Add 1 trace'}));
     expect(prompt).toHaveBeenCalledOnce();
     expect(result.current.files.files.map(file=>file.fileName)).toEqual(['same.csv','same.csv (2)']);
   });
@@ -135,7 +142,7 @@ describe('mounted opening controller', () => {
     const trace=makeTestTrace({id:'intervening',name:'intervening'});
     act(()=>result.current.file({type:'ADD_PARSED_FILE',payload:{id:'intervening-file',fileName:'intervening.dat',text:'other',parsed:{format:'rs-dat',meta:{},traces:[trace]}}}));
     const confirm=vi.spyOn(window,'confirm').mockReturnValue(false);
-    fireEvent.click(screen.getByRole('button',{name:'Confirm'}));
+    fireEvent.click(screen.getByRole('button',{name:'Add 1 trace'}));
     expect(confirm).toHaveBeenCalledOnce();
     expect(result.current.files.wizardQueue).toHaveLength(1);
     expect(result.current.files.files.map(file=>file.fileName)).toEqual(['intervening.dat']);

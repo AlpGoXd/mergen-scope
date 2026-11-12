@@ -54,37 +54,37 @@ test("routes ambiguous CSV imports through the import wizard", async ({ page }) 
   });
 
   await expect(page.getByRole("dialog", { name: "Import table" })).toBeVisible();
-  await page.getByRole("button", { name: "Confirm" }).click();
+  await page.getByRole("button", { name: "Add 1 trace" }).click();
   await expect(page.locator(".lp-file--header .lp-name").filter({ hasText: "ambiguous.csv" })).toBeVisible();
 });
 
-test("import wizard shows which rows and columns its settings select", async ({ page }) => {
+test("import wizard walks several files and can reuse the settings", async ({ page }) => {
   await page.goto("/app.html");
   const csv = "exported by scope\nidx,a,b,c\n1,2,3,4\n2,3,4,5\n3,4,5,6\n";
   await page.getByTestId("app-open-input").setInputFiles([
     { name: "first.csv", mimeType: "text/csv", buffer: Buffer.from(csv) },
     { name: "second.csv", mimeType: "text/csv", buffer: Buffer.from(csv) },
+    { name: "third.csv", mimeType: "text/csv", buffer: Buffer.from(csv) },
   ]);
 
-  const wizard = page.getByRole("dialog", { name: "Import table" });
-  await expect(wizard).toBeVisible();
-  await expect(page.getByTestId("import-wizard-queue")).toHaveText("File 1 of 2");
-
-  // Data starts at row 3, so row 2 supplies the column names.
-  await wizard.getByLabel("Data starts at row").fill("3");
+  const wizard = page.getByTestId("import-wizard");
+  await expect(page.getByRole("dialog", { name: "Import table · File 1 of 3" })).toBeVisible();
+  await expect(page.getByTestId("import-wizard-caption")).toHaveText("first 3 of 3 rows · rows 1–2 skipped");
   await expect(page.getByTestId("wizard-col-1")).toContainText("a");
-  await expect(page.getByTestId("wizard-col-0")).toContainText("X");
-  await expect(page.getByTestId("import-wizard-summary")).toContainText("3 rows");
+  await expect(page.getByTestId("wizard-chip-0")).toHaveText("X");
 
-  // Choosing a Y column as X removes it from the Y set.
-  await expect(page.getByTestId("wizard-col-1")).toContainText("Y");
-  await wizard.getByLabel("X column").selectOption({ label: "2: a" });
-  await expect(page.getByTestId("wizard-col-1")).toContainText("X");
-  await expect(page.getByTestId("wizard-col-1")).not.toContainText("Y");
+  // Skip rows decides where the column names come from.
+  await wizard.getByRole("button", { name: "Skip one row fewer" }).click();
+  await expect(page.getByTestId("wizard-col-1")).toContainText("Column 2");
+  await wizard.getByRole("button", { name: "Skip one more row" }).click();
+  await expect(page.getByTestId("wizard-col-1")).toContainText("a");
 
-  await page.keyboard.press("Escape");
-  await expect(page.getByTestId("import-wizard-queue")).toHaveCount(0);
-  await expect(wizard).toBeVisible();
-  await wizard.getByRole("button", { name: "Skip" }).click();
+  await wizard.getByRole("button", { name: "Skip file" }).click();
+  await expect(page.getByRole("dialog", { name: "Import table · File 2 of 3" })).toBeVisible();
+  await wizard.getByLabel("Use these settings for the other file").check();
+  await wizard.getByRole("button", { name: "Add 3 traces" }).click();
   await expect(wizard).toHaveCount(0);
+  await expect(page.locator(".lp-file--header .lp-name").filter({ hasText: "second.csv" })).toBeVisible();
+  await expect(page.locator(".lp-file--header .lp-name").filter({ hasText: "third.csv" })).toBeVisible();
+  await expect(page.locator(".lp-file--header .lp-name").filter({ hasText: "first.csv" })).toHaveCount(0);
 });

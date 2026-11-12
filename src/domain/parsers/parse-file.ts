@@ -9,6 +9,7 @@ import { classify } from "./classifier.ts";
 import { parseRSDat } from "./rs-dat.ts";
 import { parseTouchstoneFile } from "./touchstone.ts";
 import { parseTabularFile } from "./tabular.ts";
+import { contentLines, detectTabular } from "./tabular-detect.ts";
 
 // ---------------------------------------------------------------------------
 // Format detection helpers
@@ -76,4 +77,48 @@ export function parseMeasurementFile(
   }
 
   return parseRSDat(text, fileName);
+}
+
+// ---------------------------------------------------------------------------
+// Opening files from the UI: the content decides, never the extension
+// ---------------------------------------------------------------------------
+
+const RS_DAT_KEYS = /^(type|version|date|mode|center freq|start|stop|span|ref level|rbw|vbw|swt|x-axis|y-axis|x-unit|y-unit|trace|trace mode|detector|values)$/i;
+
+/** An R&S instrument export: "R&S" on the first line, or a "Key;Value;" header with x-Unit or Values. */
+export function looksLikeRsDatText(text: string): boolean {
+  const lines = contentLines(text).slice(0, 60);
+  if (lines[0]?.includes("R&S")) return true;
+  let keys = 0;
+  let anchor = false;
+  for (const line of lines) {
+    const key = line.split(";")[0]?.trim() ?? "";
+    if (!line.includes(";") || !RS_DAT_KEYS.test(key)) continue;
+    keys += 1;
+    if (/^(x-unit|values)$/i.test(key)) anchor = true;
+  }
+  return anchor && keys >= 3;
+}
+
+/** A recognised file signature, or null when the file needs the import wizard. */
+export function detectFileSignature(text: string): "rs-dat" | "touchstone" | null {
+  if (looksLikeTouchstoneText(text)) return "touchstone";
+  if (looksLikeRsDatText(text)) return "rs-dat";
+  return null;
+}
+
+/** Parse a file opened by the user: signatures import directly, everything else goes to the wizard. */
+export function parseForImport(text: string, fileName: string): ParsedFile {
+  const signature = detectFileSignature(text);
+  if (signature === "touchstone") return parseTouchstoneFile(text, fileName);
+  if (signature === "rs-dat") return parseRSDat(text, fileName);
+  return {
+    format: "needs-import-wizard",
+    text,
+    fileName,
+    suggestedConfig: detectTabular(text).config,
+    previewLines: contentLines(text).slice(0, 100),
+    meta: {},
+    traces: [],
+  };
 }

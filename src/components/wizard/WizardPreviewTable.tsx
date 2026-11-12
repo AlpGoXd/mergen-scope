@@ -1,64 +1,96 @@
+import { useState } from 'react';
+import type React from 'react';
+import type { ColumnRole } from '../../domain/import-wizard';
+import { splitCells } from '../../domain/parsers/tabular-detect';
+import { PopoverAt } from '../shared/Controls';
+
+export const PREVIEW_ROWS = 8;
+
 export interface WizardPreviewTableProps {
-	lines: readonly string[];
-	delimiter: string;
-	/** Rows before the data; the last of them provides the column names. */
-	skipRows?: number;
-	headers?: readonly string[];
-	xCol?: number;
-	yCols?: readonly number[];
+  /** Content lines of the file. */
+  lines: readonly string[];
+  delimiter: string;
+  skipRows: number;
+  headers: readonly string[];
+  roles: readonly ColumnRole[];
+  /** Colour per column for Y columns (trace colour the column will get). */
+  colors: readonly (string | undefined)[];
+  numeric: readonly number[];
+  onRole: (col: number, role: ColumnRole) => void;
 }
 
-const tagStyle = {
-	display: 'inline-block',
-	marginLeft: '6px',
-	padding: '0 5px',
-	borderRadius: '4px',
-	fontSize: 'var(--font-caption)',
-	fontWeight: 600,
-	color: 'var(--card)',
-} as const;
+const ROLE_TEXT: Record<ColumnRole, string> = { x: 'X', y: 'Y', skip: '—' };
+const ROLE_NAME: Record<ColumnRole, string> = { x: 'X', y: 'Y', skip: 'Skip' };
+const ROLE_HINT: Record<ColumnRole, string> = { x: 'Horizontal axis', y: 'One trace', skip: 'Not imported' };
 
-export function WizardPreviewTable({ lines, delimiter, skipRows = 0, headers = [], xCol, yCols = [] }: WizardPreviewTableProps) {
-	const previewRows = lines.slice(0, 20).map((line) => line.split(delimiter));
-	const maxCols = previewRows.reduce((max, row) => Math.max(max, row.length), 0);
-	const headerRowIdx = skipRows - 1;
-
-	return (
-		<div style={{ border: '1px solid var(--border)', borderRadius: '6px', maxHeight: '240px', overflow: 'auto' }}>
-			<table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 'var(--font-label)', lineHeight: 'var(--lh-label)' }}>
-				<thead>
-					<tr style={{ background: 'var(--bg)' }}>
-						<th style={{ padding: '4px 6px', borderBottom: '1px solid var(--border)', color: 'var(--dim)', textAlign: 'right' }}>Row</th>
-						{Array.from({ length: maxCols }, (_, idx) => {
-							const role = idx === xCol ? 'X' : yCols.includes(idx) ? 'Y' : null;
-							return (
-								<th key={idx} data-testid={`wizard-col-${idx}`} style={{ textAlign: 'left', padding: '4px 6px', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap', opacity: role ? 1 : 0.6 }}>
-									{headers[idx] || `Column ${idx + 1}`}
-									{role && <span style={{ ...tagStyle, background: role === 'X' ? 'var(--accent)' : 'var(--muted)' }}>{role}</span>}
-								</th>
-							);
-						})}
-					</tr>
-				</thead>
-				<tbody>
-					{previewRows.map((row, rowIdx) => {
-						const isHeader = rowIdx === headerRowIdx;
-						const isSkipped = rowIdx < skipRows && !isHeader;
-						return (
-							<tr key={rowIdx} style={{ color: isSkipped ? 'var(--dim)' : undefined, fontWeight: isHeader ? 600 : undefined, fontStyle: isSkipped ? 'italic' : undefined }}>
-								<td style={{ padding: '4px 6px', borderBottom: '1px solid var(--border)', color: 'var(--dim)', textAlign: 'right', whiteSpace: 'nowrap' }}>
-									{isHeader ? `${rowIdx + 1} · names` : isSkipped ? `${rowIdx + 1} · skipped` : rowIdx + 1}
-								</td>
-								{Array.from({ length: maxCols }, (_, colIdx) => (
-									<td key={colIdx} style={{ padding: '4px 6px', borderBottom: '1px solid var(--border)' }}>
-										{row[colIdx] ?? ''}
-									</td>
-								))}
-							</tr>
-						);
-					})}
-				</tbody>
-			</table>
-		</div>
-	);
+export function WizardPreviewTable({ lines, delimiter, skipRows, headers, roles, colors, numeric, onRole }: WizardPreviewTableProps) {
+  const [menu, setMenu] = useState<{ col: number; at: HTMLElement } | null>(null);
+  const rows = lines.slice(skipRows, skipRows + PREVIEW_ROWS).map(line => splitCells(line, delimiter));
+  const close = () => setMenu(null);
+  return (
+    <div className="iw-table-wrap">
+      <table className="iw-table" data-testid="import-wizard-preview">
+        <thead>
+          <tr>
+            {headers.map((header, col) => {
+              const role = roles[col] ?? 'skip';
+              const style = { '--iw-trace': colors[col] ?? 'var(--accent)' } as React.CSSProperties;
+              return (
+                <th key={col} className={`is-${role}`} style={style} data-testid={`wizard-col-${col}`} scope="col">
+                  <div className="iw-colhead">
+                    <button
+                      type="button"
+                      className={`iw-chip t-card-title is-${role}`}
+                      data-testid={`wizard-chip-${col}`}
+                      aria-haspopup="menu"
+                      aria-expanded={menu?.col === col}
+                      aria-label={`${header}: ${ROLE_NAME[role]}. Change role`}
+                      onClick={event => { const at = event.currentTarget; setMenu(current => (current?.col === col ? null : { col, at })); }}
+                    >
+                      {role === 'y' && <span className="iw-swatch" aria-hidden="true" />}
+                      {ROLE_TEXT[role]}
+                    </button>
+                    <span className="iw-colname t-label" title={header}>{header}</span>
+                  </div>
+                </th>
+              );
+            })}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row, rowIdx) => (
+            <tr key={rowIdx}>
+              {headers.map((_, col) => (
+                <td key={col} className={`t-readout ${(roles[col] ?? 'skip') === 'skip' ? 'is-skip' : ''}`}>{row[col] ?? ''}</td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {menu && (
+        <PopoverAt label="Column role" at={menu.at} onClose={close} onEscape={() => { const at = menu.at; close(); at.focus(); }}>
+          <div className="iw-role-menu" role="menu" aria-label={`Role of ${headers[menu.col] ?? 'column'}`}>
+            {(['x', 'y', 'skip'] as const).map(role => {
+              const disabled = role !== 'skip' && !numeric.includes(menu.col);
+              return (
+                <button
+                  key={role}
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={(roles[menu.col] ?? 'skip') === role}
+                  aria-disabled={disabled || undefined}
+                  title={disabled ? 'This column has no numbers' : undefined}
+                  onClick={() => { if (disabled) return; const at = menu.at; onRole(menu.col, role); close(); at.focus(); }}
+                >
+                  <span className="iw-role-key t-card-title">{ROLE_TEXT[role]}</span>
+                  <span className="t-label">{ROLE_NAME[role]}</span>
+                  <span className="t-caption">{ROLE_HINT[role]}</span>
+                </button>
+              );
+            })}
+          </div>
+        </PopoverAt>
+      )}
+    </div>
+  );
 }

@@ -1,4 +1,6 @@
 import { test, expect } from '@playwright/test';
+
+import { acceptImport } from './import-helpers';
 import { resolve } from 'node:path';
 
 test('apply interpolation to a file is one undoable change', async ({ page }) => {
@@ -18,6 +20,7 @@ test('apply interpolation to a file is one undoable change', async ({ page }) =>
 test('apply interpolation includes hidden file projections', async ({ page }) => {
  await page.goto('/app.html');
  await page.getByTestId('app-open-input').setInputFiles({ name: 'channels.csv', mimeType: 'text/csv', buffer: Buffer.from('Time (s),CH1 (V),CH2 (V)\n0,1,2\n1,3,4\n2,5,6\n') });
+ await acceptImport(page);
  await page.getByRole('button', { name: 'Columns', exact: true }).click();
  const checks = page.locator('label').filter({ has: page.locator('input[type=checkbox]') }).filter({ hasText: /ch/i });
  await checks.nth(1).locator('input').uncheck();
