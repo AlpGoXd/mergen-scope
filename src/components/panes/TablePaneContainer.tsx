@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { usePaneDispatch } from '../../stores/pane-store';
+import { usePaneDispatch, usePaneState } from '../../stores/pane-store';
 import { useSharedHover } from '../../stores/shared-hover-store';
 import { useUiState } from '../../stores/ui-store';
 import { useTraceState } from '../../stores/trace-store';
@@ -21,12 +21,13 @@ import './pane-table.css';
 /** Table pane owner: picks the traces, merges their rows, tracks the shared cursor and formats numbers. */
 export function TablePaneContainer({ paneId }: { paneId: string; fitRequest?: number }) {
   const view = useTableView(paneId);
-  const { traces, xGroup, settings, visible } = view;
+  const { traces, xGroup, settings, visible, followedPaneId, followChoices } = view;
   const { allKnownTraces } = useTraceState();
   const { traceHueSlots } = useUiState();
   const color = useTraceColors();
   const symbol = useTraceSymbols();
   const paneDispatch = usePaneDispatch();
+  const { tracePaneMap } = usePaneState();
   const assignments = useMemo(() => allocateTraceColors(allKnownTraces, new Map(Object.entries(traceHueSlots))), [allKnownTraces, traceHueSlots]);
 
   // Shared cursor: the crosshair X of any other pane with the same X unit. It stays when the pointer leaves.
@@ -60,6 +61,9 @@ export function TablePaneContainer({ paneId }: { paneId: string; fitRequest?: nu
   }), [traces, sources, color, symbolKey, assignments]);
   const formats = useMemo(() => new Map(columns.map(column => [column.id, column.format])), [columns]);
 
+  // The empty state offers the first pane that has traces (else the first pane it could follow).
+  const followTarget = followedPaneId ? undefined : followChoices.find(choice => allKnownTraces.some(trace => (tracePaneMap[trace.name] ?? []).includes(choice.id))) ?? followChoices[0];
+  const followLabel = followChoices.find(choice => choice.id === followedPaneId)?.label;
   if (traces.length === 0) {
     const addTraces = () => {
       paneDispatch({ type: 'SET_ACTIVE_PANE', payload: paneId });
@@ -72,6 +76,7 @@ export function TablePaneContainer({ paneId }: { paneId: string; fitRequest?: nu
         <div className="t-card-title">Empty table</div>
         <p className="t-label">Follow another pane’s traces and cursor, or add traces of your own.</p>
         <div className="tbp-empty__actions">
+          {followTarget && <Btn small onClick={() => paneDispatch({ type: 'SET_PANE_SETTINGS', payload: { paneId, patch: { table: { ...settings, follow: followTarget.id } } } })}>Follow {followTarget.label}</Btn>}
           <Btn small onClick={addTraces}>Add traces…</Btn>
         </div>
       </div>
@@ -83,7 +88,7 @@ export function TablePaneContainer({ paneId }: { paneId: string; fitRequest?: nu
     <div data-testid={`table-pane-${paneId}`} style={{ position: 'absolute', inset: 0 }}>
       <TablePane xLabel={tableXLabel(first?.domain, xGroup)} xUnit={xFormat.unit} columns={columns} rows={rows} cursorX={cursorX} mode={settings.rows}
         formatX={xFormat.format} formatY={(y, column) => formats.get(column.id)?.(y) ?? String(y)}
-        status="Own traces" />
+        status={followLabel ? `Following ${followLabel}` : 'Own traces'} />
     </div>
   );
 }

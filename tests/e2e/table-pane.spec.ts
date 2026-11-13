@@ -142,3 +142,55 @@ test('Every point keeps a small DOM with a 1001-row file and scrolls the cursor 
   expect(row.y + row.height).toBeLessThanOrEqual(scroll.y + scroll.height + 1);
   expect(await table.locator('[role="row"]').count()).toBeLessThan(80);
 });
+
+test('a Table follows a pane: its traces, its cursor and its visible range; Own traces goes back', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/app.html');
+  await page.getByTestId('app-open-input').setInputFiles(DAT);
+  await expect(page.locator('[data-testid^="trace-row-"]').first()).toBeVisible();
+  await page.getByRole('button', { name: '+ Pane', exact: true }).click();
+  await page.getByTestId('chart-pane-pane-2').locator('.ptp-tile').filter({ hasText: 'Table' }).click();
+
+  // Empty: Visible is greyed with its reason; Follow Pane 1 is offered.
+  const header = page.getByTestId('chart-pane-header-pane-2');
+  await header.getByRole('button', { name: 'Pane settings' }).click();
+  const settings = page.locator('.pset');
+  await expect(settings.getByRole('button', { name: 'Visible' })).toBeDisabled();
+  await expect(settings).toContainText('Needs Follow or a linked pane');
+  await page.keyboard.press('Escape');
+  await page.getByTestId('table-empty-pane-2').getByRole('button', { name: 'Follow Pane 1' }).click();
+
+  const table = page.getByTestId('table-pane-pane-2');
+  await expect(table.locator('.tbp-foot')).toContainText('1001 rows');
+  await expect(table.locator('.tbp-foot')).toContainText('Following Pane 1');
+  await expect(header).toContainText('1 trace');
+  await header.getByRole('button', { name: 'Pane settings' }).click();
+  await expect(settings.getByRole('button', { name: 'Pane 1', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await settings.getByRole('button', { name: 'Visible' }).click();
+  await expect(settings.getByRole('button', { name: 'Visible' })).toHaveAttribute('aria-pressed', 'true');
+  await page.keyboard.press('Escape');
+
+  // Zoom Pane 1 (right-drag): the table keeps only the rows in Pane 1's visible range.
+  const plot = page.getByTestId('chart-plot-pane-1');
+  const box = await plot.boundingBox();
+  if (!box) throw new Error('no plot box');
+  const y = box.y + box.height * 0.5;
+  await page.mouse.move(box.x + box.width * 0.4, y);
+  await page.mouse.down({ button: 'right' });
+  await page.mouse.move(box.x + box.width * 0.6, y, { steps: 6 });
+  await page.mouse.up({ button: 'right' });
+  await expect(table.locator('.tbp-foot')).not.toContainText('1001 rows');
+  const visibleRows = Number((await table.locator('.tbp-foot').textContent())?.match(/(\d+) rows/)?.[1]);
+  expect(visibleRows).toBeGreaterThan(10);
+  expect(visibleRows).toBeLessThan(600);
+
+  // The followed pane's crosshair moves the row.
+  await page.mouse.move(box.x + box.width * 0.5, y);
+  await expect(table.locator('.tbp-row.is-cursor')).toHaveCount(1);
+
+  // Own traces: the table has none of its own, so it is empty again.
+  await header.getByRole('button', { name: 'Pane settings' }).click();
+  await settings.getByRole('button', { name: 'Own traces' }).click();
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('table-empty-pane-2')).toBeVisible();
+});

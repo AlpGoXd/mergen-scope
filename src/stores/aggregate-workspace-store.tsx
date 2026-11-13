@@ -206,7 +206,7 @@ function openData(state: WorkspaceState, command: Extract<WorkspaceAction,{slice
       return result;
     },
     // A copied frequency range may belong to a different file.
-    newPane:(_trace,_panes,issued) => {const source=state.panes.panes.find(pane => pane.id===state.panes.activePaneId) ?? state.panes.panes[0]; if (!source) return null; let n=1; while(issued.includes(`pane-${n}`)) n++; const pane={...source,id:`pane-${n}`,title:'',renderMode:'cartesian' as const,typed:false,settings:{...source.settings,smith:{...source.settings.smith,range:null}}}; paneById.set(pane.id,pane); return pane;},
+    newPane:(_trace,_panes,issued) => {const source=state.panes.panes.find(pane => pane.id===state.panes.activePaneId) ?? state.panes.panes[0]; if (!source) return null; let n=1; while(issued.includes(`pane-${n}`)) n++; const pane={...source,id:`pane-${n}`,title:'',renderMode:'cartesian' as const,typed:false,settings:{...source.settings,table:undefined,smith:{...source.settings.smith,range:null}}}; paneById.set(pane.id,pane); return pane;},
   });
   // A refused open still ends the wizard that asked for it; the warning explains why nothing opened.
   const resolvedQueue = command.resolveWizardId || command.resolveBatchId ? state.files.wizardQueue.filter(entry => entry.id !== command.resolveWizardId && (!command.resolveBatchId || entry.pendingBatch?.id !== command.resolveBatchId)) : state.files.wizardQueue;

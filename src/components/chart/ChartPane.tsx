@@ -1230,7 +1230,7 @@ export function ChartPane({ paneId, hideXTicks = false }: ChartPaneProps) {
           <PaneSettingsPopover paneId={paneId} settings={settings} sections={paneTypes[currentType].settings} paneName={paneName(panes, paneId)} current={currentType} tiles={panePickerTiles(Object.values(paneTypes))} pending={pendingType} anchor={settingsAnchor} contentRef={settingsMenuRef}
             onAnchorChange={anchor => { setTypeChange(null); returnToTileRef.current = null; setTypeAnchor(null); setSettingsAnchor(anchor); if (anchor) typeTriggerRef.current = anchor; else { typeTriggerRef.current?.focus({ preventScroll: true }); typeTriggerRef.current = null; } }}
             onChoose={id => selectPaneType(paneTypes[id])} onConfirm={() => { if (pendingType) selectPaneType(paneTypes[pendingType.to], true); }} onCancel={cancelTypeChange}
-            table={TableRenderer ? { settings: tableView.settings, visible: tableView.visible } : null}
+            table={TableRenderer ? { settings: tableView.settings, visible: tableView.visible, followChoices: tableView.followChoices, followedPaneId: tableView.followedPaneId } : null}
             axes={!isSmith && !TableRenderer && paneTraces.length > 0 ? {
               x: xDiv, y: yDiv,
               onFitX: () => { if (zoomAll) paneDispatch({ type: 'SET_SHARED_ZOOM', payload: null }); else paneDispatch({ type: 'SET_PANE_ZOOM', payload: { paneId, zoom: null } }); },

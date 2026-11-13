@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { decimalsForRows, tableXFormat, tableYFormat } from '../../src/domain/table-format';
-import { tableLinkedToChart, tableSettingsOf, tableVisibleRange, tableXLabel, VISIBLE_RANGE_REASON } from '../../src/domain/table-view';
+import { tableFollowChoices, tableFollowedPane, tableLinkedToChart, tableSettingsOf, tableVisibleRange, tableXLabel, VISIBLE_RANGE_REASON } from '../../src/domain/table-view';
 import { defaultPaneSettings } from '../../src/types/pane';
 
 describe('table number formats', () => {
@@ -32,8 +32,8 @@ describe('table number formats', () => {
 
 describe('table view', () => {
   it('fills missing table settings with the defaults', () => {
-    expect(tableSettingsOf({ settings: defaultPaneSettings() })).toEqual({ rows: 'near', range: 'all' });
-    expect(tableSettingsOf({ settings: { ...defaultPaneSettings(), table: { rows: 'all', range: 'visible' } } })).toEqual({ rows: 'all', range: 'visible' });
+    expect(tableSettingsOf({ settings: defaultPaneSettings() })).toEqual({ rows: 'near', range: 'all', follow: null });
+    expect(tableSettingsOf({ settings: { ...defaultPaneSettings(), table: { rows: 'all', range: 'visible', follow: 'pane-1' } } })).toEqual({ rows: 'all', range: 'visible', follow: 'pane-1' });
   });
   it('names the X column', () => {
     expect(tableXLabel('frequency', 'Hz')).toBe('Frequency');
@@ -53,5 +53,14 @@ describe('table view', () => {
     expect(tableLinkedToChart({ paneId: 'pane-2', xGroup: 'Hz', zoomAll: true, panes, paneXGroups })).toBe(true);
     expect(tableLinkedToChart({ paneId: 'pane-2', xGroup: 'Hz', zoomAll: false, panes, paneXGroups })).toBe(false);
     expect(tableLinkedToChart({ paneId: 'pane-2', xGroup: 'V', zoomAll: true, panes, paneXGroups })).toBe(false);
+  });
+  it('follows only another non-table pane', () => {
+    const panes = [{ id: 'pane-1', renderMode: 'cartesian' as const }, { id: 'pane-2', renderMode: 'table' as const }, { id: 'pane-3', renderMode: 'smith' as const }, { id: 'pane-4', renderMode: 'table' as const }];
+    expect(tableFollowChoices(panes, 'pane-2')).toEqual(['pane-1', 'pane-3']);
+    expect(tableFollowedPane(panes, 'pane-2', 'pane-1')).toBe('pane-1');
+    expect(tableFollowedPane(panes, 'pane-2', 'pane-4')).toBeNull();
+    expect(tableFollowedPane(panes, 'pane-2', 'pane-2')).toBeNull();
+    expect(tableFollowedPane(panes, 'pane-2', 'pane-9')).toBeNull();
+    expect(tableFollowedPane(panes, 'pane-2', null)).toBeNull();
   });
 });

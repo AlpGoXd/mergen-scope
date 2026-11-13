@@ -8,6 +8,16 @@ export function tableSettingsOf(pane: Pick<Pane, 'settings'> | undefined): Table
   return { ...defaultTableSettings(), ...pane?.settings.table };
 }
 
+/** A pane a table can follow: any other pane that is not itself a table. */
+export function tableFollowChoices(panes: readonly Pick<Pane, 'id' | 'renderMode'>[], paneId: string): string[] {
+  return panes.filter(pane => pane.id !== paneId && pane.renderMode !== 'table').map(pane => pane.id);
+}
+
+/** The pane the table follows, or null for Own traces (also when the saved target was closed or became a table). */
+export function tableFollowedPane(panes: readonly Pick<Pane, 'id' | 'renderMode'>[], paneId: string, follow: string | null): string | null {
+  return follow !== null && tableFollowChoices(panes, paneId).includes(follow) ? follow : null;
+}
+
 /** X column heading: "Frequency", "Time", or "X" for anything else. */
 export function tableXLabel(domain: string | null | undefined, xGroup: string | null): string {
   if (domain === 'frequency' || xGroup === 'Hz') return 'Frequency';
