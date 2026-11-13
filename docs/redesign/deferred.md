@@ -13,7 +13,6 @@ This ledger tracks findings that remain open after the Phase 1 foundation and Ph
 | — | Preserve legacy `glass` theme data when reading v4 workspaces, complete the Phase 3 workspace migration, then remove obsolete compatibility strings only when migration and a no-consumer search show they are safe to remove. | Phase 3 (legacy read/migration); Phase 8 (compatibility removal) | Deferred: compatibility is retained for v4 reads; migration and eventual removal remain. |
 | — | Remove legacy palette aliases after component migrations. Search the repository (including CSS and components) to prove each alias has no consumer before deleting it. | Phase 8 | Deferred: aliases remain while consumers migrate. |
 | — | Migrate remaining component-specific font overrides and complete the type consistency audit across screens and states. | Phases 4, 5 and 7; final audit in Phase 8 | Done: Phase 1 tokens/fonts and Phase 2 shared controls. Deferred: remaining component adoption and full audit. |
-| — | Add the user-facing Settings sheet and Appearance controls. The theme API already separates the `system` / `light` / `dark` preference from resolved appearance and supports manual preference; expose it through the specified settings UI. | Phase 7 | Deferred: API behavior is implemented; Settings UI remains. |
 
 ## Reference comparison follow-up (8 November)
 
@@ -157,8 +156,6 @@ Board [37-P4c](referance/37-P4c-lines-like-traces.png) replaces line linking wit
 
 | Remaining work | Target phase | Status |
 | --- | --- | --- |
-| Line row with Show-in badges and the "Shown in P1, P2 · 3 crossings · List..." line, H-line tooltip, "not in a pane" state | Phase 4 / 5 (with the kit) | Waiting for the kit; the row keeps its current look without the link icon. |
-| Chart: "V1 · 2" label, shared hover/selection highlight across copies, edge tag with click-to-pan, right-click menu (Show in, Edit value, List crossings, Remove from Pane N, Delete) | Phase 5C | Waiting for the kit; `ChartPane.tsx` changes in small steps with e2e. |
 | "V1 crossings" card grouped by pane; toasts "V1 also shown in Pane 2" / "Deleted V1 from 2 panes" with Undo | Phase 5C / 7C | Data counts per pane are done; card grouping and toasts are not. |
 
 ### Lines like traces: data model done (10 November), review follow-ups
@@ -170,8 +167,6 @@ Done and verified: `RefLine.paneIds[]` replaces `paneId` / `paneless` / `groupId
 | Undo/Redo restores lines but not which line was selected (selection resets to none) | Deferred | Phase 5C |
 | A v5 line carrying both old and new fields, or a crafted legacy horizontal group, or an old group member naming a removed pane, is rejected or only partly merged; labels of merged groups are not de-duplicated; `paneIds` order follows the `panes` array, not `layout.paneOrder`, and adding a pane appends | Edge cases, deferred | Phase 8 audit |
 | The legacy `restoreSnapshot` helper (unused by the app) does not remap the selected line id | Deferred | Phase 8 audit |
-| `src/components/sidebar/RefLineItem.tsx` is dead code that still contains link UI strings; remove it with the line row kit | Cleanup | With the lines kit |
-| Multi-pane Show-in editing UI (badges menu), removal of one copy, "V1 · 2" label, edge tag and right-click menu have no UI yet; the reducer actions `ADD_LINE_PANE`, `REMOVE_LINE_PANE`, `SET_LINE_PANES` exist and are unit-tested | Waiting for the kit | Phase 4 / 5C |
 
 ## Lines presentation (kit/lines, 10 November)
 
