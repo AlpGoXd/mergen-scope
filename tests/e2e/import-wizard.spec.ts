@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { resolve } from 'path';
 
 const csv = [
   'Model,DSOX1204G',
@@ -7,7 +8,7 @@ const csv = [
   ...Array.from({ length: 20 }, (_, i) => `${(i * 1e-3).toFixed(3)},${Math.sin(i / 3).toFixed(4)},${Math.cos(i / 3).toFixed(4)}`),
 ].join('\n');
 
-test('imports a CSV through the one-screen wizard, and Edit columns opens pre-filled', async ({ page }) => {
+test('imports a CSV through the one-screen wizard, and Import settings opens pre-filled', async ({ page }) => {
   await page.goto('/app.html');
   await page.getByTestId('app-open-input').setInputFiles({ name: 'scope_capture_04.csv', mimeType: 'text/csv', buffer: Buffer.from(csv) });
 
@@ -23,6 +24,8 @@ test('imports a CSV through the one-screen wizard, and Edit columns opens pre-fi
   await expect(page.getByTestId('wizard-col-1')).toContainText('CH1 (V)');
   await expect(wizard.getByLabel('Y in')).toHaveValue('V');
   await expect(page.getByTestId('import-wizard-plot').locator('polyline')).toHaveCount(2);
+  await expect(page.getByTestId('import-wizard-plot-caption')).toHaveText('Plot: all 20 rows');
+  await expect(page.getByTestId('import-wizard-plot-band')).toBeVisible();
 
   // CH2 → skip.
   await page.getByTestId('wizard-chip-2').click();
@@ -44,8 +47,8 @@ test('imports a CSV through the one-screen wizard, and Edit columns opens pre-fi
   await expect(page.locator('.lp-file--header .lp-name').filter({ hasText: 'scope_capture_04.csv' })).toBeVisible();
 
   await page.getByRole('button', { name: 'Actions for scope_capture_04.csv' }).click();
-  await page.getByRole('menuitem', { name: /^Edit columns/ }).click();
-  const edit = page.getByRole('dialog', { name: 'Edit columns' });
+  await page.getByRole('menuitem', { name: 'Import settings…' }).click();
+  const edit = page.getByRole('dialog', { name: 'Import settings scope_capture_04.csv' });
   await expect(edit).toBeVisible();
   // Pre-filled with the last settings: CH2 still skipped.
   await expect(page.getByTestId('wizard-chip-2')).toHaveAttribute('data-role', 'skip');
@@ -77,4 +80,18 @@ test('Esc cancels the import', async ({ page }) => {
   await page.keyboard.press('Escape');
   await expect(page.getByTestId('import-wizard')).toHaveCount(0);
   await expect(page.locator('.lp-file--header')).toHaveCount(0);
+});
+
+test('Import settings follows how the file was read, not its extension', async ({ page }) => {
+  await page.goto('/app.html');
+  await page.getByTestId('app-open-input').setInputFiles({ name: 'logger.txt', mimeType: 'text/plain', buffer: Buffer.from('Time (s)\tCH1 (V)\n0\t1\n1\t2\n2\t3\n') });
+  await page.getByTestId('import-wizard-confirm').click();
+  await page.getByRole('button', { name: 'Actions for logger.txt' }).click();
+  await expect(page.getByRole('menuitem', { name: 'Import settings…' })).toBeVisible();
+  await page.keyboard.press('Escape');
+
+  await page.getByTestId('app-open-input').setInputFiles(resolve('test files/cascaded chain.s2p'));
+  await page.getByRole('button', { name: 'Actions for cascaded chain.s2p' }).click();
+  await expect(page.getByRole('menuitem', { name: 'Info', exact: true })).toBeVisible();
+  await expect(page.getByRole('menuitem', { name: 'Import settings…' })).toHaveCount(0);
 });

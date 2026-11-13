@@ -4,7 +4,7 @@ import { detectDelimiter, detectSkipRows, detectTabular, contentLines } from '..
 import { detectFileSignature, parseForImport } from '../../src/domain/parsers/parse-file';
 import { parseTabularFile } from '../../src/domain/parsers/tabular';
 import { resetParserFileCounter } from '../../src/domain/parsers/rs-dat';
-import { previewCaption, setColumnRole, wizardBlocker, wizardLayout } from '../../src/domain/import-wizard';
+import { overviewPlot, plotCaption, previewCaption, readNumericTable, setColumnRole, wizardBlocker, wizardLayout } from '../../src/domain/import-wizard';
 import { migrateWorkspaceV5 } from '../../src/domain/workspace-migrate-v5';
 import { initialWorkspaceEngine, workspaceEngineReducer, snapshotFromWorkspace } from '../../src/stores/aggregate-workspace-store';
 import type { WizardConfig } from '../../src/types/file';
@@ -172,5 +172,50 @@ describe('Edit columns', () => {
     const broken = JSON.parse(JSON.stringify(snapshot));
     broken.files[0].wizardConfig.yUnit = 5;
     expect(migrateWorkspaceV5(broken)).toBeNull();
+  });
+});
+
+describe('whole-file preview plot', () => {
+  const csv = (rows: number, value: (i: number) => number) => ['t,a', ...Array.from({ length: rows }, (_, i) => `${i},${value(i)}`)].join('\n');
+  const plotOf = (text: string, maxRows?: number) => {
+    const config = detectTabular(text).config;
+    const layout = wizardLayout(text, config);
+    const table = readNumericTable(layout.lines, config.delimiter, config.skipRows, layout.headers.length, maxRows);
+    return { table, plot: overviewPlot(table, config.xCol, config.yCols, 8) };
+  };
+
+  it('uses every row, but stays within about two points per bucket', () => {
+    const { table, plot } = plotOf(csv(20000, (i) => Math.sin(i / 50)));
+    expect(table.total).toBe(20000);
+    expect(table.stride).toBe(1);
+    expect(plotCaption(table)).toBe('Plot: all 20 000 rows');
+    expect(plot.series[0]!.length).toBeLessThanOrEqual(2 * 600 + 4);
+    expect(plot.series[0]!.length).toBeGreaterThan(600);
+  });
+
+  it('keeps a single-sample spike far beyond the first rows', () => {
+    const { plot } = plotOf(csv(20000, (i) => (i === 15321 ? 50 : 0)));
+    const line = plot.series[0]!;
+    // The spike sets the top of the shared scale (y = 0) and sits about 77 % along X.
+    const top = line.find((point) => point.y === 0);
+    expect(top?.x).toBeCloseTo(15321 / 19999, 3);
+  });
+
+  it('marks where the table rows sit', () => {
+    const { plot } = plotOf(csv(1000, (i) => i));
+    expect(plot.band?.from).toBe(0);
+    expect(plot.band?.to).toBeCloseTo(7 / 999, 5);
+  });
+
+  it('reads every k-th row of very long files and says so', () => {
+    const { table, plot } = plotOf(csv(2000, (i) => i), 500);
+    expect(table.stride).toBe(4);
+    expect(plotCaption(table)).toBe('Plot: every 4th of 2 000 rows');
+    expect(plot.series[0]!.at(-1)?.x).toBe(1);
+  });
+
+  it('plots unsorted X the way the importer will read it', () => {
+    const { plot } = plotOf('x,y\n3,30\n1,10\n2,20\n');
+    expect(plot.series[0]).toEqual([{ x: 0, y: 1 }, { x: 0.5, y: 0.5 }, { x: 1, y: 0 }]);
   });
 });

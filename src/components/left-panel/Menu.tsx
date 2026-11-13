@@ -6,7 +6,7 @@ export interface MenuItem {
   /** Stable identity when labels can repeat or change. */
   id?: string;
   label: string;
-  /** Small muted text after the label (e.g. "(CSV only)") or under it when `noteBelow`. */
+  /** Small muted text after the label (e.g. "(2 traces)") or under it when `noteBelow`. */
   note?: string;
   noteBelow?: boolean;
   /** Right-aligned text (shortcut, "Hz ≠ s"). */
@@ -69,15 +69,16 @@ export function Menu({ title, entries, checklist, footer, style, label }: MenuPr
 
 /** Ready-made entries for the file ⋯ menu (C03). */
 export function fileMenuEntries(opts: {
-  isCsv: boolean; multiTrace: boolean;
-  onInfo: () => void; onReplace: () => void; onEditColumns: () => void; onRename: () => void;
+  /** The file was read as a table (any extension), so its import settings can be changed. */
+  isTable: boolean; multiTrace: boolean;
+  onInfo: () => void; onReplace: () => void; onImportSettings: () => void; onRename: () => void;
   onShowAll: () => void; onRemove: () => void;
 }): MenuEntry[] {
   const entries: MenuEntry[] = [
     { label: 'Info', onSelect: opts.onInfo },
     { label: 'Replace file…', onSelect: opts.onReplace },
   ];
-  if (opts.isCsv) entries.push({ label: 'Edit columns…', note: '(CSV only)', onSelect: opts.onEditColumns });
+  if (opts.isTable) entries.push({ label: 'Import settings…', onSelect: opts.onImportSettings });
   entries.push({ label: 'Rename', onSelect: opts.onRename });
   if (opts.multiTrace) entries.push({ label: 'Show all · Hide all', onSelect: opts.onShowAll });
   entries.push('separator', { label: 'Remove file…', danger: true, onSelect: opts.onRemove });

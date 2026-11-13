@@ -72,7 +72,9 @@
 .iw-plot-grid line { stroke: var(--border); stroke-width: 1; stroke-dasharray: 3 3; vector-effect: non-scaling-stroke; }
 .iw-plot-line { fill: none; stroke-width: 1.5; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
 
-.iw-result { margin: 0; }
+.iw-plot-band { fill: var(--sel-bg); opacity: 0.6; }
+.iw-result-row { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; }
+.iw-result { margin: 0; min-width: 0; }
 
 /* Footer: checkbox left · Skip file · Cancel · Add N traces right */
 .iw-foot { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-3) var(--space-4); border-top: 1px solid var(--border); flex-wrap: wrap; }

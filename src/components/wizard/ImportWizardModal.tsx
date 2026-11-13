@@ -6,10 +6,10 @@ import { useTraceState } from '../../stores/trace-store';
 import { useMarkerState } from '../../stores/marker-store';
 import type { OpenChoice } from '../../types/open-files-plan';
 import type { WizardConfig } from '../../types/file';
-import { detectTabular, splitCells } from '../../domain/parsers/tabular-detect';
+import { detectTabular } from '../../domain/parsers/tabular-detect';
 import {
   columnDisplayName, columnRole, hasColumnNames, importableYCols, listNames, matchPriorColumns, previewCaption,
-  previewPlot, setColumnRole, wizardBlocker, wizardLayout,
+  overviewPlot, plotCaption, readNumericTable, setColumnRole, wizardBlocker, wizardLayout,
 } from '../../domain/import-wizard';
 import { useWizardTraceColors } from '../../hooks/use-wizard-trace-colors';
 import { Btn } from '../shared/Btn';
@@ -70,8 +70,13 @@ function WizardDialog({ entry, position, total, others, queue, priorFile }: Wiza
   const named = hasColumnNames(config, headers);
   const blocker = wizardBlocker(config, layout);
   const yCols = importableYCols(config, layout);
+  // Whole-file plot: numbers are read when the layout changes; roles only pick and re-reduce columns.
+  const numericTable = useMemo(() => readNumericTable(layout.lines, config.delimiter, config.skipRows, layout.headers.length), [layout, config.delimiter, config.skipRows]);
+  // yCols is a fresh array each render; compare it by content.
+  const yColsKey = yCols.join(',');
+  const plot = useMemo(() => overviewPlot(numericTable, config.xCol, yCols, PREVIEW_ROWS), [numericTable, config.xCol, yColsKey]);
 
-  // Edit columns: which existing trace each Y column continues, and which traces go away.
+  // Import settings on an open file: which existing trace each Y column continues, and which traces go away.
   const prior = useMemo(() => {
     if (!priorFile) return [];
     const identities = priorFile.columnIdentities ?? [];
@@ -165,8 +170,6 @@ function WizardDialog({ entry, position, total, others, queue, priorFile }: Wiza
   const roles = headers.map((_, col) => columnRole(config, col));
   const names = headers.map((header, col) => columnDisplayName(header, roles[col] ?? 'skip', config));
   const traceNames = yCols.map(col => names[col] ?? `Column ${col + 1}`);
-  const previewRows = layout.lines.slice(config.skipRows, config.skipRows + PREVIEW_ROWS).map(line => splitCells(line, config.delimiter));
-  const plot = previewPlot(previewRows, config.xCol, yCols);
   const mainLabel = editing ? 'Apply' : `Add ${yCols.length} trace${yCols.length === 1 ? '' : 's'}`;
   const removedNames = removed.map(item => item.identity.header ?? `Column ${item.identity.index + 1}`);
   const removedText = removedNames.length === 0 ? null
@@ -177,7 +180,7 @@ function WizardDialog({ entry, position, total, others, queue, priorFile }: Wiza
       <div ref={dialogRef} className="ui-dialog iw-dialog" role="dialog" aria-modal="true" aria-labelledby="import-wizard-title" data-testid="import-wizard" tabIndex={-1}>
         <header className="iw-head">
           <h2 id="import-wizard-title" className="iw-title t-title">
-            {editing ? 'Edit columns' : 'Open'} <span className="iw-file" title={entry.fileName}>{entry.fileName}</span>
+            {editing ? 'Import settings' : 'Open'} <span className="iw-file" title={entry.fileName}>{entry.fileName}</span>
           </h2>
           {total > 1 && <span className="t-caption" data-testid="import-wizard-queue">File {position} of {total}</span>}
           <button type="button" className="iw-close" aria-label="Close" title="Cancel (Esc)" onClick={cancel}><Icon name="close" /></button>
@@ -208,12 +211,15 @@ function WizardDialog({ entry, position, total, others, queue, priorFile }: Wiza
               onRole={(col, role) => setConfig(prev => setColumnRole(prev, col, role))}
             />
             <WizardPreviewPlot plot={plot} colors={yColors} />
-            {!blocker && (
-              <p className="iw-result t-caption" data-testid="import-wizard-summary">
-                Will {editing ? 'show' : 'create'} {yCols.length} trace{yCols.length === 1 ? '' : 's'}: <span className="t-card-title">{entry.fileName}</span>
-                {traceNames.map((name, index) => <span key={`${name}-${index}`}> · {name}</span>)}
-              </p>
-            )}
+            <div className="iw-result-row">
+              {blocker ? <span /> : (
+                <p className="iw-result t-caption" data-testid="import-wizard-summary">
+                  Will {editing ? 'show' : 'create'} {yCols.length} trace{yCols.length === 1 ? '' : 's'}: <span className="t-card-title">{entry.fileName}</span>
+                  {traceNames.map((name, index) => <span key={`${name}-${index}`}> · {name}</span>)}
+                </p>
+              )}
+              <span className="t-caption" data-testid="import-wizard-plot-caption">{plotCaption(numericTable)}</span>
+            </div>
             {editing && <MessageBar status="info">Traces whose column still exists keep their colour, markers and pane.</MessageBar>}
             {editing && removedText && <MessageBar status="warning">{removedText}</MessageBar>}
           </div>
