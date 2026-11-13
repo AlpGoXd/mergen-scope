@@ -6,6 +6,7 @@
 
 import { parseMeasurementFile } from "../domain/parsers/parse-file.ts";
 import type { ParsedFile } from "../types/file.ts";
+import bundledDemoWorkspace from "../../demo-assets/demo.json?raw";
 
 // ---------------------------------------------------------------------------
 // Preset metadata
@@ -60,6 +61,11 @@ export async function loadDemoPresets(
 
 /** Fetch the saved demo workspace for the normal workspace import path. */
 export async function loadDemoWorkspace(): Promise<string> {
+  // The built app is also supported from file://, where fetch cannot read local files.
+  if (typeof window !== "undefined" && window.location.protocol === "file:") {
+    return bundledDemoWorkspace;
+  }
+
   const response = await fetch('./demo-assets/demo.json');
   if (!response.ok) throw new Error(`Demo request failed: ${response.status}`);
   return response.text();

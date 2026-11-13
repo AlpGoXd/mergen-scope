@@ -2,6 +2,14 @@
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
+test('Load demo button opens the saved workspace from the website', async ({ page }) => {
+  await page.goto('/app.html');
+  await page.getByRole('button', { name: 'Load demo' }).click();
+
+  await expect(page.locator('[data-testid^="trace-row-"]').first()).toBeVisible();
+  await expect(page.getByTestId('import-error')).toHaveCount(0);
+});
+
 test('demo opens a saved workspace and removes its query parameter', async ({ page }) => {
   await page.goto('/app.html');
   await page.getByTestId('app-open-input').setInputFiles(resolve('test files/cascade_ip3_-12dBm.DAT'));
