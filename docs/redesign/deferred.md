@@ -35,7 +35,7 @@ See [Phase 1–2 comparison](phase1-2-reference-comparison.md) and [side-by-side
 
 ## Phase 1 evidence and scope
 
-Phase 1 implemented the base tokens, offline fonts, type foundation, focus and reduced-motion styles, retained existing Recharts animation-off settings, and provider-owned theme preference API. The light/dark theme API was verified, but the user-facing Settings UI is still Phase 7 work. The base fixes for findings 01, 03, 05, 07 and 11 do not close the later component work listed above.
+Phase 1 implemented the base tokens, offline fonts, type foundation, focus and reduced-motion styles, retained existing Recharts animation-off settings, and provider-owned theme preference API. The light/dark theme API and user-facing Settings UI are implemented; preference integrations and the remaining verification are tracked below. The base fixes for findings 01, 03, 05, 07 and 11 do not close the later component work listed above.
 
 Keep the Phase 8 gate open until every applicable ledger item is closed and verified. Phase 8 must also complete the specified screen/state review and contrast checks (including text contrast of at least 4.5:1), confirm no component hex colors or emoji remain where prohibited, and use repository searches to prove compatibility aliases and legacy theme handling have no remaining consumers before removal. Record any item that is still open; do not report the redesign as complete while this ledger has open work.
 
@@ -67,7 +67,7 @@ The candidate comparison is in [phase7b-evidence/comparison.html](phase7b-eviden
 | Remaining work | Target phase | Status |
 | --- | --- | --- |
 | Adopt the same trace-family color resolver in chart rendering and verify matching colors for source and created traces in both themes. Resolver allocation is recomputed from surviving traces; deleting an earlier source or sibling can shift later colors. Preserve allocation in a workspace-compatible identity contract if colors must remain fixed across deletion and reload. | Phase 5 | Sidebar adopts the resolver; chart adoption and persistent allocation remain open. |
-| Connect sidebar Drop, Load demo, Replace, Edit columns, and file Rename callbacks to shared workflows; verify empty sidebar and replacement end to end. | Phase 7D / 7E | Open is wired in App; the other callbacks remain unwired. Trace-label rename is separately implemented with Undo. |
+| Connect sidebar Drop, Replace and file Rename callbacks to shared workflows; verify empty sidebar, import settings and replacement end to end. | Phase 7D / 7E | Open and Load demo are wired in App; tabular Import settings uses RERUN_WIZARD. Replace and file Rename callbacks remain unwired. Trace-label rename is separately implemented with Undo. |
 | Complete large-port plotted chips across views, grid popover dismissal/focus, and verify all-panes/unplaced and marker/line states against board 42-L1. Replace heuristic raw-header extraction with retained parsed header boundaries. | Phase 7E / final visual audit | Current chips cover the selected view in the target pane; additional states and exact header fidelity remain open. |
 | Verify trace nesting, visual sizing and Undo failure paths against integrated application states. | Phase 8 audit | Phase 4 kit work adds file-based row names, the seven interpolation choices, atomic apply-to-file and Undo; focused interpolation and rename tests pass. Complete action/failure-path coverage remains open. |
 
@@ -103,7 +103,7 @@ Light and dark populated network, CSV and error captures and comparisons are in 
 | Remaining work | Target phase | Status and evidence |
 | --- | --- | --- |
 | Capture real parsing-progress and recoverable-error rows in light and dark at 2x, and compare with the supplied kit and C03 board. | Phase 7D / 7E | Not captured: import records do not expose progress and error recovery depends on App workflow wiring. Existing populated network, normal/delta marker and linked-line captures are in [left-kit evidence](left-kit-evidence/comparison.md). |
-| Wire sidebar file Drop, Load demo, Replace, Edit columns, and file Rename through App and verify recovery and Undo. | Phase 7D / 7E | Sidebar accepts callbacks; App supplies Open and Threshold crossings. Do not treat placeholder callbacks as connected. |
+| Wire sidebar file Drop, Replace and file Rename through App; verify import settings, recovery and Undo. | Phase 7D / 7E | App supplies Open, Load demo and Threshold crossings; tabular Import settings uses RERUN_WIZARD. Replace and file Rename remain unwired. |
 | Complete matrix cell placement/action tooltips, greater-than-eight-port cross-view chips, grid focus and outside dismissal, and verify full narrow-panel and unusual states. | Phase 7E / Phase 8 | Matrix keyboard navigation and target-pane batch Undo are covered; tooltip, list and visual details remain open. |
 | Audit shared popover focus and keyboard behavior for kit menus and verify all marker/line edit invalid and cancellation paths. | Phase 8 | Shared popover and kit menu are connected; focused coverage does not establish every keyboard and invalid-input path. |
 
@@ -111,8 +111,8 @@ Light and dark populated network, CSV and error captures and comparisons are in 
 
 | Remaining work | Target phase | Status |
 | --- | --- | --- |
-| Connect the pure plot contract and G/Z/Y calculations to pane traces, per-port impedances, marker identities, settings and export. | 5E2–5E3 | Foundation only; legacy renderer remains active. |
-| Build and validate responsive grid, active-load display, interactions, linked frequency and readout; compare light and dark with the written specification and supplied reference. | 5E2–5E4 | No visual changes in 5E1; 2x reference pending. |
+| Complete Smith export and verify the wired plot, impedance and marker contracts end to end. | 5E2-5E3 | The Smith renderer and pane integration landed in bb4bb4d; export and remaining verification are open. |
+| Validate the responsive grid, active-load display, interactions, linked frequency and readout; compare light and dark with the written specification and supplied reference. | 5E2-5E4 | Renderer and linked frequency landed in bb4bb4d and 8b99e80; full comparison and verification remain open. |
 | Handle the explicit ambiguous-boundary and singular numerical results in presentation, including series L/C and DC. | 5E3–5E4 | Numerical status is explicit; presentation and end-to-end behavior remain open. |
 
 ## Toolbar pane feedback follow-up
@@ -146,13 +146,13 @@ Evidence and the full difference list are in [ac3-size-evidence](ac3-size-eviden
 
 | Remaining work | Target phase | Status |
 | --- | --- | --- |
-| Searchable Add analysis menu, kebab items (Create trace, Copy results), per-tool kind icons, short-name source rule, collapse and drag reorder, restyle of Peak Table / Noise PSD / IP3 / Trace Ops bodies, R1 / R8 right-panel frame | Phase 7C | Cards share the AC-3 shell and key/value rows; the rest is open. |
+| Finish analysis card actions and drag reorder; verify remaining card bodies and the right-panel frame against R1 / R8. | Phase 7C | Search, collapse, menu shell, Copy results, short source names and Math Create trace landed in 5c56fb4; drag reorder and remaining comparison are open. |
 | Size setting: adopt the size tokens in components with hard-coded px (top bar and strip, chart overlays, inline-styled cards); check both 1280 px sides at Large | Phase 7A / 7B adoption; Phase 8 audit | Tokens, setting, persistence and default are done. |
 | Pane header Hz chip and full P3 header | Phase 5C | Scale text and trace count hide in order without wrapping. |
 
 ## Lines like traces (LL-2, 10 November)
 
-Board [37-P4c](referance/37-P4c-lines-like-traces.png) replaces line linking with "Show in". The link icon and the Lines strip's Link button are removed; the data model moves to `paneIds[]` (see plan 3C). Open presentation work, waiting for the kit in `docs/redesign/kit/lines/`:
+Board [37-P4c](referance/37-P4c-lines-like-traces.png) replaces line linking with "Show in". The link icon and the Lines strip's Link button are removed; the data model moves to `paneIds[]` (see plan 3C). Remaining presentation work after integration of the lines kit:
 
 | Remaining work | Target phase | Status |
 | --- | --- | --- |
@@ -160,7 +160,7 @@ Board [37-P4c](referance/37-P4c-lines-like-traces.png) replaces line linking wit
 
 ### Lines like traces: data model done (10 November), review follow-ups
 
-Done and verified: `RefLine.paneIds[]` replaces `paneId` / `paneless` / `groupId`; placing adds the clicked pane plus X-linked panes (V lines, same normalized X unit group with shared X zoom `zoomAll`); H lines keep one pane; new panes get nothing; crossings per pane; migration of every old link group into one line (snapshot stays v5, reader accepts both shapes, writer writes the new one); link icon and Link button removed. Tests: `line-membership.test.ts`, `line-membership-migration.test.ts`, `line-membership.spec.ts` plus updated older tests. Independent Terra review of the migration found no defect in ordinary V groups; open follow-ups (none blocks the data model, all are edge cases or product questions):
+Done and verified: `RefLine.paneIds[]` replaces `paneId` / `paneless` / `groupId`; placing adds only the clicked pane; H lines keep one pane; new panes get nothing; crossings per pane; migration of every old link group into one line (snapshot stays v5, reader accepts both shapes, writer writes the new one); link icon and Link button removed. Tests: `line-membership.test.ts`, `line-membership-migration.test.ts`, `line-membership.spec.ts` plus updated older tests. Independent Terra review of the migration found no defect in ordinary V groups; open follow-ups (none blocks the data model, all are edge cases or product questions):
 
 | Item | Class | Target |
 | --- | --- | --- |
@@ -202,13 +202,13 @@ Evidence and the difference list: [analysis-evidence](analysis-evidence/README.m
 | Remaining work | Target phase | Status |
 | --- | --- | --- |
 | Legacy analysis state still exists behind the new panel and is written to workspaces for the old reader: `analysisOpenState`, the six result maps, `savedNoise`, `savedIP3`, `ANALYSIS_ITEMS`, `use-analysis-target` registry parts, and ui fields `noiseFilter`, `noiseSource`, `ip3Gain`, `traceOpsOpenSections` | Analysis B3 | Deferred |
-| Highlight the `current` crossing row on the chart; Math output names follow their parameters; family colour for the output hue; card "Create trace" | Analysis B3 / 7C | Deferred |
+| Highlight the `current` crossing row on the chart; verify parameter-based Math output names and family colour for output hue. | Analysis B3 / 7C | Grouped crossing row state and Math Create trace landed in 5c56fb4; chart highlighting and remaining verification are open. |
 | The Data tab and the Import/Export card are gone (decisions 1 and 2); the Table pane is the first step of Phase 5 | Phase 5 | Decided |
 
 ## Smith pane wired in (11 Nov): left out on purpose, to do later
 
-- **Marker dragging and right-click on Smith** (Add Δ, Delete…): add `onMarkerContextMenu` and a drag along the trace in `SmithPane`, then wire them in `SmithPaneContainer`.
-- **Trace symbols and sample dots on Smith** (the Samples toggle is hidden on Smith panes).
+- **Marker dragging and right-click on Smith:** dragging along the trace with grouped Undo was implemented in b75376e; right-click actions and context-menu wiring remain open.
+- **Trace symbols and sample dots on Smith:** rendering and sample-state wiring exist (`c500ef5`); verify the Samples control and symbol/dot behavior end to end on Smith panes.
 - **Saved zoom:** the Smith view resets to fit when the pane remounts; lift `{ center, zoom }` into the pane settings if it should be saved.
 - **Decimation:** every sample is drawn; add min/max thinning if 20k-point traces show up on Smith.
 - **Z11 / Y11 on Smith:** greyed with "Smith shows reflections (S11, S22 …)" until a conversion to Γ exists (`impedanceToGamma`, `admittanceToGamma` are ready in `src/domain/smith/numerics.ts`).
