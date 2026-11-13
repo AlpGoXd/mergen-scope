@@ -1,5 +1,6 @@
 import React from 'react';
-import type { PaneSettings } from '../../types/pane';
+import type { PaneSettings, TableSettings } from '../../types/pane';
+import type { TableVisibleRange } from '../../domain/table-view';
 import type { SmithSettings } from '../../types/pane';
 import type { SymbolSetting } from '../../domain/trace-palette';
 import { usePaneDispatch } from '../../stores/pane-store';
@@ -81,6 +82,15 @@ export interface PaneAxes {
   readonly onFitX: () => void;
   readonly onFitY: () => void;
 }
+/** Table panes: the Table section (Rows, Follow, Range). */
+export interface PaneTableOptions {
+  readonly settings: TableSettings;
+  readonly visible: TableVisibleRange;
+  /** Panes the table can follow ("Pane 1" …). */
+  readonly followChoices: readonly { readonly id: string; readonly label: string }[];
+  /** The pane actually followed (null when Own traces, or when the saved one is gone). */
+  readonly followedPaneId: string | null;
+}
 export interface PaneActions {
   readonly onCopy: () => Promise<CopyChartResult>;
   /** Null when the pane has nothing to export. */
@@ -94,7 +104,7 @@ export interface PaneActions {
  * then a row of actions: Copy chart · Export… · Close pane. Changes apply at once; there is no OK.
  */
 export function PaneSettingsPopover({
-  paneId, settings, sections, paneName, current, tiles, pending, anchor, onAnchorChange, onChoose, onConfirm, onCancel, contentRef, axes, onFit, actions,
+  paneId, settings, sections, paneName, current, tiles, pending, anchor, onAnchorChange, onChoose, onConfirm, onCancel, contentRef, axes, onFit, actions, table = null,
 }: {
   paneId: string;
   settings: PaneSettings;
@@ -114,6 +124,7 @@ export function PaneSettingsPopover({
   /** Smith panes: fit the unit circle. */
   onFit: (() => void) | null;
   actions: PaneActions;
+  table?: PaneTableOptions | null;
 }) {
   const paneDispatch = usePaneDispatch();
   const patch = (p: Partial<PaneSettings>) => paneDispatch({ type: 'SET_PANE_SETTINGS', payload: { paneId, patch: p } });
@@ -121,6 +132,7 @@ export function PaneSettingsPopover({
   const [copyState, setCopyState] = React.useState<CopyChartResult | null>(null);
   React.useEffect(() => { if (!anchor) setCopyState(null); }, [anchor]);
   const smith = current === 'smith';
+  const setTable = (p: Partial<TableSettings>) => { if (table) patch({ table: { ...table.settings, ...p } }); };
   const close = () => onAnchorChange(null);
 
   return (
@@ -139,7 +151,27 @@ export function PaneSettingsPopover({
               {current === 'eye' ? <span className="t-label">This pane belongs to the Eye diagram card on CH1.</span> : <ChartTypeTiles paneName={paneName} current={current} tiles={tiles} onChoose={onChoose} />}
             </Section>
 
-            <Section title="Display">
+            {table && <Section title="Table">
+              <Row label="Rows">
+                {([['near', 'Near cursor'], ['all', 'Every point']] as const).map(([value, text]) =>
+                  <Btn key={value} variant="slate" small active={table.settings.rows === value} aria-pressed={table.settings.rows === value} onClick={() => setTable({ rows: value })}>{text}</Btn>)}
+              </Row>
+              <div className="pset-note t-caption">Near cursor: the rows around the cursor. Every point: all rows, scrolling.</div>
+              <Row label="Follow">
+                <Btn variant="slate" small active={table.followedPaneId === null} aria-pressed={table.followedPaneId === null} onClick={() => setTable({ follow: null })}>Own traces</Btn>
+                {table.followChoices.map(choice => <Btn key={choice.id} variant="slate" small active={table.followedPaneId === choice.id} aria-pressed={table.followedPaneId === choice.id} onClick={() => setTable({ follow: choice.id })}>{choice.label}</Btn>)}
+              </Row>
+              <div className="pset-note t-caption">Following a pane shows its traces and its visible range.</div>
+              <Row label="Range">
+                <Btn variant="slate" small active={table.settings.range === 'all' || !table.visible.available} aria-pressed={table.settings.range === 'all' || !table.visible.available} onClick={() => setTable({ range: 'all' })}>All</Btn>
+                {table.visible.available
+                  ? <Btn variant="slate" small active={table.settings.range === 'visible'} aria-pressed={table.settings.range === 'visible'} onClick={() => setTable({ range: 'visible' })}>Visible</Btn>
+                  : <Tooltip text={table.visible.reason}><Btn variant="slate" small disabled aria-pressed={false}>Visible</Btn></Tooltip>}
+              </Row>
+              <div className="pset-note t-caption">{table.visible.available ? `All is the default. Visible shows the ${table.followedPaneId ? 'followed' : 'linked'} pane’s X range.` : `All is the default. Visible: ${table.visible.reason.toLowerCase()}.`}</div>
+            </Section>}
+
+            {sections.includes('display') && <Section title="Display">
               <Row label="Show">
                 <Chip on={settings.showSampleDots} label="Samples" testId="sample-dots-toggle" onToggle={() => patch({ showSampleDots: !settings.showSampleDots })} />
                 <Chip on={settings.showMarkers} label="Markers" onToggle={() => patch({ showMarkers: !settings.showMarkers })} />
@@ -193,15 +225,15 @@ export function PaneSettingsPopover({
                   })}
                 </Row>
               </>}
-            </Section>
+            </Section>}
 
-            <Section title="Axes">
+            {!table && <Section title="Axes">
               {axes ? <>
                 <Row label="X"><span className="t-readout pset-scale">{axes.x}</span><Btn small onClick={axes.onFitX}>Fit X</Btn></Row>
                 <Row label="Y"><span className="t-readout pset-scale">{axes.y}</span><Btn small onClick={axes.onFitY}>Fit Y</Btn></Row>
               </> : onFit ? <Row label="View"><Btn small onClick={onFit}>Fit the unit circle</Btn></Row>
                 : <div className="pset-note t-caption">Add a trace to this pane to set its axes.</div>}
-            </Section>
+            </Section>}
 
             <div className="pset-actions" role="group" aria-label={`${paneName} actions`}>
               <Btn small onClick={() => { void actions.onCopy().then(setCopyState); }}>{copyState === 'copied' ? 'Copied' : 'Copy chart'}</Btn>

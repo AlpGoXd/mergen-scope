@@ -128,6 +128,18 @@ export function engineeringScale(reference: number): number {
   return chooseEngineeringPrefix(reference).factor;
 }
 
+/**
+ * One SI prefix for a whole column of values that reach `reference`, and the unit to print with it
+ * (3e9 with "Hz" gives factor 1e9 and "GHz"). Log and non-prefixable units (dB, deg …) keep factor 1.
+ */
+export function engineeringUnitLabel(reference: number, unit: string | null | undefined): { readonly factor: number; readonly unit: string } {
+  const text = String(unit ?? "").trim();
+  const info = matchFormatUnit(text);
+  if (!text || isLogEngineeringUnit(text) || !info?.prefixable) return { factor: 1, unit: text };
+  const prefix = chooseEngineeringPrefix(Number.isFinite(reference) ? reference : 0);
+  return { factor: prefix.factor, unit: `${prefix.symbol}${info.symbol}` };
+}
+
 function decimalsForStep(step: number, factor: number): number | null {
   const scaledStep = Math.abs(step) / factor;
   if (!Number.isFinite(scaledStep) || scaledStep <= 0) return null;

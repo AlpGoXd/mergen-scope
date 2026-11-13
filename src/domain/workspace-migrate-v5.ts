@@ -19,6 +19,20 @@ const finite = (v: unknown): v is number => typeof v === 'number' && Number.isFi
 const stringMap = (v: unknown): boolean => object(v) && Object.values(v).every(x => typeof x === 'string');
 const boolMap = (v: unknown): boolean => object(v) && Object.values(v).every(x => typeof x === 'boolean');
 const strings = (v: unknown): v is string[] => Array.isArray(v) && v.every(x => typeof x === 'string');
+/**
+ * Table pane settings (rows, range, follow). A Follow that no longer points at another non-table pane
+ * becomes null ("Own traces") instead of refusing the file; unknown rows or range values refuse it.
+ */
+function withTableFollow<P>(panes: readonly P[]): P[] {
+  const modes = new Map(panes.flatMap(pane => object(pane) ? [[pane.id, pane.renderMode] as const] : []));
+  return panes.map(pane => {
+    if (!object(pane) || !object(pane.settings) || !object(pane.settings.table)) return pane;
+    const follow = pane.settings.table.follow;
+    const valid = typeof follow === 'string' && follow !== pane.id && modes.has(follow) && modes.get(follow) !== 'table';
+    return { ...pane, settings: { ...pane.settings, table: { ...pane.settings.table, follow: valid ? follow : null } } } as P;
+  });
+}
+const validTable = (v: unknown): boolean => v === undefined || (object(v) && (v.rows === 'near' || v.rows === 'all') && (v.range === 'all' || v.range === 'visible') && (v.follow === null || typeof v.follow === 'string'));
 function hueSlots(value: unknown): Record<string, TraceColorAssignment> | undefined | null {
   if (value === undefined) return undefined;
   if (!object(value)) return null;
@@ -290,7 +304,7 @@ function validCurrent(body: Record<string, unknown>): boolean {
     for (const key of ['gridMajor','gridMinor','showMarkers','showReferenceLines','showLineLabels','showMarkerLabels','showSampleDots','showReadoutNames','showZeroLine']) if (typeof settings[key] !== 'boolean') return false;
     for (const key of ['gridMajorThickness','gridMinorThickness']) if (!finite(settings[key]) || Number(settings[key]) < 0.5 || Number(settings[key]) > 5) return false;
     for (const key of ['gridMajorOpacity','gridMinorOpacity']) if (!finite(settings[key]) || Number(settings[key]) < 0 || Number(settings[key]) > 1) return false;
-    if (typeof settings.gridDashStyle !== 'string' || !object(settings.smith)) return false;
+    if (typeof settings.gridDashStyle !== 'string' || !object(settings.smith) || !validTable(settings.table)) return false;
     const smith = settings.smith;
     if (smith.outside !== undefined && smith.outside !== 'hidden' && smith.outside !== 'faint') return false;
     if (smith.range !== undefined && smith.range !== null && (!object(smith.range) || !finite(smith.range.startHz) || !finite(smith.range.stopHz) || smith.range.startHz > smith.range.stopHz)) return false;
@@ -359,7 +373,7 @@ export function migrateWorkspaceV5(raw: unknown): WorkspaceSnapshotV5 | null {
       : rawLayout;
     const paneOrder = Array.isArray(body.panes) ? body.panes.flatMap(pane => object(pane) && typeof pane.id === 'string' ? [pane.id] : []) : [];
     const refLines = migrateLines(body.refLines, paneOrder);
-    const panes = Array.isArray(body.panes) ? body.panes.map(pane => {
+    const panes = Array.isArray(body.panes) ? withTableFollow(body.panes).map(pane => {
       if (!object(pane) || !object(pane.settings) || !object(pane.settings.smith)) return pane;
       const smith = pane.settings.smith;
       const labels = smith.labels === true || smith.labels === undefined ? 'normalised' : smith.labels === false ? 'off' : smith.labels;
@@ -421,7 +435,7 @@ export function migrateWorkspaceV5(raw: unknown): WorkspaceSnapshotV5 | null {
     const ids = sourcePanes.map(p => object(p) ? p.id : undefined);
     if (new Set(ids).size !== ids.length) return null;
     const ui = object(body.ui) ? body.ui : {};
-    const panes: WorkspacePaneV5[] = sourcePanes.map((value): WorkspacePaneV5 => {
+    const panes: WorkspacePaneV5[] = withTableFollow(sourcePanes.map((value): WorkspacePaneV5 => {
       const p = value as Record<string, unknown>;
       const s = object(p.settings) ? p.settings : {};
       const smith = object(s.smith) ? s.smith : {};
@@ -452,9 +466,10 @@ export function migrateWorkspaceV5(raw: unknown): WorkspaceSnapshotV5 | null {
             direction: smith.direction === 'ends' || smith.direction === 'off' ? smith.direction : 'chevrons',
             readout: p.renderMode === 'smith-inverted' ? ['y', ...readout.filter(field => field !== 'y')] : readout,
           },
+          ...(object(s.table) ? { table: { rows: s.table.rows === 'all' ? 'all' as const : 'near' as const, range: s.table.range === 'visible' ? 'visible' as const : 'all' as const, follow: typeof s.table.follow === 'string' ? s.table.follow : null } } : {}),
         },
       };
-    });
+    }));
     const valid = new Set(panes.map(p => p.id));
     const assignments = object(body.traceAssignments) ? body.traceAssignments : {};
     const traces = [...legacy.files.flatMap(f => f.traces), ...legacy.derivedTraces];

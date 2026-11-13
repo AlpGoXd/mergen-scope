@@ -69,7 +69,7 @@ export function paneReducer(state: PaneState, action: PaneAction): PaneState {
       if (count > state.panes.length) {
         const panes = [...state.panes]; const issued = new Set(state.issuedPaneIds);
         // A new pane can display a different file; preserve its display choice but not its range.
-        while (panes.length < count) { let n = 1; while (issued.has(`pane-${n}`)) n++; const id = `pane-${n}`; issued.add(id); const target = panes.find(p => p.id === state.activePaneId) ?? panes[0]; if (!target) return state; panes.push({ ...target, id, title: '', renderMode: 'cartesian', typed: false, settings: { ...target.settings, smith: { ...target.settings.smith, range: null } } }); }
+        while (panes.length < count) { let n = 1; while (issued.has(`pane-${n}`)) n++; const id = `pane-${n}`; issued.add(id); const target = panes.find(p => p.id === state.activePaneId) ?? panes[0]; if (!target) return state; panes.push({ ...target, id, title: '', renderMode: 'cartesian', typed: false, settings: { ...target.settings, table: undefined, smith: { ...target.settings.smith, range: null } } }); }
         return { ...state, panes, issuedPaneIds: [...issued] };
       }
       if (action.targetPaneId && (count !== state.panes.length - 1 || !state.panes.some(p => p.id === action.targetPaneId))) return state;

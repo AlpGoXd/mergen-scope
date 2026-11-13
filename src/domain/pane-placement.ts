@@ -17,7 +17,11 @@ export type PaneRemovalResult = { readonly ok: true; readonly plan: PaneRemovalP
 
 /** A canonical axis group. Unknown units remain distinct from known groups. */
 export function traceXGroup(trace: Trace): string | null {
-  const unit = trace.units.x?.trim();
+  return xUnitGroup(trace.units.x);
+}
+/** "hz"/"Hz" → "Hz", "s"/"sec"/"seconds" → "s"; other units as written. */
+export function xUnitGroup(value: string | null | undefined): string | null {
+  const unit = value?.trim();
   if (!unit) return null;
   if (unit.toLowerCase() === 'hz') return 'Hz';
   if (unit === 's' || unit.toLowerCase() === 'sec' || unit.toLowerCase() === 'seconds') return 's';
