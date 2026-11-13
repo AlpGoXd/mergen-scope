@@ -19,6 +19,8 @@ import { useRefLineState, useRefLineDispatch } from '../../stores/ref-line-store
 import { useUiState, useUiDispatch } from '../../stores/ui-store';
 import { useTraceState } from '../../stores/trace-store';
 import { useSharedHoverPublisher, useSharedHoverValue } from '../../stores/shared-hover-store';
+import { usePointerReadoutPublisher } from '../../stores/pointer-readout-store';
+import { formatPointerXY } from '../../domain/footer-state';
 import { useTheme } from '../../hooks/use-theme';
 import { usePaneData } from '../../hooks/use-pane-data';
 import { useTableView } from '../../hooks/use-table-view';
@@ -39,7 +41,7 @@ import { paneTypeCompatibilityNote, summarizePaneTypeChange } from '../../domain
 import { formatAdaptiveXAxisTickLabels, formatAdaptiveXAxisValue, formatPerDivision, formatScalarWithUnit, makeYAxisTickFormatter } from '../../domain/format';
 import { getResolvedInterpolationStrategy } from '../../domain/interpolation';
 import { placeMarker, nearestIndexByFreq } from '../../domain/markers';
-import { computeVerticalIntersections, computeHorizontalIntersections } from '../../domain/ref-lines';
+import { computeVerticalIntersections, computeHorizontalIntersections, nextLineLabel } from '../../domain/ref-lines';
 import { makeNiceTicks, NICE_TICK_COUNT } from '../../domain/trace-math';
 import { allocateTraceColors, traceWidth } from '../../domain/trace-palette';
 import { Btn } from '../shared/Btn';
@@ -68,7 +70,6 @@ import { ExportFrame } from './export/ExportFrame';
 import { PAPER_LINE_PT, ptToCssPx } from '../../domain/export-image';
 import { tracesToCSV } from '../../domain/export';
 import { defaultPaneSettings } from '../../types/pane';
-import type { RefLine } from '../../types/ref-line';
 import { usePaneDrag } from './use-pane-drag';
 import { PaneDragOverlay } from './PaneDragOverlay';
 import { refusalGuidance, traceAlreadyInPane } from '../../domain/pane-drop-hints';
@@ -83,17 +84,6 @@ function markerGlyphPolygonPoints(type: 'normal' | 'delta' | 'peak', cx: number,
     return `${cx},${cy - h} ${cx + r},${cy + h * 0.6} ${cx - r},${cy + h * 0.6}`;
   }
   return null;
-}
-
-/** Next label for a new line (V1, V2, … / H1, H2, …).
- */
-function nextLineLabel(type: 'v' | 'h', lines: readonly RefLine[]): string {
-  const prefix = type === 'v' ? 'V' : 'H';
-  const nums = lines
-    .filter((l) => l.type === type && l.label?.startsWith(prefix))
-    .map((l) => parseInt((l.label ?? '').slice(prefix.length), 10))
-    .filter((n) => Number.isFinite(n) && n > 0);
-  return `${prefix}${nums.length ? Math.max(...nums) + 1 : 1}`;
 }
 
 export interface ChartPaneProps {
@@ -144,6 +134,8 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
   const publishHover = useSharedHoverPublisher();
   // The export copy shares the pane id: it must never clear the real pane's hover.
   useEffect(() => isExport ? undefined : () => publishHover(null, paneId), [publishHover, paneId, isExport]);
+  const publishReadout = usePointerReadoutPublisher();
+  useEffect(() => isExport ? undefined : () => publishReadout(null, paneId), [publishReadout, paneId, isExport]);
   const tableView = useTableView(paneId);
   const colorAssignments = useMemo(() => allocateTraceColors(allKnownTraces, new Map(Object.entries(traceHueSlots))), [allKnownTraces, traceHueSlots]);
   const { colors } = useTheme();
@@ -385,6 +377,8 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
   const lastPointerClientXRef = React.useRef<number | null>(null);
   const lastPointerClientYRef = React.useRef<number | null>(null);
   const lastPointerButtonRef = React.useRef<number | null>(null);
+  /** The press in flight is a Ctrl+left press: it pans, so the chart's own press handler must ignore it. */
+  const lastCtrlPanRef = React.useRef(false);
   const yAxisMapRef = React.useRef<Record<string, unknown> | null>(null);
   const lineChartRef = React.useRef<any>(null);
   const latestMergedDataRef = React.useRef(mergedData);
@@ -681,6 +675,8 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
 
     if (button === 2) return;
     if (button !== 0) return;
+    // Ctrl+drag pans (handleContainerMouseDown starts it): never place, select or drag anything under it.
+    if (lastCtrlPanRef.current) return;
 
     if (refMode === 'v') {
       const newId = Date.now();
@@ -756,6 +752,12 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
     if (freq == null || !Number.isFinite(freq)) return;
     setHoverFreq(freq);
     if (paneXUnit) publishHover({ paneId, xUnit: paneXUnit, value: freq }, paneId);
+    // The footer's mouse position: X and Y under the pointer in axis units.
+    const amp = resolveEventAmp(e);
+    if (amp != null && Number.isFinite(amp)) {
+      const x = formatAdaptiveXAxisValue(freq, visibleXSpan, { domain: activePaneTrace?.domain ?? 'frequency', unit: activePaneTrace?.units.x ?? (activePaneTrace?.domain === 'time' ? 's' : 'Hz') });
+      publishReadout(formatPointerXY(x, formatScalarWithUnit(amp, activePaneTrace?.units.y ?? null, { digits: 2 })), paneId);
+    }
 
     if (draggingMarkerIdx !== null) {
       const marker = markers[draggingMarkerIdx];
@@ -783,6 +785,7 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
   const handleMouseLeave = () => {
     setHoverFreq(null);
     publishHover(null, paneId);
+    publishReadout(null, paneId);
     lastPointerClientXRef.current = null;
     lastPointerClientYRef.current = null;
   };
@@ -837,6 +840,15 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
       paneDispatch({ type: 'SET_ACTIVE_PANE', payload: paneId });
     }
     lastPointerButtonRef.current = e.button;
+    if (e.button === 0 && e.ctrlKey) {
+      // Ctrl+drag pans the zoomed X range, like right-drag does when zoomed.
+      const zoom = paneXZooms[paneId] || null;
+      if (!zoom) return;
+      e.preventDefault();
+      setPanStartZoom({ left: zoom.left, right: zoom.right });
+      setPanStartClientX(e.clientX);
+      return;
+    }
     if (e.button === 2) {
       if (armed || refMode) return;
       e.preventDefault();
@@ -855,6 +867,13 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
     }
     if (e.button !== 1) return;
     e.preventDefault();
+    paneDispatch({ type: 'SET_PANE_Y_ZOOM', payload: { paneId, zoom: null } });
+    paneDispatch({ type: 'SET_PANE_ZOOM', payload: { paneId, zoom: null } });
+  };
+
+  // Double-click fits both axes, like the Fit button. Not while a tool is armed (its clicks place things) or over a line.
+  const handleDoubleClick = () => {
+    if (armed || refMode || hoveredRefLineId !== null || draggingRefLineId !== null) return;
     paneDispatch({ type: 'SET_PANE_Y_ZOOM', payload: { paneId, zoom: null } });
     paneDispatch({ type: 'SET_PANE_ZOOM', payload: { paneId, zoom: null } });
   };
@@ -1518,7 +1537,7 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
         ) : mergedData.length === 0 ? (
           <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--dim)', fontSize: 'var(--font-title)' }}>No visible traces in this pane.</div>
         ) : (
-          <div data-testid={`chart-plot-${paneId}`} data-line-labels={settings.showLineLabels ? 'on' : 'off'} ref={chartAreaRef} onWheel={handleWheel} onMouseDownCapture={(e) => { lastPointerClientXRef.current = e.clientX; lastPointerClientYRef.current = e.clientY; lastPointerButtonRef.current = e.button; }} onMouseMoveCapture={(e) => { lastPointerClientXRef.current = e.clientX; lastPointerClientYRef.current = e.clientY; }} onMouseDown={handleContainerMouseDown} style={{ height: '100%', cursor: draggingRefLineId !== null ? 'grabbing' : hoveredRefLineId !== null ? (refLines.find(l => l.id === hoveredRefLineId)?.type === 'h' ? 'ns-resize' : 'ew-resize') : undefined }}>
+          <div data-testid={`chart-plot-${paneId}`} data-line-labels={settings.showLineLabels ? 'on' : 'off'} ref={chartAreaRef} onWheel={handleWheel} onMouseDownCapture={(e) => { lastPointerClientXRef.current = e.clientX; lastPointerClientYRef.current = e.clientY; lastPointerButtonRef.current = e.button; lastCtrlPanRef.current = e.button === 0 && e.ctrlKey; }} onDoubleClick={handleDoubleClick} onMouseMoveCapture={(e) => { lastPointerClientXRef.current = e.clientX; lastPointerClientYRef.current = e.clientY; }} onMouseDown={handleContainerMouseDown} style={{ height: '100%', cursor: draggingRefLineId !== null ? 'grabbing' : hoveredRefLineId !== null ? (refLines.find(l => l.id === hoveredRefLineId)?.type === 'h' ? 'ns-resize' : 'ew-resize') : undefined }}>
             {chartPlot}
             {settings.showReferenceLines && plotView && paneRefLines.flatMap((line) => {
               const range = line.type === 'v' ? plotView.x : plotView.y;

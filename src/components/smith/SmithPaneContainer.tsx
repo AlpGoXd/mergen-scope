@@ -13,6 +13,8 @@ import { linkedPeers, paneXUnits } from '../../domain/x-link';
 import { smithLinkedBand, smithLinkedPaneLabel, smithMarkerFrequency, smithTraceSamples, smithRangeModel } from '../../domain/smith-pane-model';
 import { placeMarker } from '../../domain/markers';
 import { useOptionalAggregateWorkspace } from '../../stores/aggregate-workspace-store';
+import { usePointerReadoutPublisher } from '../../stores/pointer-readout-store';
+import { smithPointerText } from '../../domain/smith/readout';
 import { SmithPane } from './SmithPane';
 import type { ExportView } from '../chart/export/export-context';
 
@@ -25,11 +27,13 @@ export function SmithPaneContainer({ paneId, fitRequest = 0, exportView }: { pan
   const { traceHueSlots } = useUiState();
   const { markers, selectedMkrIdx, armed } = useMarkerState();
   const publish = useSharedHoverPublisher();
+  const publishReadout = usePointerReadoutPublisher();
   // The crosshair shows across every Hz pane, linked or not.
   const linkedCursorHz = useLinkedHoverFrequency(paneId, true);
   const cursorFrequencyHz = isExport ? null : linkedCursorHz;
   // The export copy shares the pane id: it must never clear the real pane's hover.
   useEffect(() => isExport ? undefined : () => publish(null, paneId), [publish, paneId, isExport]);
+  useEffect(() => isExport ? undefined : () => publishReadout(null, paneId), [publishReadout, paneId, isExport]);
   const markerDispatch = useMarkerDispatch();
   const historyDispatch = useOptionalAggregateWorkspace()?.historyDispatch;
   const lineDispatch = useRefLineDispatch();
@@ -89,6 +93,7 @@ export function SmithPaneContainer({ paneId, fitRequest = 0, exportView }: { pan
     onMoveMarkerEnd={() => historyDispatch?.({ type: 'commit-gesture' })}
     band={model.band} cursorFrequencyHz={cursorFrequencyHz}
     onHoverFrequency={value => { if (!isExport) publish(value === null ? null : { paneId, xUnit: 'Hz', value }, paneId); }}
+    onPointerGamma={gamma => { if (!isExport) publishReadout(gamma ? smithPointerText(gamma, traces[0]?.z0 ?? 50) : null, paneId); }}
     grid={smith?.grid ?? (pane.renderMode === 'smith-inverted' ? 'y' : 'z')} labels={smith?.labels ?? 'normalised'}
     direction={smith?.direction ?? 'chevrons'} readout={smith?.readout ?? ['z', 'gamma', 'vswr']}
     showMarkers={pane.settings.showMarkers} showMarkerTags={pane.settings.showMarkerLabels} showSamples={pane.settings.showSampleDots} fitRequest={fitRequest} />;

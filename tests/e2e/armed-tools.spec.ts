@@ -15,7 +15,7 @@ test('armed tools replace one another and cancel', async ({ page }) => {
   await expect(marker).toHaveAttribute('aria-pressed', 'true');
   await expect(marker).toHaveClass(/ui-btn--armed/);
   await expect(page.getByText('Click to place a marker', { exact: true })).toBeVisible();
-  await expect(page.locator('footer')).toContainText('Click to place a marker');
+  await expect(page.locator('footer')).toContainText('Placing M1 · click a trace · Esc cancels');
   await line.click();
   await expect(marker).toHaveAttribute('aria-pressed', 'false');
   await expect(line).toHaveAttribute('aria-pressed', 'true');

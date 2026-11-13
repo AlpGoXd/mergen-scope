@@ -70,13 +70,43 @@ export function shortcutText(id: ShortcutId): string {
   return shortcutById(id).keys.map(keys => keys.join('+')).join(' / ');
 }
 
-/** Mouse hints shown in Help, next to the keyboard list (what ChartPane and SmithPane actually do). */
-export const MOUSE_HINTS: readonly { readonly keys: readonly (readonly string[])[]; readonly label: string }[] = [
-  { keys: [['Right-drag']], label: 'Zoom an X range; pan when zoomed in' },
-  { keys: [['Scroll']], label: 'Y scale (Smith: zoom)' },
+/** Where the footer shows mouse hints: by the target pane's type, while a tool is armed, or with no file open. */
+export type MouseContext = 'chart' | 'smith' | 'table' | 'armed' | 'empty';
+
+export interface FooterHint {
+  /** The action word, in text colour. */
+  readonly action: string;
+  /** What it does, muted. */
+  readonly effect: string;
+}
+
+export interface MouseHint {
+  readonly keys: readonly (readonly string[])[];
+  readonly label: string;
+  /** How the footer words it, per context. A hint with no entry for a context is not shown there. */
+  readonly footer?: Partial<Record<MouseContext, FooterHint>>;
+}
+
+/**
+ * The one list of mouse hints: Help renders every row, the footer picks its 2–4 per context. Each row says what
+ * ChartPane, SmithPane and the placement tools actually do; change a gesture and its row together.
+ */
+export const MOUSE_HINTS: readonly MouseHint[] = [
+  { keys: [['Right-drag']], label: 'Zoom an X range; pan when zoomed in', footer: { chart: { action: 'Right-drag', effect: 'X zoom' } } },
+  { keys: [['Scroll']], label: 'Y scale (Smith: zoom)', footer: { chart: { action: 'Scroll', effect: 'Y scale' }, smith: { action: 'Scroll', effect: 'zoom' } } },
   { keys: [['Shift', 'Scroll']], label: 'Y offset' },
-  { keys: [['Middle-click']], label: 'Fit the pane' },
-  { keys: [['Drag'], ['Double-click']], label: 'Smith: pan / fit the unit circle' },
+  { keys: [['Ctrl', 'drag']], label: 'Pan the view (Smith: middle-drag also pans)', footer: { chart: { action: 'Ctrl+drag', effect: 'pan' }, smith: { action: 'Ctrl+drag', effect: 'pan' } } },
+  { keys: [['Double-click']], label: 'Fit the pane', footer: { chart: { action: 'Double-click', effect: 'fit' }, smith: { action: 'Double-click', effect: 'fit' } } },
+  { keys: [['Click']], label: 'Place the armed marker or line', footer: { armed: { action: 'Click', effect: 'place' } } },
   { keys: [['Click a marker tag']], label: 'Select the marker' },
-  { keys: [['Click a pane']], label: 'Make it the target pane' },
+  { keys: [['Click a pane']], label: 'Make it the target pane', footer: { table: { action: 'Click pane', effect: 'target' } } },
+  { keys: [['Drop files']], label: 'Open them anywhere in the window', footer: { empty: { action: 'Drop files', effect: 'anywhere' } } },
 ];
+
+/** The footer's hints for a context, from MOUSE_HINTS and the keyboard registry (Esc, Ctrl+O), in display order. */
+export function footerHints(context: MouseContext): readonly FooterHint[] {
+  const own = MOUSE_HINTS.flatMap(hint => hint.footer?.[context] ?? []);
+  if (context === 'armed') return [...own, { action: shortcutText('escape'), effect: 'cancel' }];
+  if (context === 'empty') return [...own, { action: shortcutText('open'), effect: 'open' }];
+  return own;
+}

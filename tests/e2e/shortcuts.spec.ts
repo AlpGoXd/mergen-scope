@@ -263,5 +263,7 @@ test('the pane settings button shows sliders; the gear is only on App settings',
   await openS21(page);
   const paneSettings = page.getByTestId('chart-pane-header-pane-1').getByRole('button', { name: 'Pane settings' });
   await expect(paneSettings.locator('svg[data-icon="sliders"]')).toHaveCount(1);
-  await expect(page.getByRole('button', { name: 'Settings', exact: true })).toContainText('⚙');
+  const gear = page.getByRole('button', { name: 'Settings', exact: true });
+  await expect(gear.locator('svg.footer-icon')).toHaveCount(1);
+  await expect(gear).not.toContainText('⚙');
 });

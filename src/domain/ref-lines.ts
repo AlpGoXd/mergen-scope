@@ -9,6 +9,16 @@ import { decodeXAxisUnit } from '../types/ref-line';
 import type { Trace } from '../types/trace';
 import type { RefLine } from '../types/ref-line';
 
+/** Next label for a new line (V1, V2, … / H1, H2, …). */
+export function nextLineLabel(type: 'v' | 'h', lines: readonly RefLine[]): string {
+  const prefix = type === 'v' ? 'V' : 'H';
+  const nums = lines
+    .filter((l) => l.type === type && l.label?.startsWith(prefix))
+    .map((l) => parseInt((l.label ?? '').slice(prefix.length), 10))
+    .filter((n) => Number.isFinite(n) && n > 0);
+  return `${prefix}${nums.length ? Math.max(...nums) + 1 : 1}`;
+}
+
 export interface LineIntersection {
   traceName: string;
   paneId: string;

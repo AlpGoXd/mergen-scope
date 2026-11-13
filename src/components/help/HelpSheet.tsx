@@ -3,8 +3,10 @@ import { MOUSE_HINTS, SHORTCUTS } from '../../domain/shortcuts';
 import { APP_VERSION, feedbackUrl } from './shortcuts';
 import './help-sheet.css';
 
-export function FeedbackLinks() {
-  return <><a href={feedbackUrl('problem')} target="_blank" rel="noopener noreferrer">Report a problem ↗</a><a href={feedbackUrl('idea')} target="_blank" rel="noopener noreferrer">Suggest an idea ↗</a></>;
+/** The two GitHub issue links; `menu` marks them as the items of a menu (the footer's Feedback menu). */
+export function FeedbackLinks({ menu = false }: { menu?: boolean }) {
+  const role = menu ? 'menuitem' : undefined;
+  return <><a role={role} href={feedbackUrl('problem')} target="_blank" rel="noopener noreferrer">Report a problem ↗</a><a role={role} href={feedbackUrl('idea')} target="_blank" rel="noopener noreferrer">Suggest an idea ↗</a></>;
 }
 
 const PRIVACY = 'Your files never leave this browser.';

@@ -17,7 +17,7 @@ import {
 import type { SmithReadout } from '../../domain/smith/readout';
 import { directionChevrons, traceEnds } from '../../domain/smith/trace-decor';
 import type { SmithDirectionMode } from '../../domain/smith/trace-decor';
-import { fitViewport, gammaToPoint, panBy, zoomAt } from '../../domain/smith/viewport';
+import { fitViewport, gammaToPoint, panBy, pointToGamma, zoomAt } from '../../domain/smith/viewport';
 import { DOT_RADIUS, planDotsAndSymbols } from '../../domain/dots-and-symbols';
 import type { TraceSymbol as SymbolKind } from '../../domain/trace-palette';
 import { TraceSymbol } from '../shared/TraceSymbol';
@@ -87,6 +87,8 @@ export interface SmithPaneProps {
   readonly cursorFrequencyHz?: number | null;
   /** The frequency under the pointer in this pane (null on leave), for ghost crosshairs elsewhere. */
   readonly onHoverFrequency?: (frequencyHz: number | null) => void;
+  /** Γ under the pointer (free, not snapped to a trace); null when it leaves the plot. For the footer's mouse position. */
+  readonly onPointerGamma?: (gamma: Complex | null) => void;
   /** Change this number to fit the view from outside (the app's Fit button and Space / F). */
   readonly fitRequest?: number;
   /** Paper exports: size of trace symbols and sample dots relative to the screen. */
@@ -163,7 +165,7 @@ function inBand(frequencyHz: number, band: SmithBand | null | undefined): boolea
 export function SmithPane({
   traces, markers = NO_MARKERS, markerNames, selectedMarkerId = null, onSelectMarker, onTraceClick, onMoveMarker, onMoveMarkerEnd, band = null, rangeBar,
   grid = 'z', labels = 'normalised', direction = 'chevrons', readout = DEFAULT_READOUT,
-  showMarkers = true, showMarkerTags = true, showSamples = false, cursorFrequencyHz = null, onHoverFrequency, fitRequest, size, markScale = 1,
+  showMarkers = true, showMarkerTags = true, showSamples = false, cursorFrequencyHz = null, onHoverFrequency, onPointerGamma, fitRequest, size, markScale = 1,
 }: SmithPaneProps) {
   const plotRef = useRef<HTMLDivElement>(null);
   const { width, height } = useElementSize(plotRef, size);
@@ -317,6 +319,7 @@ export function SmithPane({
       return;
     }
     if (!viewport) return;
+    onPointerGamma?.(pointToGamma(localPoint(event), viewport));
     if (active?.markerId && active.pointerId === event.pointerId) {
       if (!active.moved && Math.hypot(event.clientX - active.startX, event.clientY - active.startY) <= CLICK_SLOP_PX) return;
       const entry = paneMarkers.find(item => item.marker.id === active.markerId);
@@ -411,7 +414,7 @@ export function SmithPane({
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
-        onPointerLeave={() => { if (!drag.current?.pan && !drag.current?.markerId) clearHover(); }}
+        onPointerLeave={() => { onPointerGamma?.(null); if (!drag.current?.pan && !drag.current?.markerId) clearHover(); }}
         onMouseDown={event => { if (event.button === 1) event.preventDefault(); }}
         onDoubleClick={fitView}
         onKeyDown={onKeyDown}

@@ -126,3 +126,23 @@ export function formatSmithFrequency(hz: number): string {
   if (a >= 1e3) return `${sign}${(a / 1e3).toFixed(3)} kHz`;
   return `${sign}${a.toFixed(1)} Hz`;
 }
+
+/** Three significant digits, no trailing zeros, no sign: 42.1, 8.3, 1230. */
+function sig3(value: number): string {
+  return String(Number(Math.abs(value).toPrecision(3)));
+}
+
+/**
+ * The footer's mouse position over a Smith pane: "Z 42.1 + j8.3 Ω  Γ 0.12 ∠ 61°" (a free point, referred to `z0`).
+ * Shorter than the readout strip: a moving pointer needs no more precision than this.
+ */
+export function smithPointerText(gamma: Complex, z0: number): string {
+  const polar = gammaPolar(gamma);
+  const z = gammaToImpedance(gamma, z0);
+  const zText = z.kind === 'undefined'
+    ? (z.reason === 'singular' ? '∞ Ω' : SMITH_NO_VALUE)
+    : `${z.value.re < 0 ? MINUS : ''}${sig3(z.value.re)} ${z.value.im < 0 ? MINUS : '+'} j${sig3(z.value.im)} Ω`;
+  const angle = polar ? Math.round(polar.angleDeg) : 0;
+  const gText = polar ? `${polar.magnitude.toFixed(2)} ∠ ${angle < 0 ? MINUS : ''}${Math.abs(angle)}°` : SMITH_NO_VALUE;
+  return `Z ${zText}  Γ ${gText}`;
+}
