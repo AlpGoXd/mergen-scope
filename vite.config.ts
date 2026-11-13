@@ -14,6 +14,7 @@ function copyRuntimeAssets(): Plugin {
     "mergen-scope-icon.png",
     "favicon.ico",
     "mergen-scope-preview.png",
+    "_headers",
     "robots.txt",
     "sitemap.xml",
   ];
