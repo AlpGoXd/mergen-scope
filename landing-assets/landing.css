@@ -12,6 +12,7 @@
   --trace-a: oklch(0.55 0.15 270); --trace-b: oklch(0.55 0.10 180); --trace-c: oklch(0.55 0.15 0); --trace-d: oklch(0.55 0.15 315);
   --tag-a: oklch(0.50 0.16 270); --tag-b: oklch(0.47 0.09 180); --tag-c: oklch(0.50 0.16 0); --tag-d: oklch(0.50 0.15 315);
   --on-tag: oklch(0.99 0 0);
+  --marker: oklch(0.62 0.17 20);
   --sans: "Plex", system-ui, sans-serif;
   --mono: "JetBrains Mono", "Plex", ui-monospace, monospace;
 }
@@ -25,6 +26,7 @@
     --trace-a: oklch(0.75 0.127 270); --trace-b: oklch(0.75 0.11 180); --trace-c: oklch(0.75 0.13 0); --trace-d: oklch(0.75 0.13 315);
     --tag-a: var(--trace-a); --tag-b: var(--trace-b); --tag-c: var(--trace-c); --tag-d: var(--trace-d);
     --on-tag: oklch(0.17 0.016 255);
+    --marker: oklch(0.75 0.14 20);
   }
 }
 
@@ -48,6 +50,8 @@ h3 { font-size: 17px; line-height: 1.35; font-weight: 600; }
 /* header and footer */
 .bar { height: 64px; display: flex; align-items: center; justify-content: space-between; }
 .brand { display: flex; align-items: center; gap: 10px; font-size: 16px; font-weight: 600; color: var(--text); text-decoration: none; }
+.brand-mark .m { stroke: var(--accent); }
+.brand-mark .k { fill: var(--marker); stroke: var(--marker); }
 .bar nav a, .foot nav a { display: inline-flex; align-items: center; min-height: 44px; font-size: 15px; }
 .foot { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px 24px; padding-top: 20px; padding-bottom: 28px; border-top: 1px solid var(--line); font-size: 14px; color: var(--muted); }
 .foot nav { display: flex; gap: 24px; }
