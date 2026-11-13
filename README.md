@@ -10,7 +10,7 @@
 
 Mergen Scope opens instrument exports and turns them into an interactive workspace for comparing traces, placing markers, measuring signals, and creating derived data. Spectrum analyzer captures, oscilloscope waveforms, and Touchstone networks can live in the same session, with compatible traces arranged across multiple panes.
 
-Version 2.0 is a complete TypeScript rewrite with a redesigned interface, flexible pane layouts, an interactive Smith chart, a unified analysis panel, and workspace undo/redo. It has grown from a spectrum file viewer into a measurement workbench.
+The 1.0.0-beta.1 prerelease is a complete TypeScript rewrite with a redesigned interface, flexible pane layouts, an interactive Smith chart, a unified analysis panel, and workspace undo/redo. It has grown from a spectrum file viewer into a measurement workbench.
 
 Files are read and processed in your browser. No account, measurement upload, or desktop installation is required.
 
