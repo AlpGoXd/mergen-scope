@@ -96,7 +96,7 @@ This file is the written design source of truth. Newer decisions in the sections
 - **Cards:**
   - a neutral card with a header band in the faint Analysis tint and the target trace's swatch in the header;
   - settings above a hairline, results below;
-  - exact CSS in `docs/redesign/kit/analysis/`.
+  - exact CSS in `src/components/analysis/kit/analysis.css`.
 - **Math cards:**
   - Adding one creates nothing; "Create trace" makes it, into the source trace's panes, nested under the source.
   - The trace then follows its inputs and settings. There's no Live/Freeze toggle; ⋯ › "Freeze as a copy" makes an independent trace.

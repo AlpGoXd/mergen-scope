@@ -172,7 +172,7 @@ The aggregate workspace provider coordinates changes across files, traces, panes
 
 Issues and pull requests are welcome. Include an example file or reproduction steps when reporting an import or analysis problem. The in-app **Feedback** menu opens GitHub issue forms with the app version and browser details, without attaching measurement files.
 
-For code changes, run typecheck, unit tests, browser tests, build, and static tests in that order. Add focused coverage when changing parsers, calculations, workspace persistence, or history. Follow [AGENTS.md](AGENTS.md); the redesign checkpoint is documented in [docs/redesign/CHECKPOINT.md](docs/redesign/CHECKPOINT.md).
+For code changes, run typecheck, unit tests, browser tests, build, and static tests in that order. Add focused coverage when changing parsers, calculations, workspace persistence, or history. Follow [AGENTS.md](AGENTS.md); the design requirements are in [design decisions](docs/design/design-decisions-2026-11-10.md) and the remaining work is in [the plan](docs/plan.md).
 
 ## Why I built this
 

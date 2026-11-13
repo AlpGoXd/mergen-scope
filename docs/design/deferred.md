@@ -16,7 +16,7 @@ This ledger tracks findings that remain open after the Phase 1 foundation and Ph
 
 ## Reference comparison follow-up (8 November)
 
-See [Phase 1–2 comparison](phase1-2-reference-comparison.md) and [side-by-side images](phase1-2-reference-comparison.html) for evidence and the complete difference register. Every UI phase must repeat this comparison in both themes, using the matching boards and classifying differences as fixed / deferred (phase) / intentional; written v3 wins.
+See Phase 1–2 comparison and side-by-side images for evidence and the complete difference register. Every UI phase must repeat this comparison in both themes, using the matching boards and classifying differences as fixed / deferred (phase) / intentional; the current decisions file wins.
 
 | ID | Remaining visual work or evidence | Target phase | Status |
 | --- | --- | --- | --- |
@@ -48,11 +48,11 @@ Keep the Phase 8 gate open until every applicable ledger item is closed and veri
 | Verify strip wrapping at 1024 px and on both sides of 1280 px, including populated and armed states, against 40-T1. Align the delta armed sentence with its marker/reference identity and the footer, and verify the chart ghost and target-pane behavior. | Phase 7E | Partial: marker and line hint slots now size to their longest current sentences; 1440 px light/dark tests cover stable positions and Escape from toolbar buttons. Delta wording, ghost and responsive evidence remain outstanding. |
 | Complete the empty-app, pane and footer integration visible in the 40-T1 comparison, and compare light/dark populated and armed states at both sides of the 1280 px breakpoint. | Phase 7E (footer component in 7B) | Partial: marker-toolbar evidence now covers empty, populated and normal-marker armed states in both themes at 1440 px; responsive and delta-armed comparisons remain outstanding. |
 
-Phase 7A screenshots and side-by-side comparisons are in [phase7a-evidence](phase7a-evidence/comparison.md). The 32 px top and strip rows intentionally follow the written specification over the taller reference drawing.
+Phase 7A screenshots and side-by-side comparisons are in phase7a-evidence. The 32 px top and strip rows intentionally follow the written specification over the taller reference drawing.
 
 ## Phase 7B footer and app settings follow-up
 
-The candidate comparison is in [phase7b-evidence/comparison.html](phase7b-evidence/comparison.html), with light and dark screenshots of the empty footer, help and settings sheets. Screenshots were captured at 1440 Ã— 900 on the 7B worktree before integration; they do not establish integrated behavior.
+The candidate comparison is in phase7b-evidence/comparison.html, with light and dark screenshots of the empty footer, help and settings sheets. Screenshots were captured at 1440 Ã— 900 on the 7B worktree before integration; they do not establish integrated behavior.
 
 | Remaining work | Target phase | Status and evidence |
 | --- | --- | --- |
@@ -76,7 +76,7 @@ The candidate comparison is in [phase7b-evidence/comparison.html](phase7b-eviden
 
 | Remaining work | Target phase | Status and evidence |
 | --- | --- | --- |
-| Complete the integrated-tree narrow 220 px visual audit and verify remaining kit state variants. | Phase 8 visual audit | The kit is integrated; populated normal/delta markers and linked/unlinked lines are captured at 2x in both themes in [left-kit evidence](left-kit-evidence/comparison.md). Narrow matrix containment is covered by e2e; full narrow-panel visual comparison remains open. |
+| Complete the integrated-tree narrow 220 px visual audit and verify remaining kit state variants. | Phase 8 visual audit | The kit is integrated; populated normal/delta markers and linked/unlinked lines are captured at 2x in both themes in left-kit evidence. Narrow matrix containment is covered by e2e; full narrow-panel visual comparison remains open. |
 | Verify matrix cell tooltip wording against the current add/show behavior and target-pane contract. | Phase 8 | TouchstoneMatrixPicker now describes the add/show action and lists existing pane placements; the older add/remove wording requires reconciliation with current behavior. |
 
 ## File-card visual correction follow-up
@@ -88,21 +88,21 @@ The candidate comparison is in [phase7b-evidence/comparison.html](phase7b-eviden
 | Verify matrix tooltip behavior against the current add/show contract. | Phase 7E; verify in Phase 8 | The picker lists the current view and existing placements and describes add/show; the older add/remove wording needs reconciliation. |
 | Finish the greater-than-eight-port picker: compare its row/column selectors, removable plotted chips and full-grid popover against board 23-C04, and complete cross-view chips plus popover focus and dismissal. | Phase 7E; visual audit in Phase 8 | Partial: the list picker and grid exist; the visual treatment and cross-view/focus behavior remain incomplete. |
 
-Light and dark populated network, CSV and error captures and comparisons are in [file-card visual evidence](file-card-visual-evidence/README.md). The More control now uses the kit menu in the shared popover; complete the integrated-tree comparison against boards 00 and 01 in the Phase 8 visual audit.
+Light and dark populated network, CSV and error captures and comparisons are in file-card visual evidence. The More control now uses the kit menu in the shared popover; complete the integrated-tree comparison against boards 00 and 01 in the Phase 8 visual audit.
 
 ## File-card 2x follow-up
 
 | Remaining work | Target phase | Status |
 | --- | --- | --- |
 | Wire Replace and Rename to their real workflows and verify their data preservation and undo behavior. | Phase 7D / 7E | Disabled with explanations; no placeholder behavior. |
-| Compare menu and card proportions in both themes against complete dark closeups; adjust as needed. | Phase 8 | Card and menu evidence remains in [file-card evidence](file-card-2x-evidence/comparison.md). The dark Matrix comparison is complete in [Matrix 2x evidence](dark-matrix-2x-evidence/comparison.md). |
+| Compare menu and card proportions in both themes against complete dark closeups; adjust as needed. | Phase 8 | Card and menu evidence remains in file-card evidence. The dark Matrix comparison is complete in Matrix 2x evidence. |
 
 
 ## Left-panel kit integration follow-up
 
 | Remaining work | Target phase | Status and evidence |
 | --- | --- | --- |
-| Capture real parsing-progress and recoverable-error rows in light and dark at 2x, and compare with the supplied kit and C03 board. | Phase 7D / 7E | Not captured: import records do not expose progress and error recovery depends on App workflow wiring. Existing populated network, normal/delta marker and linked-line captures are in [left-kit evidence](left-kit-evidence/comparison.md). |
+| Capture real parsing-progress and recoverable-error rows in light and dark at 2x, and compare with the supplied kit and C03 board. | Phase 7D / 7E | Not captured: import records do not expose progress and error recovery depends on App workflow wiring. Existing populated network, normal/delta marker and linked-line captures are in left-kit evidence. |
 | Wire sidebar file Drop, Replace and file Rename through App; verify import settings, recovery and Undo. | Phase 7D / 7E | App supplies Open, Load demo and Threshold crossings; tabular Import settings uses RERUN_WIZARD. Replace and file Rename remain unwired. |
 | Complete matrix cell placement/action tooltips, greater-than-eight-port cross-view chips, grid focus and outside dismissal, and verify full narrow-panel and unusual states. | Phase 7E / Phase 8 | Matrix keyboard navigation and target-pane batch Undo are covered; tooltip, list and visual details remain open. |
 | Audit shared popover focus and keyboard behavior for kit menus and verify all marker/line edit invalid and cancellation paths. | Phase 8 | Shared popover and kit menu are connected; focused coverage does not establish every keyboard and invalid-input path. |
@@ -129,7 +129,7 @@ Light and dark populated network, CSV and error captures and comparisons are in 
 
 ## Threshold crossings AC-3 follow-up (Step 1, 9 November)
 
-Evidence: [line-crossings-evidence](line-crossings-evidence/README.md), light and dark at 2x, line list and manual threshold. Compared with board 03 AC-3 (the 45-R1 board predates the band).
+Evidence: line-crossings-evidence, light and dark at 2x, line list and manual threshold. Compared with board 03 AC-3 (the 45-R1 board predates the band).
 
 | Difference | Class | Target |
 | --- | --- | --- |
@@ -139,7 +139,7 @@ Evidence: [line-crossings-evidence](line-crossings-evidence/README.md), light an
 
 ## AC-3 cards, row spacing and Size setting follow-up (10 November)
 
-Evidence and the full difference list are in [ac3-size-evidence](ac3-size-evidence/README.md). Open items:
+Evidence and the full difference list are in ac3-size-evidence. Open items:
 
 | Remaining work | Target phase | Status |
 | --- | --- | --- |
@@ -149,7 +149,7 @@ Evidence and the full difference list are in [ac3-size-evidence](ac3-size-eviden
 
 ## Lines like traces (LL-2, 10 November)
 
-Board [37-P4c](referance/37-P4c-lines-like-traces.png) replaces line linking with "Show in". The link icon and the Lines strip's Link button are removed; the data model moves to `paneIds[]` (see plan 3C). Remaining presentation work after integration of the lines kit:
+Board 37-P4c replaces line linking with "Show in". The link icon and the Lines strip's Link button are removed; the data model moves to `paneIds[]` (see plan 3C). Remaining presentation work after integration of the lines kit:
 
 | Remaining work | Target phase | Status |
 | --- | --- | --- |
@@ -167,7 +167,7 @@ Done and verified: `RefLine.paneIds[]` replaces `paneId` / `paneless` / `groupId
 
 ## Lines presentation (kit/lines, 10 November)
 
-Integrated: the kit's `LineRow` in the Lines section (`LiveLineRow`), Show in (shared checklist, `PopoverAt`), right-click menu on a line or its label, `ChartLine` / `CrossingDot` / `EdgeTag` in every pane (`LinesLayer.tsx`), one hovered-or-selected line id (`hoveredRefLineId`, transient, never undone or saved) that lights every copy, its edge tags and its row, drag of any copy, Undo toasts, per-pane visible ranges (`paneViews`) feeding "off view" text and edge tags. Differences against the kit demo and board 37-P4c are in [lines-evidence](lines-evidence/README.md). Open:
+Integrated: the kit's `LineRow` in the Lines section (`LiveLineRow`), Show in (shared checklist, `PopoverAt`), right-click menu on a line or its label, `ChartLine` / `CrossingDot` / `EdgeTag` in every pane (`LinesLayer.tsx`), one hovered-or-selected line id (`hoveredRefLineId`, transient, never undone or saved) that lights every copy, its edge tags and its row, drag of any copy, Undo toasts, per-pane visible ranges (`paneViews`) feeding "off view" text and edge tags. Differences against the kit demo and board 37-P4c are in lines-evidence. Open:
 
 | Remaining work | Target phase | Status |
 | --- | --- | --- |
@@ -177,7 +177,7 @@ Integrated: the kit's `LineRow` in the Lines section (`LiveLineRow`), Show in (s
 
 ## Bug and rule fixes after testing (10 November)
 
-Done and covered by tests: a line is placed only in the clicked pane (no X-link rule, nothing added automatically, not even to new panes; `line-membership.spec.ts`, `line-membership.test.ts`); lines land at the cursor in any pane and view (`line-cursor.spec.ts`: V and H, pane 1 and 2, auto and zoomed). Root cause of the H-line miss: pixel to value maths in `ChartPane.tsx` used fixed layout constants (margins, a 35 px x-axis height) and, for auto scale, a padded estimate of the Y domain; it now uses the plot rectangle and scale domains the lines layer reports. Right-click: a line or its label opens its own menu, an empty chart cancels an armed tool, the browser menu never shows on a chart (`line-context-menu.spec.ts`). Toast policy (spec-v3, Toasts): only delete, closing a file, Apply to all, moved traces and opened files; one toast at a time; no history notices (`toast-policy.test.tsx`, `toasts.spec.ts`). Open:
+Done and covered by tests: a line is placed only in the clicked pane (no X-link rule, nothing added automatically, not even to new panes; `line-membership.spec.ts`, `line-membership.test.ts`); lines land at the cursor in any pane and view (`line-cursor.spec.ts`: V and H, pane 1 and 2, auto and zoomed). Root cause of the H-line miss: pixel to value maths in `ChartPane.tsx` used fixed layout constants (margins, a 35 px x-axis height) and, for auto scale, a padded estimate of the Y domain; it now uses the plot rectangle and scale domains the lines layer reports. Right-click: a line or its label opens its own menu, an empty chart cancels an armed tool, the browser menu never shows on a chart (`line-context-menu.spec.ts`). Toast policy (design decisions, Toasts): only delete, closing a file, Apply to all, moved traces and opened files; one toast at a time; no history notices (`toast-policy.test.tsx`, `toasts.spec.ts`). Open:
 
 | Remaining work | Target phase | Status |
 | --- | --- | --- |
@@ -192,7 +192,7 @@ Done and covered by tests: a line is placed only in the clicked pane (no X-link 
 
 ## Analysis overhaul B2 follow-up (10 November)
 
-Evidence and the difference list: [analysis-evidence](analysis-evidence/README.md). Open:
+Evidence and the difference list: analysis-evidence. Open:
 
 | Remaining work | Target phase | Status |
 | --- | --- | --- |

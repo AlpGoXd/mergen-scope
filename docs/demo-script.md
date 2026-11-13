@@ -21,7 +21,7 @@ The demo workspace holds `cascaded chain.s2p` (an R&S VNA capture of a three-sta
 
 - **Table, Polar, Spectrogram** tiles/entries: greyed "later" (Table is the next step, the others are planned).
 - **Export as LaTeX / TikZ / image / PDF:** not built yet (only the CSV export exists).
-- **Right-click a marker or drag a marker on the Smith chart:** not implemented (the marker menu and Smith marker dragging are listed in `docs/redesign/deferred.md`).
+- **Right-click a marker or drag a marker on the Smith chart:** not implemented (the marker menu and Smith marker dragging are listed in `docs/design/deferred.md`).
 - **Removing a pane that holds traces** can show the browser's own confirm dialog (not styled yet), and **Clear All** wipes the whole workspace (Undo is in the toast): avoid both on stage.
 - **The colour swatch in a trace row:** it opens the browser colour picker, which starts black (the app's colours are OKLCH values the picker cannot read); changing a colour works.
 - **The 8-pane setting** (Settings › Experimental) and **narrow windows below 1024 px**.

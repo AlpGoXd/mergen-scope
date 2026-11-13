@@ -106,3 +106,7 @@ Don't delegate trivial edits, one-file fixes Claude can verify in a minute, or a
 - Give Codex a self-contained prompt: goal, files involved, constraints from this file, and the verification command to run.
 - Treat Codex output as a proposal. Claude reads the diff, rejects what doesn't fit, merges the rest, then runs the verification commands above itself. Codex reporting "tests pass" is not enough.
 - Tell the user which model did what and what was accepted or rejected. Remove worktrees/branches once merged or abandoned.
+
+## Design documentation
+
+Use [design decisions](docs/design/design-decisions-2026-11-10.md) and [the plan](docs/plan.md).

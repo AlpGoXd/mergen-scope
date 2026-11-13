@@ -1,3 +1,5 @@
+> Historical integration notes. For current outstanding work, see [deferred.md](deferred.md).
+
 # Smith pane: integration notes
 
 Branch `smith/renderer` (from `ts_refactor` at `8cb9b4e`). It only adds files; nothing existing was edited. This list is what the orchestrator wires after the Table step merges.
@@ -15,7 +17,7 @@ Branch `smith/renderer` (from `ts_refactor` at `8cb9b4e`). It only adds files; n
 | `src/components/smith/SmithPane.tsx`, `smith-pane.css` | the renderer; props only, no store |
 | `src/components/smith/demo/` | dev-only demo page and the synthetic LNA model (not in the build) |
 | `tests/unit/smith-*.test.ts` | 5 files, 46 tests |
-| `docs/redesign/smith-evidence/` | screenshots and `capture.cjs` |
+| Historical evidence | Removed during documentation cleanup. |
 
 `src/domain/smith/numerics.ts` and `viewport.ts` (already in the tree) are used as they are.
 
@@ -94,9 +96,6 @@ The rule is already coded and needs no new logic, only a check once a Smith pane
 
 ```bash
 npm run dev            # then open /src/components/smith/demo/index.html
-# screenshots (dev server on 5183):
-npx vite --port 5183 --strictPort
-node docs/redesign/smith-evidence/capture.cjs
 ```
 
 Demo URL options: `theme`, `size`, `grid`, `labels`, `direction`, `band=1`, `active=1`, `bare=1`.
