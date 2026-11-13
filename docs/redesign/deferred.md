@@ -1,6 +1,6 @@
 # Deferred redesign work
 
-This ledger tracks findings that remain open after the Phase 1 foundation and Phase 2 shared-piece work. Those scoped implementations passed their checks; the overall findings below remain open until the remaining work lands in its target phase and is verified. This ledger does not authorize starting another phase.
+This ledger tracks findings that remain open after the Phase 1 foundation and Phase 2 shared-piece work. The 13 November cleanup audit reviewed each remaining item against code, tests and history; visual, numerical-edge and independent-review requirements remain open where completion could not be established. Those scoped implementations passed their checks; the overall findings below remain open until the remaining work lands in its target phase and is verified. This ledger does not authorize starting another phase.
 
 | ID | Exact remaining work | Target phase | Current status |
 | --- | --- | --- | --- |
@@ -133,11 +133,8 @@ Evidence: [line-crossings-evidence](line-crossings-evidence/README.md), light an
 
 | Difference | Class | Target |
 | --- | --- | --- |
-| Header lacks the kebab menu (Create trace, Copy results, Remove), collapse-to-row summary and drag reorder | Deferred | Phase 7C |
-| Header shows a generic ruler icon, not a per-tool kind icon | Deferred | Phase 7C |
-| Other analysis cards keep the legacy stripe look (opt-in `variant="ac3"` on `AnalysisFeatureCard`) | Deferred | Phase 7C |
-| Board shows a source line "trace - file - pane"; manual mode shows trace and file, line mode shows the line and its value | Intentional: the line is the source in line mode; pane is shown per row | - |
-| No eye (show on chart) control for crossings | Deferred | Phase 7C |
+| Verify remaining card actions and implement drag reorder. | Deferred | Phase 7C; menu, Copy results, Remove and collapse exist (5c56fb4). |
+| Verify tool-specific icon requirements. | Deferred | Phase 7C; Math/Measure kind icons exist (5c56fb4), but they are not unique to every tool. |
 | Board 03 was only compared for header, result and body proportions; no pixel overlay was made | Deferred | Phase 8 visual audit |
 
 ## AC-3 cards, row spacing and Size setting follow-up (10 November)
@@ -156,7 +153,7 @@ Board [37-P4c](referance/37-P4c-lines-like-traces.png) replaces line linking wit
 
 | Remaining work | Target phase | Status |
 | --- | --- | --- |
-| "V1 crossings" card grouped by pane; toasts "V1 also shown in Pane 2" / "Deleted V1 from 2 panes" with Undo | Phase 5C / 7C | Data counts per pane are done; card grouping and toasts are not. |
+| Verify line placement/deletion Undo toasts. | Phase 5C / 7C | Grouped crossings landed in 5c56fb4; toast behavior needs verification. |
 
 ### Lines like traces: data model done (10 November), review follow-ups
 
@@ -174,8 +171,8 @@ Integrated: the kit's `LineRow` in the Lines section (`LiveLineRow`), Show in (s
 
 | Remaining work | Target phase | Status |
 | --- | --- | --- |
-| Stack or avoid overlapping labels of close V lines; ΔX / ΔY delta brackets between lines; "Edit value..." when the left panel is hidden | Phase 5C | Deferred |
-| "V1 crossings" grouped by pane with the current-row dot highlight | Phase 7C | Deferred |
+| Avoid overlapping labels of close V lines and support Edit value when the left panel is hidden. | Phase 5C | Open; X/Y delta pair displays already exist (4d36551). |
+| Highlight the current crossing row on the chart. | Phase 7C | Grouped rows and list selection landed in 5c56fb4; chart highlighting remains open. |
 | Screenshot of the not-in-a-pane row state and the invalid-value tint | Phase 8 audit | Deferred |
 
 ## Bug and rule fixes after testing (10 November)
@@ -192,8 +189,6 @@ Done and covered by tests: a line is placed only in the clicked pane (no X-link 
 | Remaining work | Target phase | Status |
 | --- | --- | --- |
 | **Data table:** the right panel's Data tab (a table of the active trace's samples: #, Freq, Amp) is removed in Analysis Part B2. Until the Table pane exists there is no sample table in the app. | Phase 5, first step (Table pane, shares membership and cursor contracts) | Decided: removal accepted; Table pane is the first step of Phase 5. |
-| **Export:** until Phase 6 the top bar's Export… performs "export visible CSV" (no dialog); the Import/Export card is removed in B2. | Phase 6 | Decided. |
-| **Views out of the panel:** VSWR, Return loss and Group delay cards are removed; the same values are matrix views (run Range Statistics on the view's trace for min / max / average). | Part B2 | Decided. |
 
 ## Analysis overhaul B2 follow-up (10 November)
 
@@ -203,7 +198,6 @@ Evidence and the difference list: [analysis-evidence](analysis-evidence/README.m
 | --- | --- | --- |
 | Legacy analysis state still exists behind the new panel and is written to workspaces for the old reader: `analysisOpenState`, the six result maps, `savedNoise`, `savedIP3`, `ANALYSIS_ITEMS`, `use-analysis-target` registry parts, and ui fields `noiseFilter`, `noiseSource`, `ip3Gain`, `traceOpsOpenSections` | Analysis B3 | Deferred |
 | Highlight the `current` crossing row on the chart; verify parameter-based Math output names and family colour for output hue. | Analysis B3 / 7C | Grouped crossing row state and Math Create trace landed in 5c56fb4; chart highlighting and remaining verification are open. |
-| The Data tab and the Import/Export card are gone (decisions 1 and 2); the Table pane is the first step of Phase 5 | Phase 5 | Decided |
 
 ## Smith pane wired in (11 Nov): left out on purpose, to do later
 
