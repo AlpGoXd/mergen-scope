@@ -13,7 +13,7 @@ async function threePanes(page: Page) {
   await page.goto('/app.html');
   await page.getByTestId('app-open-input').setInputFiles(fixture);
   await expect(page.getByTestId('chart-plot-pane-1')).toBeVisible();
-  await page.keyboard.press('3');
+  for (let i = 1; i < 3; i += 1) { await page.locator('[data-testid^="chart-pane-header-"] .ph-title').last().click(); await page.getByRole('button', { name: '+ Pane', exact: true }).click(); } // 3 panes, appended (the 1–4 keys were retired)
   await expect(pane(page, 3)).toBeVisible();
   await expect(pane(page, 2)).toBeVisible();
 }

@@ -2,15 +2,13 @@
 import './settings-sheet.css';
 import { useThemePreference, useUiDispatch } from '../../stores/ui-store';
 import { usePaneLimit } from '../../stores/pane-store';
-import { APP_VERSION } from '../help/shortcuts';
-import { FeedbackLinks, ShortcutList } from '../help/HelpSheet';
 import { applyAppSize } from './app-size';
 import { appPreferencesKey, defaultAppPreferences, readAppPreferences } from './app-preferences';
 import type { AppPreferences } from './app-preferences';
 export { defaultAppPreferences, readAppPreferences } from './app-preferences';
 export type { AppPreferences } from './app-preferences';
-export function SettingsSheet({ onClose, initialSection = 'settings', onPreferencesChange }: { onClose: () => void; initialSection?: 'settings' | 'shortcuts' | 'about'; onPreferencesChange?: (preferences: AppPreferences) => void }) {
-  const [section, setSection] = useState(initialSection);
+/** App settings. Keyboard shortcuts › and About › hand over to the footer's Help sheet and About panel. */
+export function SettingsSheet({ onClose, onShowShortcuts, onAbout, onPreferencesChange }: { onClose: () => void; onShowShortcuts?: () => void; onAbout?: () => void; onPreferencesChange?: (preferences: AppPreferences) => void }) {
   const [prefs, setPrefs] = useState(readAppPreferences);
   const { preference, setPreference } = useThemePreference();
   const { limit, setExperimental } = usePaneLimit();
@@ -20,8 +18,7 @@ export function SettingsSheet({ onClose, initialSection = 'settings', onPreferen
   return <section className="app-settings" role="dialog" aria-label="App settings">
     <header className="settings-header"><div><strong>App settings</strong><div className="t-caption">All panes &#183; saved in this browser</div></div><button className="settings-close" type="button" onClick={onClose} aria-label="Close settings">&times;</button></header>
     <div className="settings-body">
-      {section !== 'settings' && <button className="settings-link" type="button" onClick={() => setSection('settings')}>&larr; App settings</button>}
-      {section === 'shortcuts' ? <><h3>Keyboard shortcuts</h3><ShortcutList /></> : section === 'about' ? <><h3>About Mergen Scope</h3><p>Version {APP_VERSION} &#183; Apache-2.0</p><p><a href="https://github.com/AlpGoXd/mergen-scope" target="_blank" rel="noopener noreferrer">GitHub &#8599;</a></p><div style={{ display: 'grid', gap: 8 }}><FeedbackLinks /></div></> : <>
+      <>
         <h3 className="t-section">Appearance</h3>
         {choice('Theme', preference, [['light', 'Light'], ['dark', 'Dark'], ['system', 'System']] as const, setPreference)}
         {choice('Size', prefs.size, [['compact', 'Compact'], ['comfortable', 'Comfortable'], ['large', 'Large']] as const, size => update({ ...prefs, size }))}
@@ -31,12 +28,13 @@ export function SettingsSheet({ onClose, initialSection = 'settings', onPreferen
         <p className="settings-caption t-caption">Repeat shows symbols when colours repeat.</p>
         <h3 className="t-section">Export</h3>
         {choice('Export theme', prefs.exportTheme, [['print', 'Print'], ['dark', 'Dark'], ['app', 'As app']] as const, exportTheme => update({ ...prefs, exportTheme }))}
+        <p className="settings-caption t-caption">Used by Copy image, Download image and every export.</p>
         <h3 className="t-section">Experimental</h3>
         <label className="settings-row"><span className="t-label">Allow more than 4 panes</span><input type="checkbox" checked={limit === 8} onChange={event => setExperimental(event.target.checked)} /></label>
         <p className="settings-caption t-caption">Up to 8 panes. Not recommended: panes get small and layouts beyond 4 are Rows and Columns.</p>
-        <div className="settings-navigation"><button type="button" onClick={() => setSection('shortcuts')}>Keyboard shortcuts <span>&rsaquo;</span></button><button type="button" onClick={() => setSection('about')}>About <span>&rsaquo;</span></button></div>
-        <p className="settings-hint t-caption">Grid, markers, lines and Smith options are configured per pane using its sliders button.</p>
-      </>}
+        <div className="settings-navigation"><button type="button" className="t-label" onClick={onShowShortcuts}>Keyboard shortcuts <span>&rsaquo;</span></button><button type="button" className="t-label" onClick={onAbout}>About <span>&rsaquo;</span></button></div>
+        <p className="settings-hint t-caption">Grid, markers, lines and Smith options are set per pane, with the sliders button in each pane header.</p>
+      </>
     </div><footer className="settings-footer"><button type="button" onClick={() => { update(defaultAppPreferences); setPreference('system'); setExperimental(false); }}>Reset all to defaults</button></footer>
   </section>;
 }

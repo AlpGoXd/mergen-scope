@@ -10,7 +10,7 @@ import { PopoverAt, Select, Tooltip } from '../shared/Controls';
 import { ChartTypeTiles, PaneTypeMenu } from '../panes/PaneTypeMenu';
 import type { TypeChangePlan } from '../panes/PaneTypeMenu';
 import type { PickerTile, PickerTileId } from '../panes/PaneTypePicker';
-import { GearIcon } from './PaneHeader';
+import { SlidersIcon } from './PaneHeader';
 import './pane-chrome.css';
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -137,9 +137,9 @@ export function PaneSettingsPopover({
 
   return (
     <>
-      <Btn variant="slate" small className="ph-gear" active={anchor !== null} aria-label="Pane settings" aria-haspopup="dialog" aria-expanded={anchor !== null} title="Pane settings"
+      <Btn variant="slate" small className="ph-settings" active={anchor !== null} aria-label="Pane settings" aria-haspopup="dialog" aria-expanded={anchor !== null} title="Pane settings"
         onClick={e => { e.stopPropagation(); onAnchorChange(anchor ? null : e.currentTarget); }}>
-        <GearIcon />
+        <SlidersIcon />
       </Btn>
 
       {anchor && <PopoverAt label={`${paneName} settings`} at={anchor} onClose={close}>

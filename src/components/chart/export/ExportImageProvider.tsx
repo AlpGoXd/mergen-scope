@@ -7,6 +7,7 @@ import { useUiState } from '../../../stores/ui-store';
 import { useMarkerState } from '../../../stores/marker-store';
 import { useRefLineState } from '../../../stores/ref-line-store';
 import { useOptionalToast } from '../../../stores/toast-store';
+import { useShortcut } from '../../../stores/shortcut-store';
 import { usePaneData } from '../../../hooks/use-pane-data';
 import { useTraceColors } from '../../../hooks/use-trace-colors';
 import { useTraceSymbols } from '../../../hooks/use-trace-symbols';
@@ -73,8 +74,8 @@ const nextFrame = () => new Promise<void>(resolve => requestAnimationFrame(() =>
 
 /**
  * Owns pane export: renders the pane's own chart component off screen at the export size, takes its SVG and offers
- * Copy image / Download image / Download SVG / Copy as LaTeX, the Options popover, the export notice and
- * Ctrl+Shift+C / S / E.
+ * Copy image / Download image / Download SVG / Copy as LaTeX, the Options popover, the export notice and the
+ * Copy image / Download image shortcuts.
  */
 export function ExportImageProvider({ children }: { children: ReactNode }) {
   const { panes, activePaneId, tracePaneMap } = usePaneState();
@@ -126,7 +127,7 @@ export function ExportImageProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const openOptions = useCallback((paneId: string, at?: HTMLElement | { x: number; y: number }) => {
-    const gear = document.querySelector<HTMLElement>(`[data-testid="chart-pane-${CSS.escape(paneId)}"] .ph-gear`);
+    const gear = document.querySelector<HTMLElement>(`[data-testid="chart-pane-${CSS.escape(paneId)}"] .ph-settings`);
     setOptions({ paneId, at: at ?? gear ?? { x: window.innerWidth / 2, y: window.innerHeight / 3 } });
   }, []);
 
@@ -190,24 +191,12 @@ export function ExportImageProvider({ children }: { children: ReactNode }) {
   const copyImage = useCallback((paneId: string) => copy(paneId, 'png'), [copy]);
   const copyLatex = useCallback((paneId: string) => copy(paneId, 'latex'), [copy]);
 
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      if (!(event.ctrlKey || event.metaKey) || !event.shiftKey || event.altKey || event.defaultPrevented) return;
-      const action = event.code === 'KeyC' ? 'copy' : event.code === 'KeyS' ? 'download' : event.code === 'KeyE' ? 'options' : null;
-      if (!action || document.querySelector('[role="dialog"][aria-modal="true"]')) return;
-      const target = event.target instanceof HTMLElement ? event.target : null;
-      if (target && (target.isContentEditable || target.closest('input, textarea, select'))) return;
-      const { panes: current, activePaneId: active } = latest.current;
-      const paneId = current.some(pane => pane.id === active) ? active : current[0]?.id;
-      if (!paneId) return;
-      event.preventDefault();
-      if (action === 'copy') copyImage(paneId);
-      else if (action === 'download') downloadImage(paneId);
-      else openOptions(paneId);
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [copyImage, downloadImage, openOptions]);
+  const targetPane = (): string | null => {
+    const { panes: current, activePaneId: active } = latest.current;
+    return current.some(pane => pane.id === active) ? active : current[0]?.id ?? null;
+  };
+  useShortcut('copy-image', () => { const paneId = targetPane(); if (!paneId) return false; copyImage(paneId); });
+  useShortcut('download-image', () => { const paneId = targetPane(); if (!paneId) return false; downloadImage(paneId); });
 
   const value = useMemo<PaneImageExport>(() => ({
     copyImage, downloadImage, downloadSvg, copyLatex, downloadLatex, unavailable, openOptions, notice, dismissNotice: () => setNotice(null),

@@ -25,6 +25,9 @@ test('size defaults to Comfortable, persists across reloads and resets', async (
   await page.reload();
   await expect(page.locator('html')).toHaveAttribute('data-size', 'compact');
   expect(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--row-height').trim())).toBe('26px');
+  // The size reaches the app itself, not only <html> (the app root carries a theme class too).
+  expect(await page.getByTestId('app-root').evaluate(el => getComputedStyle(el).getPropertyValue('--row-height').trim())).toBe('26px');
+  expect(await page.locator('footer.footer-bar').evaluate(el => getComputedStyle(el).height)).toBe('24px');
   await openSettings(page);
   await page.getByRole('button', { name: 'Reset all to defaults' }).click();
   await expect(page.locator('html')).toHaveAttribute('data-size', 'comfortable');

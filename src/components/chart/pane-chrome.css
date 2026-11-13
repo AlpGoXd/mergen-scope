@@ -22,7 +22,7 @@
 .ph[data-level="5"] > .ph-title { flex: 0 1 auto; min-width: 3ch; }
 .ph > .ph-spacer { flex: 1 1 0; min-width: 0; }
 .ph > .ph-scale { color: var(--text-muted); padding: 0 var(--space-1); }
-.ph .ph-gear, .ph .ph-samples.is-icon, .ph .ph-link.is-icon { width: var(--control-sm-height); padding: 0; justify-content: center; }
+.ph .ph-settings, .ph .ph-samples.is-icon, .ph .ph-link.is-icon { width: var(--control-sm-height); padding: 0; justify-content: center; }
 /* X link chip: neutral when unlinked, tinted in the Pane hue when linked (Btn chip + tone pane). */
 .ph .ph-link { padding: 0 var(--space-1); }
 .ph .ph-close {

@@ -37,7 +37,7 @@ test("rejecting a trace drop onto another domain shows a warning", async ({ page
   await acceptImport(page);
   const timeRow = page.locator('[data-testid^="trace-row-"]').filter({ hasText: "time.csv" }).first();
   await expect(timeRow).toContainText("P1");
-  await page.keyboard.press("2");
+  for (let i = 1; i < 2; i += 1) { await page.locator("[data-testid^='chart-pane-header-'] .ph-title").last().click(); await page.getByRole("button", { name: "+ Pane", exact: true }).click(); } // 2 panes, appended (the 1–4 keys were retired)
   await dropCsv(page, "pane-2", "frequency.csv", frequencyCsv);
   await expect(page.getByTestId("chart-plot-pane-2")).toBeVisible();
 
@@ -58,7 +58,7 @@ test("rejecting a trace drop onto another domain shows a warning", async ({ page
 test("a file dropped onto an incompatible pane is refused", async ({ page }) => {
   await importFromEmptyPane(page, datFixture);
   await expect(firstTraceRow(page)).toContainText("P1");
-  await page.keyboard.press("2");
+  for (let i = 1; i < 2; i += 1) { await page.locator("[data-testid^='chart-pane-header-'] .ph-title").last().click(); await page.getByRole("button", { name: "+ Pane", exact: true }).click(); } // 2 panes, appended (the 1–4 keys were retired)
   await dropCsv(page, "pane-2", "frequency.csv", frequencyCsv);
   await expect(page.getByTestId("chart-plot-pane-2")).toBeVisible();
 
@@ -184,7 +184,7 @@ test("Touchstone import exposes matrix controls and the 2-port analysis tools wi
 test("four empty panes fit without covering each other's headers", async ({ page }) => {
   await importFromEmptyPane(page, datFixture);
   await expect(page.locator(".lp-file--header .lp-name").filter({ hasText: "cascade_ip3_-12dBm.DAT" })).toBeVisible();
-  await page.keyboard.press("4");
+  for (let i = 1; i < 4; i += 1) { await page.locator("[data-testid^='chart-pane-header-'] .ph-title").last().click(); await page.getByRole("button", { name: "+ Pane", exact: true }).click(); } // 4 panes, appended (the 1–4 keys were retired)
   await expect(page.getByTestId("chart-pane-pane-4")).toBeVisible();
   await expect(page.getByTestId("empty-trace-pane-dropzone")).toHaveCount(3);
 

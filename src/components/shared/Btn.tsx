@@ -2,7 +2,8 @@ import React from 'react';
 
 export type ButtonVariant = 'neutral' | 'chip' | 'slate' | 'solid' | 'secondary' | 'armed';
 export type GroupTone = 'marker' | 'lines' | 'search' | 'export' | 'pane' | 'left' | 'analysis' | 'data';
-export interface BtnProps extends React.ComponentPropsWithoutRef<'button'> {
+/** React 19 passes `ref` as a prop; it reaches the <button> through the rest props. */
+export interface BtnProps extends React.ComponentPropsWithRef<'button'> {
   active?: boolean; color?: string; soft?: boolean; bold?: boolean;
   variant?: ButtonVariant; tone?: GroupTone; danger?: boolean; small?: boolean;
 }

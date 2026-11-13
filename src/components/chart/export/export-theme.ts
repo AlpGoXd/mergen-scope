@@ -16,11 +16,11 @@ export function colorThemeOf(theme: ResolvedExportTheme): 'light' | 'dark' {
 }
 
 /**
- * The theme class the app puts on <html>. The export container carries it, so light and dark tokens come from
- * index.css itself (its token block also matches `.theme-light` / `.theme-dark`); print starts from light.
+ * Classes for the export container: `export-tokens` makes the index.css token block apply to it, and the theme
+ * class the app puts on <html> picks light or dark, so the values come from index.css itself. Print starts from light.
  */
-export function exportThemeClass(theme: ResolvedExportTheme): 'theme-light' | 'theme-dark' {
-  return theme === 'dark' ? 'theme-dark' : 'theme-light';
+export function exportThemeClass(theme: ResolvedExportTheme): string {
+  return `export-tokens ${theme === 'dark' ? 'theme-dark' : 'theme-light'}`;
 }
 
 /** Print is the paper look, not an app theme: white background, black text and frame, light grey grid, no tints. */

@@ -161,11 +161,12 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
   const settings = { ...defaultPaneSettings(), ...pane.settings };
 
   const [smithFitRequest, setSmithFitRequest] = useState(0);
+  // Space fits the target pane: a Smith pane fits its own view.
   useEffect(() => {
-    const fit = () => setSmithFitRequest(value => value + 1);
-    window.addEventListener('mergen-fit-all', fit);
-    return () => window.removeEventListener('mergen-fit-all', fit);
-  }, []);
+    const fit = (event: Event) => { if (event instanceof CustomEvent && (event.detail as { paneId?: string } | null)?.paneId === paneId) setSmithFitRequest(value => value + 1); };
+    window.addEventListener('mergen-fit-pane', fit);
+    return () => window.removeEventListener('mergen-fit-pane', fit);
+  }, [paneId]);
   const [typeAnchor, setTypeAnchor] = useState<HTMLElement | null>(null);
   const [typeChange, setTypeChange] = useState<{ plan: TypeChangePlan; revision: number | undefined } | null>(null);
   const pendingType = typeChange?.plan ?? null;

@@ -222,7 +222,7 @@ test('a pane never grows past its cell: headers step down and the settings butto
     const header = page.getByTestId(`chart-pane-header-pane-${id}`);
     const fit = await header.evaluate(h => {
       const cell = (h.closest('.pane-layout-cell') as HTMLElement).getBoundingClientRect();
-      const gear = (h.querySelector('.ph-gear') as HTMLElement).getBoundingClientRect();
+      const gear = (h.querySelector('.ph-settings') as HTMLElement).getBoundingClientRect();
       return { header: h.getBoundingClientRect().right - cell.right, gear: gear.right - cell.right, overflow: h.scrollWidth - h.clientWidth, level: Number(h.dataset.level) };
     });
     expect(fit.header).toBeLessThanOrEqual(0.5);

@@ -25,12 +25,14 @@ export function SamplesIcon() {
   );
 }
 
-export function GearIcon() {
+/** Pane settings: three sliders. The gear is reserved for App settings in the footer. */
+export function SlidersIcon() {
   return (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" aria-hidden="true">
-      {/* Eight teeth: a dashed ring whose dash and gap are each 1/16 of the circumference. */}
-      <circle cx="7" cy="7" r="5.1" strokeWidth="1.9" strokeDasharray="2.003 2.003" strokeDashoffset="1" />
-      <circle cx="7" cy="7" r="3.5" strokeWidth="1.4" />
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" aria-hidden="true" data-icon="sliders">
+      <path d="M1.5 3.5h11M1.5 7h11M1.5 10.5h11" />
+      <circle cx="4.5" cy="3.5" r="1.6" fill="var(--raised)" />
+      <circle cx="9.5" cy="7" r="1.6" fill="var(--raised)" />
+      <circle cx="6" cy="10.5" r="1.6" fill="var(--raised)" />
     </svg>
   );
 }

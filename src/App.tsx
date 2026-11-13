@@ -17,6 +17,8 @@ import { usePaneState } from './stores/pane-store';
 import { useAggregateWorkspace } from './stores/aggregate-workspace-store';
 import { loadDemoWorkspace } from './demo/demo-loader';
 import { ExportImageProvider } from './components/chart/export/ExportImageProvider';
+import { useShortcut } from './stores/shortcut-store';
+import { useWorkspace } from './hooks/use-workspace';
 
 
 function clampLeftPanelWidth(width: number, viewportWidth: number) {
@@ -64,6 +66,9 @@ export function App() {
     void loadDemo();
   }, [loadDemo]);
   const sidebarFileInput = useRef<HTMLInputElement>(null);
+  const { downloadWorkspace } = useWorkspace();
+  useShortcut('open', () => { sidebarFileInput.current?.click(); });
+  useShortcut('save', () => { downloadWorkspace(); });
   const { activePaneId } = usePaneState();
 
   const lastActivePaneIdRef = useRef(activePaneId);

@@ -7,7 +7,7 @@ test('pane popovers appear above neighbouring panes and remain interactive', asy
   await page.goto('/app.html');
   await page.getByTestId('app-open-input').setInputFiles({ name: 'samples.csv', mimeType: 'text/csv', buffer: Buffer.from('Time (s),CH1 (V)\n0,1\n0.5,2\n1,3\n') });
   await acceptImport(page);
-  await page.keyboard.press('2');
+  for (let i = 1; i < 2; i += 1) { await page.locator('[data-testid^="chart-pane-header-"] .ph-title').last().click(); await page.getByRole('button', { name: '+ Pane', exact: true }).click(); } // 2 panes, appended (the 1–4 keys were retired)
   const first = page.getByTestId('chart-pane-pane-1');
   await expect(page.getByTestId('chart-pane-pane-2')).toBeVisible();
   const topmost = async (selector: string) => page.locator(selector).evaluate(element => {

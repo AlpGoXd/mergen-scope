@@ -14,7 +14,7 @@ for (const dataset of datasets) {
     await page.goto('/app.html');
     await page.getByTestId('app-open-input').setInputFiles({ name: dataset.name, mimeType: 'text/csv', buffer: Buffer.from(dataset.csv) });
     await acceptImport(page);
-    await page.keyboard.press('4');
+    for (let i = 1; i < 4; i += 1) { await page.locator('[data-testid^="chart-pane-header-"] .ph-title').last().click(); await page.getByRole('button', { name: '+ Pane', exact: true }).click(); } // 4 panes, appended (the 1–4 keys were retired)
     const row = page.locator('[data-testid^="trace-row-"]').first();
     await row.getByTitle('Show in panes').click();
     for (const n of [2, 3, 4]) await page.getByRole('menuitemcheckbox', { name: `Pane ${n}` }).click();
@@ -49,7 +49,7 @@ for (const theme of ['light', 'dark'] as const) {
     await expect(page.locator(`.theme-${theme}`).first()).toBeAttached();
     await page.getByTestId('app-open-input').setInputFiles({ name: datasets[0].name, mimeType: 'text/csv', buffer: Buffer.from(datasets[0].csv) });
     await acceptImport(page);
-    await page.keyboard.press('4');
+    for (let i = 1; i < 4; i += 1) { await page.locator('[data-testid^="chart-pane-header-"] .ph-title').last().click(); await page.getByRole('button', { name: '+ Pane', exact: true }).click(); } // 4 panes, appended (the 1–4 keys were retired)
     const row = page.locator('[data-testid^="trace-row-"]').first();
     await row.getByTitle('Show in panes').click();
     for (const n of [2, 3, 4]) await page.getByRole('menuitemcheckbox', { name: `Pane ${n}` }).click();

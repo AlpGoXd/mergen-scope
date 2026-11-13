@@ -82,7 +82,7 @@ test('Copy as LaTeX puts a pgfplots figure of the pane on the clipboard', async 
   expect(tex).toMatch(/xmin=[-\d.e]+, xmax=[-\d.e]+, ymin=[-\d.e]+, ymax=[-\d.e]+/);
 });
 
-test('the top bar Export… menu acts on the target pane and names it in each item', async ({ page }) => {
+test('the top bar Export… menu names the target pane once, in its header, and its items follow the target', async ({ page }) => {
   await openS21(page);
   await page.getByRole('button', { name: '+ Pane', exact: true }).click();
   await pane(page, 2).locator('.ptp-tile').filter({ hasText: 'Smith' }).click();
@@ -93,14 +93,19 @@ test('the top bar Export… menu acts on the target pane and names it in each it
   await page.getByRole('button', { name: 'Export', exact: true }).click();
   const menu = page.getByRole('menu', { name: 'Export' });
   const items = menu.getByRole('menuitem');
+  await expect(menu.getByTestId('export-menu-title')).toHaveText('Export · Pane 1');
+  await expect(menu).toContainText('the target pane · click a pane to change it');
   await expect(items).toHaveCount(6);
-  await expect(items.nth(0)).toContainText('Copy image · Pane 1');
-  await expect(items.nth(0)).toContainText('Ctrl+Shift+C');
-  await expect(items.nth(1)).toContainText('Download image · Pane 1');
-  await expect(items.nth(1)).toContainText('Ctrl+Shift+S');
-  await expect(items.nth(2)).toContainText('Download SVG · Pane 1');
-  await expect(items.nth(3)).toContainText('Copy as LaTeX · Pane 1');
-  await expect(items.nth(4)).toContainText('Export data (CSV)…');
+  await expect(items.locator('.xm-item__label')).toHaveText(['Copy image', 'Download image', 'Download SVG', 'Copy as LaTeX', 'Export data (CSV)…', 'All panes…Coming with the export dialog']);
+  // Shortcuts share the row, right-aligned, in the readout role.
+  const keys = items.nth(0).locator('kbd');
+  await expect(keys).toHaveText('Ctrl+Shift+C');
+  await expect(keys).toHaveClass(/t-readout/);
+  await expect(items.nth(1).locator('kbd')).toHaveText('Ctrl+Shift+S');
+  const row = await items.nth(0).boundingBox();
+  const chip = await keys.boundingBox();
+  expect(Math.abs((row?.x ?? 0) + (row?.width ?? 0) - (chip?.x ?? 0) - (chip?.width ?? 0))).toBeLessThan(12);
+  expect(Math.abs((row?.y ?? 0) + (row?.height ?? 0) / 2 - (chip?.y ?? 0) - (chip?.height ?? 0) / 2)).toBeLessThan(4);
   const allPanes = items.nth(5);
   await expect(allPanes).toContainText('All panes…');
   await expect(allPanes).toHaveAttribute('aria-disabled', 'true');
@@ -114,9 +119,22 @@ test('the top bar Export… menu acts on the target pane and names it in each it
   // Target the Smith pane: the items follow it, and LaTeX says why it is not available.
   await pane(page, 2).getByTestId('smith-pane').click({ position: { x: 10, y: 10 } });
   await page.getByRole('button', { name: 'Export', exact: true }).click();
-  await expect(items.nth(0)).toContainText('Copy image · Pane 2');
+  await expect(menu.getByTestId('export-menu-title')).toHaveText('Export · Pane 2');
   await expect(items.nth(3)).toHaveAttribute('aria-disabled', 'true');
   await expect(items.nth(3)).toHaveAttribute('title', 'Copy as LaTeX supports chart panes for now');
+  await page.keyboard.press('Escape');
+});
+
+test('a pane with a custom name shows it, muted, after its position in the Export… header', async ({ page }) => {
+  await page.goto('/app.html?demo=1');
+  const target = page.getByTestId('chart-pane-pane-3');
+  await expect(target.locator('.recharts-line').first()).toBeVisible();
+  await target.getByTestId('chart-plot-pane-3').click({ position: { x: 4, y: 4 } });
+  await page.getByRole('button', { name: 'Export', exact: true }).click();
+  const title = page.getByRole('menu', { name: 'Export' }).getByTestId('export-menu-title');
+  await expect(title).toContainText('Export · Pane 3');
+  const custom = title.locator('.t-caption');
+  await expect(custom).toHaveText(await target.locator('.ph-title').innerText());
   await page.keyboard.press('Escape');
 });
 
