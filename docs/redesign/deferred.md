@@ -139,7 +139,6 @@ Evidence: [line-crossings-evidence](line-crossings-evidence/README.md), light an
 
 | Difference | Class | Target |
 | --- | --- | --- |
-| 26 px Analysis-tint header band, 1 px neutral border, radius 6, no side stripe, mono result, values through `formatEng` with units | Fixed | Step 1 |
 | Header lacks the kebab menu (Create trace, Copy results, Remove), collapse-to-row summary and drag reorder | Deferred | Phase 7C |
 | Header shows a generic ruler icon, not a per-tool kind icon | Deferred | Phase 7C |
 | Other analysis cards keep the legacy stripe look (opt-in `variant="ac3"` on `AnalysisFeatureCard`) | Deferred | Phase 7C |
@@ -173,7 +172,6 @@ Done and verified: `RefLine.paneIds[]` replaces `paneId` / `paneless` / `groupId
 
 | Item | Class | Target |
 | --- | --- | --- |
-| Closing a pane: **decided (10 November) — a line behaves like a trace.** Its copy in the closed pane is dropped; if that was its only pane, the line moves to the nearest compatible pane (same X unit for V lines, same Y unit for H lines; visual order, previous pane first) and is "Not in a pane" only when none exists. Board 37-P4c step 07 ("not in a pane" when its last pane is closed) is read as the no-compatible-pane case. Implemented in `planLastPaneLines` / `remove-last-pane`; covered by `toolbar-pane-removal` tests | Decided, done | Phase 3 data model |
 | Undo/Redo restores lines but not which line was selected (selection resets to none) | Deferred | Phase 5C |
 | A v5 line carrying both old and new fields, or a crafted legacy horizontal group, or an old group member naming a removed pane, is rejected or only partly merged; labels of merged groups are not de-duplicated; `paneIds` order follows the `panes` array, not `layout.paneOrder`, and adding a pane appends | Edge cases, deferred | Phase 8 audit |
 | The legacy `restoreSnapshot` helper (unused by the app) does not remap the selected line id | Deferred | Phase 8 audit |
