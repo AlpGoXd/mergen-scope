@@ -172,17 +172,12 @@ test('Close pane in Pane settings closes any pane and moves its traces', async (
   await expect(header(page, 1).locator('.ph-count')).toHaveText('2 traces');
 });
 
-test('Copy chart puts a PNG on the clipboard and Export… downloads the pane as CSV', async ({ page, context }) => {
-  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+test('Export data (CSV)… downloads the pane as CSV', async ({ page }) => {
   await chartAndSmith(page);
   await header(page, 1).getByTitle('Pane settings').click();
   const settings = page.locator('.ui-popover[aria-label="Pane 1 settings"]');
-  await settings.getByRole('button', { name: 'Copy chart' }).click();
-  await expect(settings.getByRole('button', { name: 'Copied' })).toBeVisible();
-  const types = await page.evaluate(async () => (await navigator.clipboard.read()).flatMap(item => item.types));
-  expect(types).toContain('image/png');
   const download = page.waitForEvent('download');
-  await settings.getByRole('button', { name: 'Export…' }).click();
+  await settings.getByRole('button', { name: 'Export data (CSV)…' }).click();
   expect((await download).suggestedFilename()).toBe('Pane 1.csv');
   await expect(settings).toHaveCount(0);
 });

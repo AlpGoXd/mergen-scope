@@ -89,7 +89,7 @@ test('settings starts with Chart type, then Display and Axes, and ends with the 
   await expect(settings.getByRole('radio', { name: 'Smith' })).not.toHaveAttribute('aria-disabled', 'true');
   await expect(settings.getByRole('radio')).toHaveCount(5);
   await expect(settings.getByRole('heading')).toHaveText(['Chart type', 'Display', 'Axes']);
-  await expect(settings.getByRole('group', { name: 'Pane 1 actions' }).getByRole('button')).toHaveText(['Copy chart', 'Export…', 'Close pane']);
+  await expect(settings.getByRole('group', { name: 'Pane 1 actions' }).getByRole('button')).toHaveText(['Copy image', 'Download image', 'Export data (CSV)…', 'Export…', 'Close pane']);
   await page.keyboard.press('Escape');
   // The separate ⋯ menu is gone; the chip still opens the chart type popover.
   await expect(header.getByRole('button', { name: 'Pane actions' })).toHaveCount(0);

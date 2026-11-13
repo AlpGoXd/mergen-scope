@@ -11,7 +11,6 @@ import { ChartTypeTiles, PaneTypeMenu } from '../panes/PaneTypeMenu';
 import type { TypeChangePlan } from '../panes/PaneTypeMenu';
 import type { PickerTile, PickerTileId } from '../panes/PaneTypePicker';
 import { GearIcon } from './PaneHeader';
-import type { CopyChartResult } from './copy-chart';
 import './pane-chrome.css';
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -88,16 +87,20 @@ export interface PaneTableOptions {
   readonly visible: TableVisibleRange;
 }
 export interface PaneActions {
-  readonly onCopy: () => Promise<CopyChartResult>;
-  /** Null when the pane has nothing to export. */
-  readonly onExport: (() => void) | null;
+  /** Image actions; null when the pane has nothing to draw (no traces, or a Table pane). */
+  readonly onCopyImage: (() => void) | null;
+  readonly onDownloadImage: (() => void) | null;
+  /** "Export…": the full dialog later; for now the image Options popover. */
+  readonly onExportOptions: (() => void) | null;
+  /** CSV of the pane's traces; null when the pane has nothing to export. */
+  readonly onExportData: (() => void) | null;
   /** Null when this is the only pane. */
   readonly onClose: (() => void) | null;
 }
 
 /**
  * The one pane button (it replaces the old ⚙ and ⋯ pair). Sections, in order: Chart type, Display, Axes;
- * then a row of actions: Copy chart · Export… · Close pane. Changes apply at once; there is no OK.
+ * then a row of actions: Copy image · Download image · Export data (CSV)… · Export… · Close pane. Changes apply at once; there is no OK.
  */
 export function PaneSettingsPopover({
   paneId, settings, sections, paneName, current, tiles, pending, anchor, onAnchorChange, onChoose, onConfirm, onCancel, contentRef, axes, onFit, actions, table = null,
@@ -125,8 +128,6 @@ export function PaneSettingsPopover({
   const paneDispatch = usePaneDispatch();
   const patch = (p: Partial<PaneSettings>) => paneDispatch({ type: 'SET_PANE_SETTINGS', payload: { paneId, patch: p } });
   const [symbols, setSymbols] = useTraceSymbolSetting();
-  const [copyState, setCopyState] = React.useState<CopyChartResult | null>(null);
-  React.useEffect(() => { if (!anchor) setCopyState(null); }, [anchor]);
   const smith = current === 'smith';
   const setTable = (p: Partial<TableSettings>) => { if (table) patch({ table: { ...table.settings, ...p } }); };
   const close = () => onAnchorChange(null);
@@ -222,16 +223,19 @@ export function PaneSettingsPopover({
             </Section>}
 
             <div className="pset-actions" role="group" aria-label={`${paneName} actions`}>
-              <Btn small onClick={() => { void actions.onCopy().then(setCopyState); }}>{copyState === 'copied' ? 'Copied' : 'Copy chart'}</Btn>
-              {actions.onExport
-                ? <Btn small title="Download this pane's traces as CSV" onClick={() => { actions.onExport?.(); close(); }}>Export…</Btn>
-                : <Tooltip text="This pane has no traces to export"><Btn small disabled>Export…</Btn></Tooltip>}
+              {([
+                ['Copy image', 'Copy image (Ctrl+Shift+C)', actions.onCopyImage],
+                ['Download image', 'Download image (Ctrl+Shift+S)', actions.onDownloadImage],
+                ['Export data (CSV)…', "Download this pane's traces as CSV", actions.onExportData],
+                ['Export…', 'Export… (Ctrl+Shift+E)', actions.onExportOptions],
+              ] as const).map(([label, title, run]) => run
+                ? <Btn key={label} small title={title} onClick={() => { close(); run(); }}>{label}</Btn>
+                : <Tooltip key={label} text="This pane has nothing to export"><Btn small disabled>{label}</Btn></Tooltip>)}
               <span className="pset-actions__gap" />
               {actions.onClose
                 ? <Btn small className="pset-close" onClick={() => { close(); actions.onClose?.(); }}>Close pane</Btn>
                 : <Tooltip text="The last pane stays open"><Btn small className="pset-close" disabled>Close pane</Btn></Tooltip>}
             </div>
-            {copyState && copyState !== 'copied' && <div className="pset-note t-caption" role="status">{copyState === 'unsupported' ? 'This browser cannot copy images. Use Export… instead.' : 'The chart could not be copied.'}</div>}
           </>}
         </div>
       </PopoverAt>}

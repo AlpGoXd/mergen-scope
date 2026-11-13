@@ -16,6 +16,7 @@ import { DATA_FILE_ACCEPT, useFileImport } from './hooks/use-file-import';
 import { usePaneState } from './stores/pane-store';
 import { useAggregateWorkspace } from './stores/aggregate-workspace-store';
 import { loadDemoWorkspace } from './demo/demo-loader';
+import { ExportImageProvider } from './components/chart/export/ExportImageProvider';
 
 
 function clampLeftPanelWidth(width: number, viewportWidth: number) {
@@ -231,6 +232,7 @@ export function App() {
       <ToolbarStrip />
 
       <LineCrossingsContext.Provider value={{ listCrossings }}>
+      <ExportImageProvider>
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minWidth: 0 }}>
         {/* Always mounted (renders nothing when hidden): it owns the Touchstone trace reconciliation. */}
         <input data-testid="app-open-input" ref={sidebarFileInput} type="file" accept={DATA_FILE_ACCEPT} multiple hidden onChange={event => { if (event.target.files?.length) void importFiles(event.target.files); event.target.value = ''; }} />
@@ -240,6 +242,7 @@ export function App() {
         {showRightPanel && <PanelResizeHandle side="right" onMouseDown={startResize('right')} />}
         <RightPanelStack width={rightPanelWidth} />
       </div>
+      </ExportImageProvider>
       </LineCrossingsContext.Provider>
 
       <FooterBar />

@@ -47,7 +47,7 @@
 }
 .pset-num:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
 .pset-num[aria-invalid="true"] { border-color: var(--danger-line); }
-.pset-actions { display: flex; align-items: center; gap: var(--space-1); padding-top: var(--space-2); border-top: 1px solid var(--border); }
+.pset-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1); padding-top: var(--space-2); border-top: 1px solid var(--border); }
 .pset-actions__gap { flex: 1; }
 .pset .pset-close:not(:disabled) { color: var(--danger-ink); }
 .pset .pset-close:hover:not(:disabled) { background: var(--danger-fill); border-color: var(--danger-line); }

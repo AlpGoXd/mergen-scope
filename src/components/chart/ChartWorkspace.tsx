@@ -2,6 +2,7 @@ import { useFileDispatch, useFileState } from '../../stores/file-store';
 import { usePaneState } from '../../stores/pane-store';
 import { showPaneWarningBanner, useUiDispatch, useUiState } from '../../stores/ui-store';
 import { PaneLayoutGrid } from './PaneLayoutGrid';
+import { usePaneImageExport } from './export/export-context';
 
 /**
  * ChartWorkspace component for rendering multiple stacked chart panes.
@@ -13,6 +14,8 @@ export function ChartWorkspace() {
   const { importErrors } = useFileState();
   const uiDispatch = useUiDispatch();
   const fileDispatch = useFileDispatch();
+  const imageExport = usePaneImageExport();
+  const exportNotice = imageExport?.notice ?? null;
 
   return (
     <div style={{
@@ -37,12 +40,21 @@ export function ChartWorkspace() {
           onDismiss={() => uiDispatch({ type: 'SET', payload: { key: 'paneAssignmentWarning', value: null } })}
         />
       )}
+      {exportNotice && imageExport && (
+        <Notice
+          testId="export-notice"
+          message={exportNotice.message}
+          action={exportNotice.paneId ? { label: 'Download image', run: () => { const paneId = exportNotice.paneId; imageExport.dismissNotice(); if (paneId) imageExport.downloadImage(paneId); } } : undefined}
+          onDismiss={imageExport.dismissNotice}
+        />
+      )}
       <PaneLayoutGrid paneIds={panes.map(pane => pane.id)} />
     </div>
   );
 }
 
-function Notice({ message, onDismiss, testId }: { message: React.ReactNode; onDismiss: () => void; testId?: string }) {
+function Notice({ message, onDismiss, testId, action }: { message: React.ReactNode; onDismiss: () => void; testId?: string; action?: { label: string; run: () => void } | undefined }) {
+  const buttonStyle: React.CSSProperties = { background: 'none', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: '6px', padding: '2px 8px', cursor: 'pointer', fontSize: 'var(--font-label)' };
   return (
     <div
       role="alert"
@@ -62,6 +74,7 @@ function Notice({ message, onDismiss, testId }: { message: React.ReactNode; onDi
       }}
     >
       <span style={{ flex: 1 }}>{message}</span>
+      {action && <button type="button" onClick={action.run} style={buttonStyle}>{action.label}</button>}
       <button
         type="button"
         onClick={onDismiss}

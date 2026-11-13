@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import { readAppPreferences } from '../components/settings/app-preferences';
 import { allocateTraceColors, symbolFor } from '../domain/trace-palette';
+import type { SymbolSetting } from '../domain/trace-palette';
 import { useTraceState } from '../stores/trace-store';
 import { useUiState } from '../stores/ui-store';
 
-export function useTraceSymbols() {
+/** `override` replaces the app setting (image export forces 'always'). */
+export function useTraceSymbols(override?: SymbolSetting) {
   const { allKnownTraces } = useTraceState();
   const { traceHueSlots } = useUiState();
   const assignments = allocateTraceColors(allKnownTraces, new Map(Object.entries(traceHueSlots)));
@@ -16,6 +18,6 @@ export function useTraceSymbols() {
   }, []);
   return (id: string) => {
     const assignment = assignments.get(id);
-    return assignment ? symbolFor(assignment, setting) : null;
+    return assignment ? symbolFor(assignment, override ?? setting) : null;
   };
 }

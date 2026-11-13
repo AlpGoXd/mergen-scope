@@ -61,7 +61,11 @@ import { PaneSettingsPopover } from './PaneSettingsPopover';
 import { PaneHeader, SamplesIcon } from './PaneHeader';
 import { XLinkChip } from './XLinkChip';
 import { fittedXBounds, linkedPeers } from '../../domain/x-link';
-import { copyChartImage, downloadText } from './copy-chart';
+import { downloadText } from './copy-chart';
+import { usePaneImageExport } from './export/export-context';
+import type { ExportView } from './export/export-context';
+import { ExportFrame } from './export/ExportFrame';
+import { PAPER_LINE_PT, PAPER_TEXT_PT, ptToCssPx } from '../../domain/export-image';
 import { tracesToCSV } from '../../domain/export';
 import { defaultPaneSettings } from '../../types/pane';
 import type { RefLine } from '../../types/ref-line';
@@ -95,6 +99,8 @@ function nextLineLabel(type: 'v' | 'h', lines: readonly RefLine[]): string {
 export interface ChartPaneProps {
   paneId: string;
   hideXTicks?: boolean;
+  /** Image export: render only the plot at a fixed size, with no chrome, interaction or shared side effects. */
+  exportView?: ExportView;
 }
 
 interface ChartMouseEvent {
@@ -113,8 +119,11 @@ const CHART_MARGIN_RIGHT = 20;
 const CHART_MARGIN_TOP = 10;
 const CHART_X_AXIS_HEIGHT = 35; // approximate height for x-axis ticks + label
 
-export function ChartPane({ paneId, hideXTicks = false }: ChartPaneProps) {
+export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportView }: ChartPaneProps) {
+  const isExport = exportView !== undefined;
+  const hideXTicks = hideXTicksProp && !isExport;
   const xAxisHeight = hideXTicks ? 0 : CHART_X_AXIS_HEIGHT;
+  const imageExport = usePaneImageExport();
   const overlays = useAnalysisOverlays(paneId);
   const aggregate = useOptionalAggregateWorkspace();
   const historyDispatch = aggregate?.historyDispatch;
@@ -125,15 +134,16 @@ export function ChartPane({ paneId, hideXTicks = false }: ChartPaneProps) {
   const { refLines, refMode, selectedRefLineId, hoveredRefLineId } = useRefLineState();
   const refLineDispatch = useRefLineDispatch();
   const { selectedTraceName, markerTrace, traceHueSlots, paneAssignmentWarning } = useUiState();
-  const resolveColor = useTraceColors();
-  const traceSymbol = useTraceSymbols();
+  const resolveColor = useTraceColors(exportView?.colorTheme);
+  const traceSymbol = useTraceSymbols(isExport ? 'always' : undefined);
   const uiDispatch = useUiDispatch();
   const paneDispatch = usePaneDispatch();
   const { limit } = usePaneLimit();
   const importFiles = useFileImport();
   const { allTraces, allKnownTraces, allDisplayTraces, vis } = useTraceState();
   const publishHover = useSharedHoverPublisher();
-  useEffect(() => () => publishHover(null, paneId), [publishHover, paneId]);
+  // The export copy shares the pane id: it must never clear the real pane's hover.
+  useEffect(() => isExport ? undefined : () => publishHover(null, paneId), [publishHover, paneId, isExport]);
   const tableView = useTableView(paneId);
   const colorAssignments = useMemo(() => allocateTraceColors(allKnownTraces, new Map(Object.entries(traceHueSlots))), [allKnownTraces, traceHueSlots]);
   const { colors } = useTheme();
@@ -142,7 +152,7 @@ export function ChartPane({ paneId, hideXTicks = false }: ChartPaneProps) {
   if (!pane) return null;
   const drag = usePaneDrag({ pane, panes, traces: allKnownTraces, memberships: tracePaneMap, displays: allDisplayTraces }, source => historyDispatch?.({ type: 'change', command: { slice: 'layout', action: { type: 'SWAP_PANES', sourcePaneId: source, targetPaneId: paneId } } }));
   useEffect(() => {
-    if (paneAssignmentWarning?.source !== 'drop' || paneAssignmentWarning.paneId !== paneId) return;
+    if (isExport || paneAssignmentWarning?.source !== 'drop' || paneAssignmentWarning.paneId !== paneId) return;
     drag.showRefusal(paneAssignmentWarning.message);
     uiDispatch({ type: 'SET', payload: { key: 'paneAssignmentWarning', value: null } });
   }, [paneAssignmentWarning, paneId, uiDispatch]);
@@ -557,9 +567,9 @@ export function ChartPane({ paneId, hideXTicks = false }: ChartPaneProps) {
   const handlePlotView = React.useCallback((view: PlotView) => {
     setPlotView(prev => prev && prev.x?.[0] === view.x?.[0] && prev.x?.[1] === view.x?.[1] && prev.y?.[0] === view.y?.[0] && prev.y?.[1] === view.y?.[1]
       && prev.plot.left === view.plot.left && prev.plot.top === view.plot.top && prev.plot.width === view.plot.width && prev.plot.height === view.plot.height ? prev : view);
-    refLineDispatch({ type: 'SET_PANE_VIEW', payload: { paneId, view: { x: view.x, y: view.y } } });
-  }, [refLineDispatch, paneId]);
-  useEffect(() => () => refLineDispatch({ type: 'SET_PANE_VIEW', payload: { paneId, view: null } }), [refLineDispatch, paneId]);
+    if (!isExport) refLineDispatch({ type: 'SET_PANE_VIEW', payload: { paneId, view: { x: view.x, y: view.y } } });
+  }, [refLineDispatch, paneId, isExport]);
+  useEffect(() => isExport ? undefined : () => refLineDispatch({ type: 'SET_PANE_VIEW', payload: { paneId, view: null } }), [refLineDispatch, paneId, isExport]);
 
   const resolveClientAmp = (clientY: number, overshootFraction = 0): number | null => {
     const chartEl = chartAreaRef.current;
@@ -878,8 +888,10 @@ export function ChartPane({ paneId, hideXTicks = false }: ChartPaneProps) {
   }, [activePaneTrace, axisInfo.yLabel]);
 
   const shortYLabel = yAxisLabelText.match(/\([^()]+\)\s*$/)?.[0] ?? yAxisLabelText.split(/\s+/)[0] ?? '';
-  const fittedYLabel = yAxisLabelText.length * 7 <= plotHeight ? yAxisLabelText
-    : shortYLabel.length * 7 <= plotHeight ? shortYLabel : '';
+  // The export render knows its size up front; waiting for the resize observer would capture the plot without its Y title.
+  const labelRoom = exportView ? Math.max(0, exportView.height - CHART_MARGIN_TOP - xAxisHeight - 10) : plotHeight;
+  const fittedYLabel = yAxisLabelText.length * 7 <= labelRoom ? yAxisLabelText
+    : shortYLabel.length * 7 <= labelRoom ? shortYLabel : '';
 
   const xTickValues = useMemo(() => makeNiceTicks(xDomain, NICE_TICK_COUNT), [xDomain]);
   const yTickValues = useMemo(() => {
@@ -1192,82 +1204,9 @@ export function ChartPane({ paneId, hideXTicks = false }: ChartPaneProps) {
     zoomDragActive,
   ]);
 
-  return (
-    <div
-      ref={paneRootRef}
-      data-testid={`chart-pane-${paneId}`}
-      onMouseDownCapture={() => { if (!isActive) paneDispatch({ type: 'SET_ACTIVE_PANE', payload: paneId }); }}
-      onContextMenu={handlePaneContextMenu}
-      style={{ position: 'relative', flex: 1, display: 'flex', flexDirection: 'column', minHeight: '120px', background: 'var(--bg)', userSelect: 'none', outline: paneDragOver ? '2px solid var(--accent)' : undefined, outlineOffset: '-2px' }}
-      onDragEnter={handlePaneDragOver}
-      onDragOver={handlePaneDragOver}
-      onDragLeave={(e) => { if (!(e.relatedTarget instanceof Node) || !e.currentTarget.contains(e.relatedTarget)) { setPaneDragOver(false); drag.leave(); } }}
-      onDrop={handlePaneDrop}
-    >
-      <PaneDragOverlay hint={drag.hint} />
-      {displayState === 'picker' ? (
-        <div data-testid={`chart-pane-header-${paneId}`} draggable onPointerDown={drag.pointerDown} onDragStart={drag.start} onDragEnd={drag.end} className={`ph${isActive ? ' is-target' : ''}${drag.dragging ? ' pane-header-dragging' : ''}`}>
-          <span className="ph-title t-card-title" title={paneName(panes, paneId)}>{paneName(panes, paneId)}</span>
-          <span className="t-caption">Empty</span>
-          <span className="ph-spacer" />
-          {panes.length > 1 && <button type="button" className="lp-icon-btn ph-close" aria-label={`Close ${paneName(panes, paneId)}`} onClick={event => { event.stopPropagation(); closePane(); }}>×</button>}
-        </div>
-      ) : (
-        <PaneHeader data-testid={`chart-pane-header-${paneId}`} draggable onPointerDown={drag.pointerDown} onDragStart={drag.start} onDragEnd={drag.end} className={drag.dragging ? 'pane-header-dragging' : ''}
-          name={paneName(panes, paneId)} target={isActive}
-          count={shownCount > 0 ? `${shownCount} ${shownCount === 1 ? 'trace' : 'traces'}` : null}
-          scale={paneTraces.length > 0 && !isSmith && !TableRenderer ? `X ${xDiv} · Y ${yDiv}` : null}
-          link={traceNamesInPane.length > 0 ? iconOnly => <XLinkChip paneId={paneId} iconOnly={iconOnly} /> : null}
-          samples={TableRenderer ? null : iconOnly => (
-            <Btn variant={settings.showSampleDots ? 'armed' : 'neutral'} tone="pane" small className={`ph-samples${iconOnly ? ' is-icon' : ''}`} aria-label="Samples" aria-pressed={settings.showSampleDots} title="Show the measured sample points" data-testid="samples-toggle"
-              onClick={e => { e.stopPropagation(); paneDispatch({ type: 'SET_PANE_SETTINGS', payload: { paneId, patch: { showSampleDots: !settings.showSampleDots } } }); }}>
-              {iconOnly ? <SamplesIcon /> : 'Samples'}
-            </Btn>
-          )}
-          chip={fit => <>
-            <PaneTypeChip ref={typeButtonRef} icon={paneTypes[currentType].iconKey} label={currentType === 'eye' ? 'Eye · CH1' : paneTypes[currentType].title} open={!!typeAnchor} fit={fit} onClick={() => { setTypeChange(null); returnToTileRef.current = null; setSettingsAnchor(null); setHoveredType(null); setFocusedType(null); typeTriggerRef.current = typeAnchor ? null : typeButtonRef.current; setTypeAnchor(typeAnchor ? null : typeButtonRef.current); }} />
-            {typeAnchor && <PopoverAt label="Chart type" at={typeAnchor} onClose={() => { setTypeChange(null); returnToTileRef.current = null; setHoveredType(null); setFocusedType(null); setTypeAnchor(null); typeTriggerRef.current?.focus({ preventScroll: true }); typeTriggerRef.current = null; }}>
-              <div ref={typeMenuRef} onMouseOver={event => setHoveredType(tileFromTarget(event.target))} onMouseOut={event => setHoveredType(tileFromTarget(event.relatedTarget))} onFocus={event => setFocusedType(tileFromTarget(event.target))} onBlur={event => setFocusedType(tileFromTarget(event.relatedTarget))}>
-                <PaneTypeMenu paneName={paneName(panes, paneId)} current={currentType} tiles={panePickerTiles(Object.values(paneTypes))} pending={pendingType ?? undefined} lockedNote={currentType === 'eye' ? 'This pane belongs to the Eye diagram card on CH1.' : undefined}
-                  note={(() => { const id = hoveredType ?? focusedType; if (!id) return undefined; const members = allKnownTraces.filter(trace => traceNamesInPane.includes(trace.name)); const accepted = members.filter(trace => paneTypes[id].appliesTo(trace).allowed).map(trace => trace.dn || trace.name); return paneTypeCompatibilityNote(paneName(panes, paneId), paneTypes[id].title, members.length, accepted); })()}
-                  onChoose={id => selectPaneType(paneTypes[id])}
-                  onConfirm={() => { if (pendingType) selectPaneType(paneTypes[pendingType.to], true); }}
-                  onCancel={cancelTypeChange} />
-              </div>
-            </PopoverAt>}
-          </>}>
-          <PaneSettingsPopover paneId={paneId} settings={settings} sections={paneTypes[currentType].settings} paneName={paneName(panes, paneId)} current={currentType} tiles={panePickerTiles(Object.values(paneTypes))} pending={pendingType} anchor={settingsAnchor} contentRef={settingsMenuRef}
-            onAnchorChange={anchor => { setTypeChange(null); returnToTileRef.current = null; setTypeAnchor(null); setSettingsAnchor(anchor); if (anchor) typeTriggerRef.current = anchor; else { typeTriggerRef.current?.focus({ preventScroll: true }); typeTriggerRef.current = null; } }}
-            onChoose={id => selectPaneType(paneTypes[id])} onConfirm={() => { if (pendingType) selectPaneType(paneTypes[pendingType.to], true); }} onCancel={cancelTypeChange}
-            table={TableRenderer ? { settings: tableView.settings, visible: tableView.visible } : null}
-            axes={!isSmith && !TableRenderer && paneTraces.length > 0 ? {
-              x: xDiv, y: yDiv,
-              onFitX: () => paneDispatch({ type: 'SET_PANE_ZOOM', payload: { paneId, zoom: null } }),
-              onFitY: () => paneDispatch({ type: 'SET_PANE_Y_ZOOM', payload: { paneId, zoom: null } }),
-            } : null}
-            onFit={isSmith && paneTraces.length > 0 ? () => setSmithFitRequest(value => value + 1) : null}
-            actions={{
-              onCopy: () => paneRootRef.current ? copyChartImage(paneRootRef.current) : Promise.resolve('failed' as const),
-              onExport: paneTraces.length > 0 ? () => downloadText(`${paneName(panes, paneId)}.csv`, tracesToCSV(paneTraces, paneTraces[0]?.domain === 'time' ? 'Time' : 'Frequency'), 'text/csv;charset=utf-8') : null,
-              onClose: panes.length > 1 ? closePane : null,
-            }} />
-        </PaneHeader>
-      )}
-
-      {/* overflow hidden: pane content must never paint over (and steal clicks from) the next pane's header */}
-      <div onClick={() => { if (traceNamesInPane.length === 0 && !isActive) paneDispatch({ type: 'SET_ACTIVE_PANE', payload: paneId }); }} style={{ flex: 1, position: 'relative', minHeight: 0, overflow: 'hidden', containerType: 'size' }}>
-        {TableRenderer && displayState !== 'picker' ? (
-          <TableRenderer paneId={paneId} />
-        ) : SmithRenderer && traceNamesInPane.length > 0 ? (
-          <SmithRenderer paneId={paneId} fitRequest={smithFitRequest} />
-        ) : traceNamesInPane.length === 0 ? (
-          <EmptyChartPane mode={allTraces.length > 0 ? 'traces' : 'files'} paneId={paneId} compact={panes.length > 2} types={Object.values(paneTypes)} currentType={currentType} displayState={displayState} onSelectType={selectPaneType} />
-        ) : mergedData.length === 0 ? (
-          <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--dim)', fontSize: 'var(--font-title)' }}>No visible traces in this pane.</div>
-        ) : (
-          <div data-testid={`chart-plot-${paneId}`} data-line-labels={settings.showLineLabels ? 'on' : 'off'} ref={chartAreaRef} onWheel={handleWheel} onMouseDownCapture={(e) => { lastPointerClientXRef.current = e.clientX; lastPointerClientYRef.current = e.clientY; lastPointerButtonRef.current = e.button; }} onMouseMoveCapture={(e) => { lastPointerClientXRef.current = e.clientX; lastPointerClientYRef.current = e.clientY; }} onMouseDown={handleContainerMouseDown} style={{ height: '100%', cursor: draggingRefLineId !== null ? 'grabbing' : hoveredRefLineId !== null ? (refLines.find(l => l.id === hoveredRefLineId)?.type === 'h' ? 'ns-resize' : 'ew-resize') : undefined }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart ref={lineChartRef} data={plotData} margin={{ top: 10, right: 20, left: 0, bottom: 10 }} onMouseDown={(state) => handleMouseDown(state, (state as any)?.nativeEvent?.button ?? lastPointerButtonRef.current ?? 0)} onMouseMove={handleMouseMove} onMouseLeave={handleMouseLeave} onMouseUp={handleMouseUp}>
+  // The plot itself; the image export renders it alone at a fixed size.
+  const lineChart = hasChart ? (
+              <LineChart ref={lineChartRef} data={plotData} margin={{ top: 10, right: 20, left: 0, bottom: 10 }} {...(exportView ? { width: exportView.width, height: exportView.height } : { onMouseDown: (state: ChartMouseEvent | undefined) => handleMouseDown(state, (state?.nativeEvent as { button?: number } | undefined)?.button ?? lastPointerButtonRef.current ?? 0), onMouseMove: handleMouseMove, onMouseLeave: handleMouseLeave, onMouseUp: handleMouseUp })}>
                 {settings.gridMajor && (
                   <CartesianGrid
                     stroke="var(--grid)"
@@ -1306,13 +1245,13 @@ export function ChartPane({ paneId, hideXTicks = false }: ChartPaneProps) {
                 />
                 <Tooltip isAnimationActive={false} cursor={false} content={() => null} />
                 {paneTraces.map((trace) => (
-                  <Line key={trace.name} type="linear" dataKey={trace.name} name={trace.dn || trace.name} stroke={resolveTraceColor(trace.name)} dot={settings.showSampleDots && traceSymbol(trace.id) === null ? { r: 2, fill: resolveTraceColor(trace.name), stroke: resolveTraceColor(trace.name) } : false} activeDot={false} isAnimationActive={false} connectNulls strokeWidth={colorAssignments.get(trace.id) ? traceWidth(colorAssignments.get(trace.id) as NonNullable<ReturnType<typeof colorAssignments.get>>) : 1.5} />
+                  <Line key={trace.name} type="linear" dataKey={trace.name} name={trace.dn || trace.name} stroke={resolveTraceColor(trace.name)} dot={settings.showSampleDots && traceSymbol(trace.id) === null ? { r: 2, fill: resolveTraceColor(trace.name), stroke: resolveTraceColor(trace.name) } : false} activeDot={false} isAnimationActive={false} connectNulls strokeWidth={exportView?.paper ? ptToCssPx(PAPER_LINE_PT) : colorAssignments.get(trace.id) ? traceWidth(colorAssignments.get(trace.id) as NonNullable<ReturnType<typeof colorAssignments.get>>) : 1.5} />
                 ))}
-                {hoverFreq != null && Number.isFinite(hoverFreq) && <ReferenceLine x={hoverFreq} stroke="color-mix(in srgb, var(--accent) 60%, white)" strokeDasharray="4 4" strokeWidth={1} />}
-                {hoverFreq == null && ghostX != null && Number.isFinite(ghostX) && <ReferenceLine className="x-ghost-crosshair" x={ghostX} stroke="color-mix(in srgb, var(--accent) 60%, white)" strokeDasharray="4 4" strokeWidth={1} />}
+                {!isExport && hoverFreq != null && Number.isFinite(hoverFreq) && <ReferenceLine x={hoverFreq} stroke="color-mix(in srgb, var(--accent) 60%, white)" strokeDasharray="4 4" strokeWidth={1} />}
+                {!isExport && hoverFreq == null && ghostX != null && Number.isFinite(ghostX) && <ReferenceLine className="x-ghost-crosshair" x={ghostX} stroke="color-mix(in srgb, var(--accent) 60%, white)" strokeDasharray="4 4" strokeWidth={1} />}
                 {settings.showMarkers && paneMarkers.map(({ marker, index }) => {
                   const color = resolveTraceColor(marker.trace || '');
-                  const isSelected = index === selectedMkrIdx;
+                  const isSelected = !isExport && index === selectedMkrIdx;
                   const labelPrefix = marker.type === 'delta' ? `DM${index + 1}` : `M${index + 1}`;
                   const labelText = `${labelPrefix} ${formatAdaptiveXAxisValue(marker.freq, visibleXSpan, {
                     domain: activePaneTrace?.domain ?? 'frequency',
@@ -1386,7 +1325,7 @@ export function ChartPane({ paneId, hideXTicks = false }: ChartPaneProps) {
                                 <text
                                   x={roundedCx} y={pillY + pillH - pillPadY - 1}
                                   textAnchor="middle"
-                                  fontSize={11}
+                                  fontSize={exportView?.paper ? ptToCssPx(PAPER_TEXT_PT) : 11}
                                   fontFamily="var(--font-mono, monospace)"
                                   fill="#111"
                                   style={{ userSelect: 'none' }}
@@ -1401,13 +1340,13 @@ export function ChartPane({ paneId, hideXTicks = false }: ChartPaneProps) {
                     />
                   );
                 })}
-                <Customized component={<LinesLayer lines={settings.showReferenceLines ? paneRefLines : []} litId={hoveredRefLineId ?? selectedRefLineId} selectedId={selectedRefLineId}
+                <Customized component={<LinesLayer lines={settings.showReferenceLines ? paneRefLines : []} litId={isExport ? null : hoveredRefLineId ?? selectedRefLineId} selectedId={isExport ? null : selectedRefLineId}
                   onView={handlePlotView}
                   onHover={(id) => refLineDispatch({ type: 'SET_HOVERED', payload: id })}
                   onContextMenu={(line, event) => { event.preventDefault(); markerDispatch({ type: 'SET_SELECTED_IDX', payload: -1 }); refLineDispatch({ type: 'SET_SELECTED', payload: line.id }); setLineMenu({ lineId: line.id, at: { x: event.clientX, y: event.clientY }, mode: 'main' }); }}
                   onLabelClick={(line) => { markerDispatch({ type: 'SET_SELECTED_IDX', payload: -1 }); refLineDispatch({ type: 'SET_SELECTED', payload: line.id }); }} />} />
                 <Customized component={<OverlaysLayer overlays={overlays} />} />
-                <Customized component={<SymbolsLayer traces={paneTraces} showDots={settings.showSampleDots} />} />
+                <Customized component={<SymbolsLayer traces={paneTraces} showDots={settings.showSampleDots} symbolSetting={isExport ? 'always' : undefined} />} />
                 {/* ΔX between V-line delta pairs */}
                 {settings.showReferenceLines && vDeltaPairs.map(([a, b]) => {
                   const lo = Math.min(a.value, b.value);
@@ -1475,8 +1414,96 @@ export function ChartPane({ paneId, hideXTicks = false }: ChartPaneProps) {
                 {dragStart !== null && dragCurrent !== null && <ReferenceLine x={dragStart} stroke="var(--accent)" strokeWidth={1} />}
                 {dragStart !== null && dragCurrent !== null && <ReferenceLine x={dragCurrent} stroke="var(--accent)" strokeWidth={1} />}
                 <ReferenceLine y={0} stroke="var(--dim)" strokeWidth={0.5} />
+                {exportView?.print && <Customized component={<ExportFrame />} />}
               </LineChart>
-            </ResponsiveContainer>
+  ) : null;
+  const chartPlot = !lineChart ? null : exportView ? lineChart : <ResponsiveContainer width="100%" height="100%">{lineChart}</ResponsiveContainer>;
+
+  if (exportView) {
+    return (
+      <div data-testid={`export-pane-${paneId}`} style={{ position: 'relative', width: exportView.width, height: exportView.height, background: 'var(--bg)' }}>
+        {chartPlot && <div data-testid={`export-plot-${paneId}`} data-export-chart="" data-line-labels={settings.showLineLabels ? 'on' : 'off'} ref={chartAreaRef} style={{ width: '100%', height: '100%' }}>{chartPlot}</div>}
+      </div>
+    );
+  }
+
+  return (
+    <div
+      ref={paneRootRef}
+      data-testid={`chart-pane-${paneId}`}
+      onMouseDownCapture={() => { if (!isActive) paneDispatch({ type: 'SET_ACTIVE_PANE', payload: paneId }); }}
+      onContextMenu={handlePaneContextMenu}
+      style={{ position: 'relative', flex: 1, display: 'flex', flexDirection: 'column', minHeight: '120px', background: 'var(--bg)', userSelect: 'none', outline: paneDragOver ? '2px solid var(--accent)' : undefined, outlineOffset: '-2px' }}
+      onDragEnter={handlePaneDragOver}
+      onDragOver={handlePaneDragOver}
+      onDragLeave={(e) => { if (!(e.relatedTarget instanceof Node) || !e.currentTarget.contains(e.relatedTarget)) { setPaneDragOver(false); drag.leave(); } }}
+      onDrop={handlePaneDrop}
+    >
+      <PaneDragOverlay hint={drag.hint} />
+      {displayState === 'picker' ? (
+        <div data-testid={`chart-pane-header-${paneId}`} draggable onPointerDown={drag.pointerDown} onDragStart={drag.start} onDragEnd={drag.end} className={`ph${isActive ? ' is-target' : ''}${drag.dragging ? ' pane-header-dragging' : ''}`}>
+          <span className="ph-title t-card-title" title={paneName(panes, paneId)}>{paneName(panes, paneId)}</span>
+          <span className="t-caption">Empty</span>
+          <span className="ph-spacer" />
+          {panes.length > 1 && <button type="button" className="lp-icon-btn ph-close" aria-label={`Close ${paneName(panes, paneId)}`} onClick={event => { event.stopPropagation(); closePane(); }}>×</button>}
+        </div>
+      ) : (
+        <PaneHeader data-testid={`chart-pane-header-${paneId}`} draggable onPointerDown={drag.pointerDown} onDragStart={drag.start} onDragEnd={drag.end} className={drag.dragging ? 'pane-header-dragging' : ''}
+          name={paneName(panes, paneId)} target={isActive}
+          count={shownCount > 0 ? `${shownCount} ${shownCount === 1 ? 'trace' : 'traces'}` : null}
+          scale={paneTraces.length > 0 && !isSmith && !TableRenderer ? `X ${xDiv} · Y ${yDiv}` : null}
+          link={traceNamesInPane.length > 0 ? iconOnly => <XLinkChip paneId={paneId} iconOnly={iconOnly} /> : null}
+          samples={TableRenderer ? null : iconOnly => (
+            <Btn variant={settings.showSampleDots ? 'armed' : 'neutral'} tone="pane" small className={`ph-samples${iconOnly ? ' is-icon' : ''}`} aria-label="Samples" aria-pressed={settings.showSampleDots} title="Show the measured sample points" data-testid="samples-toggle"
+              onClick={e => { e.stopPropagation(); paneDispatch({ type: 'SET_PANE_SETTINGS', payload: { paneId, patch: { showSampleDots: !settings.showSampleDots } } }); }}>
+              {iconOnly ? <SamplesIcon /> : 'Samples'}
+            </Btn>
+          )}
+          chip={fit => <>
+            <PaneTypeChip ref={typeButtonRef} icon={paneTypes[currentType].iconKey} label={currentType === 'eye' ? 'Eye · CH1' : paneTypes[currentType].title} open={!!typeAnchor} fit={fit} onClick={() => { setTypeChange(null); returnToTileRef.current = null; setSettingsAnchor(null); setHoveredType(null); setFocusedType(null); typeTriggerRef.current = typeAnchor ? null : typeButtonRef.current; setTypeAnchor(typeAnchor ? null : typeButtonRef.current); }} />
+            {typeAnchor && <PopoverAt label="Chart type" at={typeAnchor} onClose={() => { setTypeChange(null); returnToTileRef.current = null; setHoveredType(null); setFocusedType(null); setTypeAnchor(null); typeTriggerRef.current?.focus({ preventScroll: true }); typeTriggerRef.current = null; }}>
+              <div ref={typeMenuRef} onMouseOver={event => setHoveredType(tileFromTarget(event.target))} onMouseOut={event => setHoveredType(tileFromTarget(event.relatedTarget))} onFocus={event => setFocusedType(tileFromTarget(event.target))} onBlur={event => setFocusedType(tileFromTarget(event.relatedTarget))}>
+                <PaneTypeMenu paneName={paneName(panes, paneId)} current={currentType} tiles={panePickerTiles(Object.values(paneTypes))} pending={pendingType ?? undefined} lockedNote={currentType === 'eye' ? 'This pane belongs to the Eye diagram card on CH1.' : undefined}
+                  note={(() => { const id = hoveredType ?? focusedType; if (!id) return undefined; const members = allKnownTraces.filter(trace => traceNamesInPane.includes(trace.name)); const accepted = members.filter(trace => paneTypes[id].appliesTo(trace).allowed).map(trace => trace.dn || trace.name); return paneTypeCompatibilityNote(paneName(panes, paneId), paneTypes[id].title, members.length, accepted); })()}
+                  onChoose={id => selectPaneType(paneTypes[id])}
+                  onConfirm={() => { if (pendingType) selectPaneType(paneTypes[pendingType.to], true); }}
+                  onCancel={cancelTypeChange} />
+              </div>
+            </PopoverAt>}
+          </>}>
+          <PaneSettingsPopover paneId={paneId} settings={settings} sections={paneTypes[currentType].settings} paneName={paneName(panes, paneId)} current={currentType} tiles={panePickerTiles(Object.values(paneTypes))} pending={pendingType} anchor={settingsAnchor} contentRef={settingsMenuRef}
+            onAnchorChange={anchor => { setTypeChange(null); returnToTileRef.current = null; setTypeAnchor(null); setSettingsAnchor(anchor); if (anchor) typeTriggerRef.current = anchor; else { typeTriggerRef.current?.focus({ preventScroll: true }); typeTriggerRef.current = null; } }}
+            onChoose={id => selectPaneType(paneTypes[id])} onConfirm={() => { if (pendingType) selectPaneType(paneTypes[pendingType.to], true); }} onCancel={cancelTypeChange}
+            table={TableRenderer ? { settings: tableView.settings, visible: tableView.visible } : null}
+            axes={!isSmith && !TableRenderer && paneTraces.length > 0 ? {
+              x: xDiv, y: yDiv,
+              onFitX: () => paneDispatch({ type: 'SET_PANE_ZOOM', payload: { paneId, zoom: null } }),
+              onFitY: () => paneDispatch({ type: 'SET_PANE_Y_ZOOM', payload: { paneId, zoom: null } }),
+            } : null}
+            onFit={isSmith && paneTraces.length > 0 ? () => setSmithFitRequest(value => value + 1) : null}
+            actions={{
+              onCopyImage: imageExport && !TableRenderer && paneTraces.length > 0 ? () => imageExport.copyImage(paneId) : null,
+              onDownloadImage: imageExport && !TableRenderer && paneTraces.length > 0 ? () => imageExport.downloadImage(paneId) : null,
+              onExportOptions: imageExport && !TableRenderer && paneTraces.length > 0 ? () => imageExport.openOptions(paneId) : null,
+              onExportData: paneTraces.length > 0 ? () => downloadText(`${paneName(panes, paneId)}.csv`, tracesToCSV(paneTraces, paneTraces[0]?.domain === 'time' ? 'Time' : 'Frequency'), 'text/csv;charset=utf-8') : null,
+              onClose: panes.length > 1 ? closePane : null,
+            }} />
+        </PaneHeader>
+      )}
+
+      {/* overflow hidden: pane content must never paint over (and steal clicks from) the next pane's header */}
+      <div onClick={() => { if (traceNamesInPane.length === 0 && !isActive) paneDispatch({ type: 'SET_ACTIVE_PANE', payload: paneId }); }} style={{ flex: 1, position: 'relative', minHeight: 0, overflow: 'hidden', containerType: 'size' }}>
+        {TableRenderer && displayState !== 'picker' ? (
+          <TableRenderer paneId={paneId} />
+        ) : SmithRenderer && traceNamesInPane.length > 0 ? (
+          <SmithRenderer paneId={paneId} fitRequest={smithFitRequest} />
+        ) : traceNamesInPane.length === 0 ? (
+          <EmptyChartPane mode={allTraces.length > 0 ? 'traces' : 'files'} paneId={paneId} compact={panes.length > 2} types={Object.values(paneTypes)} currentType={currentType} displayState={displayState} onSelectType={selectPaneType} />
+        ) : mergedData.length === 0 ? (
+          <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--dim)', fontSize: 'var(--font-title)' }}>No visible traces in this pane.</div>
+        ) : (
+          <div data-testid={`chart-plot-${paneId}`} data-line-labels={settings.showLineLabels ? 'on' : 'off'} ref={chartAreaRef} onWheel={handleWheel} onMouseDownCapture={(e) => { lastPointerClientXRef.current = e.clientX; lastPointerClientYRef.current = e.clientY; lastPointerButtonRef.current = e.button; }} onMouseMoveCapture={(e) => { lastPointerClientXRef.current = e.clientX; lastPointerClientYRef.current = e.clientY; }} onMouseDown={handleContainerMouseDown} style={{ height: '100%', cursor: draggingRefLineId !== null ? 'grabbing' : hoveredRefLineId !== null ? (refLines.find(l => l.id === hoveredRefLineId)?.type === 'h' ? 'ns-resize' : 'ew-resize') : undefined }}>
+            {chartPlot}
             {settings.showReferenceLines && plotView && paneRefLines.flatMap((line) => {
               const range = line.type === 'v' ? plotView.x : plotView.y;
               if (!range || (line.value >= range[0] && line.value <= range[1])) return [];

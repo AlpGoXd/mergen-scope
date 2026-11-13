@@ -14,8 +14,11 @@ import { smithLinkedBand, smithLinkedPaneLabel, smithMarkerFrequency, smithTrace
 import { placeMarker } from '../../domain/markers';
 import { useOptionalAggregateWorkspace } from '../../stores/aggregate-workspace-store';
 import { SmithPane } from './SmithPane';
+import type { ExportView } from '../chart/export/export-context';
 
-export function SmithPaneContainer({ paneId, fitRequest = 0 }: { paneId: string; fitRequest?: number }) {
+/** `exportView`: image export render (fixed size, no cursor, selection, range bar or shared hover). */
+export function SmithPaneContainer({ paneId, fitRequest = 0, exportView }: { paneId: string; fitRequest?: number; exportView?: ExportView }) {
+  const isExport = exportView !== undefined;
   const { panes, tracePaneMap, paneXZooms } = usePaneState();
   const paneDispatch = usePaneDispatch();
   const { allTraces, allKnownTraces, allDisplayTraces, vis } = useTraceState();
@@ -23,13 +26,15 @@ export function SmithPaneContainer({ paneId, fitRequest = 0 }: { paneId: string;
   const { markers, selectedMkrIdx, armed } = useMarkerState();
   const publish = useSharedHoverPublisher();
   // The crosshair shows across every Hz pane, linked or not.
-  const cursorFrequencyHz = useLinkedHoverFrequency(paneId, true);
-  useEffect(() => () => publish(null, paneId), [publish, paneId]);
+  const linkedCursorHz = useLinkedHoverFrequency(paneId, true);
+  const cursorFrequencyHz = isExport ? null : linkedCursorHz;
+  // The export copy shares the pane id: it must never clear the real pane's hover.
+  useEffect(() => isExport ? undefined : () => publish(null, paneId), [publish, paneId, isExport]);
   const markerDispatch = useMarkerDispatch();
   const historyDispatch = useOptionalAggregateWorkspace()?.historyDispatch;
   const lineDispatch = useRefLineDispatch();
-  const color = useTraceColors();
-  const symbol = useTraceSymbols();
+  const color = useTraceColors(exportView?.colorTheme);
+  const symbol = useTraceSymbols(isExport ? 'always' : undefined);
   const assignments = useMemo(() => allocateTraceColors(allKnownTraces, new Map(Object.entries(traceHueSlots))), [allKnownTraces, traceHueSlots]);
   const pane = panes.find(item => item.id === paneId);
   const eligible = useMemo(() => pane ? allTraces.filter(trace => (tracePaneMap[trace.name] ?? []).includes(paneId) && vis[trace.name] !== false && canRenderInPane({ trace, paneIds: [paneId], displayTrace: allDisplayTraces.find(display => display.id === trace.id || display.id === trace.parameters?.['displayTraceId']) }, pane).allowed) : [], [pane, allTraces, tracePaneMap, paneId, vis, allDisplayTraces]);
@@ -60,8 +65,9 @@ export function SmithPaneContainer({ paneId, fitRequest = 0 }: { paneId: string;
   // While linked, the chart pane decides the range: a fitted chart shows the full range, not the pane's own.
   const model = smithRangeModel(traces, linkedPane ? null : smith.range ?? null, linked, smith.outside ?? 'hidden');
   const setRange = (range: typeof smith.range) => paneDispatch({ type: 'SET_PANE_SETTINGS', payload: { paneId, patch: { smith: { ...smith, range } } } });
-  return <SmithPane traces={model.traces} markers={markers} selectedMarkerId={markers[selectedMkrIdx]?.id ?? null}
-    rangeBar={model.full && model.range ? { full: model.full, range: model.range, linkedLabel: linkedPane ? smithLinkedPaneLabel(panes, linkedPane.id) : null, onChange: setRange, onFull: () => setRange(null) } : undefined}
+  return <SmithPane traces={model.traces} markers={markers} selectedMarkerId={isExport ? null : markers[selectedMkrIdx]?.id ?? null}
+    {...(exportView ? { size: { width: exportView.width, height: exportView.height } } : {})}
+    rangeBar={!isExport && model.full && model.range ? { full: model.full, range: model.range, linkedLabel: linkedPane ? smithLinkedPaneLabel(panes, linkedPane.id) : null, onChange: setRange, onFull: () => setRange(null) } : undefined}
     onSelectMarker={id => { lineDispatch({ type: 'SET_SELECTED', payload: null }); markerDispatch({ type: 'SET_SELECTED_IDX', payload: markers.findIndex(marker => marker.id === id) }); }}
     onTraceClick={click => {
       if (!armed) return;
@@ -82,7 +88,7 @@ export function SmithPaneContainer({ paneId, fitRequest = 0 }: { paneId: string;
     }}
     onMoveMarkerEnd={() => historyDispatch?.({ type: 'commit-gesture' })}
     band={model.band} cursorFrequencyHz={cursorFrequencyHz}
-    onHoverFrequency={value => publish(value === null ? null : { paneId, xUnit: 'Hz', value }, paneId)}
+    onHoverFrequency={value => { if (!isExport) publish(value === null ? null : { paneId, xUnit: 'Hz', value }, paneId); }}
     grid={smith?.grid ?? (pane.renderMode === 'smith-inverted' ? 'y' : 'z')} labels={smith?.labels ?? 'normalised'}
     direction={smith?.direction ?? 'chevrons'} readout={smith?.readout ?? ['z', 'gamma', 'vswr']}
     showMarkers={pane.settings.showMarkers} showMarkerTags={pane.settings.showMarkerLabels} showSamples={pane.settings.showSampleDots} fitRequest={fitRequest} />;

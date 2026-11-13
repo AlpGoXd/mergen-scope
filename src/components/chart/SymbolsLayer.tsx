@@ -1,12 +1,13 @@
 import type { ChartScaleProps } from './LinesLayer';
 import type { Trace } from '../../types/trace';
+import type { SymbolSetting } from '../../domain/trace-palette';
 import { DOT_RADIUS, planDotsAndSymbols } from '../../domain/dots-and-symbols';
 import { TraceSymbol } from '../shared/TraceSymbol';
 import { useTraceSymbols } from '../../hooks/use-trace-symbols';
 import { useTraceColors } from '../../hooks/use-trace-colors';
 
-export function SymbolsLayer({ traces, showDots, xAxisMap, yAxisMap, offset }: ChartScaleProps & { traces: readonly Trace[]; showDots: boolean }) {
-  const symbol = useTraceSymbols();
+export function SymbolsLayer({ traces, showDots, symbolSetting, xAxisMap, yAxisMap, offset }: ChartScaleProps & { traces: readonly Trace[]; showDots: boolean; symbolSetting?: SymbolSetting }) {
+  const symbol = useTraceSymbols(symbolSetting);
   const resolveTraceColor = useTraceColors();
   const x = xAxisMap ? Object.values(xAxisMap)[0]?.scale : undefined;
   const y = yAxisMap ? Object.values(yAxisMap)[0]?.scale : undefined;
