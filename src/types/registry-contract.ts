@@ -45,7 +45,7 @@ export interface AnalysisToolMetadata {
 
 export type ParameterValue = number | string | boolean;
 
-export type ParameterField =
+export type ParameterField = (
   | {
       readonly kind: 'number';
       readonly title: string;
@@ -68,7 +68,11 @@ export type ParameterField =
       readonly title: string;
       readonly defaultValue: string;
       readonly options: readonly string[];
-    };
+    })
+  & {
+    /** Show the field only while another (choice) parameter has one of these values, e.g. Kaiser β only for the Kaiser window. */
+    readonly shownWhen?: { readonly key: string; readonly values: readonly string[] };
+  };
 
 export type ParameterSchema = Readonly<Record<string, ParameterField>>;
 

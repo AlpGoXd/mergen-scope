@@ -20,6 +20,7 @@ import { PaneLimitContext } from '../../stores/pane-store';
 import { getAnalysisTool } from '../../domain/analysis/tool-registry';
 import { autoOutputName, computeInstance } from '../../domain/analysis/instances';
 import { describeStimulus } from '../../domain/analysis/trace-math-align';
+import { UNEVEN_SAMPLES } from '../../domain/analysis/fft';
 import type { InstanceResult } from '../../domain/analysis/instances';
 import { crossingsCsv, describeInstance, resultsText, traceMathAdvice } from '../../domain/analysis/card-view';
 import type { CardUnits } from '../../domain/analysis/card-view';
@@ -36,7 +37,11 @@ const NO_SOURCE_PICKER = new Set(['line-crossings', 'reciprocity-isolation', 'st
 const SEGMENT_LABELS: Record<string, string> = { visible: 'Visible', all: 'All', add: '+', subtract: '−', multiply: '×', divide: '÷', gaussian: 'Gaussian', flattop: 'Flat top', fivepole: 'Five-pole', dbv: 'dBV', v: 'V', dbm: 'dBm 50 Ω', auto: 'Auto' };
 const LABELS: Record<string, string> = {
   'moving-average': 'Moving average', 'median-filter': 'Median filter', 'savitzky-golay': 'Savitzky–Golay', none: 'None',
-  hann: 'Hann', rectangular: 'Rectangular', 'blackman-harris': 'Blackman-Harris',
+  hann: 'Hann', rectangular: 'Rectangular', hamming: 'Hamming', blackman: 'Blackman', 'blackman-harris': 'Blackman-Harris',
+  nuttall: 'Nuttall', 'blackman-nuttall': 'Blackman-Nuttall', kaiser: 'Kaiser', tukey: 'Tukey', chebyshev: 'Dolph-Chebyshev',
+  dbmv: 'dBmV', dbuv: 'dBµV', dbvhz: 'dBV/Hz', vrthz: 'V/√Hz', dbmhz: 'dBm/Hz',
+  off: 'Off', dc: 'DC', avg4: '4', avg16: '16', avg64: '64', max: 'Max hold',
+  h5: 'H2–H5', h10: 'H2–H10', near: 'Near',
 };
 
 const labelOf = (value: string): string => ({ a: "A's", b: "B's", both: 'Both', linear: 'Linear', cubic: 'Cubic', nearest: 'Nearest', previous: 'Previous', next: 'Next', sinc: 'Sinc', '': 'Choose…' } as Record<string, string>)[value] ?? SEGMENT_LABELS[value] ?? LABELS[value] ?? value;
@@ -115,6 +120,12 @@ export function AnalysisInstanceCard({ instance }: { instance: AnalysisInstance 
     fields.push({ id: 'second', label: 'Trace B', control: { type: 'select', value: second ? traceLabel(second) : 'Pick a trace', ...(second ? { hue: hueOf(second.name) } : {}), onOpen: anchor => openSelect(anchor, 'Trace B', traceOptions, second?.id ?? '', value => setSource({ secondTraceId: value })) } });
   }
   for (const [key, field] of Object.entries(tool.params)) {
+    // A setting of one choice only (Kaiser β, Impedance for dBm …) shows while that choice is picked.
+    if (field.shownWhen) {
+      const owner = tool.params[field.shownWhen.key];
+      const current = String(instance.params[field.shownWhen.key] ?? owner?.defaultValue ?? '');
+      if (!field.shownWhen.values.includes(current)) continue;
+    }
     if (instance.toolId === 'trace-math' && (key === 'points' || key === 'fill')) {
       if (!stimulus || stimulus.identical || stimulus.domainMismatch || !stimulus.overlap || field.kind !== 'choice') continue;
       const value = String(instance.params[key] ?? '');
@@ -205,6 +216,8 @@ export function AnalysisInstanceCard({ instance }: { instance: AnalysisInstance 
         onMenu={anchor => setMenu(anchor)} onRemove={remove}>
         {fields.length > 0 && !isLine ? <Params cardId={instance.id} fields={fields} /> : null}
         <Results>
+        {numbers?.facts ? <div className="an-result__note" data-testid="analysis-facts">{numbers.facts}</div> : null}
+        {instance.toolId === 'fft' && result.reason === UNEVEN_SAMPLES && source ? <CardMsg tone="info" text="Resample makes an evenly spaced copy of this trace." action={{ label: 'Add Resample', onClick: () => analysisDispatch({ type: 'ADD_ANALYSIS', payload: { toolId: 'resample', source: { traceId: source.id } } }) }} /> : null}
         {stimulus && !stimulus.identical && !stimulus.domainMismatch && source && second ? <CardMsg tone="warning" text={`Stimulus mismatch. A: ${stimulus.aCount} points, ${formatCrossingValue(stimulus.aRange[0], source.units.x, significantStep(stimulus.aRange[0], 6))} to ${formatCrossingValue(stimulus.aRange[1], source.units.x, significantStep(stimulus.aRange[1], 6))}. B: ${stimulus.bCount} points, ${formatCrossingValue(stimulus.bRange[0], second.units.x, significantStep(stimulus.bRange[0], 6))} to ${formatCrossingValue(stimulus.bRange[1], second.units.x, significantStep(stimulus.bRange[1], 6))}.`} /> : null}
         {mathWarning ? <CardMsg tone="warning" text={mathWarning} /> : null}
         {ip3Note ? <CardMsg tone="warning" text={ip3Note} /> : null}

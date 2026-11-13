@@ -9,7 +9,7 @@ function scopeCsv(): Buffer {
   return Buffer.from(`${rows.join('\n')}\n`);
 }
 
-test('Waveform measures a scope trace and FFT creates its spectrum in a frequency pane', async ({ page }) => {
+test('Waveform measures a scope trace, FFT creates its spectrum in a frequency pane, Harmonics reads it', async ({ page }) => {
   await page.goto('/app.html');
   await page.getByTestId('app-open-input').setInputFiles({ name: 'scope.csv', mimeType: 'text/csv', buffer: scopeCsv() });
   await acceptImport(page);
@@ -40,4 +40,20 @@ test('Waveform measures a scope trace and FFT creates its spectrum in a frequenc
   await expect(spectrumPane).toContainText('Hz');
   await expect(page.locator('[data-testid^="trace-row-"]').filter({ hasText: 'FFT · CH1' }).first()).toBeVisible();
   await expect(fft.locator('.an-output')).toContainText('FFT · CH1');
+
+  // A window's own setting shows only for that window; the facts line follows the window.
+  await expect(page.getByTestId('analysis-facts')).toContainText('ENBW 1.50 bins');
+  await expect(fft.locator('.an-params__label', { hasText: 'β' })).toHaveCount(0);
+  await fft.locator('.an-select', { hasText: 'Hann' }).click();
+  await page.getByRole('menu', { name: 'Window' }).getByRole('menuitemcheckbox', { name: 'Kaiser' }).click();
+  await expect(fft.locator('.an-params__label', { hasText: 'β' })).toBeVisible();
+  await expect(page.getByTestId('analysis-facts')).not.toContainText('ENBW 1.50 bins');
+
+  // Harmonics measures the created spectrum and outlines the tones in its pane.
+  await page.locator('[data-testid^="trace-row-"]').filter({ hasText: 'FFT · CH1' }).first().click();
+  const harmonics = await addAnalysis(page, 'Harmonics');
+  await expect(harmonics.locator('.an-card__source')).toContainText('FFT · CH1');
+  await expect(harmonics.locator('dt', { hasText: /^SINAD$/ })).toBeVisible();
+  await expect(harmonics.locator('dt', { hasText: /^ENOB$/ }).locator('xpath=following-sibling::dd[1]')).toHaveText(/bits$/);
+  await expect(spectrumPane.getByTestId('analysis-shape-triangle')).toHaveCount(5);
 });

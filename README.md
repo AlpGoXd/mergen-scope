@@ -35,15 +35,41 @@ Mergen Scope has grown from a simple file viewer into a small measurement workbe
 
 | Area | Tools |
 |------|-------|
-| Spectrum | Noise PSD, IP3 / TOI, occupied bandwidth, guarded channel power |
+| Spectrum | Harmonics (THD, THD+N, SNR, SINAD, ENOB, SFDR), noise PSD, IP3 / TOI, occupied bandwidth, guarded channel power |
 | General trace analysis | Peak table, range statistics, 3 dB / 10 dB bandwidth, threshold crossings, ripple / flatness |
-| Time / waveform | Waveform measurements (frequency, period, Vpp, mean, RMS, 10–90 % rise / fall, overshoot, duty cycle), windowed FFT (fundamental, harmonics 2–5 in dBc, THD, noise floor; creates a spectrum trace in a frequency pane) |
+| Time / waveform | Waveform measurements (frequency, period, Vpp, mean, RMS, 10–90 % rise / fall, overshoot, duty cycle), FFT, Resample |
 | Touchstone / network | VSWR, return loss, group delay, reciprocity / isolation, 2-port stability |
 | Touchstone derived traces | `K`, `mu1`, `mu2`, `|delta|` |
 
 Group delay is computed from complex S-parameter data using unwrapped phase and finite differences. Low-magnitude regions are masked to avoid unstable phase-derivative spikes.
 
 Channel power is intentionally gated to spectral-density units such as `dBm/Hz` or `dBW/Hz`, because integrating ordinary amplitude traces would produce misleading results.
+
+### Time traces: Waveform, FFT, Harmonics, Resample
+
+The time tools follow one rule: a tool that *creates* a trace has only the settings that change that trace, and anything that *reads values* off a trace is a separate measurement card. A typical chain is:
+
+```text
+scope capture ──Resample (if timestamps are uneven)──► FFT ──► spectrum trace ──► Harmonics, Peak table, Noise PSD, Channel power …
+```
+
+**Waveform** (time traces) reads frequency, period, Vpp, max, min, mean, RMS, 10–90 % rise and fall time, overshoot and duty cycle over the visible range or the whole trace. Top and base levels come from the histogram (IEEE 181 style), so a square wave's overshoot is measured against its settled level, not its peak. While the card is open, the chart shows dashed 10 % / 90 % levels over one rising edge and a light band over one period.
+
+**FFT** (time traces) creates a single-sided, RMS-scaled spectrum trace in a frequency pane (a new, unlinked pane if none exists) and follows the visible range of its source as you pan or zoom.
+
+| Setting | Options |
+|---|---|
+| Window | Rectangular, Hann, Hamming, Blackman, Blackman-Harris (3, 4 or 7 terms), Nuttall, Blackman-Nuttall, flat top, Kaiser (β), Gaussian (σ), Tukey (α), Dolph-Chebyshev (sidelobe level) |
+| Points | Auto (every sample in range, any length) or a power of two from 64 to 65 536 |
+| Averages | Off, 4, 16 or 64 (Welch, 50 % overlap), or Max hold |
+| Scale | dBV, V, dBm, dBmV, dBµV, and the densities dBV/Hz, V/√Hz, dBm/Hz. dBm uses the Impedance setting (default 50 Ω). |
+| Detrend | Off, DC, or linear trend, removed before the window |
+
+The card shows the fundamental and one line of window facts: ENBW, coherent gain, scalloping loss and the highest sidelobe. Tone levels sum the power over the window's main lobe and divide by ENBW, so a 1 V amplitude sine reads −3.01 dBV with every window when it sits on a bin, and within 0.1 dB between bins with the tapered windows. A density scale divides each bin by ENBW·Δf, so the noise reads the same with any window or point count. Samples whose time step varies by more than 1 % are refused ("FFT needs evenly spaced samples"); the card then offers Resample.
+
+**Harmonics** (any spectrum trace, FFT-made or from an analyzer) reads the fundamental, harmonics H2–H5, H2–H10 or all below Nyquist (aliased harmonics are folded back and marked), THD, THD+N, SNR, SINAD, ENOB, SFDR with the worst spur, and the noise floor. The tones are outlined on the spectrum. On a spectrum this app created, tone power and total noise use the FFT's window facts (IEEE 1241 definitions), so SNR, SINAD and ENOB are exact; leakage beyond the window's main lobe counts as noise, so choose a low-sidelobe window (7-term Blackman-Harris) for high dynamic range. On an analyzer trace the peak bins are the tone levels and the noise bandwidth per bin is unknown, so SNR, SINAD, ENOB and THD+N are not given.
+
+**Resample** (time traces) makes an evenly spaced copy with the same span and point count, by linear or natural cubic spline interpolation.
 
 ---
 
@@ -227,7 +253,7 @@ Saved sessions are v4 JSON snapshots. `workspace-migrate-v4.ts` upgrades older s
 - Multi-pane is limited to 1 to 4 stacked panes.
 - Touchstone stability metrics are currently 2-port only.
 - Smith chart workflows still need more real-world test coverage.
-- Large trace files can still stress the browser charting layer.
+- Large trace files can still stress the browser charting layer. FFT, Waveform and Harmonics run on the main thread; FFT of million-point captures with Range: Visible recomputes while panning.
 - PWA/offline install support is not implemented yet.
 
 ---
@@ -251,6 +277,7 @@ Next:
 3. More Touchstone edge-case validation.
 4. Smith chart polish.
 5. Better public examples and screenshots.
+6. Spectrogram (STFT) pane built on the FFT, and FFT in a web worker for very long captures.
 
 ---
 

@@ -7,13 +7,16 @@ import type { Trace } from '../../types/trace';
 import type { TraceMathOp } from '../trace-math-units';
 import { traceMathUnit } from '../trace-math-units';
 import { formatCrossingValue, significantStep } from './crossing-rows';
-import { FFT_SCALE_UNITS } from './fft';
+import { FFT_SCALE_UNITS, FFT_TONE_SCALE } from './fft';
 import type { FftScale } from './fft';
+import { spectrumUnit } from './tools/harmonics';
+
+const FFT_SCALES: readonly FftScale[] = ['dbv', 'v', 'dbm', 'dbmv', 'dbuv', 'dbvhz', 'vrthz', 'dbmhz'];
 
 export interface CardUnits { x: string | null | undefined; y: string | null | undefined }
 export interface CardRow { label: string; value: string; title?: string }
 export interface CardResult { value: string; unit?: string; note?: string }
-export interface CardNumbersView { result?: CardResult; rows: CardRow[]; summary: string }
+export interface CardNumbersView { result?: CardResult; rows: CardRow[]; summary: string; /** A muted line under the settings (FFT window facts). */ facts?: string }
 
 export function traceMathAdvice(operation: TraceMathOp, a: Trace, b: Trace): string | undefined {
   return traceMathUnit(a.units.y, b.units.y, operation).warning;
@@ -117,19 +120,43 @@ export function describeNumbers(toolId: string, outputs: readonly AnalysisOutput
       ], summary: Number.isFinite(v['frequency']) ? frequency : `${level('vpp')} pp` };
     }
     case 'fft': {
-      // FFT levels are in the card's Scale, not the source trace's unit.
-      const scale = params['scale'];
-      const unit = FFT_SCALE_UNITS[(scale === 'v' || scale === 'dbm' ? scale : 'dbv') satisfies FftScale];
-      const levelStep = unit === 'V' ? significantStep(v['fundamentalLevel'] ?? NaN, 4) : 0.01;
-      const level = formatCrossingValue(v['fundamentalLevel'] ?? NaN, unit, levelStep);
-      const dbc = (key: string) => formatCrossingValue(v[key] ?? NaN, 'dBc', 0.1);
-      const noiseStep = unit === 'V' ? significantStep(v['noiseFloor'] ?? NaN, 3) : 0.1;
-      return { result: { ...splitUnit(level), note: `${fmtPlain(v['points'] ?? NaN, 6)} points · bin ${formatCrossingValue(v['binHz'] ?? NaN, 'Hz', significantStep(v['binHz'] ?? NaN, 4))}` }, rows: [
-        { label: 'Fundamental', value: formatCrossingValue(v['fundamentalHz'] ?? NaN, 'Hz', significantStep(v['fundamentalHz'] ?? NaN, 6)) },
-        { label: 'H2', value: dbc('h2') }, { label: 'H3', value: dbc('h3') }, { label: 'H4', value: dbc('h4') }, { label: 'H5', value: dbc('h5') },
-        { label: 'THD', value: formatCrossingValue(v['thd'] ?? NaN, '%', significantStep(v['thd'] ?? NaN, 3)) },
-        { label: 'Noise floor', value: formatCrossingValue(v['noiseFloor'] ?? NaN, unit, noiseStep), title: 'Mean noise level per bin' },
-      ], summary: level };
+      // FFT levels are in the card's Scale (a density reads tones in its power unit), not the source trace's unit.
+      const scale = FFT_SCALES.find(item => item === params['scale']) ?? 'dbv';
+      const unit = FFT_SCALE_UNITS[FFT_TONE_SCALE[scale]];
+      const linear = unit === 'V';
+      const level = formatCrossingValue(v['fundamentalLevel'] ?? NaN, unit, linear ? significantStep(v['fundamentalLevel'] ?? NaN, 4) : 0.01);
+      const segments = v['segments'] ?? 1;
+      const db = (key: string, step: number) => formatCrossingValue(v[key] ?? NaN, 'dB', step);
+      return {
+        result: { ...splitUnit(level), note: `${fmtPlain(v['points'] ?? NaN, 7)} points${segments > 1 ? ` × ${segments}` : ''} · bin ${formatCrossingValue(v['binHz'] ?? NaN, 'Hz', significantStep(v['binHz'] ?? NaN, 4))}` },
+        rows: [{ label: 'Fundamental', value: formatCrossingValue(v['fundamentalHz'] ?? NaN, 'Hz', significantStep(v['fundamentalHz'] ?? NaN, 6)) }],
+        facts: `ENBW ${formatCrossingValue(v['enbw'] ?? NaN, null, 0.01)} bins (${formatCrossingValue(v['enbwHz'] ?? NaN, 'Hz', significantStep(v['enbwHz'] ?? NaN, 3))}) · CG ${db('cgDb', 0.01)} · scallop ${db('scallopDb', 0.01)} · sidelobe ${db('sidelobeDb', 0.1)}`,
+        summary: level,
+      };
+    }
+    case 'harmonics': {
+      const tone = spectrumUnit(units.y)?.toneUnit ?? units.y ?? '';
+      const freq = (x: number) => formatCrossingValue(x, 'Hz', significantStep(x, 6));
+      const dbc = (x: number) => formatCrossingValue(x, 'dBc', 0.1);
+      const db = (key: string) => formatCrossingValue(v[key] ?? NaN, 'dB', 0.1);
+      const count = v['count'] ?? 0;
+      const shown = Math.min(count, 9);
+      const rows: CardRow[] = [{ label: 'Fundamental', value: `${freq(v['f0'] ?? NaN)} · ${formatCrossingValue(v['f0Level'] ?? NaN, tone, units.y === 'V' ? significantStep(v['f0Level'] ?? NaN, 4) : 0.01)}` }];
+      for (let order = 2; order < 2 + shown; order++) {
+        rows.push({ label: `H${order}`, value: `${dbc(v[`h${order}`] ?? NaN)}${v[`h${order}Aliased`] ? ' · aliased' : ''}`, title: freq(v[`h${order}Hz`] ?? NaN) });
+      }
+      rows.push(
+        { label: 'THD+N', value: formatCrossingValue(v['thdn'] ?? NaN, '%', significantStep(v['thdn'] ?? NaN, 3)) },
+        { label: 'SNR', value: db('snr') }, { label: 'SINAD', value: db('sinad') },
+        { label: 'ENOB', value: formatCrossingValue(v['enob'] ?? NaN, 'bits', 0.01) },
+        { label: 'SFDR', value: `${dbc(v['sfdr'] ?? NaN)} · ${freq(v['spurHz'] ?? NaN)}` },
+        { label: 'Noise floor', value: formatCrossingValue(v['noiseFloor'] ?? NaN, units.y, 0.1), title: 'Typical noise level per bin (per Hz for a density)' },
+      );
+      const thd = formatCrossingValue(v['thd'] ?? NaN, '%', significantStep(v['thd'] ?? NaN, 3));
+      return {
+        result: { ...splitUnit(thd), note: `THD ${db('thdDb')} · H2–H${count + 1}${count > shown ? ` (first ${shown} listed)` : ''}` },
+        rows, summary: `THD ${thd}`,
+      };
     }
     default:
       return { rows: Object.entries(v).map(([label, value]) => ({ label, value: fmtPlain(value) })), summary: '' };

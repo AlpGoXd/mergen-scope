@@ -114,6 +114,7 @@ export function autoOutputName(instance: AnalysisInstance, traces: readonly Trac
     return `${a} ${symbol} ${second?.dn || second?.name || 'Trace'}`;
   }
   if (instance.toolId === 'fft') return `FFT · ${source ? shortTraceLabel(source) : 'Trace'}`;
+  if (instance.toolId === 'resample') return `${source ? shortTraceLabel(source) : 'Trace'} · resampled`;
   if (instance.toolId === 'smooth') {
     const method = instance.params['method'];
     const label = method === 'median-filter' ? 'Median' : method === 'savitzky-golay' ? 'SG' : method === 'none' ? 'None' : 'MA';

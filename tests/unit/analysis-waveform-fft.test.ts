@@ -3,7 +3,7 @@ import { measureWaveform } from '../../src/domain/analysis/waveform';
 import { computeFft, largestPowerOfTwo, windowCoefficients } from '../../src/domain/analysis/fft';
 import type { FftWindow } from '../../src/domain/analysis/fft';
 import { waveformTool } from '../../src/domain/analysis/tools/waveform';
-import { fftTool } from '../../src/domain/analysis/tools/fft';
+import { FFT_DEFAULTS, fftTool } from '../../src/domain/analysis/tools/fft';
 import { computeInstance, createInstance, shortTraceLabel } from '../../src/domain/analysis/instances';
 import { listAddableTools } from '../../src/domain/analysis/tool-registry';
 import { describeNumbers } from '../../src/domain/analysis/card-view';
@@ -215,33 +215,12 @@ describe('fft', () => {
     expect(dbm.result.fundamental?.level).toBeCloseTo(10, 6);
   });
 
-  it('reads the odd harmonics and THD of a square wave', () => {
-    // ±1 V square, 64 samples per period: the sampled square has harmonic h at 2 / (M sin(π h / M)).
-    const M = 64;
-    const data = sampled(N, dt, (_t, i) => (i % M) < M / 2 ? 1 : -1);
-    const r = computeFft(data, { window: 'hann', points: 'auto', scale: 'dbv' });
+  it('uses all samples in range for Auto, at any length', () => {
+    const r = computeFft(sine(5000, dt, 37 * fs / 5000), { window: 'hann', points: 'auto', scale: 'dbv' });
     if (!r.ok) throw new Error(r.reason);
-    const amplitude = (h: number) => 4 / (M * Math.sin(Math.PI * h / M));
-    expect(r.result.fundamental?.freq).toBeCloseTo(fs / M, 6);
-    expect(r.result.fundamental?.level).toBeCloseTo(dBV(amplitude(1) / Math.SQRT2), 6);
-    const dbc = (h: number) => r.result.harmonics.find(item => item.order === h)?.dBc ?? NaN;
-    expect(dbc(3)).toBeCloseTo(20 * Math.log10(amplitude(3) / amplitude(1)), 6);
-    expect(dbc(5)).toBeCloseTo(20 * Math.log10(amplitude(5) / amplitude(1)), 6);
-    expect(dbc(2)).toBeLessThan(-100);
-    expect(dbc(4)).toBeLessThan(-100);
-    const thd = 100 * Math.hypot(amplitude(3), amplitude(5)) / amplitude(1);
-    expect(r.result.thd).toBeCloseTo(thd, 4);
-    expect(r.result.harmonics.map(item => item.order)).toEqual([2, 3, 4, 5]);
-  });
-
-  it('reads the noise floor of white noise per bin', () => {
-    const next = gaussian(42);
-    const sigma = 0.01, n = 8192;
-    const r = computeFft(sampled(n, dt, () => sigma * next()), { window: 'hann', points: 'auto', scale: 'dbv' });
-    if (!r.ok) throw new Error(r.reason);
-    // Per-bin RMS² of white noise: 2 σ² · ENBW / N, Hann ENBW = 1.5 bins.
-    const expected = 10 * Math.log10(2 * sigma ** 2 * 1.5 / n);
-    expect(Math.abs(r.result.noiseFloor - expected)).toBeLessThan(0.3);
+    expect(r.result.points).toBe(5000);
+    expect(r.result.spectrum).toHaveLength(2501);
+    expect(Math.abs((r.result.fundamental?.level ?? 0) - dBV(Math.SQRT1_2))).toBeLessThan(0.01);
   });
 
   it('refuses unevenly spaced samples', () => {
@@ -258,7 +237,7 @@ describe('fft', () => {
 describe('fft tool', () => {
   const N = 4096, dt = 1e-6, bin = 1 / (N * dt);
   const trace = timeTrace(sine(N, dt, 100 * bin));
-  const params = { window: 'hann', points: 'auto', range: 'all', scale: 'dbv' } as const;
+  const params = { ...FFT_DEFAULTS, range: 'all' } as const;
 
   it('applies to time traces only, also in the Add menu', () => {
     expect(fftTool.appliesTo(trace)).toEqual({ allowed: true });
@@ -269,13 +248,14 @@ describe('fft tool', () => {
     expect(listAddableTools({ trace, inputs: { traces: [trace] }, analyses: [] }).find(item => item.id === 'fft')?.disabledReason).toBeUndefined();
   });
 
-  it('returns the numbers and a frequency-domain spectrum trace', () => {
+  it('returns the numbers and a frequency-domain spectrum trace that carries its window facts', () => {
     const outputs = fftTool.compute({ traces: [trace] }, params);
     const numbers = outputs.find(output => output.type === 'numbers');
     expect(numbers?.type === 'numbers' && numbers.values['fundamentalLevel']).toBeCloseTo(dBV(Math.SQRT1_2), 3);
     const output = outputs.find(output => output.type === 'trace');
     if (output?.type !== 'trace') throw new Error('no trace');
     expect(output.trace).toMatchObject({ kind: 'derived', domain: 'frequency', family: 'spectrum', units: { x: 'Hz', y: 'dBV' }, sourceTraceIds: ['ch1'] });
+    expect(output.trace.parameters?.['fft']).toMatchObject({ enbw: expect.closeTo(1.5, 6), lobe: 2, binHz: expect.closeTo(bin, 6), sampleRate: expect.closeTo(1e6, 3) });
     expect(output.trace.data).toHaveLength(N / 2 + 1);
     expect(output.trace.data.every(point => Number.isFinite(point.amp))).toBe(true);
   });
@@ -288,14 +268,18 @@ describe('fft tool', () => {
     expect(computeInstance(instance, { traces: [trace] }).reason).toBeUndefined();
   });
 
-  it('formats the card results', () => {
+  it('keeps the card lean: the fundamental, then one line of window facts', () => {
     const view = describeNumbers('fft', fftTool.compute({ traces: [trace] }, params), { x: 's', y: 'V' });
     expect(view?.result).toMatchObject({ value: '−3.01', unit: 'dBV' });
-    const row = (label: string) => view?.rows.find(item => item.label === label)?.value;
-    expect(row('Fundamental')).toMatch(/kHz$/);
-    expect(row('H2')).toMatch(/dBc$/);
-    expect(row('THD')).toMatch(/%$/);
-    expect(row('Noise floor')).toMatch(/dBV$/);
+    expect(view?.rows.map(row => row.label)).toEqual(['Fundamental']);
+    expect(view?.rows[0]?.value).toMatch(/kHz$/);
+    expect(view?.facts).toMatch(/^ENBW 1\.50 bins .* · CG −6\.02 dB · scallop 1\.42 dB · sidelobe −31\.5 dB$/);
+  });
+
+  it('reads tone levels in the matching power unit when the scale is a density', () => {
+    const density = { ...params, scale: 'dbvhz' } as const;
+    const view = describeNumbers('fft', fftTool.compute({ traces: [trace] }, density), { x: 's', y: 'V' }, density);
+    expect(view?.result).toMatchObject({ value: '−3.01', unit: 'dBV' });
   });
 });
 
@@ -344,7 +328,7 @@ describe('fft output placement', () => {
     engine = change(engine, { type: 'CREATE_ANALYSIS_OUTPUT', payload: { id: 'analysis-1' } });
     expect(engine.present.traces.derivedTraces[0]?.data).toHaveLength(N / 2 + 1);
     engine = workspaceEngineReducer(engine, { type: 'change', command: { slice: 'lines', action: { type: 'SET_PANE_VIEW', payload: { paneId: 'pane-1', view: { x: [0, 300 * dt], y: null } } } } });
-    // 301 samples in view: Auto takes 256 points, so 129 bins.
-    expect(engine.present.traces.derivedTraces[0]?.data).toHaveLength(129);
+    // 301 samples in view: Auto takes all of them, so 151 bins.
+    expect(engine.present.traces.derivedTraces[0]?.data).toHaveLength(151);
   });
 });
