@@ -19,6 +19,18 @@ export interface SmithSettings {
   readonly readout: readonly ('z' | 'y' | 'gamma' | 'vswr' | 'return-loss')[];
 }
 
+/** Table pane settings (table kit, P2). */
+export interface TableSettings {
+  /** 'near' = Near cursor (default), 'all' = Every point. */
+  readonly rows: 'near' | 'all';
+  /** 'all' (default) or 'visible': the followed or linked pane's visible X range. */
+  readonly range: 'all' | 'visible';
+}
+
+export function defaultTableSettings(): TableSettings {
+  return { rows: 'near', range: 'all' };
+}
+
 // ---------------------------------------------------------------------------
 // Pane settings
 // ---------------------------------------------------------------------------
@@ -26,6 +38,8 @@ export interface SmithSettings {
 /** Per-pane display and grid settings. */
 export interface PaneSettings {
   smith: SmithSettings;
+  /** Only read by Table panes; missing means the defaults. */
+  table?: TableSettings;
   // Grid
   gridMajor: boolean;
   gridMinor: boolean;          // state preserved; minor grid not supported by Recharts

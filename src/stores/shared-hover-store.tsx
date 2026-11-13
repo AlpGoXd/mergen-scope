@@ -38,3 +38,8 @@ export function useLinkedHoverFrequency(paneId: string, enabled: boolean): numbe
   };
   return useSyncExternalStore(enabled ? store.subscribe : emptyStore.subscribe, get, () => null);
 }
+/** The latest crosshair of any pane (null while no pointer is over a chart). */
+export function useSharedHover(): SharedHover | null {
+  const store = useContext(HoverContext);
+  return useSyncExternalStore(store.subscribe, store.get, () => null);
+}
