@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { decimalsForRows, tableXFormat, tableYFormat } from '../../src/domain/table-format';
-import { tableFollowChoices, tableFollowedPane, tableLinkedToChart, tableSettingsOf, tableVisibleRange, tableXLabel, VISIBLE_RANGE_REASON } from '../../src/domain/table-view';
+import { tableLinkedToChart, tableSettingsOf, tableVisibleRange, tableXLabel, VISIBLE_RANGE_REASON } from '../../src/domain/table-view';
 import { defaultPaneSettings } from '../../src/types/pane';
 
 describe('table number formats', () => {
@@ -32,20 +32,20 @@ describe('table number formats', () => {
 
 describe('table view', () => {
   it('fills missing table settings with the defaults', () => {
-    expect(tableSettingsOf({ settings: defaultPaneSettings() })).toEqual({ rows: 'near', range: 'all', follow: null });
-    expect(tableSettingsOf({ settings: { ...defaultPaneSettings(), table: { rows: 'all', range: 'visible', follow: 'pane-1' } } })).toEqual({ rows: 'all', range: 'visible', follow: 'pane-1' });
+    expect(tableSettingsOf({ settings: defaultPaneSettings() })).toEqual({ range: 'all' });
+    expect(tableSettingsOf({ settings: { ...defaultPaneSettings(), table: { range: 'visible' } } })).toEqual({ range: 'visible' });
   });
   it('names the X column', () => {
     expect(tableXLabel('frequency', 'Hz')).toBe('Frequency');
     expect(tableXLabel('time', 's')).toBe('Time');
     expect(tableXLabel(null, 'V')).toBe('X');
   });
-  it('offers Visible only when following or linked', () => {
-    const zoom = { zoomAll: true, sharedZoom: { left: 1, right: 2 }, paneXZooms: { 'pane-1': { left: 5, right: 6 } } };
-    expect(tableVisibleRange({ ...zoom, followedPaneId: null, linked: false })).toEqual({ available: false, reason: VISIBLE_RANGE_REASON });
-    expect(tableVisibleRange({ ...zoom, followedPaneId: null, linked: true })).toEqual({ available: true, window: { min: 1, max: 2 } });
-    expect(tableVisibleRange({ ...zoom, zoomAll: false, followedPaneId: 'pane-1', linked: false })).toEqual({ available: true, window: { min: 5, max: 6 } });
-    expect(tableVisibleRange({ ...zoom, sharedZoom: null, followedPaneId: null, linked: true })).toEqual({ available: true, window: null });
+  it('offers Visible only when linked', () => {
+    const zoom = { zoomAll: true, sharedZoom: { left: 1, right: 2 } };
+    expect(tableVisibleRange({ ...zoom, linked: false })).toEqual({ available: false, reason: VISIBLE_RANGE_REASON });
+    expect(tableVisibleRange({ ...zoom, linked: true })).toEqual({ available: true, window: { min: 1, max: 2 } });
+    expect(tableVisibleRange({ ...zoom, zoomAll: false, linked: true })).toEqual({ available: false, reason: VISIBLE_RANGE_REASON });
+    expect(tableVisibleRange({ ...zoom, sharedZoom: null, linked: true })).toEqual({ available: true, window: null });
   });
   it('is linked only to another chart of the same X unit while zoom is shared', () => {
     const panes = [{ id: 'pane-1', renderMode: 'cartesian' as const }, { id: 'pane-2', renderMode: 'table' as const }, { id: 'pane-3', renderMode: 'cartesian' as const }];
@@ -53,14 +53,5 @@ describe('table view', () => {
     expect(tableLinkedToChart({ paneId: 'pane-2', xGroup: 'Hz', zoomAll: true, panes, paneXGroups })).toBe(true);
     expect(tableLinkedToChart({ paneId: 'pane-2', xGroup: 'Hz', zoomAll: false, panes, paneXGroups })).toBe(false);
     expect(tableLinkedToChart({ paneId: 'pane-2', xGroup: 'V', zoomAll: true, panes, paneXGroups })).toBe(false);
-  });
-  it('follows only another non-table pane', () => {
-    const panes = [{ id: 'pane-1', renderMode: 'cartesian' as const }, { id: 'pane-2', renderMode: 'table' as const }, { id: 'pane-3', renderMode: 'smith' as const }, { id: 'pane-4', renderMode: 'table' as const }];
-    expect(tableFollowChoices(panes, 'pane-2')).toEqual(['pane-1', 'pane-3']);
-    expect(tableFollowedPane(panes, 'pane-2', 'pane-1')).toBe('pane-1');
-    expect(tableFollowedPane(panes, 'pane-2', 'pane-4')).toBeNull();
-    expect(tableFollowedPane(panes, 'pane-2', 'pane-2')).toBeNull();
-    expect(tableFollowedPane(panes, 'pane-2', 'pane-9')).toBeNull();
-    expect(tableFollowedPane(panes, 'pane-2', null)).toBeNull();
   });
 });

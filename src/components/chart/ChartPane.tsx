@@ -1209,7 +1209,7 @@ export function ChartPane({ paneId, hideXTicks = false }: ChartPaneProps) {
           name={paneName(panes, paneId)} target={isActive}
           count={shownCount > 0 ? `${shownCount} ${shownCount === 1 ? 'trace' : 'traces'}` : null}
           scale={paneTraces.length > 0 && !isSmith && !TableRenderer ? `X ${xDiv} · Y ${yDiv}` : null}
-          samples={iconOnly => (
+          samples={TableRenderer ? null : iconOnly => (
             <Btn variant={settings.showSampleDots ? 'armed' : 'neutral'} tone="pane" small className={`ph-samples${iconOnly ? ' is-icon' : ''}`} aria-label="Samples" aria-pressed={settings.showSampleDots} title="Show the measured sample points" data-testid="samples-toggle"
               onClick={e => { e.stopPropagation(); paneDispatch({ type: 'SET_PANE_SETTINGS', payload: { paneId, patch: { showSampleDots: !settings.showSampleDots } } }); }}>
               {iconOnly ? <SamplesIcon /> : 'Samples'}
@@ -1230,7 +1230,7 @@ export function ChartPane({ paneId, hideXTicks = false }: ChartPaneProps) {
           <PaneSettingsPopover paneId={paneId} settings={settings} sections={paneTypes[currentType].settings} paneName={paneName(panes, paneId)} current={currentType} tiles={panePickerTiles(Object.values(paneTypes))} pending={pendingType} anchor={settingsAnchor} contentRef={settingsMenuRef}
             onAnchorChange={anchor => { setTypeChange(null); returnToTileRef.current = null; setTypeAnchor(null); setSettingsAnchor(anchor); if (anchor) typeTriggerRef.current = anchor; else { typeTriggerRef.current?.focus({ preventScroll: true }); typeTriggerRef.current = null; } }}
             onChoose={id => selectPaneType(paneTypes[id])} onConfirm={() => { if (pendingType) selectPaneType(paneTypes[pendingType.to], true); }} onCancel={cancelTypeChange}
-            table={TableRenderer ? { settings: tableView.settings, visible: tableView.visible, followChoices: tableView.followChoices, followedPaneId: tableView.followedPaneId } : null}
+            table={TableRenderer ? { settings: tableView.settings, visible: tableView.visible } : null}
             axes={!isSmith && !TableRenderer && paneTraces.length > 0 ? {
               x: xDiv, y: yDiv,
               onFitX: () => { if (zoomAll) paneDispatch({ type: 'SET_SHARED_ZOOM', payload: null }); else paneDispatch({ type: 'SET_PANE_ZOOM', payload: { paneId, zoom: null } }); },

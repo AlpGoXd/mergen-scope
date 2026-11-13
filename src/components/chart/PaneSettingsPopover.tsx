@@ -82,14 +82,10 @@ export interface PaneAxes {
   readonly onFitX: () => void;
   readonly onFitY: () => void;
 }
-/** Table panes: the Table section (Rows, Follow, Range). */
+/** Table panes: the Table section (Range). */
 export interface PaneTableOptions {
   readonly settings: TableSettings;
   readonly visible: TableVisibleRange;
-  /** Panes the table can follow ("Pane 1" …). */
-  readonly followChoices: readonly { readonly id: string; readonly label: string }[];
-  /** The pane actually followed (null when Own traces, or when the saved one is gone). */
-  readonly followedPaneId: string | null;
 }
 export interface PaneActions {
   readonly onCopy: () => Promise<CopyChartResult>;
@@ -152,23 +148,13 @@ export function PaneSettingsPopover({
             </Section>
 
             {table && <Section title="Table">
-              <Row label="Rows">
-                {([['near', 'Near cursor'], ['all', 'Every point']] as const).map(([value, text]) =>
-                  <Btn key={value} variant="slate" small active={table.settings.rows === value} aria-pressed={table.settings.rows === value} onClick={() => setTable({ rows: value })}>{text}</Btn>)}
-              </Row>
-              <div className="pset-note t-caption">Near cursor: the rows around the cursor. Every point: all rows, scrolling.</div>
-              <Row label="Follow">
-                <Btn variant="slate" small active={table.followedPaneId === null} aria-pressed={table.followedPaneId === null} onClick={() => setTable({ follow: null })}>Own traces</Btn>
-                {table.followChoices.map(choice => <Btn key={choice.id} variant="slate" small active={table.followedPaneId === choice.id} aria-pressed={table.followedPaneId === choice.id} onClick={() => setTable({ follow: choice.id })}>{choice.label}</Btn>)}
-              </Row>
-              <div className="pset-note t-caption">Following a pane shows its traces and its visible range.</div>
               <Row label="Range">
                 <Btn variant="slate" small active={table.settings.range === 'all' || !table.visible.available} aria-pressed={table.settings.range === 'all' || !table.visible.available} onClick={() => setTable({ range: 'all' })}>All</Btn>
                 {table.visible.available
                   ? <Btn variant="slate" small active={table.settings.range === 'visible'} aria-pressed={table.settings.range === 'visible'} onClick={() => setTable({ range: 'visible' })}>Visible</Btn>
                   : <Tooltip text={table.visible.reason}><Btn variant="slate" small disabled aria-pressed={false}>Visible</Btn></Tooltip>}
               </Row>
-              <div className="pset-note t-caption">{table.visible.available ? `All is the default. Visible shows the ${table.followedPaneId ? 'followed' : 'linked'} pane’s X range.` : `All is the default. Visible: ${table.visible.reason.toLowerCase()}.`}</div>
+              <div className="pset-note t-caption">{table.visible.available ? 'All is the default. Visible shows the linked charts’ X range.' : `All is the default. Visible: ${table.visible.reason.toLowerCase()}.`}</div>
             </Section>}
 
             {sections.includes('display') && <Section title="Display">
