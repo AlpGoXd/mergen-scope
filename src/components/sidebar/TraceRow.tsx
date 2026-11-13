@@ -45,10 +45,10 @@ export function TraceRow(props: TraceRowProps) {
 				onClick={(event) => event.stopPropagation()}
 				onChange={() => onToggleVisible()}
 			/>
-			<span style={{ color, fontSize: '12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+			<span style={{ color, fontSize: 'var(--font-body)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
 				{trace.dn || trace.name}
 			</span>
-			{paneLabel && <span style={{ fontSize: '10px', color: 'var(--dim)' }}>{paneLabel}</span>}
+			{paneLabel && <span style={{ fontSize: 'var(--font-caption)', color: 'var(--dim)' }}>{paneLabel}</span>}
 			<div style={{ display: 'flex', gap: '4px' }}>
 				{onReimport && (
 					<button type="button" onClick={(event) => { event.stopPropagation(); onReimport(); }}>

@@ -12,7 +12,7 @@ export function Sec({ children, first }: { children: React.ReactNode; first?: bo
       letterSpacing: '0.12em',
       marginBottom: '0.45rem',
       marginTop: first ? '0' : '0',
-      fontWeight: 400
+      fontWeight: 'var(--fw-regular)'
     }}>
       {children}
     </div>

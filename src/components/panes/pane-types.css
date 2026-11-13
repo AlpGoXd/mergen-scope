@@ -34,9 +34,9 @@
 .ptp[data-size="M"] .ptp-tile { padding: 10px; }
 .ptp[data-size="S"] .ptp-tile { flex-direction: row; align-items: center; gap: 7px; height: 34px; padding: 0 8px; border-radius: var(--radius-control); }
 .ptp[data-size="I"] .ptp-tile { width: 34px; height: 30px; padding: 0; align-items: center; justify-content: center; border-radius: var(--radius-control); }
-.ptp-name { font-size: var(--font-label); font-weight: 600; line-height: var(--lh-label, 1.35); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.ptp-name { font-size: var(--font-label); font-weight: var(--fw-semibold); line-height: var(--lh-label, 1.35); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .ptp[data-size="L"] .ptp-name { font-size: var(--font-title); }
-.ptp-desc { font-size: var(--font-caption); line-height: 1.4; color: var(--text-muted); }
+.ptp-desc { font-size: var(--font-caption); line-height: var(--lh-caption); color: var(--text-muted); }
 /* "later" / "needs data": top-right in L, under the name in M. */
 .ptp-caption { font-size: var(--font-caption); color: var(--text-muted); }
 .ptp[data-size="L"] .ptp-caption { position: absolute; top: 14px; right: 14px; }
@@ -52,14 +52,14 @@
 .ptc {
   flex: none; height: var(--control-sm-height); display: inline-flex; align-items: center; gap: 5px; padding: 0 7px;
   border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--raised); color: var(--text);
-  font: inherit; font-size: var(--font-caption); line-height: 1; cursor: pointer; white-space: nowrap;
+  font: inherit; font-size: var(--font-caption); cursor: pointer; white-space: nowrap;
 }
 .ptc:hover { border-color: var(--border-strong); }
 .ptc[aria-expanded="true"] { background: var(--slate-fill); border-color: var(--slate-line); color: var(--slate-ink); }
 .ptc:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .ptc-prefix { color: var(--text-muted); padding-right: 5px; margin-right: 1px; border-right: 1px solid var(--border); }
 .ptc[aria-expanded="true"] .ptc-prefix { color: inherit; border-right-color: var(--slate-line); }
-.ptc-label { font-weight: 600; }
+.ptc-label { font-weight: var(--fw-semibold); }
 .ptc[data-compact] { width: calc(var(--control-sm-height) + 2px); padding: 0; justify-content: center; }
 
 /* ---------- Chart type popover content (inside .ui-popover), also used as the first section of Pane settings ---------- */
@@ -72,12 +72,12 @@
 .ptm-tile {
   flex: 1; min-width: 0; height: 34px; display: flex; align-items: center; gap: 7px; padding: 0 8px;
   border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--raised); color: var(--text);
-  font: inherit; font-size: var(--font-label); font-weight: 600; cursor: pointer; white-space: nowrap; overflow: hidden;
+  font: inherit; font-size: var(--font-label); font-weight: var(--fw-semibold); cursor: pointer; white-space: nowrap; overflow: hidden;
 }
 .ptm-tile span { overflow: hidden; text-overflow: ellipsis; }
 .ptm-tile:hover { border-color: var(--border-strong); }
 .ptm-tile.is-selected { background: var(--slate-fill); border-color: var(--slate-line); color: var(--slate-ink); cursor: default; }
 .ptm-tile[aria-disabled="true"] { color: var(--text-muted); background: transparent; cursor: default; }
 .ptm-tile:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.ptm-text { color: var(--text-soft, var(--text)); line-height: 1.45; }
+.ptm-text { color: var(--text-soft, var(--text)); line-height: var(--lh-body); }
 .ptm-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 2px; }

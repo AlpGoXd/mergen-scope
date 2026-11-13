@@ -16,5 +16,5 @@ export const IconWarn = (p: IconProps): ReactElement => <Svg {...p} d="M12 3l10 
 
 /** ƒ: the Math mark (a glyph, not an icon). */
 export const Fx = (): ReactElement => (
-  <span aria-hidden="true" style={{ fontFamily: "Georgia, 'Times New Roman', serif", fontStyle: 'italic', fontWeight: 700 }}>ƒ</span>
+  <span aria-hidden="true" style={{ fontFamily: "Georgia, 'Times New Roman', serif", fontStyle: 'italic', fontWeight: 'var(--fw-bold)' }}>ƒ</span>
 );

@@ -121,7 +121,7 @@ export function MarkerItem({
         <span
           title="Remove Marker"
           onClick={(e) => { e.stopPropagation(); onRemove(); }}
-          style={{ cursor: 'pointer', color: 'var(--dim)', padding: '0 4px', fontSize: '1.2em', flexShrink: 0 }}
+          style={{ cursor: 'pointer', color: 'var(--dim)', padding: '0 4px', fontSize: 'var(--font-label)', flexShrink: 0 }}
         >
           ×
         </span>

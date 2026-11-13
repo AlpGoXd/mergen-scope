@@ -95,7 +95,7 @@ export function ToolbarStrip() {
 
   const group = (title: string, tone: string, children: React.ReactNode) => (
     <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 8px', minHeight: 'var(--tool-row-height)', background: `var(--${tone}-tint)`, flex: '0 0 auto', whiteSpace: 'nowrap' }}>
-      <span style={{ color: `var(--${tone}-ink)`, fontWeight: 700, marginRight: 4 }}>{title}</span>{children}
+      <span style={{ color: `var(--${tone}-ink)`, fontWeight: 'var(--fw-bold)', marginRight: 4 }}>{title}</span>{children}
     </div>
   );
   // Size each reserved hint slot to its longest sentence, keeping groups still

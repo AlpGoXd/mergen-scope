@@ -37,7 +37,7 @@ export function LineRow(p: LineRowProps): ReactElement {
       </div>
       <div className="lp-sub">
         <span className="lp-sub__text">{lineSummary(p)}</span>
-        {unplaced ? null : <button type="button" className="lp-link" style={{ fontSize: 'calc(var(--font-caption) - 0.5px)' }} onClick={p.onListCrossings}>List…</button>}
+        {unplaced ? null : <button type="button" className="lp-link" onClick={p.onListCrossings}>List…</button>}
       </div>
     </div>
   );

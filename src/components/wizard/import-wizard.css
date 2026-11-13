@@ -6,7 +6,7 @@
 /* Header: "Open" + file name (Mono 400) · File 1 of 3 · × */
 .iw-head { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--border); min-width: 0; }
 .iw-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.iw-file { font-family: var(--font-mono); font-weight: 400; }
+.iw-file { font-family: var(--font-mono); font-weight: var(--fw-regular); }
 .iw-head > .t-caption { white-space: nowrap; }
 .iw-close { flex: none; width: var(--control-sm-height); height: var(--control-sm-height); display: inline-grid; place-items: center; padding: 0; border: 0; border-radius: var(--radius-control); background: transparent; color: var(--text-muted); cursor: pointer; }
 .iw-close:hover { background: var(--panel); color: var(--text); }

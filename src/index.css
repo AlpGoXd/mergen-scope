@@ -110,7 +110,7 @@ body {
   font-family: var(--font-sans);
   font-feature-settings: "ss02";
   font-size: var(--font-body);
-  line-height: 1.45;
+  line-height: var(--lh-body);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   background-color: var(--bg);
@@ -155,7 +155,7 @@ textarea {
   background: color-mix(in oklch, var(--group-color, var(--accent)) 15%, var(--panel));
   border: 1px solid color-mix(in oklch, var(--group-color, var(--accent)) 45%, var(--border));
   color: var(--text);
-  font-weight: 600;
+  font-weight: var(--fw-semibold);
   border-radius: var(--radius-control);
   min-height: var(--control-height);
   padding: 0 8px;
@@ -243,7 +243,7 @@ table {
 .ui-btn--slate.is-active { background: var(--slate-fill); border-color: var(--slate-line); color: var(--slate-ink); }
 .ui-btn--armed.is-active, .ui-btn--armed.is-active:hover:not(:disabled) { background: oklch(0.50 0.14 var(--armed-hue)); border-color: oklch(0.50 0.14 var(--armed-hue)); color: oklch(1 0 0); }
 .theme-dark .ui-btn--armed.is-active, .theme-dark .ui-btn--armed.is-active:hover:not(:disabled) { background: oklch(0.78 0.12 var(--armed-hue)); border-color: oklch(0.78 0.12 var(--armed-hue)); color: oklch(0.15 0 0); }
-.ui-btn--solid { background: var(--solid); border-color: var(--solid); color: var(--solid-ink); font-weight: 600; }
+.ui-btn--solid { background: var(--solid); border-color: var(--solid); color: var(--solid-ink); font-weight: var(--fw-semibold); }
 .ui-btn--solid:hover:not(:disabled) { background: var(--solid-hover); border-color: var(--solid-hover); }
 .ui-btn--solid.is-danger { background: var(--solid-danger); border-color: var(--solid-danger); color: var(--solid-ink); }
 .ui-btn--secondary { background: var(--secondary-fill); border-color: var(--secondary-line); color: var(--secondary-ink); }
@@ -262,7 +262,7 @@ table {
 .ui-message--danger { --message-line: var(--danger-line); --message-ink: var(--danger-ink); } .ui-message--warning { --message-line: var(--warning-line); --message-ink: var(--warning-ink); } .ui-message--success { --message-line: var(--success-line); --message-ink: var(--success-ink); } .ui-message--info { --message-line: var(--info-line); --message-ink: var(--info-ink); }
 .ui-dialog-backdrop { position: fixed; inset: 0; z-index: 150; display: grid; place-items: center; background: oklch(0 0 0 / .45); }
 .ui-dialog { display: grid; gap: 16px; width: min(480px, calc(100vw - 32px)); padding: 16px; background: var(--raised); color: var(--text); border: 1px solid var(--border-strong); border-radius: var(--radius-card); }
-.ui-dialog h2 { font-size: var(--font-title); font-weight: 600; }.ui-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.ui-dialog h2 { font-size: var(--font-title); font-weight: var(--fw-semibold); }.ui-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .ui-toast-host { position: fixed; z-index: 200; bottom: calc(var(--footer-height) + 8px); left: 50%; transform: translateX(-50%); display: grid; gap: 8px; }
 .ui-toast { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: var(--radius-card); background: oklch(.20 .016 255); color: oklch(.93 .01 255); border: 1px solid oklch(.42 .016 255); animation: ui-toast-in 150ms ease-out; }
 .ui-toast .ui-btn { background: transparent; color: inherit; border-color: oklch(.50 .016 255); }.ui-toast-close { display: inline-flex; background: transparent; color: inherit; border: 0; cursor: pointer; }

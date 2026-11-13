@@ -1400,7 +1400,7 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
                             <rect x={cx - tw / 2 - 4} y={ty - 11} width={tw + 8} height={14} rx={3}
                               fill="var(--card)" fillOpacity={0.88} />
                             <text x={cx} y={ty} textAnchor="middle" fill={dColor}
-                              fontSize={10} fontFamily="var(--font-mono, monospace)" fontWeight={500}>
+                              fontSize={10} fontFamily="var(--font-mono, monospace)">
                               {deltaText}
                             </text>
                           </g>
@@ -1428,7 +1428,7 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
                             <rect x={rx - tw - 4} y={cy - 10} width={tw + 8} height={14} rx={3}
                               fill="var(--card)" fillOpacity={0.88} />
                             <text x={rx - 2} y={cy} textAnchor="end" fill={dColor}
-                              fontSize={10} fontFamily="var(--font-mono, monospace)" fontWeight={500}>
+                              fontSize={10} fontFamily="var(--font-mono, monospace)">
                               {deltaText}
                             </text>
                           </g>
@@ -1566,7 +1566,7 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
 
             {hoverFreq != null && hoverRows.length > 0 && (
               <div style={{ position: 'absolute', top: '12px', right: '12px', minWidth: '220px', maxWidth: '320px', padding: '10px 12px', borderRadius: '12px', border: '1px solid color-mix(in srgb, var(--tipBd) 88%, white)', background: 'color-mix(in srgb, var(--tipBg) 82%, transparent)', boxShadow: '0 10px 28px rgba(0,0,0,0.18)', display: 'grid', gap: '6px', pointerEvents: 'none' }}>
-                <div style={{ fontSize: 'var(--font-label)', fontWeight: 600, color: 'var(--text)' }}>
+                <div style={{ fontSize: 'var(--font-label)', fontWeight: 'var(--fw-semibold)', color: 'var(--text)' }}>
                   {formatAdaptiveXAxisValue(hoverFreq, visibleXSpan, { domain: activePaneTrace?.domain ?? 'frequency', unit: activePaneTrace?.units.x ?? (activePaneTrace?.domain === 'time' ? 's' : 'Hz') })}
                 </div>
                 {hoverRows.map(({ trace, placement, color, resolutionLabel }) => (

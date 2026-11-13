@@ -42,7 +42,7 @@ const smallButtonBaseStyle: CSSProperties = {
   fontSize: 'var(--font-label)',
   cursor: 'pointer',
   color: 'var(--text)',
-  fontWeight: 400,
+  fontWeight: 'var(--fw-regular)',
   lineHeight: 'var(--lh-label)',
   transition: 'all 0.15s ease-in-out',
 };

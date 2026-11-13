@@ -40,7 +40,7 @@
 
 /* Labels never rotate; a background-coloured halo keeps them readable over grid lines. */
 .smith-label, .smith-tag-text {
-  font-family: var(--font-mono); font-size: var(--font-caption); font-weight: 400; font-variant-numeric: tabular-nums;
+  font-family: var(--font-mono); font-size: var(--font-caption); font-weight: var(--fw-regular); font-variant-numeric: tabular-nums;
 }
 .smith-label { fill: var(--text-muted); stroke: var(--smith-bg); stroke-width: 3px; stroke-linejoin: round; paint-order: stroke; pointer-events: none; }
 
@@ -82,7 +82,7 @@
 .smith-step {
   flex: none; display: inline-flex; align-items: center; justify-content: center; padding: 0;
   width: var(--control-sm-height); height: calc(var(--control-sm-height) - 4px);
-  font: inherit; font-weight: 400; color: var(--text); background: transparent;
+  font: inherit; font-weight: var(--fw-regular); color: var(--text); background: transparent;
   border: 1px solid var(--border); border-radius: var(--radius-badge); cursor: pointer;
 }
 .smith-step:hover:not(:disabled) { background: var(--raised); border-color: var(--border-strong); }

@@ -13,7 +13,7 @@
 .footer-row .footer-sentence[data-tone="marker"] { color: var(--marker-ink); }
 .footer-row .footer-sentence[data-tone="lines"] { color: var(--lines-ink); }
 .footer-row .footer-item { color: var(--text-muted); }
-.footer-item strong { color: var(--text); font-weight: 600; }
+.footer-item strong { color: var(--text); font-weight: var(--fw-semibold); }
 .footer-readout-slot { display: inline-flex; align-items: center; }
 /* Reserved width (in the mono face's ch) so the layout does not move while the pointer does; it grows if a value is longer. */
 .footer-readout { display: inline-block; min-width: 26ch; white-space: pre; }

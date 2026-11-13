@@ -42,7 +42,7 @@
 .ln-edge {
   position: absolute; z-index: 3; height: 20px; display: inline-flex; align-items: center; gap: 4px; padding: 0 6px;
   border: 1px dashed var(--border-strong); border-radius: var(--radius-badge); background: var(--raised); color: var(--text);
-  font-family: var(--font-mono); font-size: calc(var(--font-caption) - 0.5px); white-space: nowrap; cursor: pointer;
+  font-family: var(--font-mono); font-size: var(--font-caption); white-space: nowrap; cursor: pointer;
   box-shadow: 0 1px 3px oklch(0.3 0.02 255 / 0.12);
 }
 .ln-edge:hover { border-style: solid; }

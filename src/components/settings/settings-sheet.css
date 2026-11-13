@@ -4,9 +4,9 @@
 .settings-header { display: flex; justify-content: space-between; align-items: flex-start; padding: 10px 12px; border-bottom: 1px solid var(--border); }
 .settings-header .t-caption, .settings-caption, .settings-hint { color: var(--text-muted); }
 .settings-close, .settings-link, .settings-navigation button, .settings-footer button { background: transparent; border: 0; color: inherit; }
-.settings-close { font-size: 18px !important; line-height: 1; }
+.settings-close { font-size: var(--font-display) !important; }
 .settings-body { overflow: auto; padding: 0 12px 12px; flex: 1; }
-.settings-body .t-section { margin: 14px 0 6px; color: var(--text-muted); font-size: var(--font-caption); line-height: var(--lh-caption); font-weight: 600; }
+.settings-body .t-section { margin: 14px 0 6px; color: var(--text-muted); font-size: var(--font-caption); line-height: var(--lh-caption); font-weight: var(--fw-semibold); }
 .settings-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 30px; }
 .settings-row .t-label { font-size: var(--font-label); line-height: var(--lh-label); }
 .settings-segments { display: flex; flex-shrink: 0; }
