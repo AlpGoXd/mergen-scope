@@ -155,6 +155,39 @@ This file is the written design source of truth. Newer decisions in the sections
 - A Table pane lists pane traces as columns after X and highlights the row nearest the cursor; it replaces the former Data tab.
 - Workspace settings belong to panes; browser preferences belong to app settings. Panes support layouts, resizing and compatible trace moves with Undo, without losing traces when a pane is removed.
 
+## Neutral and interface colour tokens
+
+**Neutrals (Slate, h 255)**
+
+| Token | Light | Dark |
+|---|---|---|
+| `--bg` | 0.985 0.006 | 0.17 0.016 |
+| `--panel` | 0.965 0.010 | 0.20 0.016 |
+| `--raised` | 0.997 0.003 | 0.24 0.016 |
+| `--border` | 0.90 0.010 | 0.31 0.016 |
+| `--border-strong` | 0.78 0.010 | 0.42 0.016 |
+| `--text-muted` | 0.50 0.010 | 0.72 0.016 |
+| `--text` | 0.22 0.015 | 0.93 0.010 |
+
+- Accent (links, focus ring, selection): light `0.50 0.14 255`, dark `0.78 0.113 255`.
+- Slate "selected choice": light fill `0.92 0.03 255`, ink `0.32 0.06 255`, line `0.80 0.045 255`; dark fill `0.34 0.045 255`, ink `0.93 0.03 255`, line `0.50 0.06 255`.
+- Solid: light `0.50 0.14 255` with white text (hover L 0.45); dark `0.78 0.12 255` with near-black text. Solid danger: light `0.52 0.17 25`, dark `0.72 0.15 25`.
+- Secondary: light fill `0.95 0.03 255`, line `0.80 0.06 255`, ink `0.45 0.13 255`; dark fill `0.30 0.05 255`, line `0.45 0.08 255`, ink `0.88 0.07 255`.
+
+**UI hues (tinted chip v2).** Marker 20 · Lines 80 · Search 140 · Export 160 · Pane 200 · Left 230 · Analysis 310 · Data 350 · Danger 25. (35° and 285° are retired.) For hue h: light fill `0.95 0.03 h`, line `0.86 0.05 h`, ink `0.45 0.12 h`; dark fill `0.33 0.07 h`, line `0.50 0.10 h`, ink `0.90 0.09 h`. Group background tint: light `0.975 0.01 h`, dark `0.24 0.02 h`. Clamp chroma to sRGB per hue (some hues get less).
+
+**Status (messages only):** danger 25 · warning 85 · success 150 · info 245, using the same fill / line / ink recipe for icons and borders (see the Messages rule: no fills).
+
+
+## Additional component requirements
+
+- Top bar: Left, Open, Save, Export, Markers, Search, Lines, Pane and Analysis; open tool groups wrap as whole groups. Search offers peak/min and direction; pane controls offer layouts, add pane and fit.
+- The footer shows the interaction state, target, trace, cursor and relevant mouse hints; Settings and help remain available in an empty app. The help sheet lists keyboard and mouse commands and the feedback links.
+- Left panel order is Files, Traces, Markers, Lines. Files expose matrix, info, replacement and import settings; trace rows provide interpolation and pane membership. The matrix supports S/Y/Z/ABCD, available views, keyboard navigation and port-specific restrictions.
+- Chart readouts follow the cursor and flip at edges; tick precision follows zoom, and marker labels avoid overlap. Ref-line and marker selection is shared between the chart and the sidebar.
+- Pane layouts include Rows, Columns, 2 x 2 and 1 + side when valid; resizing observes minimums and supports Undo. Default maximum is four panes, with an experimental eight-pane option. A trace retains its identity and markers across compatible panes.
+- Smith uses a standalone SVG grid and accepts reflection data; its readout, range, zoom, direction, marker interactions and display settings are per-pane. Unimplemented edge cases and comparison work remain in the deferred ledger.
+
 ## Detailed open flows, export and settings
 
 The following requirements supplement the newer decisions above. Where implementation has changed, verify it against the open items in `deferred.md` before treating a requirement as complete.
