@@ -1,7 +1,9 @@
 /* Table pane (table kit, 11 Nov). App tokens and text roles only. Import after pane-types.css. */
 .tbp { position: absolute; inset: 0; display: flex; flex-direction: column; background: var(--bg); }
 .tbp-scroll { flex: 1; min-height: 0; overflow: auto; position: relative; }
-.tbp[data-mode="near"] .tbp-scroll { overflow-y: hidden; }
+.tbp-scroll:focus { outline: none; }
+/* Keyboard focus ring above the rows (an outline on the scroll box would be painted over by them). */
+.tbp:has(> .tbp-scroll:focus-visible)::after { content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 4; box-shadow: inset 0 0 0 2px var(--accent); }
 
 /* Rows: one CSS grid per row with the same template; fixed height so virtualization can count. */
 .tbp-row { display: grid; height: calc(var(--row-height) - 6px); align-items: center; border-bottom: 1px solid color-mix(in oklch, var(--border) 55%, transparent); }
@@ -24,6 +26,11 @@
 .tbp-row.is-cursor { background: var(--sel-bg); }
 .tbp-row.is-cursor .tbp-x { color: var(--sel-ink); }
 .tbp-row.is-cursor .tbp-c { color: var(--sel-ink); }
+
+/* Selected cells (click, drag, Shift-click, row/column headings): an accent tint over the row background. */
+.tbp-row > span[role="cell"], .tbp-row > span[role="rowheader"], .tbp-head > span { cursor: cell; }
+.tbp-row > span.is-sel { background: color-mix(in oklch, var(--accent) 18%, var(--bg)); color: var(--text); }
+.tbp-row.is-cursor > span.is-sel { background: color-mix(in oklch, var(--accent) 18%, var(--sel-bg)); }
 
 /* Footer: one caption line. */
 .tbp-foot { flex: none; height: calc(var(--row-height) - 6px); display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 10px; border-top: 1px solid var(--border); background: var(--panel); font-size: var(--font-caption); color: var(--text-muted); white-space: nowrap; overflow: hidden; }

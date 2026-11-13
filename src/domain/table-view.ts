@@ -5,17 +5,8 @@ import { defaultTableSettings } from '../types/pane';
 import type { XRange } from './table-rows';
 
 export function tableSettingsOf(pane: Pick<Pane, 'settings'> | undefined): TableSettings {
-  return { ...defaultTableSettings(), ...pane?.settings.table };
-}
-
-/** A pane a table can follow: any other pane that is not itself a table. */
-export function tableFollowChoices(panes: readonly Pick<Pane, 'id' | 'renderMode'>[], paneId: string): string[] {
-  return panes.filter(pane => pane.id !== paneId && pane.renderMode !== 'table').map(pane => pane.id);
-}
-
-/** The pane the table follows, or null for Own traces (also when the saved target was closed or became a table). */
-export function tableFollowedPane(panes: readonly Pick<Pane, 'id' | 'renderMode'>[], paneId: string, follow: string | null): string | null {
-  return follow !== null && tableFollowChoices(panes, paneId).includes(follow) ? follow : null;
+  // Only known keys: older saves may still carry `rows` or `follow`.
+  return { range: pane?.settings.table?.range === 'visible' ? 'visible' : defaultTableSettings().range };
 }
 
 /** X column heading: "Frequency", "Time", or "X" for anything else. */
@@ -29,23 +20,19 @@ export type TableVisibleRange =
   | { readonly available: true; readonly window: XRange | null }
   | { readonly available: false; readonly reason: string };
 
-export const VISIBLE_RANGE_REASON = 'Needs Follow or a linked pane';
+export const VISIBLE_RANGE_REASON = 'Needs a linked chart with the same X unit';
 
 /**
- * Range = Visible is offered only while the table follows a pane or is linked to one.
- * Linked = shared zoom is on and another chart pane shows the same X unit.
- * `window` is null when that pane is not zoomed (then every row is visible).
+ * Range = Visible is offered only while the table is linked: shared zoom is on and another chart pane shows the
+ * same X unit. `window` is null when the charts are not zoomed (then every row is visible).
  */
 export function tableVisibleRange(input: {
-  readonly followedPaneId: string | null;
   readonly linked: boolean;
   readonly zoomAll: boolean;
   readonly sharedZoom: ZoomWindow | null;
-  readonly paneXZooms: Readonly<Record<string, ZoomWindow>>;
 }): TableVisibleRange {
   const toRange = (zoom: ZoomWindow | null | undefined): XRange | null =>
     zoom && Number.isFinite(zoom.left) && Number.isFinite(zoom.right) && zoom.right > zoom.left ? { min: zoom.left, max: zoom.right } : null;
-  if (input.followedPaneId) return { available: true, window: toRange(input.zoomAll ? input.sharedZoom : input.paneXZooms[input.followedPaneId]) };
   if (input.linked && input.zoomAll) return { available: true, window: toRange(input.sharedZoom) };
   return { available: false, reason: VISIBLE_RANGE_REASON };
 }
