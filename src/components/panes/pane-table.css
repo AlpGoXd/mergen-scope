@@ -32,6 +32,23 @@
 .tbp-row > span.is-sel { background: color-mix(in oklch, var(--accent) 18%, var(--bg)); color: var(--text); }
 .tbp-row.is-cursor > span.is-sel { background: color-mix(in oklch, var(--accent) 18%, var(--sel-bg)); }
 
+/* Markers: the trace's cell on the marker's row is tinted in the trace colour and carries the chart's label chip
+   (normal = filled in the trace colour, delta = outlined with a light tint), Readout role. */
+.tbp-c.has-mark { display: flex; align-items: center; justify-content: flex-end; gap: 4px; background: color-mix(in oklch, var(--mark-color) 14%, var(--bg)); }
+.tbp-row.is-cursor > .tbp-c.has-mark { background: color-mix(in oklch, var(--mark-color) 14%, var(--sel-bg)); }
+.tbp-row > .tbp-c.has-mark.is-sel { background: color-mix(in oklch, var(--accent) 18%, color-mix(in oklch, var(--mark-color) 14%, var(--bg))); }
+.tbp-v { margin-left: auto; overflow: hidden; text-overflow: ellipsis; }
+.tbp-mark {
+  flex: none; height: calc(var(--row-height) - 12px); display: inline-flex; align-items: center; padding: 0 5px;
+  border: 1px solid var(--mark-color); border-radius: 4px; background: var(--mark-color); color: var(--bg);
+  font-family: var(--font-mono); font-size: var(--font-caption); font-weight: 400; line-height: 1; cursor: pointer;
+}
+.tbp-mark.is-delta { background: color-mix(in oklch, var(--mark-color) 14%, var(--bg)); color: var(--text); }
+.tbp-mark.is-selected, .tbp-mark:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+/* Marker tool armed: value cells are click targets for placing. */
+.tbp-c.is-placing { cursor: crosshair; }
+.tbp-c.is-placing:hover { box-shadow: inset 0 0 0 1px var(--accent); }
+
 /* Footer: one caption line. */
 .tbp-foot { flex: none; height: calc(var(--row-height) - 6px); display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 10px; border-top: 1px solid var(--border); background: var(--panel); font-size: var(--font-caption); color: var(--text-muted); white-space: nowrap; overflow: hidden; }
 

@@ -4,6 +4,8 @@ import { nearestRow, visibleRows } from '../../domain/table-rows';
 import type { TableRows } from '../../domain/table-rows';
 import { allSelection, clampCell, columnSelection, inBounds, rowSelection, selectionBounds, selectionToTsv } from '../../domain/table-selection';
 import type { CellPoint, CellSelection } from '../../domain/table-selection';
+import { markRow } from '../../domain/table-markers';
+import type { TableMark } from '../../domain/table-markers';
 
 export interface TableColumn {
   readonly id: string;
@@ -42,7 +44,7 @@ async function writeClipboard(text: string): Promise<boolean> {
  *   Arrow keys move (Shift extends), Ctrl+C copies tab-separated text, Esc clears.
  * X column and header stay put while scrolling sideways or down.
  */
-export function TablePane({ xLabel, xUnit, columns, rows, cursorX, formatX, formatY, status }: {
+export function TablePane({ xLabel, xUnit, columns, rows, cursorX, formatX, formatY, status, marks, selectedMarkerId = null, onMarkClick, placing = false, onPlace }: {
   xLabel: string;
   xUnit: string;
   columns: readonly TableColumn[];
@@ -52,6 +54,14 @@ export function TablePane({ xLabel, xUnit, columns, rows, cursorX, formatX, form
   formatY: (y: number, column: TableColumn) => string;
   /** Right side of the footer. */
   status?: string;
+  /** Markers per row (tableMarks): a label chip in the trace's cell, with the cell tinted in the trace colour. */
+  marks?: ReadonlyMap<number, readonly TableMark[]>;
+  /** The selected marker: its chip is ringed and the table scrolls to its row when it changes. */
+  selectedMarkerId?: string | null;
+  onMarkClick?: (markerId: string) => void;
+  /** The marker tool is armed: clicking a value cell places a marker there instead of selecting. */
+  placing?: boolean;
+  onPlace?: (row: number, column: number) => void;
 }) {
   const scroll = useRef<HTMLDivElement>(null);
   const head = useRef<HTMLDivElement>(null);
@@ -103,6 +113,15 @@ export function TablePane({ xLabel, xUnit, columns, rows, cursorX, formatX, form
     if (top < el.scrollTop || bottom > el.scrollTop + viewH) el.scrollTop = Math.max(0, top - (viewH - rowH) / 2);
   }, [cursor, rowH, viewH]);
 
+  // A marker selected anywhere (chart, Markers list, a chip here) scrolls its row into view.
+  const selectedRow = marks ? markRow(marks, selectedMarkerId) : -1;
+  useEffect(() => {
+    const el = scroll.current;
+    if (!el || selectedRow < 0) return;
+    const top = selectedRow * rowH, bottom = top + rowH;
+    if (top < el.scrollTop || bottom > el.scrollTop + viewH) el.scrollTop = Math.max(0, top - (viewH - rowH) / 2);
+  }, [selectedMarkerId, selectedRow, rowH, viewH]);
+
   const copy = () => {
     if (!bounds || total === 0) return;
     const headings = [`${xLabel} (${xUnit})`, ...columns.map(c => c.unit ? `${c.label} (${c.unit})` : c.label)];
@@ -147,6 +166,7 @@ export function TablePane({ xLabel, xUnit, columns, rows, cursorX, formatX, form
     const cells = rows.cells[r];
     if (x === undefined || !cells) continue;
     const sel = (col: number) => inBounds(bounds, r, col) ? ' is-sel' : '';
+    const rowMarks = marks?.get(r);
     body.push(
       <div key={r} role="row" aria-selected={r === cursor || undefined} className={`tbp-row${r === cursor ? ' is-cursor' : ''}`} style={{ gridTemplateColumns: template, minWidth }}>
         <span role="rowheader" className={`tbp-x${sel(0)}`} title="Click to select the row"
@@ -155,9 +175,25 @@ export function TablePane({ xLabel, xUnit, columns, rows, cursorX, formatX, form
         {columns.map((c, k) => {
           const v = cells[k];
           const empty = v === null || v === undefined;
-          return <span key={c.id} role="cell" aria-selected={inBounds(bounds, r, k + 1) || undefined} className={`tbp-c${empty ? ' is-empty' : ''}${sel(k + 1)}`}
-            onMouseDown={e => { if (e.button !== 0) return; e.preventDefault(); cellDown(r, k + 1, e.shiftKey); }}
-            onMouseEnter={() => cellEnter(r, k + 1)}>{empty ? '–' : formatY(v, c)}</span>;
+          const here = rowMarks?.filter(mark => mark.column === k) ?? [];
+          const canPlace = placing && !empty && onPlace !== undefined;
+          return <span key={c.id} role="cell" aria-selected={inBounds(bounds, r, k + 1) || undefined}
+            className={`tbp-c${empty ? ' is-empty' : ''}${sel(k + 1)}${here.length ? ' has-mark' : ''}${canPlace ? ' is-placing' : ''}`}
+            style={here.length ? { ['--mark-color' as string]: c.color } : undefined}
+            title={canPlace ? `Place a marker on ${c.label} here` : undefined}
+            onMouseDown={e => { if (e.button !== 0) return; e.preventDefault(); if (canPlace) { onPlace(r, k); return; } cellDown(r, k + 1, e.shiftKey); }}
+            onMouseEnter={() => cellEnter(r, k + 1)}>
+            {here.map(mark => (
+              <button key={mark.markerId} type="button" data-marker={mark.label}
+                className={`tbp-mark${mark.delta ? ' is-delta' : ''}${mark.markerId === selectedMarkerId ? ' is-selected' : ''}`}
+                title={mark.between ? `${mark.label} lies between rows (at ${formatX(mark.x)} ${xUnit}); this row is the nearest sample` : `${mark.label} on ${c.label}`}
+                aria-label={`Marker ${mark.label}${mark.between ? ', between rows' : ''}`} aria-pressed={mark.markerId === selectedMarkerId}
+                onMouseDown={e => { e.stopPropagation(); e.preventDefault(); onMarkClick?.(mark.markerId); }}>
+                {mark.label}{mark.between ? ' ≈' : ''}
+              </button>
+            ))}
+            <span className="tbp-v">{empty ? '–' : formatY(v, c)}</span>
+          </span>;
         })}
       </div>,
     );
