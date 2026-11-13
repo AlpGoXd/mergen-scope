@@ -90,6 +90,9 @@ export interface PaneActions {
   /** Image actions; null when the pane has nothing to draw (no traces, or a Table pane). */
   readonly onCopyImage: (() => void) | null;
   readonly onDownloadImage: (() => void) | null;
+  readonly onDownloadSvg: (() => void) | null;
+  /** Null for panes LaTeX cannot draw yet (Smith). */
+  readonly onCopyLatex: (() => void) | null;
   /** "Export…": the full dialog later; for now the image Options popover. */
   readonly onExportOptions: (() => void) | null;
   /** CSV of the pane's traces; null when the pane has nothing to export. */
@@ -100,7 +103,7 @@ export interface PaneActions {
 
 /**
  * The one pane button (it replaces the old ⚙ and ⋯ pair). Sections, in order: Chart type, Display, Axes;
- * then a row of actions: Copy image · Download image · Export data (CSV)… · Export… · Close pane. Changes apply at once; there is no OK.
+ * then a row of actions: Copy image · Download image · Download SVG · Copy as LaTeX · Export data (CSV)… · Export… · Close pane. Changes apply at once; there is no OK.
  */
 export function PaneSettingsPopover({
   paneId, settings, sections, paneName, current, tiles, pending, anchor, onAnchorChange, onChoose, onConfirm, onCancel, contentRef, axes, onFit, actions, table = null,
@@ -226,6 +229,8 @@ export function PaneSettingsPopover({
               {([
                 ['Copy image', 'Copy image (Ctrl+Shift+C)', actions.onCopyImage],
                 ['Download image', 'Download image (Ctrl+Shift+S)', actions.onDownloadImage],
+                ['Download SVG', 'Download this pane as an SVG file', actions.onDownloadSvg],
+                ['Copy as LaTeX', 'Copy a pgfplots figure of this pane', actions.onCopyLatex],
                 ['Export data (CSV)…', "Download this pane's traces as CSV", actions.onExportData],
                 ['Export…', 'Export… (Ctrl+Shift+E)', actions.onExportOptions],
               ] as const).map(([label, title, run]) => run

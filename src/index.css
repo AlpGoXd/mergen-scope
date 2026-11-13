@@ -2,7 +2,9 @@
 @font-face { font-family: "IBM Plex Sans"; src: url('../landing-assets/fonts/IBMPlexSans-SemiBold.woff2') format('woff2'); font-weight: 600; font-display: swap; }
 @font-face { font-family: "IBM Plex Sans"; src: url('../landing-assets/fonts/IBMPlexSans-Bold.woff2') format('woff2'); font-weight: 700; font-display: swap; }
 @font-face { font-family: "JetBrains Mono"; src: url('../landing-assets/fonts/JetBrainsMono-Regular.woff2') format('woff2'); font-weight: 400; font-display: swap; }
-:root {
+/* Also on .theme-light / .theme-dark containers (image export): every token, aliases included, is declared
+   on the themed element itself, so a container can take the other theme without copying values. */
+:root, .theme-light, .theme-dark {
   color-scheme: light;
   --font-ui: var(--font-sans); --sel-bg: var(--slate-fill); --sel-ink: var(--slate-ink); --sel-line: var(--slate-line);
   --warn-ink: var(--warning-ink); --warn-line: var(--warning-line);

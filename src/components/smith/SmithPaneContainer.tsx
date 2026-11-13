@@ -66,7 +66,7 @@ export function SmithPaneContainer({ paneId, fitRequest = 0, exportView }: { pan
   const model = smithRangeModel(traces, linkedPane ? null : smith.range ?? null, linked, smith.outside ?? 'hidden');
   const setRange = (range: typeof smith.range) => paneDispatch({ type: 'SET_PANE_SETTINGS', payload: { paneId, patch: { smith: { ...smith, range } } } });
   return <SmithPane traces={model.traces} markers={markers} selectedMarkerId={isExport ? null : markers[selectedMkrIdx]?.id ?? null}
-    {...(exportView ? { size: { width: exportView.width, height: exportView.height } } : {})}
+    {...(exportView ? { size: { width: exportView.width, height: exportView.height }, markScale: exportView.markScale } : {})}
     rangeBar={!isExport && model.full && model.range ? { full: model.full, range: model.range, linkedLabel: linkedPane ? smithLinkedPaneLabel(panes, linkedPane.id) : null, onChange: setRange, onFull: () => setRange(null) } : undefined}
     onSelectMarker={id => { lineDispatch({ type: 'SET_SELECTED', payload: null }); markerDispatch({ type: 'SET_SELECTED_IDX', payload: markers.findIndex(marker => marker.id === id) }); }}
     onTraceClick={click => {

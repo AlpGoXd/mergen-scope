@@ -112,6 +112,7 @@ test("an Offset / Scale analysis creates a trace that Export includes in the CSV
 
   const csvDownloadPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "Export", exact: true }).click();
+  await page.getByRole("menu", { name: "Export" }).getByRole("menuitem", { name: /^Export data \(CSV\)/ }).click();
   const csvDownload = await csvDownloadPromise;
   const csvPath = await csvDownload.path();
   expect(csvPath).toBeTruthy();

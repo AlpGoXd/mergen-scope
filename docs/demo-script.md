@@ -15,12 +15,12 @@ The demo workspace holds `cascaded chain.s2p` (an R&S VNA capture of a three-sta
 8. **IP3 (45 s).** Click the spectrum in pane 4, open **Analysis**: the **IP3** card shows the F1 / F2 / IM3L / IM3U markers and **OIP3** (about 29.5 dBm; markers F1, F2 at 1.42035 and 1.42045 GHz, products 100 kHz away). If you remove them, the card says "Place F1, F2, IM3L and IM3U markers" and offers **Auto-place markers** (also in the card's ⋯ menu). Any marker row has a **Role** menu to set or clear F1, F2, IM3L, IM3U by hand.
 9. **Analysis (60 s).** Click **Analysis** (top right). The **Bandwidth** card reports the 3 dB bandwidth of S21 and its eye draws a band with edge ticks on the chart; toggle the eye. The **Smooth** card feeds a created trace nested under S21 with ƒ. Change the window setting: the created trace follows. Double-click the output name (or press **F2** on the row) to rename it in place; **⋯ › Reset name** restores the automatic name. Add **Peak Table** from **+ Add analysis**: numbered hollow triangles on the chart, **+ Marker** per row.
 10. **Save and reopen (30 s).** Click **Save**: a workspace JSON downloads. Reload the page, click **Open**, choose that file: panes, layout, markers, Smith range and analysis cards come back.
-11. **Export (15 s).** **Export…** downloads the visible traces as CSV. (LaTeX / image export is not built yet: do not promise it.)
+11. **Export (15 s).** **Export…** opens a menu for the target pane: Copy image, Download image, Download SVG, Copy as LaTeX, and Export data (CSV)… for the visible traces. After a copy, the toast's **Options…** switches to 1 IEEE column. (The full Export dialog and PDF are not built yet: do not promise them.)
 
 ## Do not click during the demo
 
 - **Table, Polar, Spectrogram** tiles/entries: greyed "later" (Table is the next step, the others are planned).
-- **Export as LaTeX / TikZ / image / PDF:** not built yet (only the CSV export exists).
+- **Export › All panes… and PDF:** not built yet (greyed; coming with the export dialog). Copy as LaTeX is greyed for a Smith pane.
 - **Right-click a marker or drag a marker on the Smith chart:** not implemented (the marker menu and Smith marker dragging are listed in `docs/design/deferred.md`).
 - **Removing a pane that holds traces** can show the browser's own confirm dialog (not styled yet), and **Clear All** wipes the whole workspace (Undo is in the toast): avoid both on stage.
 - **The colour swatch in a trace row:** it opens the browser colour picker, which starts black (the app's colours are OKLCH values the picker cannot read); changing a colour works.

@@ -89,6 +89,8 @@ export interface SmithPaneProps {
   readonly onHoverFrequency?: (frequencyHz: number | null) => void;
   /** Change this number to fit the view from outside (the app's Fit button and Space / F). */
   readonly fitRequest?: number;
+  /** Paper exports: size of trace symbols and sample dots relative to the screen. */
+  readonly markScale?: number;
   /** Fixed plot size in CSS px; skips measuring. For image export and tests. */
   readonly size?: { readonly width: number; readonly height: number };
 }
@@ -161,7 +163,7 @@ function inBand(frequencyHz: number, band: SmithBand | null | undefined): boolea
 export function SmithPane({
   traces, markers = NO_MARKERS, markerNames, selectedMarkerId = null, onSelectMarker, onTraceClick, onMoveMarker, onMoveMarkerEnd, band = null, rangeBar,
   grid = 'z', labels = 'normalised', direction = 'chevrons', readout = DEFAULT_READOUT,
-  showMarkers = true, showMarkerTags = true, showSamples = false, cursorFrequencyHz = null, onHoverFrequency, fitRequest, size,
+  showMarkers = true, showMarkerTags = true, showSamples = false, cursorFrequencyHz = null, onHoverFrequency, fitRequest, size, markScale = 1,
 }: SmithPaneProps) {
   const plotRef = useRef<HTMLDivElement>(null);
   const { width, height } = useElementSize(plotRef, size);
@@ -451,8 +453,8 @@ export function SmithPane({
 
             {samplePlans.map(({ trace, points, plan }) => (
               <g key={`${trace.traceId}-samples`} pointerEvents="none">
-                {plan.symbols.map((point, index) => <g key={`s${index}`} data-testid="trace-symbol" data-trace={trace.name} data-sample-index={point.sampleIndex} transform={`translate(${point.x} ${point.y})`}><TraceSymbol kind={trace.symbol ?? 'circle'} color={trace.color} background="var(--smith-bg)" hollow={plan.hollow} /></g>)}
-                {plan.dots.map(index => { const point = points[index]; return point ? <circle key={index} data-testid="sample-dot" data-trace={trace.name} data-sample-index={index} cx={point.x} cy={point.y} r={DOT_RADIUS} fill={trace.color} /> : null; })}
+                {plan.symbols.map((point, index) => <g key={`s${index}`} data-testid="trace-symbol" data-trace={trace.name} data-sample-index={point.sampleIndex} transform={markScale === 1 ? `translate(${point.x} ${point.y})` : `translate(${point.x} ${point.y}) scale(${markScale})`}><TraceSymbol kind={trace.symbol ?? 'circle'} color={trace.color} background="var(--smith-bg)" hollow={plan.hollow} /></g>)}
+                {plan.dots.map(index => { const point = points[index]; return point ? <circle key={index} data-testid="sample-dot" data-trace={trace.name} data-sample-index={index} cx={point.x} cy={point.y} r={DOT_RADIUS * markScale} fill={trace.color} /> : null; })}
               </g>
             ))}
 

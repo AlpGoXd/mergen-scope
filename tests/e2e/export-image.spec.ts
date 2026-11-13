@@ -42,7 +42,7 @@ test('Copy image puts a 2× PNG of the pane on the clipboard, from the pane menu
 
   await header(page, 1).getByTitle('Pane settings').click();
   const actions = settingsOf(page, 1).getByRole('group', { name: 'Pane 1 actions' });
-  await expect(actions.getByRole('button')).toHaveText(['Copy image', 'Download image', 'Export data (CSV)…', 'Export…', 'Close pane']);
+  await expect(actions.getByRole('button')).toHaveText(['Copy image', 'Download image', 'Download SVG', 'Copy as LaTeX', 'Export data (CSV)…', 'Export…', 'Close pane']);
   await actions.getByRole('button', { name: 'Copy image' }).click();
   await expect(settingsOf(page, 1)).toHaveCount(0);
   await expect(page.locator('.ui-toast')).toContainText('Pane 1 copied as image');

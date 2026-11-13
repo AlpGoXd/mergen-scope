@@ -65,7 +65,7 @@ import { downloadText } from './copy-chart';
 import { usePaneImageExport } from './export/export-context';
 import type { ExportView } from './export/export-context';
 import { ExportFrame } from './export/ExportFrame';
-import { PAPER_LINE_PT, PAPER_TEXT_PT, ptToCssPx } from '../../domain/export-image';
+import { PAPER_LINE_PT, ptToCssPx } from '../../domain/export-image';
 import { tracesToCSV } from '../../domain/export';
 import { defaultPaneSettings } from '../../types/pane';
 import type { RefLine } from '../../types/ref-line';
@@ -887,6 +887,14 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
     return axisInfo.yLabel || 'Amplitude';
   }, [activePaneTrace, axisInfo.yLabel]);
 
+  // Export render: report the drawn ranges and axis titles (Copy as LaTeX builds its axis from them).
+  const exportOnPlot = exportView?.onPlot;
+  const exportXUnit = activePaneTrace ? (activePaneTrace.units.x ? String(activePaneTrace.units.x) : activePaneTrace.domain === 'time' ? 's' : 'Hz') : null;
+  useEffect(() => {
+    if (!exportOnPlot || !plotView) return;
+    exportOnPlot({ x: plotView.x, y: plotView.y, xLabel: xAxisLabelText, xUnit: exportXUnit, yLabel: yAxisLabelText });
+  }, [exportOnPlot, plotView, xAxisLabelText, exportXUnit, yAxisLabelText]);
+
   const shortYLabel = yAxisLabelText.match(/\([^()]+\)\s*$/)?.[0] ?? yAxisLabelText.split(/\s+/)[0] ?? '';
   // The export render knows its size up front; waiting for the resize observer would capture the plot without its Y title.
   const labelRoom = exportView ? Math.max(0, exportView.height - CHART_MARGIN_TOP - xAxisHeight - 10) : plotHeight;
@@ -1271,13 +1279,18 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
                         const roundedCx = Math.round(cx);
                         const roundedCy = Math.round(cy);
                         // Compute label y-offset: above by default, nudge down if near top
-                        const labelYOffset = roundedCy < 30 ? 18 : -14;
-                        const charWidth = 6.5;
-                        const pillPadX = 5;
-                        const pillPadY = 3;
+                        // Screen: 11 px mono tags and today's glyph. Paper exports scale both with the 8 pt text.
+                        const tagPx = exportView?.tagPx ?? 11;
+                        const tagScale = tagPx / 11;
+                        const glyphScale = exportView?.markScale ?? 1;
+                        const labelYOffset = roundedCy < 30 * tagScale ? 18 * tagScale : -14 * tagScale;
+                        // Paper tags are serif: narrower glyphs and a box that hugs the 7.5 pt text.
+                        const charWidth = exportView?.paper ? tagPx * 0.46 : 6.5 * tagScale;
+                        const pillPadX = exportView?.paper ? tagPx * 0.35 : 5 * tagScale;
+                        const pillPadY = exportView?.paper ? tagPx * 0.15 : 3 * tagScale;
                         const textWidth = labelText.length * charWidth;
                         const pillW = textWidth + pillPadX * 2;
-                        const pillH = 13 + pillPadY * 2;
+                        const pillH = (exportView?.paper ? tagPx * 1.2 : 13 * tagScale) + pillPadY * 2;
                         const pillX = roundedCx - pillW / 2;
                         const pillY = roundedCy + labelYOffset - pillH + pillPadY;
                         return (
@@ -1296,14 +1309,14 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
                             {/* Bullseye glyph: colored fill → white ring → black outline.
                                 Shape encodes marker type (circle/diamond/triangle) as a non-color cue. */}
                             {(() => {
-                              const fillPts = markerGlyphPolygonPoints(marker.type, roundedCx, roundedCy, 5);
-                              const outlinePts = markerGlyphPolygonPoints(marker.type, roundedCx, roundedCy, 6.5);
+                              const fillPts = markerGlyphPolygonPoints(marker.type, roundedCx, roundedCy, 5 * glyphScale);
+                              const outlinePts = markerGlyphPolygonPoints(marker.type, roundedCx, roundedCy, 6.5 * glyphScale);
                               const Fill = fillPts
-                                ? <polygon points={fillPts} fill={color} stroke="white" strokeWidth={1.5} strokeLinejoin="round" paintOrder="stroke" shapeRendering="geometricPrecision" />
-                                : <circle cx={roundedCx} cy={roundedCy} r={5} fill={color} stroke="white" strokeWidth={1.5} vectorEffect="non-scaling-stroke" paintOrder="stroke" shapeRendering="geometricPrecision" />;
+                                ? <polygon points={fillPts} fill={color} stroke="white" strokeWidth={1.5 * glyphScale} strokeLinejoin="round" paintOrder="stroke" shapeRendering="geometricPrecision" />
+                                : <circle cx={roundedCx} cy={roundedCy} r={5 * glyphScale} fill={color} stroke="white" strokeWidth={1.5 * glyphScale} vectorEffect="non-scaling-stroke" paintOrder="stroke" shapeRendering="geometricPrecision" />;
                               const Outline = outlinePts
-                                ? <polygon points={outlinePts} fill="none" stroke="#222" strokeWidth={1} strokeLinejoin="round" shapeRendering="geometricPrecision" />
-                                : <circle cx={roundedCx} cy={roundedCy} r={6.5} fill="none" stroke="#222" strokeWidth={1} vectorEffect="non-scaling-stroke" shapeRendering="geometricPrecision" />;
+                                ? <polygon points={outlinePts} fill="none" stroke="#222" strokeWidth={glyphScale} strokeLinejoin="round" shapeRendering="geometricPrecision" />
+                                : <circle cx={roundedCx} cy={roundedCy} r={6.5 * glyphScale} fill="none" stroke="#222" strokeWidth={glyphScale} vectorEffect="non-scaling-stroke" shapeRendering="geometricPrecision" />;
                               return <>{Fill}{Outline}</>;
                             })()}
                             {/* Label pill (gated by showMarkerLabels) */}
@@ -1319,13 +1332,13 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
                                 />
                                 <line
                                   x1={roundedCx} y1={pillY + pillH}
-                                  x2={roundedCx} y2={roundedCy - 7}
+                                  x2={roundedCx} y2={roundedCy - 7 * glyphScale}
                                   stroke="rgba(0,0,0,0.25)" strokeWidth={1}
                                 />
                                 <text
                                   x={roundedCx} y={pillY + pillH - pillPadY - 1}
                                   textAnchor="middle"
-                                  fontSize={exportView?.paper ? ptToCssPx(PAPER_TEXT_PT) : 11}
+                                  fontSize={tagPx}
                                   fontFamily="var(--font-mono, monospace)"
                                   fill="#111"
                                   style={{ userSelect: 'none' }}
@@ -1346,7 +1359,7 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
                   onContextMenu={(line, event) => { event.preventDefault(); markerDispatch({ type: 'SET_SELECTED_IDX', payload: -1 }); refLineDispatch({ type: 'SET_SELECTED', payload: line.id }); setLineMenu({ lineId: line.id, at: { x: event.clientX, y: event.clientY }, mode: 'main' }); }}
                   onLabelClick={(line) => { markerDispatch({ type: 'SET_SELECTED_IDX', payload: -1 }); refLineDispatch({ type: 'SET_SELECTED', payload: line.id }); }} />} />
                 <Customized component={<OverlaysLayer overlays={overlays} />} />
-                <Customized component={<SymbolsLayer traces={paneTraces} showDots={settings.showSampleDots} symbolSetting={isExport ? 'always' : undefined} />} />
+                <Customized component={<SymbolsLayer traces={paneTraces} showDots={settings.showSampleDots} symbolSetting={isExport ? 'always' : undefined} markScale={exportView?.markScale} colorTheme={exportView?.colorTheme} />} />
                 {/* ΔX between V-line delta pairs */}
                 {settings.showReferenceLines && vDeltaPairs.map(([a, b]) => {
                   const lo = Math.min(a.value, b.value);
@@ -1484,6 +1497,8 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
             actions={{
               onCopyImage: imageExport && !TableRenderer && paneTraces.length > 0 ? () => imageExport.copyImage(paneId) : null,
               onDownloadImage: imageExport && !TableRenderer && paneTraces.length > 0 ? () => imageExport.downloadImage(paneId) : null,
+              onDownloadSvg: imageExport && !TableRenderer && paneTraces.length > 0 ? () => imageExport.downloadSvg(paneId) : null,
+              onCopyLatex: imageExport && !TableRenderer && !isSmith && paneTraces.length > 0 ? () => imageExport.copyLatex(paneId) : null,
               onExportOptions: imageExport && !TableRenderer && paneTraces.length > 0 ? () => imageExport.openOptions(paneId) : null,
               onExportData: paneTraces.length > 0 ? () => downloadText(`${paneName(panes, paneId)}.csv`, tracesToCSV(paneTraces, paneTraces[0]?.domain === 'time' ? 'Time' : 'Frequency'), 'text/csv;charset=utf-8') : null,
               onClose: panes.length > 1 ? closePane : null,

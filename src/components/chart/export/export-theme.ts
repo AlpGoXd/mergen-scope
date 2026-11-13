@@ -16,29 +16,19 @@ export function colorThemeOf(theme: ResolvedExportTheme): 'light' | 'dark' {
 }
 
 /**
- * Tokens set on the export container only. Values are literal (copied from index.css :root and .theme-dark):
- * custom properties inherit as computed values, so an alias like `--card: var(--panel)` would keep the app theme.
+ * The theme class the app puts on <html>. The export container carries it, so light and dark tokens come from
+ * index.css itself (its token block also matches `.theme-light` / `.theme-dark`); print starts from light.
  */
-const COLORS: Readonly<Record<ResolvedExportTheme, Readonly<Record<string, string>>>> = {
-  light: {
-    '--bg': 'oklch(0.985 0.006 255)', '--panel': 'oklch(0.965 0.010 255)', '--raised': 'oklch(0.997 0.003 255)', '--card': 'oklch(0.965 0.010 255)',
-    '--text': 'oklch(0.22 0.015 255)', '--text-muted': 'oklch(0.50 0.010 255)', '--muted': 'oklch(0.50 0.010 255)', '--dim': 'oklch(0.50 0.010 255)',
-    '--grid': 'oklch(0.78 0.010 255)', '--border': 'oklch(0.90 0.010 255)', '--border-strong': 'oklch(0.78 0.010 255)', '--accent': 'oklch(0.50 0.1399 255)',
-    '--tipBg': 'oklch(0.997 0.003 255)', '--tipBd': 'oklch(0.78 0.010 255)', '--refV': 'oklch(0.50 0.010 255)', '--refH': 'oklch(0.50 0.010 255)', '--cross': 'oklch(0.50 0.1399 255 / 0.6)',
-  },
-  dark: {
-    '--bg': 'oklch(0.17 0.016 255)', '--panel': 'oklch(0.20 0.016 255)', '--raised': 'oklch(0.24 0.016 255)', '--card': 'oklch(0.20 0.016 255)',
-    '--text': 'oklch(0.93 0.010 255)', '--text-muted': 'oklch(0.72 0.016 255)', '--muted': 'oklch(0.72 0.016 255)', '--dim': 'oklch(0.72 0.016 255)',
-    '--grid': 'oklch(0.42 0.016 255)', '--border': 'oklch(0.31 0.016 255)', '--border-strong': 'oklch(0.42 0.016 255)', '--accent': 'oklch(0.78 0.1129 255)',
-    '--tipBg': 'oklch(0.24 0.016 255)', '--tipBd': 'oklch(0.42 0.016 255)', '--refV': 'oklch(0.72 0.016 255)', '--refH': 'oklch(0.72 0.016 255)', '--cross': 'oklch(0.78 0.1129 255 / 0.6)',
-  },
-  // Paper look: white background, black frame and text, light grey grid, no UI tints.
-  print: {
-    '--bg': '#ffffff', '--panel': '#ffffff', '--raised': '#ffffff', '--card': '#ffffff',
-    '--text': '#000000', '--text-muted': '#333333', '--muted': '#000000', '--dim': '#555555',
-    '--grid': '#c8c8c8', '--border': '#c8c8c8', '--border-strong': '#999999', '--accent': '#000000',
-    '--tipBg': '#ffffff', '--tipBd': '#999999', '--refV': '#333333', '--refH': '#333333', '--cross': 'rgba(0, 0, 0, 0.6)',
-  },
+export function exportThemeClass(theme: ResolvedExportTheme): 'theme-light' | 'theme-dark' {
+  return theme === 'dark' ? 'theme-dark' : 'theme-light';
+}
+
+/** Print is the paper look, not an app theme: white background, black text and frame, light grey grid, no tints. */
+const PRINT: Readonly<Record<string, string>> = {
+  '--bg': '#ffffff', '--panel': '#ffffff', '--raised': '#ffffff', '--card': '#ffffff',
+  '--text': '#000000', '--text-muted': '#333333', '--muted': '#000000', '--dim': '#555555',
+  '--grid': '#c8c8c8', '--border': '#c8c8c8', '--border-strong': '#999999', '--accent': '#000000',
+  '--tipBg': '#ffffff', '--tipBd': '#999999', '--refV': '#333333', '--refH': '#333333',
 };
 
 export const SCREEN_FONT_PX = 12;
@@ -51,10 +41,11 @@ export function exportFontFamily(paper: boolean): string {
   return paper ? SERIF : SANS;
 }
 
+/** Inline tokens on top of the theme class: print colours (print only) and the export's fixed fonts. */
 export function exportTokens(theme: ResolvedExportTheme, paper: boolean): Record<string, string> {
   const font = paper ? PAPER_FONT_PX : SCREEN_FONT_PX;
   return {
-    ...COLORS[theme],
+    ...(theme === 'print' ? PRINT : {}),
     '--font-sans': paper ? SERIF : SANS,
     '--font-mono': paper ? SERIF : MONO,
     '--font-label': `${font}px`,

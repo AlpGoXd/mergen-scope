@@ -76,10 +76,20 @@ export interface ComposeInput {
   readonly cssHeight: number;
   readonly pixelWidth: number;
   readonly pixelHeight: number;
+  /** Width and height of the downloadable SVG (mm for paper sizes, px for the pane size). */
+  readonly fileWidth: string;
+  readonly fileHeight: string;
+}
+
+export interface ComposedSvg {
+  /** Sized in device pixels: what the PNG rasteriser draws. */
+  readonly raster: string;
+  /** The same drawing sized physically: the downloaded .svg file. */
+  readonly file: string;
 }
 
 /** One standalone SVG of the host: CSS-px viewBox, pixel width/height, so it rasterises as vectors at the final size. */
-export async function composeExportSvg({ host, layers, cssWidth, cssHeight, pixelWidth, pixelHeight }: ComposeInput): Promise<string> {
+export async function composeExportSvg({ host, layers, cssWidth, cssHeight, pixelWidth, pixelHeight, fileWidth, fileHeight }: ComposeInput): Promise<ComposedSvg> {
   const root = document.createElementNS(SVG_NS, 'svg');
   root.setAttribute('xmlns', SVG_NS);
   root.setAttribute('width', String(pixelWidth));
@@ -110,5 +120,9 @@ export async function composeExportSvg({ host, layers, cssWidth, cssHeight, pixe
     style.textContent = fonts;
     defs.appendChild(style);
   }
-  return new XMLSerializer().serializeToString(root);
+  const raster = new XMLSerializer().serializeToString(root);
+  root.setAttribute('width', fileWidth);
+  root.setAttribute('height', fileHeight);
+  return { raster, file: `<?xml version="1.0" encoding="UTF-8"?>
+${new XMLSerializer().serializeToString(root)}` };
 }

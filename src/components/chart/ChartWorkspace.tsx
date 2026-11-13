@@ -44,7 +44,7 @@ export function ChartWorkspace() {
         <Notice
           testId="export-notice"
           message={exportNotice.message}
-          action={exportNotice.paneId ? { label: 'Download image', run: () => { const paneId = exportNotice.paneId; imageExport.dismissNotice(); if (paneId) imageExport.downloadImage(paneId); } } : undefined}
+          action={exportNotice.paneId ? { label: exportNotice.fallback === 'tex' ? 'Download .tex' : 'Download image', run: () => { const { paneId, fallback } = exportNotice; imageExport.dismissNotice(); if (!paneId) return; if (fallback === 'tex') imageExport.downloadLatex(paneId); else imageExport.downloadImage(paneId); } } : undefined}
           onDismiss={imageExport.dismissNotice}
         />
       )}

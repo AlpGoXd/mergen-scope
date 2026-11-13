@@ -28,3 +28,22 @@ export function downloadBlob(fileName: string, blob: Blob): void {
   document.body.appendChild(anchor); anchor.click(); anchor.remove();
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
+
+let colorContext: CanvasRenderingContext2D | null | undefined;
+
+/** Any CSS colour (oklch, hex, a variable on `scope`) as sRGB 0–255, as the browser paints it. */
+export function cssColorToRgb(color: string, scope: Element): { r: number; g: number; b: number } {
+  const resolved = color.startsWith('var(') ? getComputedStyle(scope).getPropertyValue(color.slice(4, -1).split(',')[0]?.trim() ?? '').trim() : color;
+  if (colorContext === undefined) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 1; canvas.height = 1;
+    colorContext = canvas.getContext('2d', { willReadFrequently: true });
+  }
+  if (!colorContext) return { r: 0, g: 0, b: 0 };
+  colorContext.clearRect(0, 0, 1, 1);
+  colorContext.fillStyle = '#000000';
+  colorContext.fillStyle = resolved || '#000000';
+  colorContext.fillRect(0, 0, 1, 1);
+  const [r = 0, g = 0, b = 0] = colorContext.getImageData(0, 0, 1, 1).data;
+  return { r, g, b };
+}

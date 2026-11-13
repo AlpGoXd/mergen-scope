@@ -12,6 +12,9 @@ export const EXPORT_OPTIONS_KEY = 'mergen-export-image-options';
 export const IEEE_COLUMN_MM = { 'ieee-1': 88.9, 'ieee-2': 181.9 } as const;
 export const PAPER_TEXT_PT = 8;
 export const PAPER_LINE_PT = 0.75;
+/** Paper marks scale with the 8 pt text: trace symbols, sample dots and marker glyphs about 2.5 pt radius, tags 7.5 pt. */
+export const PAPER_MARK_RADIUS_PT = 2.5;
+export const PAPER_TAG_PT = 7.5;
 export const ptToCssPx = (pt: number): number => pt * 96 / 72;
 export const mmToCssPx = (mm: number): number => mm / 25.4 * 96;
 
@@ -31,10 +34,23 @@ export function exportGeometry(options: ExportImageOptions, pane: { width: numbe
 }
 
 export function exportImageFileName(fileName: string | null, paneName: string, date: Date): string {
+  return exportFileName(fileName, paneName, date, 'png');
+}
+
+/** `{file}_{pane}_{yyyy-mm-dd}.{extension}`. */
+export function exportFileName(fileName: string | null, paneName: string, date: Date, extension: 'png' | 'svg' | 'tex'): string {
   const clean = (value: string) => value.replace(/[\\/:*?"<>|\s]+/g, '-').replace(/^-+|-+$/g, '');
   const file = clean((fileName ?? '').replace(/\.[^.]*$/, '')) || 'mergen';
   const day = [String(date.getFullYear()).padStart(4, '0'), String(date.getMonth() + 1).padStart(2, '0'), String(date.getDate()).padStart(2, '0')].join('-');
-  return `${file}_${clean(paneName)}_${day}.png`;
+  return `${file}_${clean(paneName)}_${day}.${extension}`;
+}
+
+/** Width and height attributes of a downloaded SVG: millimetres for paper sizes, CSS px for the pane size. */
+export function exportPhysicalSize(options: ExportImageOptions, geometry: { cssWidth: number; cssHeight: number }): { width: string; height: string } {
+  if (options.size === 'pane') return { width: `${geometry.cssWidth}px`, height: `${geometry.cssHeight}px` };
+  const mm = IEEE_COLUMN_MM[options.size];
+  const height = Math.round(mm * geometry.cssHeight / Math.max(1, geometry.cssWidth) * 100) / 100;
+  return { width: `${mm}mm`, height: `${height}mm` };
 }
 
 export function parseExportOptions(raw: unknown): ExportImageOptions {

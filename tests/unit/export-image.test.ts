@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_EXPORT_OPTIONS, exportGeometry, exportImageFileName, layoutLegend, mmToCssPx, parseExportOptions, ptToCssPx } from '../../src/domain/export-image';
+import { DEFAULT_EXPORT_OPTIONS, PAPER_MARK_RADIUS_PT, PAPER_TAG_PT, exportFileName, exportGeometry, exportImageFileName, exportPhysicalSize, layoutLegend, mmToCssPx, parseExportOptions, ptToCssPx } from '../../src/domain/export-image';
 import type { ExportDpi, ExportImageOptions } from '../../src/domain/export-image';
 
 const options = (patch: Partial<ExportImageOptions>): ExportImageOptions => ({ ...DEFAULT_EXPORT_OPTIONS, ...patch });
@@ -79,5 +79,22 @@ describe('legend layout', () => {
   it('gives an item wider than the row a row of its own', () => {
     const layout = layoutLegend([50, 400, 50], 200, opts);
     expect(layout.items.map(item => item.y)).toEqual([5, 25, 45]);
+  });
+});
+
+describe('export file names and SVG size', () => {
+  const day = new Date(2026, 10, 13);
+  it('names SVG and LaTeX files like the PNG', () => {
+    expect(exportFileName('amp.dat', 'Pane 1', day, 'svg')).toBe('amp_Pane-1_2026-11-13.svg');
+    expect(exportFileName('amp.dat', 'Pane 1', day, 'tex')).toBe('amp_Pane-1_2026-11-13.tex');
+  });
+  it('sizes a paper SVG in millimetres and a pane-size SVG in px', () => {
+    expect(exportPhysicalSize(options({ size: 'ieee-1' }), { cssWidth: 336, cssHeight: 168 })).toEqual({ width: '88.9mm', height: '44.45mm' });
+    expect(exportPhysicalSize(options({ size: 'ieee-2' }), { cssWidth: 687, cssHeight: 426 })).toEqual({ width: '181.9mm', height: `${Math.round(181.9 * 426 / 687 * 100) / 100}mm` });
+    expect(exportPhysicalSize(options({ size: 'pane' }), { cssWidth: 640, cssHeight: 360 })).toEqual({ width: '640px', height: '360px' });
+  });
+  it('sizes paper marks with the 8 pt text', () => {
+    expect(ptToCssPx(PAPER_MARK_RADIUS_PT)).toBeCloseTo(3.333, 3);
+    expect(ptToCssPx(PAPER_TAG_PT)).toBe(10);
   });
 });
