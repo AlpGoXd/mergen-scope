@@ -1,0 +1,33 @@
+import { expect, test } from '@playwright/test';
+import { resolve } from 'node:path';
+
+test('selecting a marker or line clears the other selection', async ({ page }) => {
+  await page.goto('/app.html');
+  await page.getByTestId('app-open-input').setInputFiles(resolve('test files/cascade_ip3_-12dBm.DAT'));
+  const plot = page.getByTestId('chart-plot-pane-1');
+  await page.getByRole('button', { name: 'New Marker', exact: true }).click();
+  await plot.click({ position: { x: 100, y: 100 } });
+  const marker = page.locator('[data-testid^="marker-row-"]').first();
+  await page.getByRole('button', { name: 'V-Line' }).click();
+  await plot.click({ position: { x: 260, y: 60 } });
+  const line = page.getByTestId('ref-line-row-V1').locator('.ln-row');
+  await expect(line).toHaveClass(/is-lit/);
+  await expect(plot.locator('.ln-g')).toHaveClass(/is-selected/);
+  await expect(marker.locator('.lp-marker')).not.toHaveClass(/is-selected/);
+  await marker.locator('.lp-tag').click();
+  await expect(marker.locator('.lp-marker')).toHaveClass(/is-selected/);
+  await expect(line).not.toHaveClass(/is-lit/);
+  const trace = page.locator('[data-testid^="trace-row-"] .lp-trace').first();
+  await trace.click();
+  await expect(trace).toHaveClass(/lp-selected/);
+  await expect(marker.locator('.lp-marker')).not.toHaveClass(/lp-selected/);
+  await expect(line).not.toHaveClass(/lp-selected/);
+  const traceWidth = await trace.evaluate(element => getComputedStyle(element).borderTopWidth);
+  await marker.locator('.lp-tag').click();
+  await expect(trace).not.toHaveClass(/lp-selected/);
+  await expect(marker.locator('.lp-marker')).toHaveClass(/lp-selected/);
+  expect(await marker.locator('.lp-marker').evaluate(element => getComputedStyle(element).borderTopWidth)).toBe(traceWidth);
+  await line.locator('.lp-tag').click();
+  await expect(line).toHaveClass(/lp-selected/);
+  expect(await line.evaluate(element => getComputedStyle(element).borderTopWidth)).toBe(traceWidth);
+});

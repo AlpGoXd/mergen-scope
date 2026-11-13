@@ -1,0 +1,52 @@
+{
+  "name": "mergen-scope",
+  "version": "1.0.0-beta.1",
+  "description": "Browser-based RF signal analysis tool",
+  "type": "module",
+  "scripts": {
+    "prepare": "node scripts/install-git-hooks.cjs",
+    "dev": "vite",
+    "clean:dist": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test:unit": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "test:static": "playwright test --config=playwright.static.config.ts",
+    "test": "npm run test:unit && npm run test:e2e"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AlpGoXd/mergen-scope.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/AlpGoXd/mergen-scope/issues"
+  },
+  "homepage": "https://github.com/AlpGoXd/mergen-scope#readme",
+  "dependencies": {
+    "@chenglou/pretext": "^0.0.4",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "recharts": "^2.15.3"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.60.0",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/node": "^25.5.2",
+    "@types/react": "^19.1.6",
+    "@types/react-dom": "^19.1.6",
+    "@vitejs/plugin-react": "^4.5.2",
+    "jsdom": "^29.1.1",
+    "playwright": "^1.60.0",
+    "typescript": "^6.0.2",
+    "vite": "^7.0.0",
+    "vite-plugin-singlefile": "^2.3.2",
+    "vitest": "^4.1.7"
+  }
+}

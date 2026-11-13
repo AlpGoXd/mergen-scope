@@ -1,0 +1,58 @@
+/* Table pane (table kit, 11 Nov). App tokens and text roles only. Import after pane-types.css. */
+.tbp { position: absolute; inset: 0; display: flex; flex-direction: column; background: var(--bg); }
+.tbp-scroll { flex: 1; min-height: 0; overflow: auto; position: relative; }
+.tbp-scroll:focus { outline: none; }
+/* Keyboard focus ring above the rows (an outline on the scroll box would be painted over by them). */
+.tbp:has(> .tbp-scroll:focus-visible)::after { content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 4; box-shadow: inset 0 0 0 2px var(--accent); }
+
+/* Rows: one CSS grid per row with the same template; fixed height so virtualization can count. */
+.tbp-row { display: grid; height: calc(var(--row-height) - 6px); align-items: center; border-bottom: 1px solid color-mix(in oklch, var(--border) 55%, transparent); }
+.tbp-row > span { padding: 0 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tbp-x { position: sticky; left: 0; z-index: 1; background: inherit; font-family: var(--font-mono); font-size: var(--font-caption); font-weight: var(--fw-regular); color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.tbp-row { background: var(--bg); }
+.tbp-c { font-family: var(--font-mono); font-size: var(--font-caption); font-weight: var(--fw-regular); color: var(--text); text-align: right; font-variant-numeric: tabular-nums; }
+.tbp-c.is-empty { color: var(--text-muted); }
+
+/* Header: sticky, panel background, labels in sans. */
+.tbp-head { position: sticky; top: 0; z-index: 2; background: var(--panel); border-bottom: 1px solid var(--border); }
+.tbp-head .tbp-x { font-family: var(--font-sans); font-weight: var(--fw-regular); color: var(--text-muted); z-index: 3; }
+.tbp-colhead { display: flex; align-items: center; justify-content: flex-end; gap: 6px; font-family: var(--font-sans); font-size: var(--font-caption); }
+/* Trace name = the "Card or row title" role (label size, 600); unit and X heading = Caption. */
+.tbp-name { font-size: var(--font-label); font-weight: var(--fw-semibold); color: var(--text); overflow: hidden; text-overflow: ellipsis; }
+.tbp-unit { color: var(--text-muted); font-weight: var(--fw-regular); }
+.tbp-swatch { width: 10px; height: 10px; border-radius: 2px; flex: none; }
+
+/* Cursor row: the selection tint, the whole row; no side stripe. */
+.tbp-row.is-cursor { background: var(--sel-bg); }
+.tbp-row.is-cursor .tbp-x { color: var(--sel-ink); }
+.tbp-row.is-cursor .tbp-c { color: var(--sel-ink); }
+
+/* Selected cells (click, drag, Shift-click, row/column headings): an accent tint over the row background. */
+.tbp-row > span[role="cell"], .tbp-row > span[role="rowheader"], .tbp-head > span { cursor: cell; }
+.tbp-row > span.is-sel { background: color-mix(in oklch, var(--accent) 18%, var(--bg)); color: var(--text); }
+.tbp-row.is-cursor > span.is-sel { background: color-mix(in oklch, var(--accent) 18%, var(--sel-bg)); }
+
+/* Markers: the trace's cell on the marker's row is tinted in the trace colour and carries the chart's label chip
+   (normal = filled in the trace colour, delta = outlined with a light tint), Readout role. */
+.tbp-c.has-mark { display: flex; align-items: center; justify-content: flex-end; gap: 4px; background: color-mix(in oklch, var(--mark-color) 14%, var(--bg)); }
+.tbp-row.is-cursor > .tbp-c.has-mark { background: color-mix(in oklch, var(--mark-color) 14%, var(--sel-bg)); }
+.tbp-row > .tbp-c.has-mark.is-sel { background: color-mix(in oklch, var(--accent) 18%, color-mix(in oklch, var(--mark-color) 14%, var(--bg))); }
+.tbp-v { margin-left: auto; overflow: hidden; text-overflow: ellipsis; }
+.tbp-mark {
+  flex: none; height: calc(var(--row-height) - 12px); display: inline-flex; align-items: center; padding: 0 5px;
+  border: 1px solid var(--mark-color); border-radius: 4px; background: var(--mark-color); color: var(--bg);
+  font-family: var(--font-mono); font-size: var(--font-caption); font-weight: var(--fw-regular); cursor: pointer;
+}
+.tbp-mark.is-delta { background: color-mix(in oklch, var(--mark-color) 14%, var(--bg)); color: var(--text); }
+.tbp-mark.is-selected, .tbp-mark:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+/* Marker tool armed: value cells are click targets for placing. */
+.tbp-c.is-placing { cursor: crosshair; }
+.tbp-c.is-placing:hover { box-shadow: inset 0 0 0 1px var(--accent); }
+
+/* Footer: one caption line. */
+.tbp-foot { flex: none; height: calc(var(--row-height) - 6px); display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 10px; border-top: 1px solid var(--border); background: var(--panel); font-size: var(--font-caption); color: var(--text-muted); white-space: nowrap; overflow: hidden; }
+
+/* Empty table: centred icon, name, one sentence, actions (same layout as the other typed empty panes). */
+.tbp-empty { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 16px; text-align: center; color: var(--text); }
+.tbp-empty p { margin: 0; max-width: 360px; }
+.tbp-empty__actions { display: flex; gap: 8px; margin-top: 6px; }

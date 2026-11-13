@@ -1,0 +1,88 @@
+/* Import wizard / Edit columns (board C06): settings left, live preview right.
+   Sizes and type come from tokens (index.css) and text roles (text-roles.css) only. */
+.ui-dialog.iw-dialog { width: min(840px, calc(100vw - 32px)); max-height: calc(100vh - 32px); padding: 0; gap: 0; grid-template-rows: auto minmax(0, auto) auto; overflow: hidden; outline: none; }
+.ui-dialog.iw-dialog:focus-visible { outline: none; }
+
+/* Header: "Open" + file name (Mono 400) · File 1 of 3 · × */
+.iw-head { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--border); min-width: 0; }
+.iw-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.iw-file { font-family: var(--font-mono); font-weight: var(--fw-regular); }
+.iw-head > .t-caption { white-space: nowrap; }
+.iw-close { flex: none; width: var(--control-sm-height); height: var(--control-sm-height); display: inline-grid; place-items: center; padding: 0; border: 0; border-radius: var(--radius-control); background: transparent; color: var(--text-muted); cursor: pointer; }
+.iw-close:hover { background: var(--panel); color: var(--text); }
+
+.iw-body { display: grid; grid-template-columns: 264px minmax(0, 1fr); min-height: 0; overflow: auto; }
+
+/* Settings: compact label / control rows */
+.iw-settings { display: grid; align-content: start; gap: var(--space-4); padding: var(--space-3) var(--space-4); background: var(--panel); border-right: 1px solid var(--border); }
+.iw-group { display: grid; gap: var(--space-2); }
+.iw-line { display: grid; grid-template-columns: 72px minmax(0, 1fr); align-items: center; column-gap: var(--space-2); min-height: var(--control-sm-height); }
+.iw-line > :last-child { justify-self: start; max-width: 100%; }
+.iw-settings .ui-message { align-items: flex-start; }
+
+/* One joined segmented control; the selected part is Slate (.ui-btn--slate.is-active). */
+.iw-seg .ui-segmented { gap: 0; }
+.iw-seg .ui-btn { min-height: var(--control-sm-height); min-width: calc(var(--control-sm-height) + var(--space-2)); padding: 0 var(--space-2); border-radius: 0; margin-left: -1px; }
+.iw-seg .ui-btn:first-child { margin-left: 0; border-radius: var(--radius-input) 0 0 var(--radius-input); }
+.iw-seg .ui-btn:last-child { border-radius: 0 var(--radius-input) var(--radius-input) 0; }
+.iw-seg .ui-btn.is-active, .iw-seg .ui-btn:focus-visible { position: relative; z-index: 1; }
+
+/* Small number field without spinner arrows (↑/↓ still step). */
+.iw-input { height: var(--control-sm-height); width: 6ch; border: 1px solid var(--border); border-radius: var(--radius-input); padding: 0 var(--space-2); background: var(--raised); color: var(--text); font-variant-numeric: tabular-nums; appearance: textfield; -moz-appearance: textfield; }
+.iw-input::-webkit-inner-spin-button, .iw-input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.iw-input--mult { width: 12ch; }
+
+/* Small unit menu: "seconds (s) ▾" */
+.iw-menu { position: relative; display: inline-flex; align-items: center; max-width: 100%; }
+.iw-menu select { height: var(--control-sm-height); max-width: 100%; padding: 0 calc(var(--space-2) + 12px) 0 var(--space-2); border: 1px solid var(--border); border-radius: var(--radius-input); background: var(--raised); color: var(--text); appearance: none; -webkit-appearance: none; cursor: pointer; text-overflow: ellipsis; }
+.iw-menu select:hover { border-color: var(--border-strong); }
+.iw-caret { position: absolute; right: var(--space-2); pointer-events: none; color: var(--text-muted); }
+
+/* Preview */
+.iw-main { display: grid; align-content: start; gap: var(--space-2); padding: var(--space-3) var(--space-4); min-width: 0; }
+.iw-main .ui-message { align-items: flex-start; }
+.iw-preview-head { display: flex; align-items: baseline; gap: var(--space-2); flex-wrap: wrap; }
+.iw-table-wrap { border: 1px solid var(--border); border-radius: var(--radius-card); overflow: auto; background: var(--raised); }
+.iw-table { width: 100%; border-collapse: collapse; }
+.iw-table th, .iw-table td { padding: var(--space-1) var(--space-2); text-align: left; white-space: nowrap; border-bottom: 1px solid var(--border); }
+.iw-table tbody tr:last-child td { border-bottom: 0; }
+.iw-table th { vertical-align: bottom; background: var(--panel); }
+.iw-table td.is-skip { color: var(--text-muted); }
+.iw-colhead { display: grid; gap: var(--space-1); justify-items: start; }
+.iw-table .iw-colname { color: var(--text); max-width: 24ch; overflow: hidden; text-overflow: ellipsis; }
+
+/* Role chip: "X ▾" neutral · "Y ▾" in the trace colour · "— skip ▾" muted */
+.iw-chip { min-height: var(--control-sm-height); padding: 0 var(--space-2); display: inline-flex; align-items: center; gap: var(--space-1); border-radius: var(--radius-badge); border: 1px solid var(--border-strong); background: var(--raised); color: var(--text); cursor: pointer; }
+.iw-chip:hover { border-color: var(--text-muted); }
+.iw-chip.is-y { background: var(--iw-trace); border-color: var(--iw-trace); color: var(--solid-ink); }
+.iw-chip.is-y:hover { border-color: var(--text); }
+.iw-chip.is-skip { border-color: var(--border); color: var(--text-muted); }
+
+.iw-role-menu { display: grid; min-width: 168px; }
+.iw-role-menu [role=menuitemradio] { display: flex; align-items: center; gap: var(--space-2); width: 100%; border: 0; border-radius: var(--radius-input); padding: var(--space-1) var(--space-2); text-align: left; background: transparent; color: var(--text); font: inherit; cursor: pointer; }
+.iw-role-menu [role=menuitemradio]:hover, .iw-role-menu [role=menuitemradio]:focus-visible { background: var(--panel); }
+.iw-role-menu [aria-checked=true] { background: var(--sel-bg); color: var(--sel-ink); }
+.iw-role-menu [aria-disabled=true] { opacity: 0.45; cursor: not-allowed; }
+.iw-role-key { width: 3ch; color: var(--text-muted); }
+/* The role menu is portaled to body; it has to sit above the dialog backdrop (z 150). */
+.ui-popover:has(> .iw-role-menu) { z-index: 160; }
+
+/* Preview plot: Y over X for the previewed rows, dashed grid, no axis text. */
+.iw-plot { display: block; width: 100%; height: 80px; border: 1px solid var(--border); border-radius: var(--radius-card); background: var(--raised); overflow: hidden; }
+.iw-plot-grid line { stroke: var(--border); stroke-width: 1; stroke-dasharray: 3 3; vector-effect: non-scaling-stroke; }
+.iw-plot-line { fill: none; stroke-width: 1.5; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+
+.iw-plot-band { fill: var(--sel-bg); opacity: 0.6; }
+.iw-result-row { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; }
+.iw-result { margin: 0; min-width: 0; }
+
+/* Footer: checkbox left · Skip file · Cancel · Add N traces right */
+.iw-foot { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-3) var(--space-4); border-top: 1px solid var(--border); flex-wrap: wrap; }
+.iw-check { display: inline-flex; align-items: center; gap: var(--space-2); cursor: pointer; }
+.iw-spacer { flex: 1; }
+.iw-blocker { color: var(--danger-ink); text-align: right; }
+
+@media (max-width: 720px) {
+  .iw-body { grid-template-columns: minmax(0, 1fr); }
+  .iw-settings { border-right: 0; border-bottom: 1px solid var(--border); }
+}

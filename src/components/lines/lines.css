@@ -1,0 +1,59 @@
+/*
+ * Lines kit (board P4c, LL-2: a reference line works like a trace). Prefix `ln-`.
+ * The line row reuses the left panel's classes (lp-row, lp-tag--line, lp-input, lp-panes, lp-pane,
+ * lp-icon-btn, lp-sub, lp-link) so it matches a trace row exactly; this file adds only what is new.
+ * Tokens only: --raised, --bg, --border, --border-strong, --text, --text-muted, --accent,
+ * --font-mono, --font-caption, --radius-badge. Light/dark via .theme-dark tokens.
+ */
+
+/* ---------- left panel: line row additions ---------- */
+.ln-row.is-lit:not(.lp-selected) { background: var(--panel); }
+.ln-row.is-unplaced .lp-tag--line { border-style: dotted; color: var(--text-muted); }
+.ln-row .lp-panes { min-width: 18px; justify-content: flex-end; }
+.ln-row .lp-panes:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
+.ln-row .lp-panes[aria-disabled='true'] { cursor: default; }
+.ln-sub__warn { color: var(--text); }
+.ln-sub__sep { color: var(--text-muted); }
+
+/* ---------- chart: the line itself (SVG, inside the pane's plot layer) ---------- */
+.ln-line { stroke: var(--text-muted); stroke-width: 1.25; stroke-dasharray: 6 4; fill: none; shape-rendering: crispEdges; }
+.ln-g.is-lit .ln-line { stroke: var(--accent); stroke-width: 2; }
+.ln-g.is-selected .ln-line { stroke: var(--text); stroke-width: 1.5; }
+.ln-g.is-selected.is-lit .ln-line { stroke: var(--accent); stroke-width: 2; }
+/* wide invisible hit area for hover, drag and right-click */
+.ln-hit { stroke: transparent; stroke-width: 9; fill: none; pointer-events: stroke; }
+.ln-g--v .ln-hit { cursor: ew-resize; }
+.ln-g--h .ln-hit { cursor: ns-resize; }
+
+/* label chip: "V1", or "V1 · 2" when shown in two panes */
+.ln-label__box { fill: var(--raised); stroke: var(--border-strong); stroke-width: 1; stroke-dasharray: 2 2; }
+.ln-label__text { fill: var(--text); font-family: var(--font-mono); font-size: 10px; dominant-baseline: central; text-anchor: middle; pointer-events: none; }
+.ln-g.is-lit .ln-label__box { stroke: var(--accent); stroke-dasharray: none; }
+.ln-g.is-selected .ln-label__box { stroke: var(--text); stroke-dasharray: none; }
+.ln-label { cursor: pointer; }
+
+/* crossings: hollow dots in the trace colour (a marker is filled, so they never look alike) */
+.ln-dot { fill: var(--bg); stroke: var(--trace, var(--text-muted)); stroke-width: 1.5; pointer-events: none; }
+.ln-dot.is-current { stroke-width: 2.25; }
+.ln-dot[style*='--h'] { --trace: oklch(0.58 0.16 var(--h)); }
+.theme-dark .ln-dot[style*='--h'] { --trace: oklch(0.75 0.13 var(--h)); }
+
+/* ---------- chart: edge tag when the line is outside this pane's range (HTML overlay) ---------- */
+.ln-edge {
+  position: absolute; z-index: 3; height: 20px; display: inline-flex; align-items: center; gap: 4px; padding: 0 6px;
+  border: 1px dashed var(--border-strong); border-radius: var(--radius-badge); background: var(--raised); color: var(--text);
+  font-family: var(--font-mono); font-size: var(--font-caption); white-space: nowrap; cursor: pointer;
+  box-shadow: 0 1px 3px oklch(0.3 0.02 255 / 0.12);
+}
+.ln-edge:hover { border-style: solid; }
+.ln-edge.is-lit { border: 1px solid var(--accent); color: var(--accent); }
+.ln-edge:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ln-edge__arrow { color: var(--text-muted); font-family: var(--font-sans); }
+.ln-edge.is-lit .ln-edge__arrow { color: inherit; }
+/* the app sets top/left; these keep the tag inside the plot by 6 px */
+.ln-edge--right { right: 6px; transform: translateY(-50%); }
+.ln-edge--left { left: 6px; transform: translateY(-50%); }
+.ln-edge--top { top: 6px; transform: translateX(-50%); }
+.ln-edge--bottom { bottom: 6px; transform: translateX(-50%); }
+
+@media (prefers-reduced-motion: reduce) { .ln-edge { transition: none; } }

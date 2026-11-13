@@ -1,0 +1,53 @@
+/*
+ * Pane chrome: the pane header and the Pane settings popover.
+ * App tokens (index.css) and the seven text roles (text-roles.css) only: no typed font sizes,
+ * no bold Mono, no new colours.
+ */
+
+/* ---------- header ----------
+ * Pane N · [Chart type │ icon Chart] · "1 trace" · (spacer) · scale · [link Hz] · [Samples] · [settings]
+ * One line, never wraps. Children do not shrink, so "does it fit" is simply scrollWidth vs clientWidth;
+ * PaneHeader drops items by priority (data-level) until it does.
+ */
+.ph {
+  display: flex; flex: none; flex-wrap: nowrap; align-items: center; gap: var(--gap); box-sizing: border-box;
+  height: var(--pane-header-height); min-width: 0; padding: 0 var(--space-1) 0 var(--space-2);
+  overflow: hidden; white-space: nowrap; cursor: pointer;
+  background: var(--panel); border-bottom: 1px solid var(--border); border-left: 3px solid transparent;
+}
+/* The target pane: tinted header and a 3 px Pane-hue edge. Clicking anywhere in a pane makes it the target. */
+.ph.is-target { background: var(--pane-tint); border-left-color: var(--pane-color); cursor: default; }
+.ph > * { flex: none; }
+.ph > .ph-title { max-width: 16em; overflow: hidden; text-overflow: ellipsis; }
+.ph[data-level="5"] > .ph-title { flex: 0 1 auto; min-width: 3ch; }
+.ph > .ph-spacer { flex: 1 1 0; min-width: 0; }
+.ph > .ph-scale { color: var(--text-muted); padding: 0 var(--space-1); }
+.ph .ph-settings, .ph .ph-samples.is-icon, .ph .ph-link.is-icon { width: var(--control-sm-height); padding: 0; justify-content: center; }
+/* X link chip: neutral when unlinked, tinted in the Pane hue when linked (Btn chip + tone pane). */
+.ph .ph-link { padding: 0 var(--space-1); }
+.ph .ph-close {
+  display: inline-flex; align-items: center; justify-content: center; width: var(--control-sm-height); height: var(--control-sm-height);
+}
+
+/* ---------- Pane settings popover ---------- */
+/* Capped to the room under a top-row pane header, so the popover opens below its button and scrolls inside. */
+.pset { box-sizing: border-box; width: 392px; max-width: calc(100vw - 16px); max-height: calc(100vh - 150px); overflow-y: auto; padding: var(--space-3); background: var(--raised); color: var(--text); }
+.pset-title { margin-bottom: var(--space-2); }
+.pset-section { display: flex; flex-direction: column; gap: var(--space-1); padding: var(--space-2) 0; border-top: 1px solid var(--border); }
+.pset-head { color: var(--text-muted); }
+.pset-row { display: flex; align-items: flex-start; gap: var(--space-2); min-height: var(--control-sm-height); }
+.pset-row > .pset-label { flex: none; width: 92px; line-height: var(--control-sm-height); color: var(--text-muted); }
+.pset-controls { display: flex; flex: 1; flex-wrap: wrap; align-items: center; gap: var(--space-1); min-width: 0; }
+.pset-scale { min-width: 9ch; }
+.pset-note { margin-left: calc(92px + var(--space-2)); }
+.pset-section > .pset-note:only-of-type { margin-left: 0; }
+.pset-num {
+  box-sizing: border-box; width: 8ch; height: var(--control-sm-height); padding: 0 var(--space-1); text-align: right;
+  border: 1px solid var(--border-strong); border-radius: var(--radius-input); background: var(--bg);
+}
+.pset-num:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.pset-num[aria-invalid="true"] { border-color: var(--danger-line); }
+.pset-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1); padding-top: var(--space-2); border-top: 1px solid var(--border); }
+.pset-actions__gap { flex: 1; }
+.pset .pset-close:not(:disabled) { color: var(--danger-ink); }
+.pset .pset-close:hover:not(:disabled) { background: var(--danger-fill); border-color: var(--danger-line); }

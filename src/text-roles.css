@@ -1,0 +1,23 @@
+/*
+ * Text roles (design decisions 2026-11-10, "Text roles"). Seven roles and nothing else.
+ * Sizes come from the size tokens in index.css (html[data-size] = compact / comfortable / large),
+ * so every role follows the Size setting. Weights: IBM Plex Sans ships 400 / 600 / 700;
+ * JetBrains Mono ships 400 only, so readouts are never bold.
+ * Import once after index.css (main.tsx). Components use these classes instead of typing font sizes.
+ *
+ * Components never type a size, weight or line height. An element that is one of the roles takes the class;
+ * a rule that only changes one property (a selected segment goes semibold) uses the size variables
+ * (--font-caption / -label / -body / -title, --lh-*) and the weight tokens below.
+ * Weights are the faces that ship: Plex 400 / 600 / 700, Mono 400 only (never combine Mono with --fw-semibold or --fw-bold).
+ */
+:root { --fw-regular: 400; --fw-semibold: 600; --fw-bold: 700; }
+.t-title       { font-family: var(--font-sans); font-size: var(--font-title);   font-weight: var(--fw-semibold); line-height: var(--lh-title, 1.35); color: var(--text); }
+.t-section     { font-family: var(--font-sans); font-size: var(--font-label);   font-weight: var(--fw-bold); line-height: var(--lh-label, 1.35); color: var(--text); }
+.t-card-title  { font-family: var(--font-sans); font-size: var(--font-label);   font-weight: var(--fw-semibold); line-height: var(--lh-label, 1.35); color: var(--text); }
+.t-label       { font-family: var(--font-sans); font-size: var(--font-body);    font-weight: var(--fw-regular); line-height: var(--lh-body, 1.4);   color: var(--text); }
+.t-value       { font-family: var(--font-sans); font-size: var(--font-body);    font-weight: var(--fw-semibold); line-height: var(--lh-body, 1.4);   color: var(--text); font-variant-numeric: tabular-nums; }
+.t-caption     { font-family: var(--font-sans); font-size: var(--font-caption); font-weight: var(--fw-regular); line-height: var(--lh-caption, 1.35); color: var(--text-muted); }
+.t-readout     { font-family: var(--font-mono); font-size: var(--font-caption); font-weight: var(--fw-regular); line-height: var(--lh-caption, 1.35); color: var(--text); font-variant-numeric: tabular-nums; }
+
+/* The muted variant of any role (e.g. a count next to a section header). */
+.t-muted { color: var(--text-muted); }

@@ -1,0 +1,11 @@
+.an-peak-rows { display: grid; gap: 4px; }
+.an-peak-row { display: flex; align-items: center; gap: 4px; }
+.an-peak-row__select {
+  flex: 1; min-width: 0; display: grid; grid-template-columns: 1fr auto;
+  gap: 6px; align-items: center; text-align: left; padding: 4px;
+  border: 1px solid transparent; border-radius: var(--radius-input);
+  color: var(--text); background: transparent; font: inherit; cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+.an-peak-row__select[aria-pressed="true"] { border-color: var(--accent); background: var(--raised); }
+.an-peak-row__select:focus-visible { outline: 2px solid var(--accent); }

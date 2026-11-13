@@ -1,0 +1,49 @@
+/*
+ * App footer (design decisions 2026-11-10, footer option A). One line at --footer-height, never wrapping.
+ * Text comes from the text roles (t-caption, t-readout); sizes and gaps from tokens only.
+ * FooterBar.tsx sets data-fit on the footer (0 = everything … 4 = the narrowest); the rules below drop
+ * items in this order: hints 4 → 2, hints, button words, trace name. The X/Y readout and the target always stay.
+ */
+.footer-bar { position: relative; flex-shrink: 0; box-sizing: border-box; height: var(--footer-height); background: var(--panel); border-top: 1px solid var(--border); }
+/* The row clips; the footer itself does not, so Help and App settings can open above it. */
+.footer-row { display: flex; align-items: center; gap: var(--gap); height: 100%; padding: 0 var(--panel-padding); overflow: hidden; white-space: nowrap; }
+.footer-row > * { flex: none; }
+.footer-row .footer-sep { color: var(--text-muted); white-space: pre; }
+.footer-row .footer-sentence { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--text); }
+.footer-row .footer-sentence[data-tone="marker"] { color: var(--marker-ink); }
+.footer-row .footer-sentence[data-tone="lines"] { color: var(--lines-ink); }
+.footer-row .footer-item { color: var(--text-muted); }
+.footer-item strong { color: var(--text); font-weight: var(--fw-semibold); }
+.footer-readout-slot { display: inline-flex; align-items: center; }
+/* Reserved width (in the mono face's ch) so the layout does not move while the pointer does; it grows if a value is longer. */
+.footer-readout { display: inline-block; min-width: 26ch; white-space: pre; }
+.footer-readout[data-kind="smith"] { min-width: 32ch; }
+.footer-sep.is-empty { visibility: hidden; }
+.footer-spacer { flex: 1 1 0 !important; min-width: 0; }
+
+.footer-hints { display: flex; align-items: center; }
+.footer-row .footer-hint { color: var(--text-muted); }
+.footer-hint + .footer-hint::before { content: " · "; white-space: pre; }
+.footer-row .footer-action { color: var(--text); }
+
+.footer-actions { display: flex; align-items: center; gap: 0; }
+.footer-bar button.footer-btn {
+  display: inline-flex; align-items: center; gap: var(--gap); height: calc(var(--footer-height) - 6px); padding: 0 var(--gap);
+  font: inherit; color: var(--text-muted); background: transparent; border: 1px solid transparent; border-radius: 4px; cursor: pointer;
+}
+.footer-bar button.footer-btn:hover, .footer-bar button.footer-btn[aria-expanded="true"] { background: var(--raised); border-color: var(--border); color: var(--text); }
+.footer-bar button.footer-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.footer-icon { flex: none; }
+
+/* Popovers (portalled to the body): the menu above Feedback and the Local only note. */
+.footer-note { padding: var(--panel-padding); white-space: normal; width: 260px; }
+.footer-feedback { display: grid; gap: var(--gap); padding: var(--panel-padding); white-space: normal; width: 260px; }
+.footer-feedback a[role="menuitem"] { display: block; padding: var(--gap) var(--panel-padding); border-radius: 4px; color: var(--text); text-decoration: none; }
+.footer-feedback a[role="menuitem"]:hover, .footer-feedback a[role="menuitem"]:focus-visible { background: var(--raised); }
+.footer-feedback .t-caption { padding: 0 var(--panel-padding); }
+
+/* Narrowing, in order. */
+.footer-row[data-fit="1"] .footer-hint[data-i="2"], .footer-row[data-fit="1"] .footer-hint[data-i="3"] { display: none; }
+.footer-row:is([data-fit="2"], [data-fit="3"], [data-fit="4"]) .footer-hints { display: none; }
+.footer-row:is([data-fit="3"], [data-fit="4"]) .footer-word { display: none; }
+.footer-row[data-fit="4"] .footer-trace { display: none; }

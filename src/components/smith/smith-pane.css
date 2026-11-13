@@ -1,0 +1,95 @@
+/*
+ * Smith pane. Colours are app tokens only (index.css), so light and dark follow the theme;
+ * text uses the Readout and Caption roles (text-roles.css), so Compact / Comfortable / Large
+ * follow the Size setting. JetBrains Mono ships weight 400 only: nothing here is bold.
+ */
+.smith-pane {
+  --smith-bg: var(--bg);
+  --smith-grid: color-mix(in oklab, var(--border) 62%, var(--border-strong));
+  --smith-frame: var(--border-strong);
+  /* Z + Y overlay, as on the classic combined chart: impedance red, admittance blue, both translucent
+     so crossings stay readable. Trace colours are unchanged; the traces draw on top. */
+  --smith-grid-z-both: oklch(0.58 0.19 27 / 0.5);
+  --smith-grid-y-both: oklch(0.56 0.16 255 / 0.5);
+  display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; height: 100%;
+  background: var(--smith-bg); color: var(--text);
+}
+.smith-plot { position: relative; flex: 1; min-height: 0; overflow: hidden; outline: none; user-select: none; touch-action: none; cursor: crosshair; }
+.smith-plot.is-panning { cursor: grabbing; }
+.smith-plot:focus-visible { box-shadow: inset 0 0 0 2px var(--accent); }
+.smith-svg { display: block; position: absolute; inset: 0; }
+
+/* Everything inside the scaled group keeps its pixel width. */
+.smith-svg path, .smith-svg circle { vector-effect: non-scaling-stroke; }
+
+/* Grid: thin and muted. Z solid, Y dashed. In Z + Y both are solid and told apart by colour. */
+.smith-grid path { fill: none; stroke: var(--smith-grid); stroke-width: 1; }
+.smith-grid-y path { stroke-dasharray: 3 3; }
+.smith-pane[data-grid="both"] .smith-grid-z path { stroke: var(--smith-grid-z-both); }
+.smith-pane[data-grid="both"] .smith-grid-y path { stroke: var(--smith-grid-y-both); stroke-dasharray: none; }
+.smith-axis, .smith-rim { fill: none; stroke: var(--smith-frame); stroke-width: 1; }
+.smith-rim.is-active { stroke-dasharray: 6 4; }
+.smith-active-area { fill: color-mix(in oklab, var(--warning-fill) 40%, var(--smith-bg)); stroke: none; }
+.smith-hover-grid path { fill: none; stroke: var(--accent); stroke-width: 1; }
+
+/* Traces are never dashed. Width comes from the element (1.5 px source, 2 px created). */
+.smith-trace path { fill: none; stroke-linejoin: round; stroke-linecap: round; }
+.smith-trace path.is-faint, .smith-chevron.is-faint, .smith-ends.is-faint { opacity: 0.22; }
+.smith-chevron { fill: none; stroke-linejoin: round; stroke-linecap: round; }
+.smith-end-start { fill: var(--smith-bg); stroke-width: 1.5; }
+
+/* Labels never rotate; a background-coloured halo keeps them readable over grid lines. */
+.smith-label, .smith-tag-text {
+  font-family: var(--font-mono); font-size: var(--font-caption); font-weight: var(--fw-regular); font-variant-numeric: tabular-nums;
+}
+.smith-label { fill: var(--text-muted); stroke: var(--smith-bg); stroke-width: 3px; stroke-linejoin: round; paint-order: stroke; pointer-events: none; }
+
+.smith-marker-glyph { stroke: var(--smith-bg); stroke-width: 1.5; paint-order: stroke; }
+.smith-marker-ring { fill: none; stroke-width: 1.5; stroke-dasharray: 3 2; }
+.smith-tag { fill: var(--raised); stroke: var(--border-strong); stroke-width: 1; }
+.smith-tag-text { fill: var(--text); pointer-events: none; }
+.smith-marker.is-selected .smith-tag { fill: var(--slate-fill); stroke: var(--slate-line); }
+.smith-marker.is-selected .smith-tag-text { fill: var(--slate-ink); }
+
+.smith-hover-dot { fill: var(--smith-bg); stroke-width: 2; pointer-events: none; }
+.smith-ghost { fill: none; stroke: var(--accent); stroke-width: 1; stroke-dasharray: 3 2; pointer-events: none; }
+
+.smith-empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: var(--panel-padding); text-align: center; }
+
+.smith-card {
+  position: absolute; z-index: 2; pointer-events: none; white-space: nowrap;
+  padding: var(--space-1) var(--space-2); border: 1px solid var(--border-strong); border-radius: var(--radius-control);
+  background: var(--raised); box-shadow: var(--menu-shadow);
+}
+.smith-card-title { display: flex; align-items: center; gap: var(--space-1); }
+.smith-key { color: var(--text-muted); margin-right: 0.6ch; }
+.smith-swatch { display: inline-block; flex: none; width: 10px; height: 3px; border-radius: 2px; margin-right: 0.6ch; vertical-align: middle; }
+
+/* Readout strip: one line. Fields that do not fit wrap onto a hidden second line, so a narrow
+   pane drops them from the right (VSWR first) and never wraps or clips a value in half. */
+.smith-strip {
+  display: flex; align-items: center; gap: var(--gap); flex: none; box-sizing: border-box;
+  height: var(--footer-height); padding: 0 var(--space-2); border-top: 1px solid var(--border); background: var(--panel);
+}
+.smith-fields {
+  display: flex; flex-wrap: wrap; align-items: center; column-gap: var(--space-4); flex: 1; min-width: 0;
+  height: var(--lh-caption); line-height: var(--lh-caption); overflow: hidden;
+}
+.smith-field { display: inline-flex; align-items: center; height: var(--lh-caption); white-space: nowrap; }
+.smith-field.smith-key { margin-right: 0; }
+.smith-field[data-field="marker"] > span { margin-right: 0.6ch; }
+.smith-field[data-field="marker"] > .smith-key { margin-right: 0; }
+.smith-step {
+  flex: none; display: inline-flex; align-items: center; justify-content: center; padding: 0;
+  width: var(--control-sm-height); height: calc(var(--control-sm-height) - 4px);
+  font: inherit; font-weight: var(--fw-regular); color: var(--text); background: transparent;
+  border: 1px solid var(--border); border-radius: var(--radius-badge); cursor: pointer;
+}
+.smith-step:hover:not(:disabled) { background: var(--raised); border-color: var(--border-strong); }
+.smith-step:disabled { color: var(--text-muted); opacity: 0.5; cursor: default; }
+.smith-step:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+.theme-dark .smith-pane {
+  --smith-grid-z-both: oklch(0.70 0.16 27 / 0.5);
+  --smith-grid-y-both: oklch(0.72 0.13 255 / 0.5);
+}

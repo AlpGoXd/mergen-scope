@@ -1,0 +1,232 @@
+/*
+ * Analysis panel kit (boards R1, R8, X1 AC-3, P4c step 06). Plain CSS, prefix `an-`.
+ * Uses only the app's tokens from src/index.css, so light/dark (.theme-dark) and the Size
+ * setting (.density-comfortable, later .density-large) apply with no extra rules.
+ * Two kit-only names, with fallbacks: --bar-height (panel header) and --menu-shadow.
+ * Emphasised values (key/value, result, collapsed summary) use IBM Plex Sans 600 with tabular digits:
+ * the app ships JetBrains Mono in 400 only, and a faked Mono bold smears. Plain readouts stay Mono 400.
+ */
+
+/* ---------- panel ---------- */
+.an-panel {
+  flex: 1; width: 100%; min-width: 0; box-sizing: border-box;
+  display: flex; flex-direction: column; min-height: 0; height: 100%;
+  background: var(--panel); color: var(--text);
+  font-family: var(--font-sans); font-feature-settings: 'ss02'; font-size: var(--font-body); line-height: var(--lh-label);
+}
+.an-panel__head {
+  flex: none; height: var(--bar-height, 32px); display: flex; align-items: center; gap: 6px;
+  padding: 0 var(--panel-padding); border-bottom: 1px solid var(--border);
+}
+.an-panel__title { font-weight: var(--fw-bold); color: var(--analysis-ink); }
+.an-panel__count { color: var(--text-muted); }
+.an-panel__spacer { flex: 1; }
+.an-panel__body {
+  flex: 1; min-height: 0; overflow: auto; padding: var(--panel-padding);
+  display: flex; flex-direction: column; gap: 6px;
+}
+.an-panel__empty {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 12px 4px;
+  font-size: var(--font-caption); color: var(--text-muted);
+}
+
+/* ---------- buttons used inside the kit ---------- */
+.an-btn {
+  height: var(--control-sm-height); display: inline-flex; align-items: center; gap: 4px; padding: 0 7px;
+  border: 1px solid var(--border); border-radius: var(--radius-input); background: var(--raised); color: var(--text);
+  font: inherit; font-size: var(--font-caption); white-space: nowrap; cursor: pointer;
+}
+.an-btn:hover:not(:disabled) { border-color: var(--border-strong); }
+.an-btn:focus-visible, .an-icon-btn:focus-visible, .an-card__head:focus-visible, .an-cross__row:focus-visible,
+.an-menu__item:focus-visible, .an-input:focus, .an-select:focus-visible, .an-seg__item:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 2px;
+}
+.an-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.an-icon-btn {
+  flex: none; width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center; padding: 0;
+  border: 0; border-radius: var(--radius-badge); background: none; color: var(--text-muted);
+  font: inherit; font-size: var(--font-body); cursor: pointer;
+}
+.an-icon-btn:hover, .an-icon-btn[aria-expanded='true'] { background: var(--slate-fill); color: var(--slate-ink); }
+.an-icon-btn--more { font-weight: var(--fw-bold); letter-spacing: 1px; font-size: var(--font-caption); }
+.an-link { padding: 0; border: 0; background: none; color: var(--accent); font: inherit; font-size: var(--font-caption); cursor: pointer; }
+
+/* ---------- card (AC-3: neutral card, tinted header band, no side stripe) ---------- */
+.an-card {
+  flex: none; min-width: 0; border: 1px solid var(--border); border-radius: var(--radius-control);
+  background: var(--raised); overflow: hidden;
+}
+.an-card:hover { border-color: var(--border-strong); }
+.an-card.is-selected { border-color: var(--analysis-line); box-shadow: 0 0 0 1px var(--analysis-line); }
+.an-card__head {
+  height: var(--row-height); display: flex; align-items: center; gap: 6px; padding: 0 4px 0 8px;
+  background: var(--analysis-tint); border-bottom: 1px solid var(--border);
+  cursor: pointer; user-select: none;
+}
+.an-card.is-collapsed .an-card__head { border-bottom: 0; }
+.an-card__kind { flex: none; width: 14px; display: inline-flex; justify-content: center; color: var(--analysis-ink); }
+.an-card__title { flex: none; font-weight: var(--fw-semibold); white-space: nowrap; }
+.an-card__source {
+  flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: var(--font-caption); color: var(--text-muted);
+}
+.an-card__summary { flex: none; font-size: var(--font-caption); font-weight: var(--fw-semibold); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.an-card__body { padding: 6px 8px 8px; display: flex; flex-direction: column; gap: 6px; }
+
+/* key / value rows: labels small and muted, values a step larger, semibold, full ink */
+.an-kv { display: grid; grid-template-columns: minmax(56px, max-content) 1fr; gap: 4px 10px; align-items: baseline; margin: 0; }
+.an-kv dt { font-size: var(--font-caption); color: var(--text-muted); white-space: nowrap; }
+.an-kv dd { margin: 0; min-width: 0; font-size: var(--font-body); font-weight: var(--fw-semibold); font-variant-numeric: tabular-nums; color: var(--text); overflow-wrap: anywhere; }
+
+/* the headline result */
+.an-result { display: flex; align-items: baseline; gap: 4px; padding-top: 2px; font-variant-numeric: tabular-nums; }
+.an-result__value { font-size: var(--font-title); font-weight: var(--fw-semibold); color: var(--text); }
+.an-result__unit { font-family: var(--font-mono); font-size: var(--font-caption); color: var(--text-muted); }
+.an-result__note { font-family: var(--font-mono); font-size: var(--font-caption); color: var(--text-muted); }
+
+/* parameters (generated form) */
+.an-params { display: grid; grid-template-columns: minmax(56px, max-content) 1fr; gap: 4px 10px; align-items: center; }
+.an-params__label { font-size: var(--font-caption); color: var(--text-muted); white-space: nowrap; }
+.an-params__control { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.an-input {
+  height: var(--control-sm-height); width: 100%; min-width: 0; padding: 0 6px; box-sizing: border-box;
+  border: 1px solid var(--border-strong); border-radius: var(--radius-badge); background: var(--bg); color: var(--text);
+  font-family: var(--font-mono); font-size: var(--font-caption);
+}
+.an-input[aria-invalid='true'] { border-color: var(--danger-line); background: var(--danger-tint); }
+.an-input__unit { flex: none; font-family: var(--font-mono); font-size: var(--font-caption); color: var(--text-muted); }
+.an-select {
+  height: var(--control-sm-height); display: inline-flex; align-items: center; gap: 4px; padding: 0 6px; max-width: 100%;
+  border: 1px solid var(--border-strong); border-radius: var(--radius-input); background: var(--bg); color: var(--text);
+  font: inherit; font-size: var(--font-caption); white-space: nowrap; cursor: pointer;
+}
+.an-select__text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.an-select__arrow { color: var(--text-muted); }
+.an-seg { display: inline-flex; }
+.an-seg__item {
+  height: 18px; padding: 0 6px; display: inline-flex; align-items: center; margin-left: -1px;
+  border: 1px solid var(--border); background: var(--raised); color: var(--text);
+  font: inherit; font-size: var(--font-caption); white-space: nowrap; cursor: pointer;
+}
+.an-seg__item:first-of-type { margin-left: 0; border-radius: var(--radius-badge) 0 0 var(--radius-badge); }
+.an-seg__item:last-of-type { border-radius: 0 var(--radius-badge) var(--radius-badge) 0; }
+.an-seg__item[aria-pressed='true'] { position: relative; z-index: 1; background: var(--slate-fill); color: var(--slate-ink); border-color: var(--slate-line); font-weight: var(--fw-semibold); }
+
+/* message inside a card (SC-3: neutral, thin status outline, coloured icon; never a filled bar) */
+.an-msg {
+  display: flex; align-items: flex-start; gap: 6px; padding: 5px 7px;
+  border: 1px solid var(--msg-line, var(--border)); border-radius: var(--radius-input); background: var(--panel);
+  font-size: var(--font-caption); color: var(--text);
+}
+.an-msg__icon { flex: none; color: var(--msg-ink, var(--text-muted)); line-height: var(--lh-caption); }
+.an-msg--warning { --msg-line: var(--warning-line); --msg-ink: var(--warning-ink); }
+.an-msg--danger { --msg-line: var(--danger-line); --msg-ink: var(--danger-ink); }
+.an-msg--info { --msg-line: var(--info-line); --msg-ink: var(--info-ink); }
+.an-busy { font-size: var(--font-caption); color: var(--text-muted); }
+
+/* math output: the created trace and Live / Freeze */
+.an-output { display: flex; align-items: center; gap: 6px; padding-top: 6px; border-top: 1px solid var(--border); font-size: var(--font-caption); }
+.an-output__swatch { flex: none; width: 9px; height: 9px; border-radius: 2px; background: var(--trace, var(--text-muted)); }
+.an-output__name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.an-output__arrow { color: var(--text-muted); }
+
+/* pane badge (same look as the left panel) */
+.an-pane-badge {
+  flex: none; height: 15px; display: inline-flex; align-items: center; padding: 0 4px; border-radius: 3px;
+  background: var(--pane-fill); color: var(--pane-ink); font-family: var(--font-mono); font-size: var(--font-caption);
+}
+
+/* ---------- crossings list (Threshold crossings; "V1 crossings" from a line's List…) ---------- */
+.an-cross { display: flex; flex-direction: column; gap: 4px; }
+.an-cross__group { display: flex; align-items: center; gap: 6px; padding: 4px 2px 2px; font-size: var(--font-caption); color: var(--text-muted); }
+.an-cross__table { border: 1px solid var(--border); border-radius: var(--radius-input); overflow: hidden; }
+.an-cross__row {
+  width: 100%; display: grid; grid-template-columns: 9px minmax(0, 1fr) auto; gap: 8px; align-items: center;
+  padding: 0 6px; height: calc(var(--row-height) - 4px); box-sizing: border-box;
+  border: 0; border-top: 1px solid var(--border); background: none; color: var(--text);
+  font: inherit; font-size: var(--font-caption); text-align: left; cursor: pointer;
+}
+.an-cross__row:first-child { border-top: 0; }
+.an-cross__row:hover { background: var(--panel); }
+.an-cross__row[aria-current='true'] { background: var(--slate-fill); color: var(--slate-ink); }
+.an-cross__swatch { width: 9px; height: 9px; border-radius: 2px; background: var(--trace, var(--text-muted)); }
+.an-cross__trace { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* the one value that changes: regular weight Mono (the app ships Mono 400 only), full ink */
+.an-cross__value { font-family: var(--font-mono); font-weight: var(--fw-regular); color: var(--text); white-space: nowrap; text-align: right; }
+.an-cross__head {
+  display: grid; grid-template-columns: 9px minmax(0, 1fr) auto; gap: 8px; padding: 3px 6px;
+  font-size: var(--font-caption); color: var(--text-muted); border-bottom: 1px solid var(--border);
+}
+.an-cross__head span:last-child { text-align: right; }
+.an-cross__head + .an-cross__row { border-top: 0; }
+.an-cross__foot { display: flex; align-items: center; gap: 8px; font-size: var(--font-caption); color: var(--text-muted); }
+
+/* ---------- + Add analysis menu ---------- */
+.an-menu {
+  width: 300px; max-height: min(520px, calc(100vh - 16px)); display: flex; flex-direction: column; padding: 6px; box-sizing: border-box;
+  border: 1px solid var(--border-strong); border-radius: var(--radius-card); background: var(--raised); color: var(--text);
+  box-shadow: var(--menu-shadow, 0 6px 20px oklch(0.3 0.02 255 / 0.18));
+  font-family: var(--font-sans); font-feature-settings: 'ss02'; font-size: var(--font-body);
+}
+.an-menu__search {
+  flex: none; height: calc(var(--control-height) + 6px); display: flex; align-items: center; gap: 6px; padding: 0 8px;
+  border: 1px solid var(--border-strong); border-radius: var(--radius-input); background: var(--bg); color: var(--text-muted);
+}
+.an-menu__search input { flex: 1; min-width: 0; border: 0; outline: 0; background: none; color: var(--text); font: inherit; }
+.an-menu__filters { flex: none; display: flex; gap: 4px; padding: 6px 2px; }
+.an-menu__filter {
+  height: var(--control-sm-height); padding: 0 8px; display: inline-flex; align-items: center; gap: 3px;
+  border: 1px solid var(--border); border-radius: var(--radius-badge); background: var(--raised); color: var(--text);
+  font: inherit; font-size: var(--font-caption); cursor: pointer;
+}
+.an-menu__filter[aria-pressed='true'] { background: var(--slate-fill); color: var(--slate-ink); border-color: var(--slate-line); font-weight: var(--fw-semibold); }
+.an-menu__list { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; }
+.an-menu__heading { padding: 6px 8px 2px; font-size: var(--font-caption); font-weight: var(--fw-bold); color: var(--text-muted); }
+.an-menu__item {
+  /* flex: none: the list scrolls; shrinking items would squash their two lines onto the next item */
+  flex: none; display: flex; align-items: center; gap: 8px; width: 100%; min-height: calc(var(--row-height) + 4px); padding: 3px 8px; box-sizing: border-box;
+  border: 0; border-radius: var(--radius-input); background: none; color: inherit; font: inherit; text-align: left; cursor: pointer;
+}
+.an-menu__item:hover, .an-menu__item[aria-selected='true'] { background: var(--slate-fill); }
+.an-menu__item[aria-disabled='true'] { color: var(--text-muted); cursor: not-allowed; }
+.an-menu__item[aria-disabled='true']:hover { background: none; }
+.an-menu__lead { flex: none; width: 14px; display: inline-flex; justify-content: center; color: var(--analysis-ink); }
+.an-menu__item[aria-disabled='true'] .an-menu__lead { opacity: 0.55; }
+.an-menu__text { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: var(--lh-caption); }
+.an-menu__text > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* one line each: the full note or reason is in the item's tooltip */
+.an-menu__note { font-size: var(--font-caption); color: var(--text-muted); }
+.an-menu__check { flex: none; color: var(--accent); font-size: var(--font-caption); }
+.an-menu__none { padding: 10px 8px; font-size: var(--font-caption); color: var(--text-muted); }
+
+@media (prefers-reduced-motion: reduce) { .an-card, .an-menu { transition: none; animation: none; } }
+
+/* trace colour from a hue: components put style="--h: 270" on swatches and rows.
+   The app's shared colour resolver may set --trace directly instead; that wins. */
+.an-output__swatch[style*='--h'], .an-cross__row[style*='--h'] { --trace: oklch(0.58 0.16 var(--h)); }
+.an-output__swatch.is-created[style*='--h'] { --trace: oklch(0.36 0.10 var(--h)); }
+.theme-dark .an-output__swatch[style*='--h'], .theme-dark .an-cross__row[style*='--h'] { --trace: oklch(0.75 0.13 var(--h)); }
+.theme-dark .an-output__swatch.is-created[style*='--h'] { --trace: oklch(0.88 0.045 var(--h)); }
+
+/* dark: --analysis-tint has the same lightness as --raised, so the band would vanish; mix in more fill */
+.theme-dark .an-card__head { background: color-mix(in oklch, var(--analysis-fill) 45%, var(--raised)); }
+
+/* ---------- added after the first integration (R1 parity) ---------- */
+/* trace colour swatch: card source, trace pickers */
+.an-swatch { display: inline-block; flex: none; width: 8px; height: 8px; margin-right: 5px; border-radius: 2px; background: var(--trace, var(--text-muted)); vertical-align: 0; }
+.an-swatch[style*='--h'] { --trace: oklch(0.58 0.16 var(--h)); }
+.theme-dark .an-swatch[style*='--h'] { --trace: oklch(0.75 0.13 var(--h)); }
+.an-select .an-swatch { margin-right: 0; }
+/* settings above, results below a hairline */
+.an-results { display: flex; flex-direction: column; gap: 6px; padding-top: 6px; border-top: 1px solid var(--border); }
+/* Math: create step, then the output row */
+.an-create { display: flex; align-items: center; gap: 8px; padding-top: 6px; border-top: 1px solid var(--border); }
+.an-create__note { font-size: var(--font-caption); color: var(--text-muted); }
+/* a named create row reads like the output row it becomes: "→ FFT · CH1 … [Create trace]", the note below */
+.an-create--named { flex-wrap: wrap; gap: 4px 6px; font-size: var(--font-caption); }
+.an-create__name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+.an-create--named .an-create__note { flex-basis: 100%; }
+.an-btn--primary { background: var(--slate-fill); color: var(--slate-ink); border-color: var(--slate-line); font-weight: var(--fw-semibold); }
+.an-output__fx { flex: none; color: var(--analysis-ink); }
+.an-output__note { flex: none; font-size: var(--font-caption); color: var(--text-muted); }
+.an-icon-btn[aria-pressed='false'] { opacity: 0.55; }
