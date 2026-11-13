@@ -5,11 +5,11 @@ This ledger tracks findings that remain open after the Phase 1 foundation and Ph
 | ID | Exact remaining work | Target phase | Current status |
 | --- | --- | --- | --- |
 | 01 | Migrate frame and strip callers to explicit action, toggle, selected-choice and armed roles instead of legacy active-prop compatibility. | Phase 7 | Done: Phase 1 base contrast and Phase 2 shared button roles. Deferred: remaining frame/strip adoption. |
-| 03 | Replace remaining white-based color mixes in `ChartPane` pane headers, pane body and hover crosshair with semantic theme tokens. Migrate the remaining right-panel white mixes when its frame is updated. `TopBar` white mix is fixed. | Phase 5 (`ChartPane`); Phase 7 (right panel) | Partial: TopBar fixed; chart and right-panel consumers remain. |
-| 05 | Replace remaining hard-coded UI and trace colors: Sidebar/shared trace-family color assignment; ChartPane marker outline and reference-line colors; ToolbarStrip group colors; right-panel tab colors. Phase 1 tokens and TopBar colors are migrated. | Phase 4 (Sidebar/shared trace colors); Phase 5 (ChartPane); Phase 7 (ToolbarStrip/right panel) | Partial: tokens and TopBar fixed; listed component consumers remain. |
-| 06 | Adopt the canonical formatter in Sidebar readouts, chart axes with shared visible-range context, and footer/wizard displays. The scalar prefix policy alone does not supply shared axis context. | Phase 4 (Sidebar); Phase 5 (axis); Phase 7 (footer/wizard) | Done: Phase 2 formatter/parser API and Sidebar parser extraction. Deferred: listed display callers. |
+| 03 | Replace remaining white-based color mixes with semantic theme tokens. | Phase 5 / 7 | Pane chrome is updated; ChartPane crosshair and tooltip still mix with white. |
+| 05 | Replace remaining hard-coded UI and trace colors. | Phase 4 / 5 / 7 | Chart and Sidebar share the trace resolver; ChartPane marker outlines and reference-line fallbacks still use hard-coded colors. |
+| 06 | Verify canonical formatter use in Sidebar readouts, chart axes and footer/wizard displays. | Phase 4/5/7 | Partial: chart axes use a visible-range formatter; footer cursor integration and remaining callers still need verification. |
 | 07 | The token correction currently routes `--dim` through `--text-muted`; replace remaining consumers and remove the compatibility alias only after a repository search confirms there are no consumers. Audit measured text contrast against the 4.5:1 requirement in Phase 8. | Phase 8, after component migrations | Partial: token correction through alias is in place; the measured contrast audit remains for Phase 8. |
-| 11 | Replace the strip's remaining explicit 11 px / 13 px select and label sizing through shared-control adoption. | Phase 7 | Done: Phase 1 base sizing and Phase 2 shared select. Deferred: strip adoption and sizing. |
+| 11 | Verify strip typography and sizing against the shared controls and size settings. | Phase 7 | Partial: the strip uses shared controls and size tokens; full typography review is unverified. |
 | — | Preserve legacy `glass` theme data when reading v4 workspaces, complete the Phase 3 workspace migration, then remove obsolete compatibility strings only when migration and a no-consumer search show they are safe to remove. | Phase 3 (legacy read/migration); Phase 8 (compatibility removal) | Deferred: compatibility is retained for v4 reads; migration and eventual removal remain. |
 | — | Remove legacy palette aliases after component migrations. Search the repository (including CSS and components) to prove each alias has no consumer before deleting it. | Phase 8 | Deferred: aliases remain while consumers migrate. |
 | — | Migrate remaining component-specific font overrides and complete the type consistency audit across screens and states. | Phases 4, 5 and 7; final audit in Phase 8 | Done: Phase 1 tokens/fonts and Phase 2 shared controls. Deferred: remaining component adoption and full audit. |
@@ -20,10 +20,10 @@ See [Phase 1–2 comparison](phase1-2-reference-comparison.md) and [side-by-side
 
 | ID | Remaining visual work or evidence | Target phase | Status |
 | --- | --- | --- | --- |
-| V01 | Replace the nearly white dark target header and Accent edge with Pane tint / Pane-hue 3 px edge; remove white chart-body gradient. | Phase 5 | Deferred; visible in both Phase 1 and Phase 2 evidence. |
+| V01 | Verify pane-tint target header, 3 px pane edge and chart body against the reference. | Phase 5 | Pane chrome implementation landed in c500ef5; fresh integrated reference comparison remains open. |
 | V02 | Replace legacy top-bar/strip mixtures with explicit chip/Slate roles and semantic tint tokens; remove hard-coded direction colour. | Phase 7 | Deferred; shared primitives alone do not migrate these callers. |
 | V03 | Verify the final integrated Sidebar palette and remaining contrast against the reference. | Phase 8 | Partial: the kit and identity-aware trace resolver are adopted; integrated-tree contrast audit remains. |
-| V04 | Implement AC-3 faint Analysis header bands, neutral bodies and no coloured stripes; capture open cards in both themes. | Phase 7 | Deferred; current app captures have Analysis closed. |
+| V04 | Compare the AC-3 Analysis card presentation in both themes against the reference. | Phase 7 | The kit-based AC-3 analysis panel landed in 5c56fb4; fresh both-theme comparison remains open. |
 | V05 | Capture all four message-status primitives in light/dark, then compare actual refusing-drop/wizard/settings messages where adopted. | Phase 2 evidence; Phases 5/7 adoption | Deferred; current gallery demonstrates warning only. |
 | V06 | Validate/document dark solid C .1136 vs nominal .12, light secondary fill .0241 vs .03, dark secondary ink .0596 vs .07; hue recipe gamut clamping is already intentional. | Phase 8 | Deferred literal-token audit; do not label exact equality. |
 
@@ -44,7 +44,7 @@ Keep the Phase 8 gate open until every applicable ledger item is closed and veri
 | Remaining work | Target | Status |
 | --- | --- | --- |
 | Wire the top-bar Open action to the unified data/workspace opening path; the temporary fallback loads workspace JSON only. Remove the transitional Right and Clear All controls once their replacement workflows are wired. | Phase 7E | Deferred; the fallback preserves existing workflows until integration. |
-| Wire the top-bar Export action and implement the Layout preset previews and selection; both controls are currently disabled with reasons. | Phase 7E | Deferred. |
+| Verify the export and layout preset controls against the intended full workflows. | Phase 7E | Visible CSV export landed in 5c56fb4 and layout presets in 1d15f66; full export workflow and reference verification remain open. |
 | Verify strip wrapping at 1024 px and on both sides of 1280 px, including populated and armed states, against 40-T1. Align the delta armed sentence with its marker/reference identity and the footer, and verify the chart ghost and target-pane behavior. | Phase 7E | Partial: marker and line hint slots now size to their longest current sentences; 1440 px light/dark tests cover stable positions and Escape from toolbar buttons. Delta wording, ghost and responsive evidence remain outstanding. |
 | Complete the empty-app, pane and footer integration visible in the 40-T1 comparison, and compare light/dark populated and armed states at both sides of the 1280 px breakpoint. | Phase 7E (footer component in 7B) | Partial: marker-toolbar evidence now covers empty, populated and normal-marker armed states in both themes at 1440 px; responsive and delta-armed comparisons remain outstanding. |
 
@@ -56,7 +56,7 @@ The candidate comparison is in [phase7b-evidence/comparison.html](phase7b-eviden
 
 | Remaining work | Target phase | Status and evidence |
 | --- | --- | --- |
-| Connect density, palette, line-style and export-theme preferences to their consumers, with live updates and persistence checks. Theme and the experimental pane limit use existing providers; the remaining preferences have an exported contract but do not yet affect the app. | 7E | Deferred; no end-to-end test covers these preference consumers. |
+| Verify live preference integration and persistence for size, palette, trace symbols and export theme. | 7E | Size and palette have consumers; export-theme consumer and complete end-to-end persistence verification remain open. |
 | Supply target pane type, free cursor coordinates in axis units (Smith Z and Î“), exact armed sentence and active trace/file short name to the footer; verify responsive hiding and context-sensitive hints. | 7E | Partial footer implementation; empty-state captures only. No integrated nonempty, armed or Smith state evidence yet. |
 | Capture and compare the feedback menu and nonempty, armed and Smith footer states in light and dark against 41-F1. Verify the two issue links contain only the intended template, app version and browser/OS. | 7E | Deferred; help and empty footer are captured, but these states and privacy behavior lack dedicated evidence. |
 | Refine settings label/control alignment, switch and icon shapes and spacing against 44-S1; verify token colors against reference values. Verify help keycap treatment and footer link wording against 41-F1. | 7E | Palette swatches and themed controls are present; reference color measurements and remaining visual differences are documented in the comparison. |
@@ -66,7 +66,7 @@ The candidate comparison is in [phase7b-evidence/comparison.html](phase7b-eviden
 
 | Remaining work | Target phase | Status |
 | --- | --- | --- |
-| Adopt the same trace-family color resolver in chart rendering and verify matching colors for source and created traces in both themes. Resolver allocation is recomputed from surviving traces; deleting an earlier source or sibling can shift later colors. Preserve allocation in a workspace-compatible identity contract if colors must remain fixed across deletion and reload. | Phase 5 | Sidebar adopts the resolver; chart adoption and persistent allocation remain open. |
+| Verify matching trace-family colors for source and created traces in both themes, and verify stable allocation across deletion and workspace reload. | Phase 5 | Sidebar and ChartPane use the shared resolver and traceHueSlots (ceb6cf0); cross-theme and persistence verification remain open. |
 | Connect sidebar Drop, Replace and file Rename callbacks to shared workflows; verify empty sidebar, import settings and replacement end to end. | Phase 7D / 7E | Open and Load demo are wired in App; tabular Import settings uses RERUN_WIZARD. Replace and file Rename callbacks remain unwired. Trace-label rename is separately implemented with Undo. |
 | Complete large-port plotted chips across views, grid popover dismissal/focus, and verify all-panes/unplaced and marker/line states against board 42-L1. Replace heuristic raw-header extraction with retained parsed header boundaries. | Phase 7E / final visual audit | Current chips cover the selected view in the target pane; additional states and exact header fidelity remain open. |
 | Verify trace nesting, visual sizing and Undo failure paths against integrated application states. | Phase 8 audit | Phase 4 kit work adds file-based row names, the seven interpolation choices, atomic apply-to-file and Undo; focused interpolation and rename tests pass. Complete action/failure-path coverage remains open. |
@@ -77,7 +77,7 @@ The candidate comparison is in [phase7b-evidence/comparison.html](phase7b-eviden
 | Remaining work | Target phase | Status and evidence |
 | --- | --- | --- |
 | Complete the integrated-tree narrow 220 px visual audit and verify remaining kit state variants. | Phase 8 visual audit | The kit is integrated; populated normal/delta markers and linked/unlinked lines are captured at 2x in both themes in [left-kit evidence](left-kit-evidence/comparison.md). Narrow matrix containment is covered by e2e; full narrow-panel visual comparison remains open. |
-| Provide matrix cell tooltips describing the target-pane add/remove action and existing placements. | Phase 8 | The current tooltip identifies the parameter and view but does not describe the action or pane placement. |
+| Verify matrix cell tooltip wording against the current add/show behavior and target-pane contract. | Phase 8 | TouchstoneMatrixPicker now describes the add/show action and lists existing pane placements; the older add/remove wording requires reconciliation with current behavior. |
 
 ## File-card visual correction follow-up
 
@@ -85,7 +85,7 @@ The candidate comparison is in [phase7b-evidence/comparison.html](phase7b-eviden
 | --- | --- | --- |
 | Expose actual parsing progress in the file-import state and render the specified percentage and 2 px accent bar on the file row while parsing. | Phase 7D / 7E | Deferred: the current file record has no progress field, so this state cannot be displayed or captured faithfully. |
 | Wire the error row Fix action to the shared wizard or replacement pipeline, then verify recovery end to end. | Phase 7D / 7E | Partial: the error row is tinted and exposes its reason; Fix is disabled when the parent does not supply the relevant callback. |
-| Show the current view and existing pane placements in each matrix cell tooltip, including whether clicking adds to or removes from the target pane. | Phase 7E; verify in Phase 8 | Deferred: the current tooltip shows the parameter and view only. |
+| Verify matrix tooltip behavior against the current add/show contract. | Phase 7E; verify in Phase 8 | The picker lists the current view and existing placements and describes add/show; the older add/remove wording needs reconciliation. |
 | Finish the greater-than-eight-port picker: compare its row/column selectors, removable plotted chips and full-grid popover against board 23-C04, and complete cross-view chips plus popover focus and dismissal. | Phase 7E; visual audit in Phase 8 | Partial: the list picker and grid exist; the visual treatment and cross-view/focus behavior remain incomplete. |
 
 Light and dark populated network, CSV and error captures and comparisons are in [file-card visual evidence](file-card-visual-evidence/README.md). The More control now uses the kit menu in the shared popover; complete the integrated-tree comparison against boards 00 and 01 in the Phase 8 visual audit.
@@ -113,7 +113,7 @@ Light and dark populated network, CSV and error captures and comparisons are in 
 | --- | --- | --- |
 | Complete Smith export and verify the wired plot, impedance and marker contracts end to end. | 5E2-5E3 | The Smith renderer and pane integration landed in bb4bb4d; export and remaining verification are open. |
 | Validate the responsive grid, active-load display, interactions, linked frequency and readout; compare light and dark with the written specification and supplied reference. | 5E2-5E4 | Renderer and linked frequency landed in bb4bb4d and 8b99e80; full comparison and verification remain open. |
-| Handle the explicit ambiguous-boundary and singular numerical results in presentation, including series L/C and DC. | 5E3–5E4 | Numerical status is explicit; presentation and end-to-end behavior remain open. |
+| Verify ambiguous-boundary and singular Smith numerical results in presentation, including series L/C and DC. | 5E3-5E4 | Readout formatting and series-equivalent rendering exist (ad79f66); presentation edge cases and end-to-end behavior remain to verify. |
 
 ## Toolbar pane feedback follow-up
 
