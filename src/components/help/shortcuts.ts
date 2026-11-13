@@ -1,4 +1,4 @@
-﻿export const APP_VERSION = '2.0.0';
+﻿export const APP_VERSION = '1.0.0-beta.1';
 export const shortcuts = [
   ['Ctrl+O', 'Open files'], ['Ctrl+S', 'Save workspace'], ['Ctrl+Shift+E', 'Export…'],
   ['Ctrl+Shift+C', 'Copy target pane as image'], ['Ctrl+Shift+S', 'Download target pane as image'],
