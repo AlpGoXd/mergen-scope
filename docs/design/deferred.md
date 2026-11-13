@@ -48,11 +48,11 @@ Keep the Phase 8 gate open until every applicable ledger item is closed and veri
 | Verify strip wrapping at 1024 px and on both sides of 1280 px, including populated and armed states, against 40-T1. Align the delta armed sentence with its marker/reference identity and the footer, and verify the chart ghost and target-pane behavior. | Phase 7E | Partial: marker and line hint slots now size to their longest current sentences; 1440 px light/dark tests cover stable positions and Escape from toolbar buttons. Delta wording, ghost and responsive evidence remain outstanding. |
 | Complete the empty-app, pane and footer integration visible in the 40-T1 comparison, and compare light/dark populated and armed states at both sides of the 1280 px breakpoint. | Phase 7E (footer component in 7B) | Partial: marker-toolbar evidence now covers empty, populated and normal-marker armed states in both themes at 1440 px; responsive and delta-armed comparisons remain outstanding. |
 
-Phase 7A screenshots and side-by-side comparisons are in phase7a-evidence. The 32 px top and strip rows intentionally follow the written specification over the taller reference drawing.
+The historical Phase 7A screenshots and side-by-side comparisons were removed during the documentation cleanup. The 32 px top and strip rows intentionally follow the written specification over the taller reference drawing.
 
 ## Phase 7B footer and app settings follow-up
 
-The candidate comparison is in phase7b-evidence/comparison.html, with light and dark screenshots of the empty footer, help and settings sheets. Screenshots were captured at 1440 Ã— 900 on the 7B worktree before integration; they do not establish integrated behavior.
+The historical Phase 7B comparison and screenshots were removed during the documentation cleanup. Screenshots were captured at 1440 Ã— 900 on the 7B worktree before integration; they do not establish integrated behavior.
 
 | Remaining work | Target phase | Status and evidence |
 | --- | --- | --- |
