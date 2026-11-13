@@ -14,3 +14,9 @@
 - Keep dataset identity independent of sample arrays so a future live-sources project can update samples without changing identity. Do not build live-source behavior in this redesign.
 - Never run `npm ci` or another clean install against an existing `node_modules`. Install locked dependencies only in a fresh directory after confirming `node_modules` is absent.
 - Main `node_modules/mergen-scope` is an existing self-junction to the main project root. Do not traverse, touch, or clean it, and do not recursively copy or enumerate existing dependencies.
+
+## AI and tool leftovers
+
+Temporary work goes in .scratch/: handoff notes, kits, screenshots, evidence, reports, patches. Never commit them. Kits are copied into src/ and tests/; the kit folder itself stays untracked. Evidence for a change goes in the chat report, not the repo.
+
+The staged-file guard permits an intentional exception only with `ALLOW_AI_FILES=1`. The existing README workspace image and `docs/design/references/` images are allowed.

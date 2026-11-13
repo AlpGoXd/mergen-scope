@@ -110,3 +110,9 @@ Don't delegate trivial edits, one-file fixes Claude can verify in a minute, or a
 ## Design documentation
 
 Use [design decisions](docs/design/design-decisions-2026-11-10.md) and [the plan](docs/plan.md).
+
+## AI and tool leftovers
+
+Temporary work goes in .scratch/: handoff notes, kits, screenshots, evidence, reports, patches. Never commit them. Kits are copied into src/ and tests/; the kit folder itself stays untracked. Evidence for a change goes in the chat report, not the repo.
+
+The staged-file guard permits an intentional exception only with `ALLOW_AI_FILES=1`. The existing README workspace image and `docs/design/references/` images are allowed.
