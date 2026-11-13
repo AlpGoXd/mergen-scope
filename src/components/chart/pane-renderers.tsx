@@ -12,7 +12,7 @@ export function rendererFor(typeId: PaneTypeId): ComponentType<{ paneId: string;
 }
 
 // P2 adds the Table empty state.
-export function emptyStateFor(typeId: PaneTypeId): { title: string; sentence: (paneNumber: number) => string } | null {
+export function emptyStateFor(typeId: PaneTypeId): { title: string; sentence: (filesOpen: boolean) => string } | null {
   if (typeId === 'smith') return { title: 'Empty Smith chart', sentence: () => 'Add reflection traces (S11, S22 …) from the matrix or the Traces list.' };
-  return typeId === 'chart' ? { title: 'Empty chart', sentence: paneNumber => `Drop a file here, or tick traces in the Traces list and use Show in › Pane ${paneNumber}.` } : null;
+  return typeId === 'chart' ? { title: 'Empty chart', sentence: filesOpen => filesOpen ? 'Drop a file here, or show traces from the Traces list.' : 'Drop a file here.' } : null;
 }

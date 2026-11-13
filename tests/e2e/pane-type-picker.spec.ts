@@ -37,7 +37,9 @@ test('empty picker has ordered actions and opens the chart empty state', async (
   await expect(header.getByRole('button', { name: /Fit|Samples|Pane settings|Pane actions/ })).toHaveCount(0);
   await tiles.first().click();
   await expect(pane.getByText('Empty chart')).toBeVisible();
-  await expect(pane.getByRole('button', { name: /Open file/ })).toBeVisible();
+  // A typed empty pane has no Open button of its own: the top bar and the drop area open files.
+  await expect(pane.getByText('Drop a file here.', { exact: true })).toBeVisible();
+  await expect(pane.getByRole('button', { name: /Open file/ })).toHaveCount(0);
   await expect(header.getByRole('button', { name: 'Chart type: Chart. Change chart type' })).toBeVisible();
 });
 
@@ -54,6 +56,7 @@ test('an empty chart retains its type after removing a trace and reopening a wor
   await page.getByRole('menu', { name: 'Show in' }).getByRole('menuitemcheckbox', { name: 'Pane 1' }).click();
   await page.keyboard.press('Escape');
   await expect(pane.getByText('Empty chart')).toBeVisible();
+  await expect(pane.getByText('Drop a file here, or show traces from the Traces list.', { exact: true })).toBeVisible();
   const chip = header.getByRole('button', { name: 'Chart type: Chart. Change chart type' });
   await expect(chip).toBeVisible();
   await expect(header.getByTestId('samples-toggle')).toBeVisible();

@@ -3,11 +3,16 @@ import { resolve } from 'node:path';
 
 test('file card controls and typography reflect the reference', async ({ page }) => {
   await page.goto('/app.html');
-  const open = page.getByRole('button', { name: 'Open\u2026', exact: true }).first();
+  // No file yet: the Files header has no Open\u2026 of its own; the drop area's Open\u2026 does the job.
+  const filesHead = page.locator('section.lp-section[aria-label="Files"] .lp-head');
+  await expect(filesHead.getByRole('button', { name: 'Open\u2026', exact: true })).toHaveCount(0);
+  const open = page.locator('.lp-drop').getByRole('button', { name: 'Open\u2026', exact: true });
   await expect(open).toBeEnabled();
+  await expect(page.locator('.lp-drop').getByRole('button', { name: 'Load demo' })).toBeVisible();
   const chooser = page.waitForEvent('filechooser');
   await open.click();
   await (await chooser).setFiles(resolve('test files/cascaded chain.s2p'));
+  await expect(filesHead.getByRole('button', { name: 'Open\u2026', exact: true })).toBeVisible();
   const name = page.locator('span[title^="cascaded chain.s2p"]').first();
   await expect(name).toHaveCSS('font-weight', '600');
   await expect(name).toHaveCSS('font-family', '"IBM Plex Sans", sans-serif');

@@ -1245,7 +1245,7 @@ export function ChartPane({ paneId, hideXTicks = false }: ChartPaneProps) {
         {SmithRenderer && traceNamesInPane.length > 0 ? (
           <SmithRenderer paneId={paneId} fitRequest={smithFitRequest} />
         ) : traceNamesInPane.length === 0 ? (
-          <EmptyChartPane mode={allTraces.length > 0 ? 'traces' : 'files'} paneId={paneId} compact={panes.length > 2} types={Object.values(paneTypes)} currentType={currentType} displayState={displayState} paneNumber={panes.findIndex(item => item.id === paneId) + 1} onSelectType={selectPaneType} />
+          <EmptyChartPane mode={allTraces.length > 0 ? 'traces' : 'files'} paneId={paneId} compact={panes.length > 2} types={Object.values(paneTypes)} currentType={currentType} displayState={displayState} onSelectType={selectPaneType} />
         ) : mergedData.length === 0 ? (
           <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--dim)', fontSize: 'var(--font-title)' }}>No visible traces in this pane.</div>
         ) : (
