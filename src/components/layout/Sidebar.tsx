@@ -50,7 +50,7 @@ export interface SidebarProps {
   onRenameFile?: (fileId: string) => void;
   onThresholdCrossings?: (lineId: number) => void;
 }
-export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onReplaceFile, onEditColumns, onRenameFile, onThresholdCrossings }: SidebarProps) {
+export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onReplaceFile, onEditColumns, onThresholdCrossings }: SidebarProps) {
   const { files, rawFileData } = useFileState();
   const { allTraces, allKnownTraces, allDisplayTraces, vis } = useTraceState();
   const { analyses } = useAnalysisState();
@@ -238,7 +238,7 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
                   matrixOpen={file.touchstoneNetwork ? isMatrixTab : undefined}
                   onMatrix={file.touchstoneNetwork ? () => fileDispatch({ type: 'SET_MATRIX_OPEN', payload: { fileId, open: !isMatrixTab } }) : undefined}
                   onReplace={onReplaceFile ? () => onReplaceFile(fileId) : undefined}
-                  onRename={onRenameFile ? () => onRenameFile(fileId) : undefined}
+                  onRename={name => { const action = { type: 'RENAME_FILE' as const, payload: { fileId, name } }; if (aggregate) aggregate.historyDispatch({ type: 'change', command: { slice: 'files', action } }); else fileDispatch(action); }}
                   onEdit={file.format === 'tabular' ? () => onEditColumns ? onEditColumns(fileId) : fileDispatch({ type: 'RERUN_WIZARD', payload: { fileId, fileName: file.fileName } }) : undefined}
                   onVisibility={(visible) => { const traces = allTraces.filter(item => displayTraceLocationByLegacyName.get(item.name)?.fileId === fileId); const actions = traces.map(item => ({ slice: 'traces' as const, action: { type: 'SET_VISIBILITY' as const, name: item.name, visible } })); if (aggregate) aggregate.historyDispatch({ type: 'change', command: { slice: 'transaction', actions } }); else actions.forEach(item => traceDispatch(item.action)); }}
                   onInfo={() => setExpandedByFileId(prev => ({ ...prev, [fileId]: { ...prev[fileId], meta: !prev[fileId]?.meta } }))}
@@ -566,13 +566,15 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
   );
 }
 
-function FileTitleRow({ fileName, error, summary, matrixOpen, onMatrix, compact: _compact = false, showSummary, multiTrace, columnsOpen, onColumns, onPlot, onRemove, onInfo, onReplace, onRename, onEdit, onVisibility }: { fileName: string; error?: string; summary: string; matrixOpen?: boolean; onMatrix?: () => void; compact?: boolean; showSummary: boolean; multiTrace: boolean; columnsOpen?: boolean; onColumns?: () => void; onPlot?: () => void; onRemove: () => void; onInfo: () => void; onReplace?: () => void; onRename?: () => void; onEdit?: () => void; onVisibility: (visible: boolean) => void }) {
+function FileTitleRow({ fileName, error, summary, matrixOpen, onMatrix, compact: _compact = false, showSummary, multiTrace, columnsOpen, onColumns, onPlot, onRemove, onInfo, onReplace, onRename, onEdit, onVisibility }: { fileName: string; error?: string; summary: string; matrixOpen?: boolean; onMatrix?: () => void; compact?: boolean; showSummary: boolean; multiTrace: boolean; columnsOpen?: boolean; onColumns?: () => void; onPlot?: () => void; onRemove: () => void; onInfo: () => void; onReplace?: () => void; onRename: (name: string) => void; onEdit?: () => void; onVisibility: (visible: boolean) => void }) {
+  const [editing, setEditing] = useState(false);
   const extension = fileName.split('.').pop()?.toUpperCase() ?? '';
   const format: FileFormat = /^S[0-9]+P$/.test(extension) ? extension as FileFormat : extension === 'CSV' || extension === 'TXT' || extension === 'DAT' ? extension : 'DAT';
-  const actions: SidebarAction[] = [{ label: 'Info', run: onInfo }, { label: 'Replace file\u2026', disabled: !onReplace, run: () => onReplace?.() }, ...(onEdit ? [{ label: 'Import settings\u2026', run: onEdit }] : []), { label: 'Rename', disabled: !onRename, run: () => onRename?.() }, ...(multiTrace ? [{ label: 'Show all', run: () => onVisibility(true) }, { label: 'Hide all', run: () => onVisibility(false) }] : []), { label: 'Remove file\u2026', danger: true, run: onRemove }];
+  const actions: SidebarAction[] = [{ label: 'Info', run: onInfo }, { label: 'Replace file\u2026', disabled: !onReplace, run: () => onReplace?.() }, ...(onEdit ? [{ label: 'Import settings\u2026', run: onEdit }] : []), { label: 'Rename', run: () => setEditing(true) }, ...(multiTrace ? [{ label: 'Show all', run: () => onVisibility(true) }, { label: 'Hide all', run: () => onVisibility(false) }] : []), { label: 'Remove file\u2026', danger: true, run: onRemove }];
   return <KitFileRow headerOnly format={format} name={fileName} title={`${fileName} \u00b7 ${summary}`} state={error ? 'error' : onPlot ? 'traceRemoved' : 'ready'} errorReason={error} summary={showSummary ? summary : undefined}
     matrix={onMatrix ? { open: !!matrixOpen, onToggle: onMatrix } : undefined}
     columns={onColumns ? { open: !!columnsOpen, onToggle: onColumns, items: [] } : undefined}
+    editingName={editing} onCommitName={value => { setEditing(false); if (value.trim() && value.trim() !== fileName) onRename(value); }} onCancelName={() => setEditing(false)}
     onPlot={onPlot} onFix={onEdit ?? onReplace} onMenu={() => {}} onRemove={onRemove}
     menuControl={<ActionMenu label={`Actions for ${fileName}`} actions={actions} />} />;
 }

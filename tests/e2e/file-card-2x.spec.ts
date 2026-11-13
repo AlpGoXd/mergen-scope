@@ -23,7 +23,7 @@ test('file card controls and typography reflect the reference', async ({ page })
   const menu = page.getByRole('menu');
   await expect(menu.getByRole('menuitem')).toHaveText(['Info', 'Replace file\u2026', 'Rename', 'Show all', 'Hide all', 'Remove file\u2026']);
   await expect(menu.getByRole('menuitem', { name: 'Replace file\u2026' })).toHaveAttribute('aria-disabled', 'true');
-  await expect(menu.getByRole('menuitem', { name: 'Rename' })).toHaveAttribute('aria-disabled', 'true');
+  await expect(menu.getByRole('menuitem', { name: 'Rename' })).toBeEnabled();
   await expect(page.getByTestId('touchstone-cell-S11')).toHaveCSS('font-family', '"JetBrains Mono", monospace');
   await page.getByRole('button', { name: 'More network views' }).focus();
   await page.getByRole('button', { name: 'More network views' }).press('Enter');

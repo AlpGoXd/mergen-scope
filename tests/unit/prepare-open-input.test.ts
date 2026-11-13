@@ -16,6 +16,11 @@ const config: WizardConfig = { delimiter: ',', skipRows: 1, xCol: 0, yCols: [1, 
 const csv = (text: string) => parseTabularFile(text, 'x.csv', config);
 
 describe('prepareOpenInput', () => {
+  it('refuses replacement with a different file kind', () => {
+    const first = prepare(2); if (!first.ok) throw Error(first.reason);
+    const result = prepareOpenInput({ parsed: csv('time,a,b\n0,1,2\n1,3,4\n'), rawText: '', fileId: 'csv', fileName: 'x.csv', prior: first.file, wizardConfig: config });
+    expect(result).toMatchObject({ ok: false, reason: expect.stringContaining('file kinds differ') });
+  });
   it('prepares real parsed network defaults for one, two and three ports', () => {
     for (const ports of [1, 2, 3]) {
       const result = prepare(ports); expect(result.ok).toBe(true); if (!result.ok) continue;

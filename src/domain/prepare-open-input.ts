@@ -81,6 +81,7 @@ export function prepareOpenInput(input: PrepareOpenInput): PreparedOpenInput {
   const fail = (reason: string): PreparedOpenInput => ({ ok: false, reason });
   const { parsed, prior, fileId, fileName } = input;
   if (!fileId.trim() || !fileName.trim()) return fail('File ID and name are required.');
+  if (prior && prior.format !== parsed.format) return fail(`Cannot replace ${prior.format ?? 'unknown'} data with ${parsed.format} data: file kinds differ.`);
   const columns = parsed.columnIdentities;
   const legacyColumns = prior?.displayTraces?.length ? undefined : legacyTabularColumns(prior,input.priorRawText);
   const priorColumns = prior?.columnIdentities ?? legacyColumns;

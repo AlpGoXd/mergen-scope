@@ -72,6 +72,9 @@ export interface FileRowProps {
   onMenu: (anchor: HTMLElement) => void;
   menuOpen?: boolean;
   menuControl?: ReactNode;
+  editingName?: boolean;
+  onCommitName?: (value: string) => void;
+  onCancelName?: () => void;
   headerOnly?: boolean;
   onRemove: () => void;
 }

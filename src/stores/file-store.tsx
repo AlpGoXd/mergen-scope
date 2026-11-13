@@ -60,6 +60,7 @@ export type FileAction =
   | { type: 'REPORT_IMPORT_ERROR'; payload: { fileName: string; message: string } }
   | { type: 'DISMISS_IMPORT_ERROR'; payload: { id: string } }
   | { type: 'REMOVE_FILE'; payload: { fileId: string } }
+  | { type: 'RENAME_FILE'; payload: { fileId: string; name: string } }
   | { type: 'SET_MATRIX_OPEN'; payload: { fileId: string; open: boolean } }
   | { type: 'SET_TOUCHSTONE_CONTROLS'; payload: { fileId: string; controls: Pick<TouchstoneSelectionState, 'activeFamily' | 'activeViewByFamily'> } }
   | { type: 'APPEND_TOUCHSTONE_VIEW'; payload: { fileId: string; family: TouchstoneFamily; row: number; col: number; view: TouchstoneView } }
@@ -376,6 +377,17 @@ export function fileReducer(state: FileState, action: FileAction): FileState {
         files: state.files.map((file) => (String(file.id) === String(fileId) ? nextFile : file)),
         vis: nextVis,
       };
+    }
+    case 'RENAME_FILE': {
+      const { fileId, name } = action.payload;
+      const file = state.files.find(item => String(item.id) === fileId);
+      const nextName = name.trim();
+      if (!file || !nextName || nextName === file.fileName) return state;
+      const rename = (value: string) => value === file.fileName ? nextName : value.startsWith(`${file.fileName} `) ? nextName + value.slice(file.fileName.length) : value;
+      return { ...state, files: state.files.map(item => item !== file ? item : { ...item, fileName: nextName,
+        traces: item.traces.map(trace => ({ ...trace, file: nextName, dn: trace.automaticDisplayName !== undefined && trace.dn !== trace.automaticDisplayName ? trace.dn : rename(trace.dn), ...(trace.automaticDisplayName !== undefined ? { automaticDisplayName: rename(trace.automaticDisplayName) } : {}) })),
+        displayTraces: item.displayTraces?.map(display => { const current = display.compat?.legacyDisplayName ?? display.label; const automatic = display.compat?.automaticDisplayName; const label = automatic !== undefined && current !== automatic ? current : rename(current); return { ...display, label, compat: { ...display.compat, legacyDisplayName: label, ...(automatic !== undefined ? { automaticDisplayName: rename(automatic) } : {}) } }; }),
+      }) };
     }
     case 'RENAME_RAW_TRACE': {
       const { traceId, label } = action.payload;

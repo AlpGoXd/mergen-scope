@@ -128,7 +128,7 @@ export function FileRow(p: FileRowProps): ReactElement {
     <div className={cls}>
       <div className="lp-row" title={p.state === 'error' ? p.errorReason : p.title}>
         <span className="lp-badge">{p.format}</span>
-        <span title={p.title} className={`lp-name${open ? ' is-strong' : ''}`} style={p.state === 'traceRemoved' ? { color: 'var(--text-muted)' } : undefined}>{p.name}</span>
+        {p.editingName ? <input className="lp-name" aria-label="File name" defaultValue={p.name} ref={el => { if (el && document.activeElement !== el) { el.focus(); el.select(); } }} onKeyDown={e => { e.stopPropagation(); if (e.key === 'Enter') e.currentTarget.blur(); if (e.key === 'Escape') { e.preventDefault(); p.onCancelName?.(); } }} onBlur={e => p.onCommitName?.(e.currentTarget.value)} style={{ minWidth: 0, font: 'inherit' }} /> : <span title={p.title} className={`lp-name${open ? ' is-strong' : ''}`} style={p.state === 'traceRemoved' ? { color: 'var(--text-muted)' } : undefined}>{p.name}</span>}
         {p.state === 'parsing' ? <span className="lp-file__pct">{p.progressPct ?? 0}%</span> : null}
         {p.state === 'error' ? <button type="button" className="lp-file__fix" onClick={p.onFix}>Fix…</button> : null}
         {p.state === 'traceRemoved' && p.onPlot ? <button type="button" className="lp-toggle" style={{ fontWeight: 600, borderColor: 'var(--border-strong)' }} onClick={p.onPlot}>Plot</button> : null}
