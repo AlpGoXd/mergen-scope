@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import type { Locator, Page } from '@playwright/test';
 import { resolve } from 'node:path';
+import { linkX } from './x-link-helpers';
 
 const reason = 'Smith shows reflections (S11, S22 …)';
 
@@ -118,6 +119,7 @@ test('linked chart zoom dims out-of-band Smith data and publishes the cursor', a
   await page.getByTestId('touchstone-cell-S11').click();
   await expect(pane.getByTestId('smith-plot')).toBeVisible();
   await expect(pane.getByTestId('smith-active-area')).toBeAttached();
+  await linkX(page, 1, 2);
   const chart = page.getByTestId('chart-plot-pane-1');
   const box = await chart.boundingBox();
   if (!box) throw new Error('Chart has no bounds');

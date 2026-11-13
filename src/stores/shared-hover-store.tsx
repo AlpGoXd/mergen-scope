@@ -30,6 +30,18 @@ export function SharedHoverProvider({ children }: { children: ReactNode }) {
 }
 
 export function useSharedHoverPublisher() { return useContext(HoverContext).publish; }
+/**
+ * The X value hovered in another pane with the same X unit, linked or not (the crosshair only reads), else null.
+ * Units are compared as published: the normalized pane unit ("Hz", "s", …).
+ */
+export function useSharedHoverValue(paneId: string, xUnit: string | null): number | null {
+  const store = useContext(HoverContext);
+  const get = () => {
+    const hover = store.get();
+    return xUnit !== null && hover && hover.paneId !== paneId && hover.xUnit === xUnit ? hover.value : null;
+  };
+  return useSyncExternalStore(xUnit !== null ? store.subscribe : emptyStore.subscribe, get, () => null);
+}
 export function useLinkedHoverFrequency(paneId: string, enabled: boolean): number | null {
   const store = useContext(HoverContext);
   const get = () => {

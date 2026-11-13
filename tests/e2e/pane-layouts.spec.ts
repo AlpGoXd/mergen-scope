@@ -3,6 +3,7 @@ import { expect, test } from '@playwright/test';
 import { acceptImport } from './import-helpers';
 import type { Locator, Page } from '@playwright/test';
 import { resolve } from 'path';
+import { linkX } from './x-link-helpers';
 
 const fixture = resolve(process.cwd(), 'test files/cascade_ip3_-12dBm.DAT');
 const pane = (page: Page, id: number) => page.getByTestId(`chart-pane-pane-${id}`);
@@ -200,18 +201,14 @@ test('closing an incompatible pane leaves its trace unplaced', async ({ page }) 
   await expect(pane(page, 2)).toHaveCount(0); await expect(trace.getByTitle('Show in panes')).toContainText('—');
 });
 
-test('linked Rows show X ticks only on the bottom pane', async ({ page }) => {
+test('linked Rows show X ticks only on the bottom pane; unlinked Rows show them on each pane', async ({ page }) => {
   await loadTrace(page); await addPanes(page, 2);
   const trace = page.locator('[data-testid^="trace-row-"]').first();
   await trace.getByTitle('Show in panes').click(); await page.getByRole('menu', { name: 'Show in' }).getByRole('menuitemcheckbox', { name: /Pane 2/ }).click(); await page.keyboard.press('Escape');
-  await expect(page.getByTestId('chart-plot-pane-1').locator('.recharts-xAxis .recharts-cartesian-axis-tick')).toHaveCount(0);
-  await expect(page.getByTestId('chart-plot-pane-2').locator('.recharts-xAxis .recharts-cartesian-axis-tick').first()).toBeVisible();
-});
-
-test.fixme('unlinked Rows show X ticks on each pane (no UI currently controls zoomAll)', async ({ page }) => {
-  await loadTrace(page); await addPanes(page, 2);
-  const trace = page.locator('[data-testid^="trace-row-"]').first();
-  await trace.getByTitle('Show in panes').click(); await page.getByRole('menu', { name: 'Show in' }).getByRole('menuitemcheckbox', { name: /Pane 2/ }).click(); await page.keyboard.press('Escape');
-  // Toggle zoomAll off here when a link control is available.
-  for (const id of [1, 2]) await expect(page.getByTestId(`chart-plot-pane-${id}`).locator('.recharts-xAxis .recharts-cartesian-axis-tick').first()).toBeVisible();
+  const ticks = (id: number) => page.getByTestId(`chart-plot-pane-${id}`).locator('.recharts-xAxis .recharts-cartesian-axis-tick');
+  // Panes start unlinked.
+  for (const id of [1, 2]) await expect(ticks(id).first()).toBeVisible();
+  await linkX(page, 1, 2);
+  await expect(ticks(1)).toHaveCount(0);
+  await expect(ticks(2).first()).toBeVisible();
 });

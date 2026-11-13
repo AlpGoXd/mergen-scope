@@ -15,13 +15,14 @@ async function chartAndSmith(page: Page) {
   await expect(pane(page, 2).locator('[data-testid^="smith-trace-"]').first()).toBeVisible();
 }
 
-test('the header reads Pane N, chart type, trace count, scale, Samples, settings and has no Move Here, Set Target, Fit or ⋯', async ({ page }) => {
+test('the header reads Pane N, chart type, trace count, scale, X link, Samples, settings and has no Move Here, Set Target, Fit or ⋯', async ({ page }) => {
   await chartAndSmith(page);
   const first = header(page, 1);
-  expect(await first.evaluate(el => [...el.children].map(child => child.className.toString().split(' ').find(name => /^(ph-|ptc$|ui-btn$)/.test(name)) ?? child.tagName))).toEqual(['ph-title', 'ptc', 'ph-count', 'ph-spacer', 'ph-scale', 'ui-btn', 'ui-btn']);
+  expect(await first.evaluate(el => [...el.children].map(child => child.className.toString().split(' ').find(name => /^(ph-|ptc$|ui-btn$)/.test(name)) ?? child.tagName))).toEqual(['ph-title', 'ptc', 'ph-count', 'ph-spacer', 'ph-scale', 'ui-btn', 'ui-btn', 'ui-btn']);
+  await expect(first.getByTestId('x-link-chip-pane-1')).toHaveText('Hz');
   await expect(first.locator('.ph-count')).toHaveText('2 traces');
   await expect(first.locator('.ph-scale')).toHaveText(/^X .+\/div · Y .+\/div$/);
-  await expect(first.getByRole('button')).toHaveCount(3);
+  await expect(first.getByRole('button')).toHaveCount(4);
   for (const name of ['Move Here', 'Set Target', 'Fit', 'Pane actions']) await expect(first.getByRole('button', { name, exact: true })).toHaveCount(0);
   // Smith has Samples too, and no X/Y scale text.
   await expect(header(page, 2).getByTestId('samples-toggle')).toBeVisible();

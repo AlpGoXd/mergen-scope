@@ -80,7 +80,7 @@ export interface Pane {
   /** Per-pane display and grid settings. */
   readonly settings: PaneSettings;
 
-  /** Optional persisted X-axis group, used by linked lines. */
+  /** X link group id: panes with the same id share zoom, pan and fit. Null (or absent) = unlinked. */
   readonly xLinkGroup?: string | null;
 }
 

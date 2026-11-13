@@ -1,5 +1,7 @@
 ﻿import { buildScalarDisplayTraceFromSeriesDataset, buildSeriesDatasetFromTrace } from './dataset-builders';
-import { adaptDisplayTraceToLegacyTrace } from './display-trace-adapter';
+import { adaptDisplayTraceToLegacyTrace, adaptDisplayTracesToLegacyTraces } from './display-trace-adapter';
+import { autoLinkByUnit, paneXUnits } from './x-link';
+import type { RawFileRecord } from '../types/file';
 import { migrateWorkspaceSnapshot } from './workspace-migrate-v4';
 import { defaultPaneSettings } from '../types/pane';
 import type { WorkspacePaneV5, WorkspaceSnapshotV5 } from '../types/workspace-v5';
@@ -335,8 +337,24 @@ function validCurrent(body: Record<string, unknown>): boolean {
   return body.datasets.every(validDataset) && body.displayTraces.every(validDisplay) && (body.selectedTraceName === null || (typeof body.selectedTraceName === 'string' && traceNames.has(body.selectedTraceName)));
 }
 
+/**
+ * Before 11 Nov every pane was X-linked automatically (`xZoomState.zoomAll`). Such a workspace gets one link group
+ * per X unit, so it looks as it did; saves made since always write `zoomAll: false` and keep their own groups.
+ */
+export function linkLegacyPanes(snapshot: WorkspaceSnapshotV5): WorkspaceSnapshotV5 {
+  if (!snapshot.xZoomState.zoomAll) return snapshot;
+  const traces = [...snapshot.files.flatMap(file => file.datasets?.length && file.displayTraces ? adaptDisplayTracesToLegacyTraces(file.datasets, file.displayTraces, file as unknown as RawFileRecord) : file.traces), ...snapshot.derivedTraces];
+  const linked = autoLinkByUnit(snapshot.panes, paneXUnits(snapshot.panes, traces, snapshot.traceAssignments), snapshot.xZoomState.sharedZoom);
+  return { ...snapshot, panes: linked.panes, xZoomState: { zoomAll: false, sharedZoom: null, paneXZooms: linked.paneXZooms } };
+}
+
 /** Validate the package before using the permissive legacy normalizer. */
 export function migrateWorkspaceV5(raw: unknown): WorkspaceSnapshotV5 | null {
+  const snapshot = migrateWorkspaceV5Body(raw);
+  return snapshot ? linkLegacyPanes(snapshot) : null;
+}
+
+function migrateWorkspaceV5Body(raw: unknown): WorkspaceSnapshotV5 | null {
   if (!object(raw)) return null;
   const envelope = raw.kind === 'mergen-scope-workspace';
   if ('kind' in raw && !envelope) return null;

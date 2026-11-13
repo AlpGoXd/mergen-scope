@@ -3,18 +3,19 @@ import { arrange, availablePresets, defaultTitle, equalSizes, fallbackPreset, is
 
 describe('pane layouts', () => {
   it('shares X tick labels only between adjacent linked rows', () => {
-    const a = { xUnit: 'Hz', xExtent: [1, 10] as const };
-    const b = { xUnit: 'Hz', xExtent: [1, 20] as const };
-    const other = { xUnit: 's', xExtent: [1, 10] as const };
-    expect(xTickVisibility('rows', [a, a], true, false)).toEqual([false, true]);
-    expect(xTickVisibility('rows', [a, b], true, false)).toEqual([true, true]);
-    expect(xTickVisibility('rows', [a, { ...a, xExtent: [1, 10 + 1e-12] }], true, false)).toEqual([false, true]);
-    expect(xTickVisibility('rows', [a, { ...a, xExtent: null }], true, false)).toEqual([true, true]);
-    expect(xTickVisibility('rows', [a, b], true, true)).toEqual([false, true]);
-    expect(xTickVisibility('rows', [a, other], true, true)).toEqual([true, true]);
-    expect(xTickVisibility('rows', [a, a], false, true)).toEqual([true, true]);
-    expect(xTickVisibility('columns', [a, a], true, true)).toEqual([true, true]);
-    expect(xTickVisibility('rows', [a, a, a], true, false)).toEqual([false, false, true]);
+    const a = { xUnit: 'Hz', xLinkGroup: 'x1' };
+    const unlinked = { xUnit: 'Hz', xLinkGroup: null };
+    const otherGroup = { xUnit: 'Hz', xLinkGroup: 'x2' };
+    const time = { xUnit: 's', xLinkGroup: 'x1' };
+    expect(xTickVisibility('rows', [a, a])).toEqual([false, true]);
+    expect(xTickVisibility('rows', [unlinked, unlinked])).toEqual([true, true]);
+    expect(xTickVisibility('rows', [a, unlinked])).toEqual([true, true]);
+    expect(xTickVisibility('rows', [a, otherGroup])).toEqual([true, true]);
+    expect(xTickVisibility('rows', [a, time])).toEqual([true, true]);
+    expect(xTickVisibility('rows', [a, { ...a, xUnit: null }])).toEqual([true, true]);
+    expect(xTickVisibility('columns', [a, a])).toEqual([true, true]);
+    expect(xTickVisibility('rows', [a, a, a])).toEqual([false, false, true]);
+    expect(xTickVisibility('rows', [a, unlinked, a])).toEqual([true, true, true]);
   });
   it('reports all preset rules for both limits', () => {
     for (const limit of [4, 8]) for (const n of [1, 2, 3, 4, 5, 6, 7, 8]) {

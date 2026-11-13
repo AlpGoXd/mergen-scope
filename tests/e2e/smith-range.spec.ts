@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import type { Locator, Page } from '@playwright/test';
 import { resolve } from 'node:path';
+import { linkX } from './x-link-helpers';
 
 const fullSpan = 'of 10 kHz–8.5 GHz';
 const manualLabel = '2.400 GHz → 2.500 GHz of 10 kHz–8.5 GHz';
@@ -155,19 +156,31 @@ test('range and outside choice survive workspace save and reload', async ({ page
   await expect(reopened.getByRole('button', { name: 'Faint', exact: true })).toHaveAttribute('aria-pressed', 'true');
 });
 
-test('shared chart zoom follows the chart and disables range controls', async ({ page }) => {
+test('a linked chart zoom follows the chart and disables range controls; Unlink restores the manual range', async ({ page }) => {
   const pane = await openSmith(page);
   await setManualRange(pane);
   const chart = page.getByTestId('chart-plot-pane-1');
   await expect(chart).toBeVisible();
+  // Unlinked, a chart zoom leaves the Smith range alone.
   const box = await chart.boundingBox();
   if (!box) throw new Error('Chart has no bounds');
   const y = box.y + box.height / 2;
-  await page.mouse.move(box.x + box.width * 0.35, y);
-  await page.mouse.down({ button: 'right' });
-  await page.mouse.move(box.x + box.width * 0.7, y, { steps: 8 });
-  await page.mouse.up({ button: 'right' });
+  const zoom = async () => {
+    await page.mouse.move(box.x + box.width * 0.35, y);
+    await page.mouse.down({ button: 'right' });
+    await page.mouse.move(box.x + box.width * 0.7, y, { steps: 8 });
+    await page.mouse.up({ button: 'right' });
+  };
+  await zoom();
+  await expect(pane.getByTestId('smith-range-linked')).toHaveCount(0);
+  await expect(pane.getByTestId('smith-range-label')).toHaveText(manualLabel);
+  await page.getByRole('button', { name: 'Fit all' }).click();
+  await linkX(page, 1, 2);
   await expect(pane.getByTestId('smith-range-linked')).toHaveText('Linked to Pane 1');
+  await expect(pane.getByTestId('smith-range-label')).toContainText(fullSpan);
+  await zoom();
+  await expect(pane.getByTestId('smith-range-linked')).toHaveText('Linked to Pane 1');
+  await expect(pane.getByTestId('smith-range-label')).not.toHaveText(manualLabel);
   await expect(pane.getByTestId('smith-range-label')).toContainText(fullSpan);
   for (const which of ['start', 'stop']) {
     await expect(pane.getByTestId(`smith-range-handle-${which}`)).toHaveAttribute('aria-disabled', 'true');
@@ -175,12 +188,9 @@ test('shared chart zoom follows the chart and disables range controls', async ({
     await expect(pane.getByTestId(`smith-range-${which}`)).toBeDisabled();
   }
   await expect(pane.getByTestId('smith-range-full')).toBeDisabled();
-  // Clearing the shared zoom returns to the saved manual range.
-  await page.getByRole('button', { name: 'Fit all' }).click();
+  // Unlink returns to the saved manual range.
+  await page.getByTestId('x-link-chip-pane-2').click();
+  await page.getByRole('menu', { name: 'Link X with' }).getByRole('menuitem', { name: 'Unlink' }).click();
   await expect(pane.getByTestId('smith-range-linked')).toHaveCount(0);
   await expect(pane.getByTestId('smith-range-label')).toHaveText(manualLabel);
-});
-
-test.fixme('unlinking the X link restores the manual Smith range', async () => {
-  // No UI currently calls SET_ZOOM_ALL or useXControls.setZoomAll.
 });

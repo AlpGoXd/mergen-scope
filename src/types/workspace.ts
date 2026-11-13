@@ -219,13 +219,16 @@ export interface WorkspaceFileRecord {
 
 /** X-axis zoom state across panes. */
 export interface XZoomState {
-  /** Whether all panes share the same X zoom. */
+  /**
+   * Legacy (before 11 Nov): true linked every pane automatically. Loading turns it into one link group per X unit
+   * (`linkLegacyPanes`); saves always write false. Link groups live on each pane's `xLinkGroup`.
+   */
   readonly zoomAll: boolean;
 
-  /** Shared zoom window (when zoomAll is true). */
+  /** Legacy shared zoom window (when zoomAll is true); saves always write null. */
   readonly sharedZoom: ZoomWindow | null;
 
-  /** Per-pane X zoom windows. */
+  /** Per-pane X zoom windows. Panes in one X link group hold the same window. */
   readonly paneXZooms: Readonly<Record<string, ZoomWindow>>;
 }
 

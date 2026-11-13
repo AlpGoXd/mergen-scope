@@ -18,7 +18,7 @@ import { useMarkerState, useMarkerDispatch } from '../../stores/marker-store';
 import { useRefLineState, useRefLineDispatch } from '../../stores/ref-line-store';
 import { useUiState, useUiDispatch } from '../../stores/ui-store';
 import { useTraceState } from '../../stores/trace-store';
-import { useSharedHoverPublisher } from '../../stores/shared-hover-store';
+import { useSharedHoverPublisher, useSharedHoverValue } from '../../stores/shared-hover-store';
 import { useTheme } from '../../hooks/use-theme';
 import { usePaneData } from '../../hooks/use-pane-data';
 import { useAnalysisOverlays } from '../../hooks/use-analysis-overlays';
@@ -26,7 +26,7 @@ import { useTraceColors } from '../../hooks/use-trace-colors';
 import { useFileImport } from '../../hooks/use-file-import';
 import { deriveAxisInfo } from '../../domain/units';
 import { defaultTraceForPane } from '../../domain/default-trace';
-import { canRenderInPane, checkPaneAssignment, planEmptyPaneType, planPaneTypeChange } from '../../domain/pane-placement';
+import { canRenderInPane, checkPaneAssignment, planEmptyPaneType, planPaneTypeChange, traceXGroup } from '../../domain/pane-placement';
 import { paneDisplayState } from '../../domain/pane-display-state';
 import { createPaneTypeRegistry, paneTypeOfMode } from '../../domain/pane-type-registry';
 import type { PaneTypeDefinition } from '../../types/registry-contract';
@@ -58,6 +58,8 @@ import { EmptyChartPane, panePickerTiles } from './EmptyChartPane';
 import { rendererFor } from './pane-renderers';
 import { PaneSettingsPopover } from './PaneSettingsPopover';
 import { PaneHeader, SamplesIcon } from './PaneHeader';
+import { XLinkChip } from './XLinkChip';
+import { fittedXBounds, linkedPeers } from '../../domain/x-link';
 import { copyChartImage, downloadText } from './copy-chart';
 import { tracesToCSV } from '../../domain/export';
 import { defaultPaneSettings } from '../../types/pane';
@@ -116,7 +118,7 @@ export function ChartPane({ paneId, hideXTicks = false }: ChartPaneProps) {
   const aggregate = useOptionalAggregateWorkspace();
   const historyDispatch = aggregate?.historyDispatch;
   const revision = aggregate?.state.revision;
-  const { panes, activePaneId, tracePaneMap, paneActiveTraceMap, zoomAll, sharedZoom, paneXZooms, paneYZooms } = usePaneState();
+  const { panes, activePaneId, tracePaneMap, paneActiveTraceMap, paneXZooms, paneYZooms } = usePaneState();
   const { markers, selectedMkrIdx, armed } = useMarkerState();
   const markerDispatch = useMarkerDispatch();
   const { refLines, refMode, selectedRefLineId, hoveredRefLineId } = useRefLineState();
@@ -221,10 +223,19 @@ export function ChartPane({ paneId, hideXTicks = false }: ChartPaneProps) {
   }, [tracePaneMap, paneId]);
   const displayState = paneDisplayState(pane, traceNamesInPane.length);
 
-  const currentXZoom = zoomAll ? sharedZoom : (paneXZooms[paneId] || null);
+  // Panes in one X link group hold the same zoom; the store applies a zoom to the whole group.
+  const currentXZoom = paneXZooms[paneId] || null;
   const xRange = currentXZoom ? { left: currentXZoom.left, right: currentXZoom.right } : null;
   const { paneTraces, mergedData, plotData } = usePaneData(traceNamesInPane, xRange);
   const currentYZoom = paneYZooms[paneId] ?? null;
+  // The crosshair shows in every pane with the same X unit, linked or not; publish and read the normalized unit.
+  const paneXUnit = paneTraces[0] ? traceXGroup(paneTraces[0]) : null;
+  const ghostX = useSharedHoverValue(paneId, isSmith ? null : paneXUnit);
+  // A fitted linked pane shows the data range of its whole group, so every pane of the group shows the same X range.
+  const linkedFit = useMemo(() => {
+    const peers = linkedPeers(panes, paneId);
+    return peers.length ? fittedXBounds([paneId, ...peers], allTraces, tracePaneMap, vis) : null;
+  }, [panes, paneId, allTraces, tracePaneMap, vis]);
 
   const xDiv = useMemo(() => {
     let lo = Infinity, hi = -Infinity;
@@ -233,14 +244,14 @@ export function ChartPane({ paneId, hideXTicks = false }: ChartPaneProps) {
       if (Number.isFinite(first)) lo = Math.min(lo, first as number);
       if (Number.isFinite(last)) hi = Math.max(hi, last as number);
     }
-    const defaultXDomain = Number.isFinite(lo) && Number.isFinite(hi) && hi > lo ? { min: lo, max: hi } : null;
+    const defaultXDomain = linkedFit ?? (Number.isFinite(lo) && Number.isFinite(hi) && hi > lo ? { min: lo, max: hi } : null);
     const dom = currentXZoom ? { min: currentXZoom.left, max: currentXZoom.right } : defaultXDomain;
     const ticks = makeNiceTicks(dom, NICE_TICK_COUNT);
     if (!ticks || ticks.length < 2) return '—';
     const first = ticks[0], second = ticks[1];
     if (first === undefined || second === undefined) return '—';
     return formatPerDivision(second - first);
-  }, [paneTraces, currentXZoom]);
+  }, [paneTraces, currentXZoom, linkedFit]);
 
   const yDiv = useMemo(() => {
     let lo = Infinity, hi = -Infinity;
@@ -309,13 +320,13 @@ export function ChartPane({ paneId, hideXTicks = false }: ChartPaneProps) {
   }, [paneHLines]);
 
   const xDomain = useMemo(() => {
-    const min = currentXZoom?.left ?? mergedData[0]?.fs ?? null;
-    const max = currentXZoom?.right ?? mergedData[mergedData.length - 1]?.fs ?? null;
+    const min = currentXZoom?.left ?? linkedFit?.min ?? mergedData[0]?.fs ?? null;
+    const max = currentXZoom?.right ?? linkedFit?.max ?? mergedData[mergedData.length - 1]?.fs ?? null;
     if (min == null || max == null || !Number.isFinite(min) || !Number.isFinite(max) || max <= min) {
       return null;
     }
     return { min, max };
-  }, [currentXZoom, mergedData]);
+  }, [currentXZoom, linkedFit, mergedData]);
 
   // Right-click menu on a line (kit lineContextEntries; "Show in" opens the checklist as a second menu).
   const [lineMenu, setLineMenu] = useState<{ lineId: number; at: { x: number; y: number }; mode: 'main' | 'showin' } | null>(null);
@@ -395,20 +406,22 @@ export function ChartPane({ paneId, hideXTicks = false }: ChartPaneProps) {
   }, [paneTraces]);
 
   const clampZoomToDataBounds = React.useCallback((zoom: { left: number; right: number }) => {
-    if (!paneDataBounds) return zoom;
+    // A linked pane pans within the data of its whole group.
+    const bounds = linkedFit ?? paneDataBounds;
+    if (!bounds) return zoom;
     const span = zoom.right - zoom.left;
     if (!Number.isFinite(span) || span <= 0) return zoom;
-    if (span >= paneDataBounds.max - paneDataBounds.min) {
-      return { left: paneDataBounds.min, right: paneDataBounds.max };
+    if (span >= bounds.max - bounds.min) {
+      return { left: bounds.min, right: bounds.max };
     }
-    if (zoom.left < paneDataBounds.min) {
-      return { left: paneDataBounds.min, right: paneDataBounds.min + span };
+    if (zoom.left < bounds.min) {
+      return { left: bounds.min, right: bounds.min + span };
     }
-    if (zoom.right > paneDataBounds.max) {
-      return { left: paneDataBounds.max - span, right: paneDataBounds.max };
+    if (zoom.right > bounds.max) {
+      return { left: bounds.max - span, right: bounds.max };
     }
     return zoom;
-  }, [paneDataBounds]);
+  }, [linkedFit, paneDataBounds]);
 
   const activePaneTrace = useMemo(() => {
     const activeTraceName = paneActiveTraceMap[paneId];
@@ -727,8 +740,7 @@ export function ChartPane({ paneId, hideXTicks = false }: ChartPaneProps) {
     const freq = resolveEventFreq(e, true);
     if (freq == null || !Number.isFinite(freq)) return;
     setHoverFreq(freq);
-    const xUnit = paneTraces[0]?.units.x;
-    if (xUnit) publishHover({ paneId, xUnit, value: freq }, paneId);
+    if (paneXUnit) publishHover({ paneId, xUnit: paneXUnit, value: freq }, paneId);
 
     if (draggingMarkerIdx !== null) {
       const marker = markers[draggingMarkerIdx];
@@ -813,7 +825,7 @@ export function ChartPane({ paneId, hideXTicks = false }: ChartPaneProps) {
     if (e.button === 2) {
       if (armed || refMode) return;
       e.preventDefault();
-      const zoom = zoomAll ? sharedZoom : (paneXZooms[paneId] || null);
+      const zoom = paneXZooms[paneId] || null;
       if (zoom) {
         setPanStartZoom({ left: zoom.left, right: zoom.right });
         setPanStartClientX(e.clientX);
@@ -829,8 +841,7 @@ export function ChartPane({ paneId, hideXTicks = false }: ChartPaneProps) {
     if (e.button !== 1) return;
     e.preventDefault();
     paneDispatch({ type: 'SET_PANE_Y_ZOOM', payload: { paneId, zoom: null } });
-    if (zoomAll) paneDispatch({ type: 'SET_SHARED_ZOOM', payload: null });
-    else paneDispatch({ type: 'SET_PANE_ZOOM', payload: { paneId, zoom: null } });
+    paneDispatch({ type: 'SET_PANE_ZOOM', payload: { paneId, zoom: null } });
   };
 
   // Right-click on a chart: the browser menu never appears. A line (or its label) handles it itself and opens its own menu first;
@@ -1124,8 +1135,7 @@ export function ChartPane({ paneId, hideXTicks = false }: ChartPaneProps) {
           left: panStartZoom.left + delta,
           right: panStartZoom.right + delta,
         });
-        if (zoomAll) paneDispatch({ type: 'SET_SHARED_ZOOM', payload: next });
-        else paneDispatch({ type: 'SET_PANE_ZOOM', payload: { paneId, zoom: next } });
+        paneDispatch({ type: 'SET_PANE_ZOOM', payload: { paneId, zoom: next } });
       }
     };
 
@@ -1135,8 +1145,7 @@ export function ChartPane({ paneId, hideXTicks = false }: ChartPaneProps) {
         const left = Math.min(dragStart, endFreq);
         const right = Math.max(dragStart, endFreq);
         if (right - left > 0) {
-          if (zoomAll) paneDispatch({ type: 'SET_SHARED_ZOOM', payload: { left, right } });
-          else paneDispatch({ type: 'SET_PANE_ZOOM', payload: { paneId, zoom: { left, right } } });
+          paneDispatch({ type: 'SET_PANE_ZOOM', payload: { paneId, zoom: { left, right } } });
           // Auto-fit Y to the new X window
           const md = latestMergedDataRef.current;
           const pt = latestPaneTracesRef.current;
@@ -1176,7 +1185,6 @@ export function ChartPane({ paneId, hideXTicks = false }: ChartPaneProps) {
     panStartClientX,
     panStartZoom,
     resolveClientFreq,
-    zoomAll,
     zoomDragActive,
   ]);
 
@@ -1205,6 +1213,7 @@ export function ChartPane({ paneId, hideXTicks = false }: ChartPaneProps) {
           name={paneName(panes, paneId)} target={isActive}
           count={paneTraces.length > 0 ? `${paneTraces.length} ${paneTraces.length === 1 ? 'trace' : 'traces'}` : null}
           scale={paneTraces.length > 0 && !isSmith ? `X ${xDiv} · Y ${yDiv}` : null}
+          link={traceNamesInPane.length > 0 ? iconOnly => <XLinkChip paneId={paneId} iconOnly={iconOnly} /> : null}
           samples={iconOnly => (
             <Btn variant={settings.showSampleDots ? 'armed' : 'neutral'} tone="pane" small className={`ph-samples${iconOnly ? ' is-icon' : ''}`} aria-label="Samples" aria-pressed={settings.showSampleDots} title="Show the measured sample points" data-testid="samples-toggle"
               onClick={e => { e.stopPropagation(); paneDispatch({ type: 'SET_PANE_SETTINGS', payload: { paneId, patch: { showSampleDots: !settings.showSampleDots } } }); }}>
@@ -1228,7 +1237,7 @@ export function ChartPane({ paneId, hideXTicks = false }: ChartPaneProps) {
             onChoose={id => selectPaneType(paneTypes[id])} onConfirm={() => { if (pendingType) selectPaneType(paneTypes[pendingType.to], true); }} onCancel={cancelTypeChange}
             axes={!isSmith && paneTraces.length > 0 ? {
               x: xDiv, y: yDiv,
-              onFitX: () => { if (zoomAll) paneDispatch({ type: 'SET_SHARED_ZOOM', payload: null }); else paneDispatch({ type: 'SET_PANE_ZOOM', payload: { paneId, zoom: null } }); },
+              onFitX: () => paneDispatch({ type: 'SET_PANE_ZOOM', payload: { paneId, zoom: null } }),
               onFitY: () => paneDispatch({ type: 'SET_PANE_Y_ZOOM', payload: { paneId, zoom: null } }),
             } : null}
             onFit={isSmith && paneTraces.length > 0 ? () => setSmithFitRequest(value => value + 1) : null}
@@ -1293,6 +1302,7 @@ export function ChartPane({ paneId, hideXTicks = false }: ChartPaneProps) {
                   <Line key={trace.name} type="linear" dataKey={trace.name} name={trace.dn || trace.name} stroke={resolveTraceColor(trace.name)} dot={settings.showSampleDots && traceSymbol(trace.id) === null ? { r: 2, fill: resolveTraceColor(trace.name), stroke: resolveTraceColor(trace.name) } : false} activeDot={false} isAnimationActive={false} connectNulls strokeWidth={colorAssignments.get(trace.id) ? traceWidth(colorAssignments.get(trace.id) as NonNullable<ReturnType<typeof colorAssignments.get>>) : 1.5} />
                 ))}
                 {hoverFreq != null && Number.isFinite(hoverFreq) && <ReferenceLine x={hoverFreq} stroke="color-mix(in srgb, var(--accent) 60%, white)" strokeDasharray="4 4" strokeWidth={1} />}
+                {hoverFreq == null && ghostX != null && Number.isFinite(ghostX) && <ReferenceLine className="x-ghost-crosshair" x={ghostX} stroke="color-mix(in srgb, var(--accent) 60%, white)" strokeDasharray="4 4" strokeWidth={1} />}
                 {settings.showMarkers && paneMarkers.map(({ marker, index }) => {
                   const color = resolveTraceColor(marker.trace || '');
                   const isSelected = index === selectedMkrIdx;
@@ -1474,8 +1484,7 @@ export function ChartPane({ paneId, hideXTicks = false }: ChartPaneProps) {
                   const lo = paneDataBounds?.min ?? line.value - span / 2, hi = paneDataBounds?.max ?? line.value + span / 2;
                   const left = Math.min(Math.max(line.value - span / 2, lo), Math.max(lo, hi - span));
                   const win = { left, right: left + span };
-                  if (zoomAll) paneDispatch({ type: 'SET_SHARED_ZOOM', payload: win });
-                  else paneDispatch({ type: 'SET_PANE_ZOOM', payload: { paneId, zoom: win } });
+                  paneDispatch({ type: 'SET_PANE_ZOOM', payload: { paneId, zoom: win } });
                 } else {
                   const half = Math.max(range[1] - range[0], 1e-12) / 2;
                   paneDispatch({ type: 'SET_PANE_Y_ZOOM', payload: { paneId, zoom: { min: line.value - half, max: line.value + half } } });

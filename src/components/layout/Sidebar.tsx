@@ -57,7 +57,7 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
   const { markers, selectedMkrIdx } = useMarkerState();
   const { refLines, selectedRefLineId, hoveredRefLineId, paneViews } = useRefLineState();
   const { selectedTraceName, showSidebar, traceColors } = useUiState();
-  const { panes, activePaneId, tracePaneMap, zoomAll, sharedZoom, paneXZooms } = usePaneState();
+  const { panes, activePaneId, tracePaneMap, paneXZooms } = usePaneState();
 
   const fileDispatch = useFileDispatch();
   const paneDispatch = usePaneDispatch();
@@ -119,7 +119,7 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
 
   const getVisibleXSpanForPaneId = (paneId: string | null): number => {
     const pid = paneId ?? 'pane-1';
-    const zoom = zoomAll ? sharedZoom : (paneXZooms[pid] ?? null);
+    const zoom = paneXZooms[pid] ?? null;
     if (zoom && Number.isFinite(zoom.left) && Number.isFinite(zoom.right) && zoom.right > zoom.left) {
       return zoom.right - zoom.left;
     }
@@ -136,7 +136,7 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
       return 1;
     }
     const paneId = tracePaneMap[trace.name]?.[0] ?? 'pane-1';
-    const zoom = zoomAll ? sharedZoom : (paneXZooms[paneId] ?? null);
+    const zoom = paneXZooms[paneId] ?? null;
     if (zoom && Number.isFinite(zoom.left) && Number.isFinite(zoom.right) && zoom.right > zoom.left) {
       return zoom.right - zoom.left;
     }

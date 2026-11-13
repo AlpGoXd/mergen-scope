@@ -22,15 +22,14 @@ export function renumberTitles<T extends { title: string }>(panes: readonly T[])
   return panes.map((pane, index) => isDefaultTitle(pane.title) ? { ...pane, title: defaultTitle(index) } : pane);
 }
 
-/** True means the pane keeps its X tick labels. Unknown units never form a link. */
-export function xTickVisibility(preset: PresetId, panes: readonly { xUnit: string | null; xExtent: readonly [number, number] | null }[], zoomAll: boolean, sharedZoom: boolean): boolean[] {
+/**
+ * True means the pane keeps its X tick labels. In Rows, a pane hides them only when the pane below is in the same
+ * X link group and shows the same known unit: linked panes always share one X range, so the bottom one labels it.
+ */
+export function xTickVisibility(preset: PresetId, panes: readonly { xUnit: string | null; xLinkGroup: string | null }[]): boolean[] {
   return panes.map((pane, index) => {
     const below = panes[index + 1];
-    if (preset !== 'rows' || !zoomAll || !pane.xUnit || !below?.xUnit || pane.xUnit !== below.xUnit) return true;
-    if (sharedZoom) return false;
-    if (!pane.xExtent || !below.xExtent) return true;
-    const equal = (a: number, b: number) => Number.isFinite(a) && Number.isFinite(b) && Math.abs(a - b) <= 1e-12 * Math.max(1, Math.abs(a), Math.abs(b));
-    return !equal(pane.xExtent[0], below.xExtent[0]) || !equal(pane.xExtent[1], below.xExtent[1]);
+    return preset !== 'rows' || !pane.xLinkGroup || !pane.xUnit || below?.xLinkGroup !== pane.xLinkGroup || below.xUnit !== pane.xUnit;
   });
 }
 

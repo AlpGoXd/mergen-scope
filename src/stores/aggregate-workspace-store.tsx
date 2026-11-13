@@ -16,6 +16,7 @@ import type { UiAction, UiState } from './ui-store';
 import { adaptDisplayTracesToLegacyTraces } from '../domain/display-trace-adapter';
 import { allocateColourBlindCreated } from '../domain/trace-colors';
 import { migrateWorkspaceV5 } from '../domain/workspace-migrate-v5';
+import { normalizeXLinks, paneXUnits } from '../domain/x-link';
 import { canPlaceMembership, canRenderInPane, planEmptyPaneType, planPaneRemoval, planPaneTypeChange, traceXGroup } from '../domain/pane-placement';
 import { refusalGuidance, traceAlreadyInPane } from '../domain/pane-drop-hints';
 import { createPaneTypeRegistry, paneTypeOfMode } from '../domain/pane-type-registry';
@@ -95,7 +96,7 @@ export function snapshotFromWorkspace(state: WorkspaceState): WorkspaceSnapshotV
     datasets: files.files.flatMap(file => file.datasets ?? []), displayTraces: files.files.flatMap(file => file.displayTraces ?? []),
     derivedTraces: traces.derivedTraces, vis: traces.vis, panes: panes.panes, paneMode: panes.panes.length,
     activePaneId: panes.activePaneId, traceAssignments: panes.tracePaneMap, paneActiveTraceMap: panes.paneActiveTraceMap,
-    xZoomState: {zoomAll:panes.zoomAll,sharedZoom:panes.sharedZoom,paneXZooms:panes.paneXZooms}, yZoomState:{paneYZooms:panes.paneYZooms},
+    xZoomState: {zoomAll:false,sharedZoom:null,paneXZooms:panes.paneXZooms}, yZoomState:{paneYZooms:panes.paneYZooms},
     markers:markers.markers, refLines:lines.refLines, ui:{...ui, selectedRefLineId:lines.selectedRefLineId}, analysisOpenState:analysis.analysisOpenState, analyses:analysis.analyses,
     analysisResults: {noiseResults:analysis.noiseResults,ip3Results:analysis.ip3Results,peakResults:analysis.peakResults,bandwidthResults:analysis.bandwidthResults,rippleResults:analysis.rippleResults,rangeStatsResults:analysis.rangeStatsResults},
     savedNoise:[], savedIP3:[], selectedTraceName:ui.selectedTraceName, layout,
@@ -129,7 +130,7 @@ export function workspaceFromSnapshot(current: WorkspaceState, snapshot: Workspa
   const orderedPanes = snapshot.layout.paneOrder.map(id => snapshot.panes.find(pane => pane.id === id)).filter(pane => pane !== undefined).map(pane => ({ ...pane, typed: pane.typed === true || Object.values(safeAssignments).some(ids => ids.includes(pane.id)) || (pane.typed === undefined && pane.renderMode !== 'cartesian') }));
   return {
     ...current, files:fileState, traces:traceState,
-    panes:{...current.panes, panes:orderedPanes, tracePaneMap:safeAssignments, issuedPaneIds:orderedPanes.map(p => p.id), paneActiveTraceMap:safeActive, activePaneId:snapshot.activePaneId, zoomAll:snapshot.xZoomState.zoomAll, sharedZoom:snapshot.xZoomState.sharedZoom, paneXZooms:{...snapshot.xZoomState.paneXZooms}, paneYZooms:{...snapshot.yZoomState.paneYZooms}},
+    panes:{...current.panes, panes:orderedPanes, tracePaneMap:safeAssignments, issuedPaneIds:orderedPanes.map(p => p.id), paneActiveTraceMap:safeActive, activePaneId:snapshot.activePaneId, paneXZooms:{...snapshot.xZoomState.paneXZooms}, paneYZooms:{...snapshot.yZoomState.paneYZooms}},
     markers:{...current.markers, markers:[...snapshot.markers], selectedMkrIdx:-1, armed:null, nextMarkerSerial:1},
     lines:{...current.lines, refLines:[...snapshot.refLines], refMode:null, selectedRefLineId:(snapshot.ui as typeof snapshot.ui & {selectedRefLineId?: number | null}).selectedRefLineId ?? null},
     analysis:analysisReducer(current.analysis,{type:'RESTORE',payload:{...snapshot.analysisResults, analysisOpenState:snapshot.analysisOpenState, analyses:[...(snapshot.analyses ?? [])]}}),
@@ -277,8 +278,8 @@ function analysisView(state: WorkspaceState) {
 
 /**
  * Place an analysis output whose x axis differs from its source's (the FFT of a time trace) in a pane of its own axis:
- * the first pane that already shows that axis, else an empty chart pane, else a new pane. Panes on different axes
- * cannot share a zoom, so linked zoom is switched off (each pane keeps its current zoom).
+ * the first pane that already shows that axis, else an empty chart pane, else a new pane. X link groups only join
+ * panes of one unit; a pane whose unit changes leaves its group (normalizeXLinks in workspaceReducer).
  */
 function placeOnOwnAxis(state: WorkspaceState, trace: Trace, limit: 4 | 8): WorkspaceState {
   const view = traceView(state.files, state.traces);
@@ -289,17 +290,13 @@ function placeOnOwnAxis(state: WorkspaceState, trace: Trace, limit: 4 | 8): Work
   const panes = state.panes.panes;
   const sameAxis = panes.find(pane => members(pane.id).some(item => traceXGroup(item.trace) === group) && canPlaceMembership(entry, pane.id, panes, entries).allowed);
   const target = sameAxis ?? panes.find(pane => pane.renderMode === 'cartesian' && members(pane.id).length === 0);
-  const { sharedZoom } = state.panes;
-  const unlinked: WorkspaceState = state.panes.zoomAll
-    ? { ...state, panes: { ...state.panes, zoomAll: false, paneXZooms: sharedZoom ? Object.fromEntries(panes.map(pane => [pane.id, sharedZoom])) : state.panes.paneXZooms } }
-    : state;
   const action: PaneAction = target
     ? { type: 'ADD_MEMBERSHIP', payload: { trace, targetPaneId: target.id, allTraces: [] } }
     : { type: 'CREATE_PANE_WITH_TRACE', payload: { trace, allTraces: [] }, limit };
-  const placed = workspaceReducer(unlinked, { slice: 'panes', action, limit });
+  const placed = workspaceReducer(state, { slice: 'panes', action, limit });
   if ((placed.panes.tracePaneMap[trace.name] ?? []).length) return placed;
   const message = `${trace.dn || trace.name} needs a ${group === 'Hz' ? 'frequency' : group ?? 'separate'} pane and there is no room for a new one. Drag it from the trace list into a pane.`;
-  return { ...unlinked, ui: uiReducer(unlinked.ui, { type: 'SET', payload: { key: 'paneAssignmentWarning', value: { message, paneId: null, traceName: trace.name } } }) };
+  return { ...state, ui: uiReducer(state.ui, { type: 'SET', payload: { key: 'paneAssignmentWarning', value: { message, paneId: null, traceName: trace.name } } }) };
 }
 
 /** One reducer owns every workspace slice. Reconciliation runs inside the same transition. */
@@ -547,6 +544,11 @@ export function workspaceReducer(state: WorkspaceState, command: WorkspaceAction
     next = { ...next, panes: paneReducer(next.panes, { type: 'RECONCILE', payload: known }) };
     const visible = traceView(next.files,next.traces).allTraces;
     if (next.ui.selectedTraceName && !visible.some(trace => trace.name === next.ui.selectedTraceName && next.traces.vis[trace.name])) next={...next,ui:{...next.ui,selectedTraceName:null}};
+  }
+  // X link groups hold panes of one X unit only; a pane whose unit changed leaves its group.
+  if ((next.panes.panes !== state.panes.panes || next.panes.tracePaneMap !== state.panes.tracePaneMap || next.files !== state.files || next.traces !== state.traces) && next.panes.panes.some(pane => pane.xLinkGroup)) {
+    const linked = normalizeXLinks(next.panes.panes, paneXUnits(next.panes.panes, traceView(next.files, next.traces).allKnownTraces, next.panes.tracePaneMap));
+    if (linked !== next.panes.panes) next = { ...next, panes: { ...next.panes, panes: [...linked] } };
   }
   if (next.panes.panes !== state.panes.panes) {
     const panes = renumberTitles(next.panes.panes.map((pane, index) => pane.title === '' ? { ...pane, title: defaultTitle(index) } : pane));

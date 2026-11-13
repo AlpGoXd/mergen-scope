@@ -38,14 +38,15 @@ export function smithTraceSamples(trace: Trace, targetZ0?: number): { z0: number
   return { z0, shortName: `S${row + 1}${col + 1}`, samples };
 }
 
-export function smithLinkedBand(zoomAll: boolean, zoom: { left: number; right: number } | null, traces: readonly { samples: readonly SmithSample[] }[]): { minHz: number; maxHz: number } | null {
-  if (!zoomAll || !zoom || !Number.isFinite(zoom.left) || !Number.isFinite(zoom.right) || zoom.left >= zoom.right) return null;
+/** The visible band of the linked Hz chart pane, or null when unlinked, fitted, or outside the Smith traces. */
+export function smithLinkedBand(linked: boolean, zoom: { left: number; right: number } | null, traces: readonly { samples: readonly SmithSample[] }[]): { minHz: number; maxHz: number } | null {
+  if (!linked || !zoom || !Number.isFinite(zoom.left) || !Number.isFinite(zoom.right) || zoom.left >= zoom.right) return null;
   let min = Infinity, max = -Infinity;
   for (const trace of traces) for (const sample of trace.samples) {
     if (!Number.isFinite(sample.frequencyHz) || !Number.isFinite(sample.gamma.re) || !Number.isFinite(sample.gamma.im)) continue;
     min = Math.min(min, sample.frequencyHz); max = Math.max(max, sample.frequencyHz);
   }
-  // Shared zoom has no unit: overlap is a heuristic until link groups carry units.
+  // A window that misses every Smith sample would leave nothing to draw: show the full range instead.
   if (min > max || zoom.right < min || zoom.left > max) return null;
   return { minHz: zoom.left, maxHz: zoom.right };
 }

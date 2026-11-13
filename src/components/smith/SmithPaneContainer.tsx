@@ -9,19 +9,21 @@ import { useTraceColors } from '../../hooks/use-trace-colors';
 import { useTraceSymbols } from '../../hooks/use-trace-symbols';
 import { canRenderInPane } from '../../domain/pane-placement';
 import { allocateTraceColors, traceWidth } from '../../domain/trace-palette';
+import { linkedPeers, paneXUnits } from '../../domain/x-link';
 import { smithLinkedBand, smithLinkedPaneLabel, smithMarkerFrequency, smithTraceSamples, smithRangeModel } from '../../domain/smith-pane-model';
 import { placeMarker } from '../../domain/markers';
 import { useOptionalAggregateWorkspace } from '../../stores/aggregate-workspace-store';
 import { SmithPane } from './SmithPane';
 
 export function SmithPaneContainer({ paneId, fitRequest = 0 }: { paneId: string; fitRequest?: number }) {
-  const { panes, tracePaneMap, zoomAll, sharedZoom } = usePaneState();
+  const { panes, tracePaneMap, paneXZooms } = usePaneState();
   const paneDispatch = usePaneDispatch();
   const { allTraces, allKnownTraces, allDisplayTraces, vis } = useTraceState();
   const { traceHueSlots } = useUiState();
   const { markers, selectedMkrIdx, armed } = useMarkerState();
   const publish = useSharedHoverPublisher();
-  const cursorFrequencyHz = useLinkedHoverFrequency(paneId, zoomAll);
+  // The crosshair shows across every Hz pane, linked or not.
+  const cursorFrequencyHz = useLinkedHoverFrequency(paneId, true);
   useEffect(() => () => publish(null, paneId), [publish, paneId]);
   const markerDispatch = useMarkerDispatch();
   const historyDispatch = useOptionalAggregateWorkspace()?.historyDispatch;
@@ -43,13 +45,20 @@ export function SmithPaneContainer({ paneId, fitRequest = 0 }: { paneId: string;
       return [{ traceId: trace.id, name: trace.name, shortName: model.shortName, color: color(trace), created: assignment ? traceWidth(assignment) === 2 : false, symbol: symbol(trace.id), z0: model.z0, samples: model.samples, measured: new Set(model.samples.map(sample => sample.frequencyHz)) }];
     });
   }, [eligible, assignments, color, symbolKey]);
-  const band = useMemo(() => smithLinkedBand(zoomAll, sharedZoom, traces), [zoomAll, sharedZoom, traces]);
+  // Linked to a Hz chart pane: show that pane's visible band. The group shares one zoom; the first chart pane names it.
+  const linkedPane = useMemo(() => {
+    const peers = new Set(linkedPeers(panes, paneId));
+    if (!peers.size) return undefined;
+    const units = paneXUnits(panes, allKnownTraces, tracePaneMap);
+    return panes.find(candidate => peers.has(candidate.id) && candidate.renderMode === 'cartesian' && units[candidate.id] === 'Hz');
+  }, [panes, paneId, allKnownTraces, tracePaneMap]);
+  const linkedZoom = linkedPane ? paneXZooms[linkedPane.id] ?? null : null;
+  const band = useMemo(() => smithLinkedBand(!!linkedPane, linkedZoom, traces), [linkedPane, linkedZoom, traces]);
   if (!pane) return null;
   const smith = pane.settings.smith;
-  // A shared zoom may have several Hz panes; use the lowest pane number as its stable label.
-  const linkedPane = band ? panes.find(candidate => candidate.id !== paneId && candidate.renderMode === 'cartesian' && allTraces.some(trace => (tracePaneMap[trace.name] ?? []).includes(candidate.id) && vis[trace.name] !== false && trace.domain === 'frequency')) : undefined;
-  const linked = linkedPane && band ? { startHz: band.minHz, stopHz: band.maxHz } : null;
-  const model = smithRangeModel(traces, smith.range ?? null, linked, smith.outside ?? 'hidden');
+  const linked = band ? { startHz: band.minHz, stopHz: band.maxHz } : null;
+  // While linked, the chart pane decides the range: a fitted chart shows the full range, not the pane's own.
+  const model = smithRangeModel(traces, linkedPane ? null : smith.range ?? null, linked, smith.outside ?? 'hidden');
   const setRange = (range: typeof smith.range) => paneDispatch({ type: 'SET_PANE_SETTINGS', payload: { paneId, patch: { smith: { ...smith, range } } } });
   return <SmithPane traces={model.traces} markers={markers} selectedMarkerId={markers[selectedMkrIdx]?.id ?? null}
     rangeBar={model.full && model.range ? { full: model.full, range: model.range, linkedLabel: linkedPane ? smithLinkedPaneLabel(panes, linkedPane.id) : null, onChange: setRange, onFull: () => setRange(null) } : undefined}

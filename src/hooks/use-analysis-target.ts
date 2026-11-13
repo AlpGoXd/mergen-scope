@@ -12,14 +12,14 @@ import { defaultTraceForPane } from '../domain/default-trace';
  * This is a composed hook that coordinates state from multiple stores.
  */
 export function useAnalysisTarget() {
-  const { activePaneId, paneXZooms, sharedZoom, zoomAll, tracePaneMap } = usePaneState();
+  const { activePaneId, paneXZooms, tracePaneMap } = usePaneState();
   const { allTraces, allDatasets, allDisplayTraces } = useTraceState();
   const { files } = useFileState();
   const { vis, selectedTraceName } = useUiState();
   const { analysisOpenState, noiseResults, ip3Results } = useAnalysisState();
 
   // 1. Resolve active pane zoom
-  const zoom = zoomAll ? sharedZoom : (activePaneId ? (paneXZooms[activePaneId] || null) : null);
+  const zoom = activePaneId ? (paneXZooms[activePaneId] || null) : null;
 
   // 2. Filter traces for the active pane
   const paneTraces = useMemo(() => {

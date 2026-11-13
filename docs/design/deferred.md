@@ -206,12 +206,10 @@ Evidence and the difference list: analysis-evidence. Open:
 - **Saved zoom:** the Smith view resets to fit when the pane remounts; lift `{ center, zoom }` into the pane settings if it should be saved.
 - **Decimation:** every sample is drawn; add min/max thinning if 20k-point traces show up on Smith.
 - **Z11 / Y11 on Smith:** greyed with "Smith shows reflections (S11, S22 …)" until a conversion to Γ exists (`impedanceToGamma`, `admittanceToGamma` are ready in `src/domain/smith/numerics.ts`).
-- **Unit-aware X link groups:** the app links all panes through the global `zoomAll` with no per-pane groups; the Smith band uses the shared zoom only when it overlaps the Smith traces' frequency span. The "panes start unlinked (11 Nov)" decision text is not in `design-decisions-2026-11-10.md`; the app still starts with `zoomAll: true`.
-- **Cartesian ghost crosshair from the Smith hover:** the Smith pane publishes its hover frequency, but Cartesian panes do not draw it yet.
 - **Tab / Shift+Tab to step Smith markers** (traps keyboard focus); the ‹ › buttons do it.
 - **Y-grid labels in Z + Y mode** (only the Z grid is labelled).
 - **Hover-update test:** a unit test that a hover update does not recompute the converted Smith traces (spy on the converter).
-- **Per-pane X link control:** nothing in the UI changes `zoomAll` (global link) yet; the Smith range follows it only through the shared zoom. Needed before "panes start unlinked" and before an e2e for unlinking a Smith pane.
+- **X linking (11 Nov), left out:** the "panes start unlinked" decision text is not yet written into `design-decisions-2026-11-10.md`; "Previous zoom" (Backspace in the shortcut list) has no implementation, so there is nothing for a link group to share there.
 - **Swap and drop hints (11 Nov):** a file-drop refusal is swallowed when the target pane is removed before the asynchronous file read finishes (fall back to the workspace-level banner Notice; test it); an "automatic title" flag in the saved pane shape, so a custom title such as "Pane 42" is not renumbered by a layout change or swap; keyboard alternative for swapping panes.
 - **Trace colour input:** `<input type="color">` in the Traces list rows gets an `oklch(...)` value, which browsers reject (console warning, picker starts black): convert to `#rrggbb` for the input only (a small pure helper in `src/domain/`).
 - **LaTeX / image / PDF export** is not built (Phase 6); the demo script says so.

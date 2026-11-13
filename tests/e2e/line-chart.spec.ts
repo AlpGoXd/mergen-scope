@@ -108,7 +108,8 @@ test('a line outside the visible range shows an edge tag that pans to it', async
   const tag = page.getByTestId('chart-plot-pane-1').locator('.ln-edge');
   await expect(tag).toContainText('V1');
   await expect(page.getByTestId('chart-plot-pane-1').locator('.ln-g')).toHaveCount(0);
-  await expect(page.getByTestId('ref-line-row-V1')).toContainText('off view in P1, P2');
+  // Panes start unlinked: only Pane 1 zoomed, so only Pane 1 lost the line.
+  await expect(page.getByTestId('ref-line-row-V1')).toContainText('off view in P1 ·');
   await tag.click();
   await expect(page.getByTestId('chart-plot-pane-1').locator('.ln-edge')).toHaveCount(0);
   await expect(page.getByTestId('chart-plot-pane-1').locator('.ln-g')).toHaveCount(1);

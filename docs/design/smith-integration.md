@@ -33,8 +33,8 @@ Branch `smith/renderer` (from `ts_refactor` at `8cb9b4e`). It only adds files; n
 | `selectedMarkerId` | `markers[selectedMkrIdx]?.id ?? null` |
 | `onSelectMarker(id)` | dispatch `SET_SELECTED_IDX` with the index of that id (and clear the selected line, as the chart does) |
 | `onTraceClick({ traceId, frequencyHz, sampleFrequencyHz })` | When the marker tool is armed: place a marker on that trace at `sampleFrequencyHz` (snap) or `frequencyHz` (interpolated), following the pane's interpolation setting. `Marker.amp` has no meaning on Smith; store the trace's own value at that frequency so Cartesian panes stay right. |
-| `band: { minHz, maxHz } \| null` | The visible X range of the pane's Hz link group (`sharedZoom` when `zoomAll`, else that group's zoom). `null` when the linked pane shows everything or the Smith pane is unlinked. |
-| `cursorFrequencyHz` / `onHoverFrequency` | The shared cursor: pass the hovered frequency of the linked Hz panes in, and publish this pane's hover out so they draw their ghost crosshair. Today `useSharedCursor` is local state per caller; it needs to be shared per link group for this. |
+| `band: { minHz, maxHz } \| null` | The visible X range of the Hz chart pane in the Smith pane's X link group (`paneXZooms` of that pane; every member of a group holds the same window). `null` when the linked pane shows everything or the Smith pane is unlinked. |
+| `cursorFrequencyHz` / `onHoverFrequency` | The shared cursor: pass the hovered frequency of the linked Hz panes in, and publish this pane's hover out so they draw their ghost crosshair. The shared hover store (`useLinkedHoverFrequency`, `useSharedHoverValue`) shows it in every pane with the same X unit, linked or not. |
 | `grid`, `labels`, `direction`, `readout` | Pane settings, see section 3. |
 | `showMarkers`, `showMarkerTags` | `settings.showMarkers`, `settings.showMarkerLabels` |
 | `fitRequest: number` | A counter the container increments when the app's Fit runs for this pane (header Fit button, Space / F from `use-keyboard`). |

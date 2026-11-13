@@ -34,7 +34,7 @@ interface PanState {
 }
 
 export function useChartNav(cursor: ChartCursorApi) {
-  const { activePaneId, sharedZoom, zoomAll, paneXZooms, tracePaneMap } = usePaneState();
+  const { activePaneId, paneXZooms, tracePaneMap } = usePaneState();
   const { allTraces } = useTraceState();
   // Note: UiStore handles global visibility. In many places, visibility is per-trace name.
   // We'll assume for now that FileStore/UiStore integration provides a vis map.
@@ -52,7 +52,7 @@ export function useChartNav(cursor: ChartCursorApi) {
   const mouseBtnRef = useRef(0);
   const suppressClickRef = useRef(false);
 
-  const zoom = zoomAll ? sharedZoom : (activePaneId ? (paneXZooms[activePaneId] || null) : null);
+  const zoom = activePaneId ? (paneXZooms[activePaneId] || null) : null;
 
   const getActivePaneTraces = useCallback((): Trace[] => {
     if (!activePaneId) return [];
@@ -196,7 +196,7 @@ export function useChartNav(cursor: ChartCursorApi) {
         if (nextRight > dom.max) { nextLeft -= (nextRight - dom.max); nextRight = dom.max; }
         
         if (isFinite(nextLeft) && isFinite(nextRight) && nextRight > nextLeft) {
-          dispatch({ type: 'SET_SHARED_ZOOM', payload: { left: nextLeft, right: nextRight } });
+          if (activePaneId) dispatch({ type: 'SET_PANE_ZOOM', payload: { paneId: activePaneId, zoom: { left: nextLeft, right: nextRight } } });
         }
       } else {
         if (Math.abs(ev.clientX - pan.startClientX) >= 2) pan.didMove = true;
@@ -215,7 +215,7 @@ export function useChartNav(cursor: ChartCursorApi) {
           suppressClickRef.current = true;
           const left = Math.min(selA, selB);
           const right = Math.max(selA, selB);
-          dispatch({ type: 'SET_SHARED_ZOOM', payload: { left, right } });
+          if (activePaneId) dispatch({ type: 'SET_PANE_ZOOM', payload: { paneId: activePaneId, zoom: { left, right } } });
         }
         setSelA(null);
         setSelB(null);
@@ -229,7 +229,7 @@ export function useChartNav(cursor: ChartCursorApi) {
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
     };
-  }, [freqFromClientX, getXDomain, dispatch, selA, selB]);
+  }, [freqFromClientX, getXDomain, dispatch, selA, selB, activePaneId]);
 
   return {
     chartRef,

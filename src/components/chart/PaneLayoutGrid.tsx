@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { arrange, flattenLayoutSizes, normalizeSizes, xTickVisibility } from '../../domain/pane-layout';
-import { traceXGroup } from '../../domain/pane-placement';
+import { paneXUnits } from '../../domain/x-link';
 import type { Divider, LayoutSizes, PresetId } from '../../domain/pane-layout';
 import { VisibleRefLinesProvider } from '../../stores/ref-line-store';
 import { traceView, useAggregateWorkspace } from '../../stores/aggregate-workspace-store';
@@ -21,16 +21,12 @@ export function PaneLayoutGrid({ paneIds }: { paneIds: string[] }) {
   const { state, dispatch } = useAggregateWorkspace();
   const preset = state.layout.preset;
   const visibility = useMemo(() => {
-  const traces = traceView(state.files, state.traces).allTraces;
-  return xTickVisibility(preset, state.panes.panes.map(({ id }) => {
-    const pane = state.panes.panes.find(item => item.id === id);
-    const members = traces.filter(trace => (state.panes.tracePaneMap[trace.name] ?? []).includes(id) && state.traces.vis[trace.name]);
-    const unit = members[0] ? traceXGroup(members[0]) : null;
-    let min = Infinity, max = -Infinity;
-    for (const trace of members) for (const point of trace.data) { if (Number.isFinite(point.freq)) { min = Math.min(min, point.freq); max = Math.max(max, point.freq); } }
-    return { xUnit: pane?.renderMode === 'cartesian' && unit && members.every(trace => traceXGroup(trace) === unit) ? unit : null, xExtent: Number.isFinite(min) && Number.isFinite(max) && max > min ? [min, max] as const : null };
-  }), state.panes.zoomAll, state.panes.sharedZoom !== null);
-  }, [preset, state.files, state.traces, state.panes]);
+    const units = paneXUnits(state.panes.panes, traceView(state.files, state.traces).allKnownTraces, state.panes.tracePaneMap);
+    return xTickVisibility(preset, paneIds.map(id => {
+      const pane = state.panes.panes.find(item => item.id === id);
+      return { xUnit: pane?.renderMode === 'cartesian' ? units[id] ?? null : null, xLinkGroup: pane?.xLinkGroup ?? null };
+    }));
+  }, [preset, paneIds, state.files, state.traces, state.panes.panes, state.panes.tracePaneMap]);
   const arrangement = arrange(preset, paneIds.length);
   const saved = readSizes(preset, paneIds.length, state.layout.sizes);
   const [live, setLive] = useState<LayoutSizes | null>(null);

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
 import { buildPanes } from "../../src/domain/pane-math";
 import { buildExportPackage, buildSnapshot, restoreSnapshot } from "../../src/domain/workspace-serialize";
 import { makeTestTrace } from "./helpers";
@@ -137,5 +138,41 @@ describe("legacy marker identifiers", () => {
     const result = restoreSnapshot(JSON.stringify(source));
     expect(result?.markers.map(m => m.id)).toEqual(["marker-2", "marker-1"]);
     expect(result?.markers[1]?.refId).toBe("marker-2");
+  });
+});
+
+describe('X link groups in saved workspaces', () => {
+  const eightPanes = (): Record<string, unknown> => JSON.parse(readFileSync('tests/fixtures/phase3-preservation/workspace-v4-eight-pane-extension.json', 'utf8'));
+  const groups = (snapshot: ReturnType<typeof migrateWorkspaceV5>) => Object.fromEntries((snapshot?.panes ?? []).map(pane => [pane.id, pane.xLinkGroup]));
+
+  it('turns the old automatic linking into one group per X unit, with the old shared zoom', () => {
+    // Panes a and b show Hz, h shows s (the only one), the rest are empty.
+    const raw = { ...eightPanes(), xZoomState: { zoomAll: true, sharedZoom: { left: 1e6, right: 2e6 }, paneXZooms: { 'pane-a': { left: 5, right: 6 } } } };
+    const migrated = migrateWorkspaceV5(raw);
+    expect(migrated).not.toBeNull();
+    const ids = groups(migrated);
+    expect(ids['pane-a']).toBeTruthy();
+    expect(ids['pane-b']).toBe(ids['pane-a']);
+    expect(ids['pane-h']).toBeNull();
+    expect(Object.entries(ids).filter(([id]) => !['pane-a', 'pane-b'].includes(id)).every(([, group]) => group === null)).toBe(true);
+    expect(migrated?.xZoomState.zoomAll).toBe(false);
+    expect(migrated?.xZoomState.sharedZoom).toBeNull();
+    // Every pane shows what it showed before: the shared window replaced the per-pane ones.
+    expect(migrated?.xZoomState.paneXZooms['pane-a']).toEqual({ left: 1e6, right: 2e6 });
+    expect(migrated?.xZoomState.paneXZooms['pane-b']).toEqual({ left: 1e6, right: 2e6 });
+    // Loading the migrated workspace again changes nothing.
+    expect(groups(migrateWorkspaceV5(migrated))).toEqual(ids);
+  });
+
+  it('keeps unlinked old workspaces unlinked and saves groups from the live state', () => {
+    expect(Object.values(groups(migrateWorkspaceV5(eightPanes()))).every(group => group === null)).toBe(true);
+    const state = initialWorkspaceState();
+    const pane = state.panes.panes[0];
+    if (!pane) throw new Error('pane');
+    const panes = [{ ...pane, xLinkGroup: 'x1' }, { ...pane, id: 'pane-2', title: 'Pane 2', xLinkGroup: 'x1' }];
+    const snapshot = snapshotFromWorkspace({ ...state, panes: { ...state.panes, panes, paneActiveTraceMap: { 'pane-1': null, 'pane-2': null } }, layout: { ...state.layout, paneOrder: ['pane-1', 'pane-2'] } });
+    expect(snapshot?.xZoomState.zoomAll).toBe(false);
+    expect(groups(snapshot)).toEqual({ 'pane-1': 'x1', 'pane-2': 'x1' });
+    expect(groups(migrateWorkspaceV5(snapshot))).toEqual({ 'pane-1': 'x1', 'pane-2': 'x1' });
   });
 });

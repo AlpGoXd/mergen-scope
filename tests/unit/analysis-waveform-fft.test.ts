@@ -311,7 +311,7 @@ describe('fft output placement', () => {
     const fftPane = engine.present.panes.panes[1]?.id;
     expect(engine.present.panes.tracePaneMap[output.name]).toEqual([fftPane]);
     expect(engine.present.panes.tracePaneMap['ch1']).toEqual(['pane-1']);
-    expect(engine.present.panes.zoomAll).toBe(false);
+    expect(engine.present.panes.panes.every(pane => !pane.xLinkGroup)).toBe(true);
 
     engine = change(engine, { type: 'ADD_ANALYSIS', payload: { toolId: 'fft', source: { traceId: 'ch1' } } });
     engine = change(engine, { type: 'SET_ANALYSIS_PARAMS', payload: { id: 'analysis-2', params: { window: 'flattop' } } });

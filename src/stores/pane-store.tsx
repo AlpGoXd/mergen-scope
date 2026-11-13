@@ -6,6 +6,8 @@ import type { ZoomWindow } from '../types/marker';
 import { buildPanes } from '../domain/pane-math';
 import { canPlaceMembership, canRenderInPane, normalizeMemberships, planPaneRemoval, planPaneTypeChange } from '../domain/pane-placement';
 import type { PlacementTrace } from '../domain/pane-placement';
+import { linkedPeers, linkXPanes, normalizeXLinks, unlinkXPane } from '../domain/x-link';
+import type { PaneXUnits } from '../domain/x-link';
 import { useTraceState } from './trace-store';
 import { useUiDispatch } from './ui-store';
 import { useRefLineDispatch } from './ref-line-store';
@@ -16,9 +18,7 @@ export interface PaneState {
   issuedPaneIds: string[];
   paneActiveTraceMap: Record<string, string | null>;
   activePaneId: string | null;
-  // Zoom/Scaling state
-  zoomAll: boolean;
-  sharedZoom: ZoomWindow | null;
+  // Zoom/Scaling state. Panes in one X link group (Pane.xLinkGroup) always hold the same X zoom.
   paneXZooms: Record<string, ZoomWindow>;
   paneYZooms: Record<string, YDomain>;
 }
@@ -34,8 +34,8 @@ export type PaneAction =
   | { type: 'SET_PANE_ACTIVE_TRACE'; payload: { paneId: string; traceName: string | null } }
   | { type: 'SET_RENDER_MODE'; payload: { paneId: string; mode: PaneRenderMode; traces?: PlacementTrace[]; confirmed?: boolean; expectedRevision?: number } }
   | { type: 'SET_PANE_TITLE'; payload: { paneId: string; title: string } }
-  | { type: 'SET_ZOOM_ALL'; payload: boolean }
-  | { type: 'SET_SHARED_ZOOM'; payload: ZoomWindow | null | ((prev: ZoomWindow | null) => ZoomWindow | null) }
+  | { type: 'LINK_X_PANES'; payload: { paneId: string; otherId: string; units: PaneXUnits } }
+  | { type: 'UNLINK_X_PANE'; payload: { paneId: string } }
   | { type: 'SET_PANE_ZOOM'; payload: { paneId: string; zoom: ZoomWindow | null | ((prev: ZoomWindow | null) => ZoomWindow | null) } }
   | { type: 'SET_PANE_Y_ZOOM'; payload: { paneId: string; zoom: YDomain | null } }
   | { type: 'CLEAR_ALL_ZOOMS' }
@@ -49,8 +49,6 @@ export const defaultPaneState: PaneState = {
   issuedPaneIds: ['pane-1'],
   paneActiveTraceMap: { 'pane-1': null },
   activePaneId: 'pane-1',
-  zoomAll: true,
-  sharedZoom: null,
   paneXZooms: {},
   paneYZooms: {},
 };
@@ -69,7 +67,7 @@ export function paneReducer(state: PaneState, action: PaneAction): PaneState {
       if (count > state.panes.length) {
         const panes = [...state.panes]; const issued = new Set(state.issuedPaneIds);
         // A new pane can display a different file; preserve its display choice but not its range.
-        while (panes.length < count) { let n = 1; while (issued.has(`pane-${n}`)) n++; const id = `pane-${n}`; issued.add(id); const target = panes.find(p => p.id === state.activePaneId) ?? panes[0]; if (!target) return state; panes.push({ ...target, id, title: '', renderMode: 'cartesian', typed: false, settings: { ...target.settings, smith: { ...target.settings.smith, range: null } } }); }
+        while (panes.length < count) { let n = 1; while (issued.has(`pane-${n}`)) n++; const id = `pane-${n}`; issued.add(id); const target = panes.find(p => p.id === state.activePaneId) ?? panes[0]; if (!target) return state; panes.push({ ...target, id, title: '', renderMode: 'cartesian', typed: false, xLinkGroup: null, settings: { ...target.settings, smith: { ...target.settings.smith, range: null } } }); }
         return { ...state, panes, issuedPaneIds: [...issued] };
       }
       if (action.targetPaneId && (count !== state.panes.length - 1 || !state.panes.some(p => p.id === action.targetPaneId))) return state;
@@ -79,7 +77,7 @@ export function paneReducer(state: PaneState, action: PaneAction): PaneState {
       const panes = state.panes.filter(p => !removed.includes(p.id)); const valid = new Set(panes.map(p => p.id));
       const keep = <T,>(map: Record<string,T>) => Object.fromEntries(Object.entries(map).filter(([id]) => valid.has(id)));
       const memberships = Object.fromEntries(Object.entries({...state.tracePaneMap,...plan.plan.memberships}).map(([name, ids]) => [name, [...ids]]));
-      return { ...state, panes: panes.map(p => Object.values(memberships).some(ids => ids.includes(p.id)) ? { ...p, typed: true } : p), tracePaneMap: memberships, activePaneId: state.activePaneId && valid.has(state.activePaneId) ? state.activePaneId : panes[0]?.id ?? null, paneActiveTraceMap: keep(state.paneActiveTraceMap), paneXZooms: keep(state.paneXZooms), paneYZooms: keep(state.paneYZooms) };
+      return { ...state, panes: [...normalizeXLinks(panes)].map(p => Object.values(memberships).some(ids => ids.includes(p.id)) ? { ...p, typed: true } : p), tracePaneMap: memberships, activePaneId: state.activePaneId && valid.has(state.activePaneId) ? state.activePaneId : panes[0]?.id ?? null, paneActiveTraceMap: keep(state.paneActiveTraceMap), paneXZooms: keep(state.paneXZooms), paneYZooms: keep(state.paneYZooms) };
     }
     case 'CREATE_PANE_WITH_TRACE': {
       const { trace, allTraces, displayTraces = [] } = action.payload;
@@ -145,22 +143,30 @@ export function paneReducer(state: PaneState, action: PaneAction): PaneState {
       const nextPanes = state.panes.map(p => p.id === paneId ? { ...p, title } : p);
       return { ...state, panes: nextPanes };
     }
-    case 'SET_ZOOM_ALL': {
-      return { ...state, zoomAll: action.payload };
+    case 'LINK_X_PANES': {
+      const { paneId, otherId, units } = action.payload;
+      const linked = linkXPanes(state.panes, units, paneId, otherId);
+      if (!linked.ok) return state;
+      // The joining pane takes the group's current X range.
+      const zoom = state.paneXZooms[paneId];
+      const paneXZooms = { ...state.paneXZooms };
+      if (zoom) paneXZooms[otherId] = zoom; else delete paneXZooms[otherId];
+      return { ...state, panes: [...linked.panes], paneXZooms };
     }
-    case 'SET_SHARED_ZOOM': {
-      const nextValue = typeof action.payload === 'function' ? action.payload(state.sharedZoom) : action.payload;
-      return { ...state, sharedZoom: nextValue };
+    case 'UNLINK_X_PANE': {
+      const panes = unlinkXPane(state.panes, action.payload.paneId);
+      return panes === state.panes ? state : { ...state, panes: [...panes] };
     }
     case 'SET_PANE_ZOOM': {
+      // Zoom, pan and fit apply to the pane's whole X link group.
       const { paneId, zoom } = action.payload;
       const current = state.paneXZooms[paneId] || null;
       const nextValue = typeof zoom === 'function' ? zoom(current) : zoom;
-      
       const nextXZooms = { ...state.paneXZooms };
-      if (nextValue) nextXZooms[paneId] = nextValue;
-      else delete nextXZooms[paneId];
-      
+      for (const id of [paneId, ...linkedPeers(state.panes, paneId)]) {
+        if (nextValue) nextXZooms[id] = nextValue;
+        else delete nextXZooms[id];
+      }
       return { ...state, paneXZooms: nextXZooms };
     }
     case 'SET_PANE_Y_ZOOM': {
@@ -171,7 +177,7 @@ export function paneReducer(state: PaneState, action: PaneAction): PaneState {
       return { ...state, paneYZooms: nextYZooms };
     }
     case 'CLEAR_ALL_ZOOMS': {
-      return { ...state, sharedZoom: null, paneXZooms: {}, paneYZooms: {} };
+      return { ...state, paneXZooms: {}, paneYZooms: {} };
     }
     case 'SET_PANE_SETTINGS': {
       const { paneId, patch } = action.payload;

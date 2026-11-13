@@ -5,7 +5,7 @@ import './pane-chrome.css';
 
 /**
  * What the header has given up to fit, in this order:
- * 1 scale text, 2 trace count, 3 the "Chart type" prefix, 4 the type name (icon stays), 5 Samples as an icon.
+ * 1 scale text, 2 trace count, 3 the "Chart type" prefix, 4 the type name (icon stays), 5 Samples and the X link chip as icons.
  * The pane name is always first and the settings button never hides.
  */
 export type PaneHeaderLevel = 0 | 1 | 2 | 3 | 4 | 5;
@@ -45,6 +45,8 @@ export interface PaneHeaderProps extends Omit<HTMLAttributes<HTMLDivElement>, 't
   readonly count: string | null;
   /** "X 200 k/div · Y 50/div", or null. */
   readonly scale: string | null;
+  /** The X link chip (chain icon + unit), or null when the pane has no X unit; `iconOnly` drops the unit on the narrowest step. */
+  readonly link?: ((iconOnly: boolean) => ReactNode) | null;
   /** The Samples toggle; `iconOnly` is true on the narrowest step. */
   readonly samples: ((iconOnly: boolean) => ReactNode) | null;
   /** The settings button and anything that must stay at the end. */
@@ -52,15 +54,15 @@ export interface PaneHeaderProps extends Omit<HTMLAttributes<HTMLDivElement>, 't
 }
 
 /**
- * Pane header: Pane N · [Chart type │ icon Chart] · "1 trace" · (spacer) · scale · [Samples] · [settings].
+ * Pane header: Pane N · [Chart type │ icon Chart] · "1 trace" · (spacer) · scale · [link Hz] · [Samples] · [settings].
  * It never wraps and never overlaps. A measured priority list decides what shows: after each change of
  * width or content the header starts from everything and drops one step at a time until its content fits.
  */
-export function PaneHeader({ name, target, chip, count, scale, samples, children, className = '', ...rest }: PaneHeaderProps) {
+export function PaneHeader({ name, target, chip, count, scale, link = null, samples, children, className = '', ...rest }: PaneHeaderProps) {
   const ref = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
   const [fit, setFit] = useState<{ key: string; level: number }>({ key: '', level: 0 });
-  const key = `${width}|${name}|${count ?? ''}|${scale ?? ''}|${samples ? 1 : 0}`;
+  const key = `${width}|${name}|${count ?? ''}|${scale ?? ''}|${samples ? 1 : 0}|${link ? 1 : 0}`;
   const level = fit.key === key ? fit.level : 0;
 
   useLayoutEffect(() => {
@@ -85,6 +87,7 @@ export function PaneHeader({ name, target, chip, count, scale, samples, children
       {count && level < 2 && <span className="ph-count t-caption">{count}</span>}
       <span className="ph-spacer" />
       {scale && level < 1 && <span className="ph-scale t-readout">{scale}</span>}
+      {link?.(level >= 5)}
       {samples?.(level >= 5)}
       {children}
     </div>
