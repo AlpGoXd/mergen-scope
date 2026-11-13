@@ -41,7 +41,7 @@ npm with a committed `package-lock.json`. Ask before adding a dependency, and ne
 - Work happens on `ts_refactor`; `main` deploys.
 - **Never `git push`** (blocked by a deny rule in `.claude/settings.local.json`). Commit only when the user asks; the user pushes. Worktree branches never need pushing: merge them locally.
 - Commit style: short imperative subject, optional scope prefix (`refactor(ts): …`, `design-sync: …`).
-- `dist/` is build output and is not tracked (it is in `.gitignore`; CI and Cloudflare Pages build it from source). Never force-add it.
+- `dist/` is build output and is no longer tracked (it is in `.gitignore`; CI builds it from source). Run `npm run build` before a manual `wrangler deploy`. Never force-add it.
 
 ## Security
 
