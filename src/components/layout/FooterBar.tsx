@@ -22,6 +22,7 @@ export function FooterBar({ cursor, paneType = 'chart', armedSentence }: FooterB
   const { hint } = useInteractionMode();
   const { allTraces } = useTraceState();
   const [sheet, setSheet] = useState<'help' | 'settings' | 'about' | null>(null);
+  const [localOnly, setLocalOnly] = useState<HTMLElement | null>(null);
   const [feedback, setFeedback] = useState<HTMLElement | null>(null);
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
@@ -43,10 +44,11 @@ export function FooterBar({ cursor, paneType = 'chart', armedSentence }: FooterB
     <style>{'.footer-bar button{font:inherit;color:var(--text-muted);background:transparent;border:1px solid transparent;border-radius:4px;cursor:pointer;padding:1px 4px}.footer-bar button:hover{background:var(--raised);border-color:var(--border)} .footer-bar a{color:var(--text)} @media(max-width:1279px){.footer-hints{display:none}} @media(max-width:999px){.footer-action-label{display:none}} @media(max-width:819px){.footer-trace{display:none}}'}</style>
     {files.length ? <><span style={isArmed ? { color: 'var(--text)', background: 'var(--raised)', border: '1px solid var(--border)', borderRadius: 3, padding: '1px 4px' } : { color: 'var(--text)' }}>{sentence}</span><span>· Target <strong style={{ color: 'var(--text)' }}>{activePaneId ? paneName(panes, activePaneId) : '—'}</strong></span><span className="footer-trace">· Trace <strong style={{ color: 'var(--text)' }} title={traceLabel}>{traceLabel.length > 16 ? `${traceLabel.slice(0, 15)}…` : traceLabel}</strong></span>{cursor && <span style={{ color: 'var(--text)', fontFamily: 'var(--font-mono)' }}>· {cursor}</span>}</> : <span style={{ color: 'var(--text)' }}>No file open</span>}
     <span style={{ flex: 1 }} /><span className="footer-hints">{files.length ? hints : 'Drop files anywhere · Ctrl+O open'}</span>
-    <span title="Your files are read in this browser; nothing is uploaded" aria-label="Local only">♢ <span className="footer-action-label">Local only</span></span>
+    <button type="button" aria-label="Local only" aria-expanded={localOnly !== null} onClick={event => { setLocalOnly(localOnly ? null : event.currentTarget); setFeedback(null); setSheet(null); }}>&#9826; <span className="footer-action-label">Local only</span></button>
     <button type="button" aria-expanded={feedback !== null} onClick={event => { setFeedback(feedback ? null : event.currentTarget); setSheet(null); }} title="Feedback">▣ <span className="footer-action-label">Feedback</span></button>
     <button type="button" onClick={() => { setSheet(sheet === 'settings' ? null : 'settings'); setFeedback(null); }} title="Settings (Ctrl+,)" aria-label="Settings">⚙ <span className="footer-action-label">Settings</span></button>
     <button type="button" onClick={() => { setSheet(sheet === 'help' ? null : 'help'); setFeedback(null); }} title="Help (Shift+/)" aria-label="Help">?</button>
+    {localOnly && <PopoverAt label="Local only" at={localOnly} onClose={() => setLocalOnly(null)}><div className="t-caption" style={{ padding: 8, whiteSpace: 'normal', width: 250 }}>Your files are read in this browser and never uploaded. No cookies; settings are kept in this browser.</div></PopoverAt>}
     {feedback && <PopoverAt label="Feedback" at={feedback} onClose={() => setFeedback(null)}><div style={{ padding: 10, whiteSpace: 'normal', width: 250, display: 'grid', gap: 8 }}><FeedbackLinks /><small>Needs a GitHub account. Adds the app version, browser and OS; never your files.</small></div></PopoverAt>}
     {sheet === 'help' && <HelpSheet onClose={() => setSheet(null)} onAbout={() => setSheet('about')} />}
     {(sheet === 'settings' || sheet === 'about') && <SettingsSheet key={sheet} initialSection={sheet === 'about' ? 'about' : 'settings'} onClose={() => setSheet(null)} />}
