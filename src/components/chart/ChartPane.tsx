@@ -21,6 +21,7 @@ import { useTraceState } from '../../stores/trace-store';
 import { useSharedHoverPublisher, useSharedHoverValue } from '../../stores/shared-hover-store';
 import { useTheme } from '../../hooks/use-theme';
 import { usePaneData } from '../../hooks/use-pane-data';
+import { useTableView } from '../../hooks/use-table-view';
 import { useAnalysisOverlays } from '../../hooks/use-analysis-overlays';
 import { useTraceColors } from '../../hooks/use-trace-colors';
 import { useFileImport } from '../../hooks/use-file-import';
@@ -133,6 +134,7 @@ export function ChartPane({ paneId, hideXTicks = false }: ChartPaneProps) {
   const { allTraces, allKnownTraces, allDisplayTraces, vis } = useTraceState();
   const publishHover = useSharedHoverPublisher();
   useEffect(() => () => publishHover(null, paneId), [publishHover, paneId]);
+  const tableView = useTableView(paneId);
   const colorAssignments = useMemo(() => allocateTraceColors(allKnownTraces, new Map(Object.entries(traceHueSlots))), [allKnownTraces, traceHueSlots]);
   const { colors } = useTheme();
 
@@ -169,6 +171,7 @@ export function ChartPane({ paneId, hideXTicks = false }: ChartPaneProps) {
   const paneTypes = createPaneTypeRegistry({ smithCapability: trace => canRenderInPane({ trace, paneIds: [], displayTrace: allDisplayTraces.find(display => display.id === trace.id || display.id === trace.parameters?.['displayTraceId']) }, { ...pane, renderMode: 'smith' }) });
   const currentType = paneTypeOfMode(pane.renderMode);
   const SmithRenderer = currentType === 'smith' ? rendererFor(currentType) : null;
+  const TableRenderer = currentType === 'table' ? rendererFor(currentType) : null;
   const tileFromTarget = (target: EventTarget | null): PickerTileId | null => {
     if (!(target instanceof Element)) return null;
     const tile = target.closest('.ptm-tile');
@@ -227,6 +230,7 @@ export function ChartPane({ paneId, hideXTicks = false }: ChartPaneProps) {
   const currentXZoom = paneXZooms[paneId] || null;
   const xRange = currentXZoom ? { left: currentXZoom.left, right: currentXZoom.right } : null;
   const { paneTraces, mergedData, plotData } = usePaneData(traceNamesInPane, xRange);
+  const shownCount = TableRenderer ? tableView.traces.length : paneTraces.length;
   const currentYZoom = paneYZooms[paneId] ?? null;
   // The crosshair shows in every pane with the same X unit, linked or not; publish and read the normalized unit.
   const paneXUnit = paneTraces[0] ? traceXGroup(paneTraces[0]) : null;
@@ -1211,9 +1215,9 @@ export function ChartPane({ paneId, hideXTicks = false }: ChartPaneProps) {
       ) : (
         <PaneHeader data-testid={`chart-pane-header-${paneId}`} draggable onPointerDown={drag.pointerDown} onDragStart={drag.start} onDragEnd={drag.end} className={drag.dragging ? 'pane-header-dragging' : ''}
           name={paneName(panes, paneId)} target={isActive}
-          count={paneTraces.length > 0 ? `${paneTraces.length} ${paneTraces.length === 1 ? 'trace' : 'traces'}` : null}
-          scale={paneTraces.length > 0 && !isSmith ? `X ${xDiv} · Y ${yDiv}` : null}
-          link={traceNamesInPane.length > 0 ? iconOnly => <XLinkChip paneId={paneId} iconOnly={iconOnly} /> : null}
+          count={shownCount > 0 ? `${shownCount} ${shownCount === 1 ? 'trace' : 'traces'}` : null}
+          scale={paneTraces.length > 0 && !isSmith && !TableRenderer ? `X ${xDiv} · Y ${yDiv}` : null}
+          link={traceNamesInPane.length > 0 && !TableRenderer ? iconOnly => <XLinkChip paneId={paneId} iconOnly={iconOnly} /> : null}
           samples={iconOnly => (
             <Btn variant={settings.showSampleDots ? 'armed' : 'neutral'} tone="pane" small className={`ph-samples${iconOnly ? ' is-icon' : ''}`} aria-label="Samples" aria-pressed={settings.showSampleDots} title="Show the measured sample points" data-testid="samples-toggle"
               onClick={e => { e.stopPropagation(); paneDispatch({ type: 'SET_PANE_SETTINGS', payload: { paneId, patch: { showSampleDots: !settings.showSampleDots } } }); }}>
@@ -1235,7 +1239,8 @@ export function ChartPane({ paneId, hideXTicks = false }: ChartPaneProps) {
           <PaneSettingsPopover paneId={paneId} settings={settings} sections={paneTypes[currentType].settings} paneName={paneName(panes, paneId)} current={currentType} tiles={panePickerTiles(Object.values(paneTypes))} pending={pendingType} anchor={settingsAnchor} contentRef={settingsMenuRef}
             onAnchorChange={anchor => { setTypeChange(null); returnToTileRef.current = null; setTypeAnchor(null); setSettingsAnchor(anchor); if (anchor) typeTriggerRef.current = anchor; else { typeTriggerRef.current?.focus({ preventScroll: true }); typeTriggerRef.current = null; } }}
             onChoose={id => selectPaneType(paneTypes[id])} onConfirm={() => { if (pendingType) selectPaneType(paneTypes[pendingType.to], true); }} onCancel={cancelTypeChange}
-            axes={!isSmith && paneTraces.length > 0 ? {
+            table={TableRenderer ? { settings: tableView.settings, visible: tableView.visible, followChoices: tableView.followChoices, followedPaneId: tableView.followedPaneId } : null}
+            axes={!isSmith && !TableRenderer && paneTraces.length > 0 ? {
               x: xDiv, y: yDiv,
               onFitX: () => paneDispatch({ type: 'SET_PANE_ZOOM', payload: { paneId, zoom: null } }),
               onFitY: () => paneDispatch({ type: 'SET_PANE_Y_ZOOM', payload: { paneId, zoom: null } }),
@@ -1251,7 +1256,9 @@ export function ChartPane({ paneId, hideXTicks = false }: ChartPaneProps) {
 
       {/* overflow hidden: pane content must never paint over (and steal clicks from) the next pane's header */}
       <div onClick={() => { if (traceNamesInPane.length === 0 && !isActive) paneDispatch({ type: 'SET_ACTIVE_PANE', payload: paneId }); }} style={{ flex: 1, position: 'relative', minHeight: 0, overflow: 'hidden', containerType: 'size' }}>
-        {SmithRenderer && traceNamesInPane.length > 0 ? (
+        {TableRenderer && displayState !== 'picker' ? (
+          <TableRenderer paneId={paneId} />
+        ) : SmithRenderer && traceNamesInPane.length > 0 ? (
           <SmithRenderer paneId={paneId} fitRequest={smithFitRequest} />
         ) : traceNamesInPane.length === 0 ? (
           <EmptyChartPane mode={allTraces.length > 0 ? 'traces' : 'files'} paneId={paneId} compact={panes.length > 2} types={Object.values(paneTypes)} currentType={currentType} displayState={displayState} onSelectType={selectPaneType} />

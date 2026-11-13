@@ -15,6 +15,8 @@ jobs:
         with:
           node-version: '20'
           cache: npm
+      - name: Reject committed AI and tool leftovers
+        run: sh scripts/check-forbidden-paths.sh --tracked
       - run: npm ci
       - run: npx playwright install --with-deps chromium
       - run: npm run typecheck

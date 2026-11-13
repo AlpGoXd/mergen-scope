@@ -15,7 +15,7 @@ export interface EmptyChartPaneProps {
 export function panePickerTiles(types: readonly PaneTypeDefinition[]): PickerTile[] {
   return PICKER_TILES.map(tile => {
     const type = types.find(item => item.id === tile.id && item.source !== 'analysis');
-    return { ...tile, state: type?.status === 'available' ? 'available' : tile.id === 'spectrogram' ? 'needs-data' : 'later', reason: type?.status === 'available' ? undefined : tile.id === 'table' ? tile.reason : type?.laterReason ?? tile.reason };
+    return { ...tile, state: type?.status === 'available' ? 'available' : tile.id === 'spectrogram' ? 'needs-data' : 'later', reason: type?.status === 'available' ? undefined : type?.laterReason ?? tile.reason };
   });
 }
 

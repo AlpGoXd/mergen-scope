@@ -26,7 +26,7 @@ export interface PickerTile {
  */
 export const PICKER_TILES: readonly PickerTile[] = [
   { id: 'chart', label: 'Chart', description: 'Traces against X: frequency, time or anything else.', state: 'available' },
-  { id: 'table', label: 'Table', description: 'Values in rows; can follow another pane’s cursor.', state: 'later', reason: 'Table panes come in the next step.' },
+  { id: 'table', label: 'Table', description: 'Values in rows; can follow another pane’s cursor.', state: 'available' },
   { id: 'smith', label: 'Smith', description: 'Reflections (S11, S22 …) as impedance.', state: 'later', reason: 'Smith panes come in the Smith step.' },
   { id: 'polar', label: 'Polar', description: 'Magnitude against angle.', state: 'later', reason: 'Polar panes are planned.' },
   { id: 'spectrogram', label: 'Spectrogram', description: 'Many sweeps over time, level as colour.', state: 'needs-data', reason: 'Needs a spectrum series file (many sweeps over time).' },

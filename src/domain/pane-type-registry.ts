@@ -29,7 +29,7 @@ export function createPaneTypeRegistry(
       id: 'table',
       title: 'Table',
       description: 'Tabular view of supported scalar traces.',
-      status: 'later', laterReason: 'Planned, not built yet', iconKey: 'table', settings: ['table'], renderMode: 'table',
+      status: 'available', iconKey: 'table', settings: ['table'], renderMode: 'table',
       appliesTo: scalarTraceCapability,
     },
     smith: {

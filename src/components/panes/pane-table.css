@@ -1,0 +1,34 @@
+/* Table pane (table kit, 11 Nov). App tokens and text roles only. Import after pane-types.css. */
+.tbp { position: absolute; inset: 0; display: flex; flex-direction: column; background: var(--bg); }
+.tbp-scroll { flex: 1; min-height: 0; overflow: auto; position: relative; }
+.tbp[data-mode="near"] .tbp-scroll { overflow-y: hidden; }
+
+/* Rows: one CSS grid per row with the same template; fixed height so virtualization can count. */
+.tbp-row { display: grid; height: calc(var(--row-height) - 6px); align-items: center; border-bottom: 1px solid color-mix(in oklch, var(--border) 55%, transparent); }
+.tbp-row > span { padding: 0 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tbp-x { position: sticky; left: 0; z-index: 1; background: inherit; font-family: var(--font-mono); font-size: var(--font-caption); font-weight: 400; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.tbp-row { background: var(--bg); }
+.tbp-c { font-family: var(--font-mono); font-size: var(--font-caption); font-weight: 400; color: var(--text); text-align: right; font-variant-numeric: tabular-nums; }
+.tbp-c.is-empty { color: var(--text-muted); }
+
+/* Header: sticky, panel background, labels in sans. */
+.tbp-head { position: sticky; top: 0; z-index: 2; background: var(--panel); border-bottom: 1px solid var(--border); }
+.tbp-head .tbp-x { font-family: var(--font-sans); font-weight: 400; color: var(--text-muted); z-index: 3; }
+.tbp-colhead { display: flex; align-items: center; justify-content: flex-end; gap: 6px; font-family: var(--font-sans); font-size: var(--font-caption); }
+/* Trace name = the "Card or row title" role (label size, 600); unit and X heading = Caption. */
+.tbp-name { font-size: var(--font-label); font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; }
+.tbp-unit { color: var(--text-muted); font-weight: 400; }
+.tbp-swatch { width: 10px; height: 10px; border-radius: 2px; flex: none; }
+
+/* Cursor row: the selection tint, the whole row; no side stripe. */
+.tbp-row.is-cursor { background: var(--sel-bg); }
+.tbp-row.is-cursor .tbp-x { color: var(--sel-ink); }
+.tbp-row.is-cursor .tbp-c { color: var(--sel-ink); }
+
+/* Footer: one caption line. */
+.tbp-foot { flex: none; height: calc(var(--row-height) - 6px); display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 10px; border-top: 1px solid var(--border); background: var(--panel); font-size: var(--font-caption); color: var(--text-muted); white-space: nowrap; overflow: hidden; }
+
+/* Empty table: centred icon, name, one sentence, actions (same layout as the other typed empty panes). */
+.tbp-empty { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 16px; text-align: center; color: var(--text); }
+.tbp-empty p { margin: 0; max-width: 360px; }
+.tbp-empty__actions { display: flex; gap: 8px; margin-top: 6px; }
