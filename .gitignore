@@ -25,3 +25,29 @@ ds-bundle/
 # local AI prompt / notes
 rnpromt.txt
 .crush/
+# AI and tool leftovers (never commit)
+.scratch/
+*-kit/
+pane-kit/
+table-kit/
+*-evidence/
+docs/**/evidence/
+*handoff*.md
+HANDOFF*.md
+*-report.txt
+branch-comparisons.txt
+*cleanup*report*.txt
+*.patch
+*.diff
+capture*.cjs
+capture*.mjs
+capture*.spec.ts
+**/screenshots/
+docs/**/*.png
+!docs/design/references/**/*.png
+!docs/images/mergen-scope-workspace.png
+playwright-report*/
+test-results/
+ds-bundle/
+dist/
+.claude/worktrees/
