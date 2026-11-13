@@ -5,7 +5,7 @@ import { derived, timeTraceOnly } from './shared';
 const params = { method: { kind: 'choice', title: 'Method', defaultValue: 'linear', options: ['linear', 'cubic'] } } as const;
 
 export const resampleTool: AnalysisTool<typeof params> = {
-  kind: 'math', meta: { id: 'resample', title: 'Resample', description: 'Evenly spaced copy of a time trace with uneven timestamps (for FFT).' }, params,
+  kind: 'math', meta: { id: 'resample', title: 'Resample', description: 'Evenly spaced copy of a time trace.' }, params,
   outputs: [{ type: 'trace' }], appliesTo: timeTraceOnly,
   compute: ({ traces }, p) => {
     const trace = traces[0];

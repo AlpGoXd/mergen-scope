@@ -42,7 +42,7 @@ function fftFacts(trace: Trace): ToneSpectrum['fft'] {
 const isSpectrum = (trace: Trace) => trace.domain === 'frequency' && trace.family === 'spectrum';
 
 export const harmonicsTool: AnalysisTool<typeof params> = {
-  kind: 'measure', meta: { id: 'harmonics', title: 'Harmonics', description: 'Fundamental, harmonics, THD, THD+N, SNR, SINAD, ENOB and SFDR of one tone.' }, params,
+  kind: 'measure', meta: { id: 'harmonics', title: 'Harmonics', description: 'THD, SNR, SINAD, ENOB and SFDR of a tone.' }, params,
   parameterUnits: { fundamentalHz: 'Hz' },
   outputs: [{ type: 'numbers' }, { type: 'shapes' }],
   appliesTo: trace => !isSpectrum(trace) ? denied('Select a spectrum trace.') : spectrumUnit(trace.units.y) ? allowed : denied('Select a spectrum in dB, V or W units.'),

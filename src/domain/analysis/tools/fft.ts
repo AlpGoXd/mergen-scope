@@ -41,7 +41,7 @@ export function windowSpecOf(p: Pick<FftParams, 'window' | 'terms' | 'beta' | 's
 }
 
 export const fftTool: AnalysisTool<typeof params> = {
-  kind: 'math', meta: { id: 'fft', title: 'FFT', description: 'Spectrum of a time trace: windows, averaging, V, dBV, dBm and density scales.' }, params,
+  kind: 'math', meta: { id: 'fft', title: 'FFT', description: 'Spectrum of a time trace.' }, params,
   parameterUnits: { sidelobe: 'dB', impedance: 'Ω' },
   outputs: [{ type: 'numbers' }, { type: 'trace' }], appliesTo: timeTraceOnly,
   appliesToInputs: (inputs, p = FFT_DEFAULTS) => {

@@ -108,8 +108,8 @@
   border: 1px solid var(--border); background: var(--raised); color: var(--text);
   font: inherit; font-size: calc(var(--font-caption) - 0.5px); white-space: nowrap; cursor: pointer;
 }
-.an-seg__item:first-child { margin-left: 0; border-radius: var(--radius-badge) 0 0 var(--radius-badge); }
-.an-seg__item:last-child { border-radius: 0 var(--radius-badge) var(--radius-badge) 0; }
+.an-seg__item:first-of-type { margin-left: 0; border-radius: var(--radius-badge) 0 0 var(--radius-badge); }
+.an-seg__item:last-of-type { border-radius: 0 var(--radius-badge) var(--radius-badge) 0; }
 .an-seg__item[aria-pressed='true'] { position: relative; z-index: 1; background: var(--slate-fill); color: var(--slate-ink); border-color: var(--slate-line); font-weight: 600; }
 
 /* message inside a card (SC-3: neutral, thin status outline, coloured icon; never a filled bar) */
@@ -183,7 +183,8 @@
 .an-menu__list { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; }
 .an-menu__heading { padding: 6px 8px 2px; font-size: calc(var(--font-caption) - 0.5px); font-weight: 700; color: var(--text-muted); }
 .an-menu__item {
-  display: flex; align-items: center; gap: 8px; width: 100%; min-height: calc(var(--row-height) + 4px); padding: 3px 8px; box-sizing: border-box;
+  /* flex: none: the list scrolls; shrinking items would squash their two lines onto the next item */
+  flex: none; display: flex; align-items: center; gap: 8px; width: 100%; min-height: calc(var(--row-height) + 4px); padding: 3px 8px; box-sizing: border-box;
   border: 0; border-radius: var(--radius-input); background: none; color: inherit; font: inherit; text-align: left; cursor: pointer;
 }
 .an-menu__item:hover, .an-menu__item[aria-selected='true'] { background: var(--slate-fill); }
@@ -192,6 +193,8 @@
 .an-menu__lead { flex: none; width: 14px; display: inline-flex; justify-content: center; color: var(--analysis-ink); }
 .an-menu__item[aria-disabled='true'] .an-menu__lead { opacity: 0.55; }
 .an-menu__text { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.25; }
+.an-menu__text > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* one line each: the full note or reason is in the item's tooltip */
 .an-menu__note { font-size: calc(var(--font-caption) - 0.5px); color: var(--text-muted); }
 .an-menu__check { flex: none; color: var(--accent); font-size: var(--font-caption); }
 .an-menu__none { padding: 10px 8px; font-size: var(--font-caption); color: var(--text-muted); }

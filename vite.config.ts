@@ -2,11 +2,12 @@ import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import { viteSingleFile } from "vite-plugin-singlefile";
 import { resolve } from "path";
-import { copyFileSync, cpSync, existsSync, readFileSync, writeFileSync } from "fs";
+import { copyFileSync, cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 
 // Copies the static pages and runtime assets into dist/ after the build.
 // Only needed in production since dev serves everything from the root.
 function copyRuntimeAssets(): Plugin {
+  let outputDir: string;
   const staticFiles = [
     "index.html",
     "mergen-scope-icon.svg",
@@ -23,11 +24,15 @@ function copyRuntimeAssets(): Plugin {
   return {
     name: "copy-runtime-assets",
     apply: "build",
+    configResolved(config) {
+      outputDir = resolve(config.root, config.build.outDir);
+    },
     closeBundle() {
+      mkdirSync(outputDir, { recursive: true });
       for (const file of staticFiles) {
         const src = resolve(__dirname, file);
         if (existsSync(src)) {
-          const dest = resolve(__dirname, "dist", file);
+          const dest = resolve(outputDir, file);
           if (file === "index.html") {
             const { version } = JSON.parse(readFileSync(resolve(__dirname, "package.json"), "utf8")) as { version: string };
             const html = readFileSync(src, "utf8");
@@ -50,7 +55,7 @@ function copyRuntimeAssets(): Plugin {
       for (const dir of staticDirs) {
         const src = resolve(__dirname, dir);
         if (existsSync(src)) {
-          cpSync(src, resolve(__dirname, "dist", dir), { recursive: true });
+          cpSync(src, resolve(outputDir, dir), { recursive: true });
         }
       }
     },

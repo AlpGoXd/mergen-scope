@@ -7,7 +7,7 @@ const params = { range: { kind: 'choice', title: 'Range', defaultValue: 'visible
 const value = (v: number | null): number => v ?? NaN;
 
 export const waveformTool: AnalysisTool<typeof params> = {
-  kind: 'measure', meta: { id: 'waveform', title: 'Waveform', description: 'Frequency, levels, rise and fall, duty cycle of a time trace.' }, params,
+  kind: 'measure', meta: { id: 'waveform', title: 'Waveform', description: 'Frequency, levels, edges and duty cycle.' }, params,
   outputs: [{ type: 'numbers' }, { type: 'shapes' }], appliesTo: timeTraceOnly,
   compute: (inputs, p) => {
     const trace = inputs.traces[0];
