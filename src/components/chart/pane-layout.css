@@ -1,0 +1,25 @@
+.pane-layout-scroll { flex: 1; min-height: 0; min-width: 0; overflow: auto; }
+.pane-layout-grid { display: grid; width: 100%; height: 100%; }
+/* Panes are separated by an 8 px grab area that is invisible at rest; each pane carries its own hairline. */
+.pane-layout-cell { display: flex; min-width: 160px; min-height: 120px; overflow: hidden; box-shadow: 0 0 0 1px var(--border); }
+.pane-layout-cell.is-dimmed { opacity: 0.82; }
+.layout-divider { position: relative; z-index: 1; background: transparent; outline: none; touch-action: none; }
+.layout-divider--vertical { cursor: ew-resize; }
+.layout-divider--horizontal { cursor: ns-resize; }
+/* Hover, keyboard focus and dragging show a centred 2 px accent line. No transition: resizing is immediate. */
+.layout-divider::after { content: ''; position: absolute; border-radius: 1px; background: var(--accent); opacity: 0; }
+.layout-divider--vertical::after { top: 0; bottom: 0; left: 50%; width: 2px; margin-left: -1px; }
+.layout-divider--horizontal::after { left: 0; right: 0; top: 50%; height: 2px; margin-top: -1px; }
+.layout-divider:hover::after, .layout-divider:focus-visible::after, .layout-divider.is-dragging::after { opacity: 1; }
+.layout-divider__tag {
+  position: absolute; top: 50%; left: 50%; z-index: 2; transform: translate(-50%, -50%); white-space: nowrap; pointer-events: none;
+  padding: 0 var(--space-2); border: 1px solid var(--border-strong); border-radius: var(--radius-badge);
+  background: var(--raised); box-shadow: var(--menu-shadow);
+}
+.layout-menu { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; padding: 4px; }
+.layout-menu__tile { display: flex; flex-direction: column; align-items: center; gap: 4px; color: var(--text); background: var(--panel); border: 1px solid var(--border); border-radius: 4px; padding: 6px; cursor: pointer; }
+.layout-menu__tile.is-selected { background: var(--slate-fill); border-color: var(--slate-line); color: var(--slate-ink); }
+.layout-menu__tile.is-unavailable { border-style: dashed; color: var(--text-muted); cursor: not-allowed; }
+.layout-menu__tile svg rect { fill: var(--raised); stroke: currentColor; }
+.layout-menu__tile svg text { fill: currentColor; font-size: var(--font-caption); }
+.layout-menu__tile .t-caption { max-width: 12em; }

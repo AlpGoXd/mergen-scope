@@ -1,0 +1,76 @@
+﻿import { describe, expect, it } from 'vitest';
+import { initialWorkspaceState, workspaceReducer, snapshotFromWorkspace, workspaceFromSnapshot } from '../../src/stores/aggregate-workspace-store';
+import { migrateWorkspaceV5 } from '../../src/domain/workspace-migrate-v5';
+import { buildNetworkDerivedScalarTrace } from '../../src/domain/dataset-builders';
+import { sToAbcd } from '../../src/domain/touchstone/abcd';
+import { fileReducer, defaultFileState } from '../../src/stores/file-store';
+import { parseMeasurementFile } from '../../src/domain/parsers/parse-file';
+import { appendTouchstoneDisplayTrace, makeDefaultTouchstoneState } from '../../src/domain/touchstone/selections';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+
+const c = (re: number, im = 0) => ({ re, im });
+describe('Phase 4 network behavior', () => {
+  it('converts an ideal through and rejects a singular transmission', () => {
+    const chain = sToAbcd([[c(0), c(1)], [c(1), c(0)]], [50, 50]);
+    expect(chain).toEqual([[c(1), c(0)], [c(0), c(1)]]);
+    expect(sToAbcd([[c(0), c(0)], [c(0), c(0)]], [50, 50])).toBeNull();
+  });
+  it('unwraps consecutive phase wraps against the previous unwrapped phase', () => {
+    const text = readFileSync(resolve(process.cwd(), 'test files/cascaded chain.s2p'), 'utf8');
+    const parsed = parseMeasurementFile(text, 'test.s2p');
+    const loaded = fileReducer(defaultFileState, { type: 'ADD_PARSED_FILE', payload: { id: 'f', fileName: 'test.s2p', parsed, text } });
+    const source = loaded.files[0]!.datasets!.find(dataset => dataset.family === 'network')!;
+    if (source.family !== 'network') throw new Error('Expected network dataset');
+    const samples = [0, -2, 2, 0].map((phase, index) => ({ freqHz: index, matrix: [[c(Math.cos(phase), Math.sin(phase))]] }));
+    const trace = buildNetworkDerivedScalarTrace({ ...source, portCount: 1, referenceOhms: [50], samples }, { row: 0, col: 0, metric: 'group-delay', label: 'delay' });
+    expect(trace?.points).toHaveLength(3);
+    expect(trace!.points[0]!.y).toBeCloseTo(2 / (2 * Math.PI));
+    expect(trace!.points[1]!.y).toBeCloseTo((2 * Math.PI - 4) / (2 * Math.PI));
+    expect(trace!.points[2]!.y).toBeCloseTo(2 / (2 * Math.PI));
+  });
+  it('keeps hidden and replotted group delay views distinct across save, reload and deletion', () => {
+    const text = readFileSync(resolve(process.cwd(), 'test files/cascaded chain.s2p'), 'utf8');
+    const parsed = parseMeasurementFile(text, 'test.s2p');
+    let state = workspaceReducer(initialWorkspaceState(), { slice: 'files', action: { type: 'ADD_PARSED_FILE', payload: { id: 'f', fileName: 'test.s2p', parsed, text } } });
+    const append = { type: 'APPEND_TOUCHSTONE_VIEW' as const, payload: { fileId: 'f', family: 'S' as const, row: 2, col: 1, view: 'Group delay' as const } };
+    state = workspaceReducer(state, { slice: 'files', action: append });
+    const first = state.files.files[0]!.displayTraces!.at(-1)!;
+    state = workspaceReducer(state, { slice: 'files', action: { type: 'SET_DISPLAY_TRACE_HIDDEN', payload: { fileId: 'f', displayTraceId: first.id, hidden: true } } });
+    state = workspaceReducer(state, { slice: 'files', action: append });
+    const second = state.files.files[0]!.displayTraces!.at(-1)!;
+    expect(second.id).not.toBe(first.id);
+    const snapshot = snapshotFromWorkspace(state);
+    expect(snapshot).not.toBeNull();
+    const migrated = migrateWorkspaceV5(JSON.parse(JSON.stringify(snapshot)));
+    expect(migrated).not.toBeNull();
+    const reloaded = workspaceFromSnapshot(initialWorkspaceState(), migrated!);
+    expect(reloaded).not.toBeNull();
+    const deleted = workspaceReducer(reloaded!, { slice: 'files', action: { type: 'DELETE_DISPLAY_TRACE', payload: { fileId: 'f', displayTraceId: first.id } } });
+    expect(deleted.files.files[0]!.displayTraces!.some(item => item.id === first.id)).toBe(false);
+    expect(deleted.files.files[0]!.displayTraces!.some(item => item.id === second.id)).toBe(true);
+    const replotted = workspaceReducer(deleted, { slice: 'files', action: append });
+    const ids = replotted.files.files[0]!.displayTraces!.map(item => item.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(ids).toContain(second.id);
+    const savedAgain = snapshotFromWorkspace(replotted);
+    expect(migrateWorkspaceV5(JSON.parse(JSON.stringify(savedAgain)))).not.toBeNull();
+  });
+  it('persists matrix expansion on the file without changing dataset identity', () => {
+    const text = readFileSync(resolve(process.cwd(), 'test files/cascaded chain.s2p'), 'utf8');
+    const parsed = parseMeasurementFile(text, 'test.s2p');
+    const loaded = fileReducer(defaultFileState, { type: 'ADD_PARSED_FILE', payload: { id: 'f', fileName: 'test.s2p', parsed, text } });
+    const before = loaded.files[0]!;
+    const after = fileReducer(loaded, { type: 'SET_MATRIX_OPEN', payload: { fileId: 'f', open: true } }).files[0]!;
+    expect(after.matrixOpen).toBe(true);
+    expect(after.datasets).toBe(before.datasets);
+    const state = makeDefaultTouchstoneState(after);
+    const vswr = appendTouchstoneDisplayTrace(after, state, 'S', 1, 1, 'VSWR');
+    expect(vswr.displayTraces?.at(-1)?.source).toMatchObject({ component: 'vswr', row: 0, col: 0 });
+    expect(appendTouchstoneDisplayTrace(after, state, 'S', 1, 2, 'VSWR')).toBe(after);
+    const delay = appendTouchstoneDisplayTrace(after, state, 'S', 2, 1, 'Group delay');
+    expect(delay.displayTraces?.at(-1)?.source).toMatchObject({ component: 'group-delay', row: 1, col: 0 });
+    const abcd = appendTouchstoneDisplayTrace(after, state, 'ABCD', 1, 1, 'Mag');
+    expect(abcd.displayTraces?.at(-1)?.source).toMatchObject({ parameterFamily: 'ABCD', component: 'magnitude-linear' });
+  });
+});

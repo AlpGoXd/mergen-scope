@@ -1,0 +1,215 @@
+// Presentation data for analysis cards: turns a tool's raw outputs into the strings the Analysis kit shows
+// (key/value rows, the headline result, crossing groups). Pure: no React, no stores; every number goes through formatEng.
+import type { AnalysisOutput, ParameterValue } from '../../types/registry-contract';
+import type { AnalysisInstance } from '../../types/analysis-instance';
+import type { InstanceResult } from './instances';
+import type { Trace } from '../../types/trace';
+import type { TraceMathOp } from '../trace-math-units';
+import { traceMathUnit } from '../trace-math-units';
+import { formatCrossingValue, significantStep } from './crossing-rows';
+import { FFT_SCALE_UNITS, FFT_TONE_SCALE } from './fft';
+import type { FftScale } from './fft';
+import { spectrumUnit } from './tools/harmonics';
+
+const FFT_SCALES: readonly FftScale[] = ['dbv', 'v', 'dbm', 'dbmv', 'dbuv', 'dbvhz', 'vrthz', 'dbmhz'];
+
+export interface CardUnits { x: string | null | undefined; y: string | null | undefined }
+export interface CardRow { label: string; value: string; title?: string }
+export interface CardResult { value: string; unit?: string; note?: string }
+export interface CardNumbersView { result?: CardResult; rows: CardRow[]; summary: string; /** A muted line under the settings (FFT window facts). */ facts?: string }
+
+export function traceMathAdvice(operation: TraceMathOp, a: Trace, b: Trace): string | undefined {
+  return traceMathUnit(a.units.y, b.units.y, operation).warning;
+}
+
+const X_DIGITS = 6;
+const Y_DIGITS = 4;
+
+const fmtX = (value: number, units: CardUnits): string => formatCrossingValue(value, units.x ?? 'Hz', significantStep(value, X_DIGITS));
+const fmtY = (value: number, units: CardUnits): string => formatCrossingValue(value, units.y, significantStep(value, Y_DIGITS));
+const fmtPlain = (value: number, digits = 3): string => formatCrossingValue(value, null, significantStep(value, digits));
+
+/** "86.2 MHz" -> { value: "86.2", unit: "MHz" } (the unit stays muted in the kit). */
+export function splitUnit(text: string): { value: string; unit?: string } {
+  const space = text.lastIndexOf(' ');
+  if (space <= 0) return { value: text };
+  const unit = text.slice(space + 1);
+  return /^[\d.,−+-]/.test(unit) ? { value: text } : { value: text.slice(0, space), unit };
+}
+
+function numbersOf(outputs: readonly AnalysisOutput[]): Readonly<Record<string, number>> | null {
+  const found = outputs.find(output => output.type === 'numbers');
+  return found && found.type === 'numbers' ? found.values : null;
+}
+
+/** Rows, headline and collapsed summary for the numeric (Measure) tools. */
+export function describeNumbers(toolId: string, outputs: readonly AnalysisOutput[], units: CardUnits, params: Readonly<Record<string, ParameterValue>> = {}): CardNumbersView | null {
+  const v = numbersOf(outputs);
+  const table = outputs.find(output => output.type === 'table');
+  if (toolId === 'peak-table' && table && table.type === 'table') {
+    const rows = table.rows.map(row => ({ label: `#${String(row[0])} · ${fmtX(Number(row[1]), units)}`, value: fmtY(Number(row[2]), units) }));
+    return { rows, summary: `${rows.length} peak${rows.length === 1 ? '' : 's'}` };
+  }
+  if (!v) return null;
+  const at = (y: number, x: number): string => `${fmtY(y, units)} @ ${fmtX(x, units)}`;
+  switch (toolId) {
+    case 'bandwidth': {
+      const bandwidth = fmtX(v['bandwidth'] ?? NaN, units);
+      return { result: { ...splitUnit(bandwidth), note: `centre ${fmtX(v['centre'] ?? NaN, units)} · ${fmtX(v['left'] ?? NaN, units)} → ${fmtX(v['right'] ?? NaN, units)}` },
+        rows: [{ label: 'Reference', value: at(v['refAmp'] ?? NaN, v['refX'] ?? NaN) }], summary: bandwidth };
+    }
+    case 'range-stats':
+      return { rows: [
+        { label: 'Maximum', value: at(v['max'] ?? NaN, v['maxX'] ?? NaN) }, { label: 'Minimum', value: at(v['min'] ?? NaN, v['minX'] ?? NaN) },
+        { label: 'Average', value: fmtY(v['average'] ?? NaN, units) }, { label: 'Span', value: fmtX(v['span'] ?? NaN, units) },
+        { label: 'Samples', value: String(v['count'] ?? 0) },
+      ], summary: `max ${fmtY(v['max'] ?? NaN, units)}` };
+    case 'ripple': {
+      const ripple = fmtY(v['ripple'] ?? NaN, units);
+      return { result: splitUnit(ripple), rows: [
+        { label: 'Maximum', value: fmtY(v['max'] ?? NaN, units) }, { label: 'Minimum', value: fmtY(v['min'] ?? NaN, units) }, { label: 'Span', value: fmtX(v['span'] ?? NaN, units) },
+      ], summary: ripple };
+    }
+    case 'noise-psd':
+      return { rows: [
+        { label: 'Peak density', value: fmtY(v['peak'] ?? NaN, units) }, { label: 'Average', value: fmtY(v['avg'] ?? NaN, units) },
+        { label: 'Minimum', value: fmtY(v['min'] ?? NaN, units) }, { label: 'RBW', value: fmtX(v['rbw'] ?? NaN, units) },
+      ], summary: `avg ${fmtY(v['avg'] ?? NaN, units)}` };
+    case 'ip3': {
+      const oip3 = formatCrossingValue(v['oip3_avg'] ?? NaN, 'dBm', significantStep(v['oip3_avg'] ?? 0, Y_DIGITS));
+      return { result: { ...splitUnit(oip3), note: 'OIP3, average of the two IM3 products' }, rows: [
+        { label: 'OIP3 lower', value: formatCrossingValue(v['oip3_l'] ?? NaN, 'dBm', 0.01) }, { label: 'OIP3 upper', value: formatCrossingValue(v['oip3_u'] ?? NaN, 'dBm', 0.01) },
+        { label: 'Delta lower', value: formatCrossingValue(v['deltaL'] ?? NaN, 'dB', 0.01) }, { label: 'Delta upper', value: formatCrossingValue(v['deltaU'] ?? NaN, 'dB', 0.01) },
+        ...(v['iip3'] !== undefined ? [{ label: 'IIP3', value: formatCrossingValue(v['iip3'], 'dBm', 0.01) }] : []),
+      ], summary: oip3 };
+    }
+    case 'occupied-bandwidth': {
+      const bandwidth = fmtX(v['bandwidth'] ?? NaN, units);
+      return { result: { ...splitUnit(bandwidth), note: `${fmtPlain(v['percent'] ?? NaN, 4)} % · ${fmtX(v['lower'] ?? NaN, units)} → ${fmtX(v['upper'] ?? NaN, units)}` }, rows: [], summary: bandwidth };
+    }
+    case 'channel-power': {
+      const power = formatCrossingValue(v['powerDbm'] ?? NaN, 'dBm', 0.001);
+      return { result: { ...splitUnit(power), note: `${formatCrossingValue(v['powerDbw'] ?? NaN, 'dBW', 0.001)}` }, rows: [], summary: power };
+    }
+    case 'reciprocity-isolation':
+      return { rows: [
+        { label: 'Worst reciprocity error', value: formatCrossingValue(v['reciprocityError'] ?? NaN, 'dB', 0.001) },
+        { label: 'Average reciprocity error', value: formatCrossingValue(v['averageReciprocityErrorDb'] ?? NaN, 'dB', 0.001) },
+        { label: 'Worst isolation', value: formatCrossingValue(v['worstIsolationDb'] ?? NaN, 'dB', 0.001) },
+        { label: 'Samples', value: String(v['count'] ?? 0) },
+      ], summary: `${formatCrossingValue(v['worstIsolationDb'] ?? NaN, 'dB', 0.01)} isolation` };
+    case 'stability':
+      return { rows: [
+        { label: 'Min K', value: fmtPlain(v['minK'] ?? NaN, 4) }, { label: 'Min μ1', value: fmtPlain(v['minMu1'] ?? NaN, 4) }, { label: 'Min μ2', value: fmtPlain(v['minMu2'] ?? NaN, 4) },
+        { label: '|Δ| min → max', value: `${fmtPlain(v['minDelta'] ?? NaN, 4)} → ${fmtPlain(v['maxDelta'] ?? NaN, 4)}` },
+        { label: 'Unstable points', value: `${v['unstableCount'] ?? 0} of ${v['count'] ?? 0}` },
+      ], summary: (v['unstableCount'] ?? 0) === 0 ? 'unconditionally stable' : `${v['unstableCount']} unstable` };
+    case 'waveform': {
+      // Levels below a billionth of Vpp are rounding noise: a sine's mean reads 0 V, not 12 aV.
+      const vpp = v['vpp'] ?? NaN;
+      const level = (key: string) => { const x = v[key] ?? NaN; return fmtY(Math.abs(x) < Math.abs(vpp) * 1e-9 ? 0 : x, units); };
+      const time = (key: string) => formatCrossingValue(v[key] ?? NaN, 's', significantStep(v[key] ?? NaN, 4));
+      const percent = (key: string) => formatCrossingValue(v[key] ?? NaN, '%', 0.1);
+      const frequency = formatCrossingValue(v['frequency'] ?? NaN, 'Hz', significantStep(v['frequency'] ?? NaN, 5));
+      return { rows: [
+        { label: 'Frequency', value: frequency }, { label: 'Period', value: time('period') },
+        { label: 'Vpp', value: level('vpp') }, { label: 'Max', value: level('max') }, { label: 'Min', value: level('min') },
+        { label: 'Mean', value: level('mean') }, { label: 'RMS', value: level('rms') },
+        { label: 'Rise time', value: time('riseTime') }, { label: 'Fall time', value: time('fallTime') },
+        { label: 'Overshoot', value: percent('overshoot') }, { label: 'Duty cycle', value: percent('dutyCycle') },
+      ], summary: Number.isFinite(v['frequency']) ? frequency : `${level('vpp')} pp` };
+    }
+    case 'fft': {
+      // FFT levels are in the card's Scale (a density reads tones in its power unit), not the source trace's unit.
+      const scale = FFT_SCALES.find(item => item === params['scale']) ?? 'dbv';
+      const unit = FFT_SCALE_UNITS[FFT_TONE_SCALE[scale]];
+      const linear = unit === 'V';
+      const level = formatCrossingValue(v['fundamentalLevel'] ?? NaN, unit, linear ? significantStep(v['fundamentalLevel'] ?? NaN, 4) : 0.01);
+      const segments = v['segments'] ?? 1;
+      const db = (key: string, step: number) => formatCrossingValue(v[key] ?? NaN, 'dB', step);
+      return {
+        result: { ...splitUnit(level), note: `${fmtPlain(v['points'] ?? NaN, 7)} points${segments > 1 ? ` × ${segments}` : ''} · bin ${formatCrossingValue(v['binHz'] ?? NaN, 'Hz', significantStep(v['binHz'] ?? NaN, 4))}` },
+        rows: [{ label: 'Fundamental', value: formatCrossingValue(v['fundamentalHz'] ?? NaN, 'Hz', significantStep(v['fundamentalHz'] ?? NaN, 6)) }],
+        facts: `ENBW ${formatCrossingValue(v['enbw'] ?? NaN, null, 0.01)} bins (${formatCrossingValue(v['enbwHz'] ?? NaN, 'Hz', significantStep(v['enbwHz'] ?? NaN, 3))}) · CG ${db('cgDb', 0.01)} · scallop ${db('scallopDb', 0.01)} · sidelobe ${db('sidelobeDb', 0.1)}`,
+        summary: level,
+      };
+    }
+    case 'harmonics': {
+      const tone = spectrumUnit(units.y)?.toneUnit ?? units.y ?? '';
+      const freq = (x: number) => formatCrossingValue(x, 'Hz', significantStep(x, 6));
+      const dbc = (x: number) => formatCrossingValue(x, 'dBc', 0.1);
+      const db = (key: string) => formatCrossingValue(v[key] ?? NaN, 'dB', 0.1);
+      const count = v['count'] ?? 0;
+      const shown = Math.min(count, 9);
+      const rows: CardRow[] = [{ label: 'Fundamental', value: `${freq(v['f0'] ?? NaN)} · ${formatCrossingValue(v['f0Level'] ?? NaN, tone, units.y === 'V' ? significantStep(v['f0Level'] ?? NaN, 4) : 0.01)}` }];
+      for (let order = 2; order < 2 + shown; order++) {
+        rows.push({ label: `H${order}`, value: `${dbc(v[`h${order}`] ?? NaN)}${v[`h${order}Aliased`] ? ' · aliased' : ''}`, title: freq(v[`h${order}Hz`] ?? NaN) });
+      }
+      rows.push(
+        { label: 'THD+N', value: formatCrossingValue(v['thdn'] ?? NaN, '%', significantStep(v['thdn'] ?? NaN, 3)) },
+        { label: 'SNR', value: db('snr') }, { label: 'SINAD', value: db('sinad') },
+        { label: 'ENOB', value: formatCrossingValue(v['enob'] ?? NaN, 'bits', 0.01) },
+        { label: 'SFDR', value: `${dbc(v['sfdr'] ?? NaN)} · ${freq(v['spurHz'] ?? NaN)}` },
+        { label: 'Noise floor', value: formatCrossingValue(v['noiseFloor'] ?? NaN, units.y, 0.1), title: 'Typical noise level per bin (per Hz for a density)' },
+      );
+      const thd = formatCrossingValue(v['thd'] ?? NaN, '%', significantStep(v['thd'] ?? NaN, 3));
+      return {
+        result: { ...splitUnit(thd), note: `THD ${db('thdDb')} · H2–H${count + 1}${count > shown ? ` (first ${shown} listed)` : ''}` },
+        rows, summary: `THD ${thd}`,
+      };
+    }
+    default:
+      return { rows: Object.entries(v).map(([label, value]) => ({ label, value: fmtPlain(value) })), summary: '' };
+  }
+}
+
+export interface CrossingRowInput { paneId: string; traceName: string; value: number }
+export interface CrossingGroupView { paneId: string; rows: { id: string; traceName: string; value: string }[] }
+
+/** Crossings grouped by pane, only the value that changes formatted: y for a V line, x for an H line or a level. */
+export function describeCrossings(rows: readonly CrossingRowInput[], paneOrder: readonly string[], units: CardUnits, valueIs: 'x' | 'y', cap = 200): { groups: CrossingGroupView[]; total: number; capNote?: string } {
+  const fmt = valueIs === 'x' ? fmtX : fmtY;
+  const byPane = new Map<string, CrossingGroupView>();
+  let shown = 0;
+  rows.forEach((row, index) => {
+    if (shown >= cap) return;
+    shown += 1;
+    const group = byPane.get(row.paneId) ?? { paneId: row.paneId, rows: [] };
+    group.rows.push({ id: `${row.paneId}:${row.traceName}:${index}`, traceName: row.traceName, value: fmt(row.value, units) });
+    byPane.set(row.paneId, group);
+  });
+  const order = (id: string): number => { const i = paneOrder.indexOf(id); return i < 0 ? Number.MAX_SAFE_INTEGER : i; };
+  const groups = [...byPane.values()].sort((a, b) => order(a.paneId) - order(b.paneId));
+  return { groups, total: rows.length, ...(rows.length > cap ? { capNote: `Showing ${cap} of ${rows.length}` } : {}) };
+}
+
+/** The complete measure presentation, shared by cards and domain tests. */
+export function describeInstance(instance: AnalysisInstance, result: InstanceResult, units: CardUnits, options: { paneOrder?: readonly string[]; paneId?: string; traceName?: string; lineType?: 'v' | 'h' } = {}) {
+  if (result.reason) return { message: result.reason, numbers: null, crossings: null, valueLabel: 'X' };
+  const outputs = result.outputs ?? [];
+  const isLine = instance.toolId === 'line-crossings';
+  const isCrossings = isLine || instance.toolId === 'crossings';
+  const numbers = isCrossings ? null : describeNumbers(instance.toolId, outputs, units, instance.params);
+  const table = outputs.find(output => output.type === 'table');
+  const vertical = isLine && options.lineType === 'v';
+  const crossings = isCrossings && table?.type === 'table' && (!isLine || options.lineType)
+    ? describeCrossings(table.rows.map(row => isLine
+      ? { paneId: String(row[0]), traceName: String(row[1]), value: Number(row[2]) }
+      : { paneId: options.paneId ?? 'pane-1', traceName: options.traceName ?? '', value: Number(row[0]) }), options.paneOrder ?? [], units, vertical ? 'y' : 'x')
+    : null;
+  const message = !crossings && !numbers?.result && !numbers?.rows.length ? 'Nothing to measure on this trace.' : undefined;
+  return { message, numbers, crossings, valueLabel: vertical ? 'Y' : 'X' };
+}
+
+/** "Copy as CSV" text for a crossings list. */
+export function crossingsCsv(groups: readonly CrossingGroupView[], paneLabel: (paneId: string) => string, valueLabel: string): string {
+  const lines = [`Pane,Trace,${valueLabel}`];
+  for (const group of groups) for (const row of group.rows) lines.push([paneLabel(group.paneId), row.traceName, row.value].map(cell => /[",\n]/.test(cell) ? `"${cell.replace(/"/g, '""')}"` : cell).join(','));
+  return lines.join('\n');
+}
+
+/** Plain-text "Copy results" for a card. */
+export function resultsText(title: string, view: CardNumbersView | null): string {
+  if (!view) return title;
+  return [title, ...(view.result ? [`${view.result.value}${view.result.unit ? ` ${view.result.unit}` : ''}${view.result.note ? ` (${view.result.note})` : ''}`] : []), ...view.rows.map(row => `${row.label}: ${row.value}`)].join('\n');
+}

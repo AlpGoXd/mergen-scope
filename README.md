@@ -4,177 +4,83 @@
   <img src="mergen-scope-icon.svg" alt="Mergen Scope icon" width="72">
 </p>
 
-[![Live Demo](https://img.shields.io/badge/demo-live-brightgreen)](https://alpgoxd.github.io/mergen-scope/)
-[![License: GPL-3.0-only](https://img.shields.io/badge/License-GPL--3.0--only-blue.svg)](LICENSE)
+[![Production](https://img.shields.io/badge/production-live-brightgreen)](https://mergenscope.com/)
+[![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](LICENSE)
 
-Mergen Scope is a free, open-source, browser-based viewer for Rohde & Schwarz spectrum analyzer `.dat` files and Touchstone `.sNp` files. Visualize RF spectrum data, network measurements, and spectral analysis online with no installation required.
+Mergen Scope is a free, open-source, browser-based RF and signal analysis workspace. It opens Rohde & Schwarz spectrum analyzer `.dat` exports, generic tabular `.csv` / `.txt` data, and Touchstone `.sNp` network files, then gives you interactive plotting, trace operations, RF measurement helpers, workspace save/load, and chart/data export without installing desktop software.
 
-[**Open the viewer**](https://alpgoxd.github.io/mergen-scope/)
+[**Open the viewer**](https://mergenscope.com/) · [Load the demo](https://mergenscope.com/app.html?demo=default)
 
 ![Mergen Scope preview](mergen-scope-preview.png)
 
 ---
 
-## Features
+## What It Does
 
-- Multi-trace support: load and compare multiple measurements
-- Interactive markers: place markers, search for peaks and minima, track frequency points
-- Trace Ops panel: create derived traces without changing the raw source
-- Multi-pane view: switch between 1 and 4 stacked panes with shared X navigation
-- Offset and Scale: additive or multiplicative amplitude correction as derived traces
-- Smoothing: None, Moving Average, Median Filter, and Savitzky-Golay
-- Trace Math: `A + B`, `A - B`, `A * B`, `A / B` with overlap-only math on A's grid
-- Interpolation control for trace math: Auto, Exact only, Linear, Nearest, Previous, Next, Cubic spline
-- Trace Math warnings: short unit-aware warning notes for logarithmic and mixed-logarithmic math, with no blocking and no automatic unit conversion
-- Noise PSD panel: visualize noise power spectral density across the spectrum
-- IP3/TOI measurement tool: marker-driven intermodulation point calculation
-- Expanded analysis toolkit: peak/spur table, marker delta table, range statistics, bandwidth helper, threshold crossings, ripple/flatness, occupied bandwidth, and guarded channel power
-- Touchstone matrix picker: S/Y/Z family selection with per-cell trace generation
-- Touchstone analysis toolkit: VSWR, Return Loss, Group Delay, Reciprocity/Isolation, and 2-port stability metrics
-- Touchstone stability trace generation: create derived scalar traces for `K`, `mu1`, `mu2`, and `|delta|`
-- Zoom and pan: navigate large frequency ranges with oscilloscope-style division readout
-- Saved results: keep Noise PSD and IP3 results inside the current workspace
-- Workspace import/export: save and reopen complete sessions as portable JSON
-- Data export: download raw traces, derived traces, current Noise PSD analysis trace, and saved analysis results as JSON
-- Chart export: capture the current chart view as PNG or SVG
-- No installation required: runs in any modern browser
-- No CDN dependencies: all libraries are vendored locally and work offline
+- Opens R&S spectrum analyzer `.dat` files, generic CSV/TSV/TXT/DAT tables, and Touchstone `.s1p` through `.sNp` files.
+- Uses an import wizard for ambiguous tabular files, including delimiter, skipped rows, X/Y columns, and time/frequency domain selection.
+- Loads multiple files and multiple traces into one workspace.
+- Compares traces in up to 4 stacked panes with shared X navigation and pane-local Y scaling.
+- Keeps frequency-domain and time-domain traces separated so mixed data does not end up on the same pane by accident.
+- Adds normal markers, delta markers, peak search, next-peak search, minima search, and marker role assignment for IP3 / TOI.
+- Adds vertical and horizontal reference lines, including pane-local lines and linked lines across panes.- Builds derived traces with offset, scale, smoothing, trace math, Noise PSD, and Touchstone stability metrics.
+- Exports visible traces as CSV, complete workspaces as JSON, and chart views as PNG / SVG.
+- Runs as a local browser app with bundled runtime assets and no CDN calls from the production page.
+
+---
+
+## Analysis Tools
+
+Mergen Scope has grown from a simple file viewer into a small measurement workbench. Current analysis cards include:
+
+| Area | Tools |
+|------|-------|
+| Spectrum | Harmonics (THD, THD+N, SNR, SINAD, ENOB, SFDR), noise PSD, IP3 / TOI, occupied bandwidth, guarded channel power |
+| General trace analysis | Peak table, range statistics, 3 dB / 10 dB bandwidth, threshold crossings, ripple / flatness |
+| Time / waveform | Waveform measurements (frequency, period, Vpp, mean, RMS, 10–90 % rise / fall, overshoot, duty cycle), FFT, Resample |
+| Touchstone / network | VSWR, return loss, group delay, reciprocity / isolation, 2-port stability |
+| Touchstone derived traces | `K`, `mu1`, `mu2`, `|delta|` |
+
+Group delay is computed from complex S-parameter data using unwrapped phase and finite differences. Low-magnitude regions are masked to avoid unstable phase-derivative spikes.
+
+Channel power is intentionally gated to spectral-density units such as `dBm/Hz` or `dBW/Hz`, because integrating ordinary amplitude traces would produce misleading results.
+
+### Time traces: Waveform, FFT, Harmonics, Resample
+
+The time tools follow one rule: a tool that *creates* a trace has only the settings that change that trace, and anything that *reads values* off a trace is a separate measurement card. A typical chain is:
+
+```text
+scope capture ──Resample (if timestamps are uneven)──► FFT ──► spectrum trace ──► Harmonics, Peak table, Noise PSD, Channel power …
+```
+
+**Waveform** (time traces) reads frequency, period, Vpp, max, min, mean, RMS, 10–90 % rise and fall time, overshoot and duty cycle over the visible range or the whole trace. Top and base levels come from the histogram (IEEE 181 style), so a square wave's overshoot is measured against its settled level, not its peak. While the card is open, the chart shows dashed 10 % / 90 % levels over one rising edge and a light band over one period.
+
+**FFT** (time traces) creates a single-sided, RMS-scaled spectrum trace in a frequency pane (a new, unlinked pane if none exists) and follows the visible range of its source as you pan or zoom.
+
+| Setting | Options |
+|---|---|
+| Window | Rectangular, Hann, Hamming, Blackman, Blackman-Harris (3, 4 or 7 terms), Nuttall, Blackman-Nuttall, flat top, Kaiser (β), Gaussian (σ), Tukey (α), Dolph-Chebyshev (sidelobe level) |
+| Points | Auto (every sample in range, any length) or a power of two from 64 to 65 536 |
+| Averages | Off, 4, 16 or 64 (Welch, 50 % overlap), or Max hold |
+| Scale | dBV, V, dBm, dBmV, dBµV, and the densities dBV/Hz, V/√Hz, dBm/Hz. dBm uses the Impedance setting (default 50 Ω). |
+| Detrend | Off, DC, or linear trend, removed before the window |
+
+The card shows the fundamental and one line of window facts: ENBW, coherent gain, scalloping loss and the highest sidelobe. Tone levels sum the power over the window's main lobe and divide by ENBW, so a 1 V amplitude sine reads −3.01 dBV with every window when it sits on a bin, and within 0.1 dB between bins with the tapered windows. A density scale divides each bin by ENBW·Δf, so the noise reads the same with any window or point count. Samples whose time step varies by more than 1 % are refused ("FFT needs evenly spaced samples"); the card then offers Resample.
+
+**Harmonics** (any spectrum trace, FFT-made or from an analyzer) reads the fundamental, harmonics H2–H5, H2–H10 or all below Nyquist (aliased harmonics are folded back and marked), THD, THD+N, SNR, SINAD, ENOB, SFDR with the worst spur, and the noise floor. The tones are outlined on the spectrum. On a spectrum this app created, tone power and total noise use the FFT's window facts (IEEE 1241 definitions), so SNR, SINAD and ENOB are exact; leakage beyond the window's main lobe counts as noise, so choose a low-sidelobe window (7-term Blackman-Harris) for high dynamic range. On an analyzer trace the peak bins are the tone levels and the noise bandwidth per bin is unknown, so SNR, SINAD, ENOB and THD+N are not given.
+
+**Resample** (time traces) makes an evenly spaced copy with the same span and point count, by linear or natural cubic spline interpolation.
 
 ---
 
 ## Supported File Formats
 
-| Format | Instruments | Notes |
-|--------|-------------|-------|
-| R&S semicolon-delimited `.dat` | Rohde & Schwarz instruments | Tested |
-| Amplitude-only `.dat` | R&S instruments | Frequency reconstructed from metadata |
-| Touchstone `.s1p` to `.sNp` | RF network measurements | Supported for S/Y/Z trace workflows and Smith view |
-
----
-
-## Known Issues
-
-- Smith charts are currently a bit buggy in some workflows. They are complex to implement correctly, and improvements are planned for future updates.
-
----
-
-## Getting Started
-
-### Local Use
-
-```bash
-git clone https://github.com/AlpGoXd/mergen-scope.git
-```
-
-Open `mergen_scope.html` directly in a modern browser. No build step and no install.
-
-### GitHub Pages Deployment
-
-Push to `main`. GitHub Actions deploys automatically via `.github/workflows/deploy-pages.yml`.
-
----
-
-## Usage
-
-### Loading a File
-
-Click **Load File** and select a `.dat` or `.sNp` export. Use **Append** to add more traces.
-
-### Workspace Sessions
-
-Use **Save Workspace** to export the current session as JSON, including imported files, derived traces, pane layout, zoom state, markers, reference lines, and saved analysis results.
-
-Use **Open Workspace** to restore a previously exported session in one step.
-
-### Data and Chart Export
-
-Use **Export Data** to download the current traces as JSON, including raw traces, derived traces, the current Noise PSD analysis trace when available, and saved Noise/IP3 results.
-
-Use **PNG** or **SVG** to export the current chart view as an image.
-
-### Markers and Peak Search
-
-Click the chart to place a marker. Select a marker to make it active, then use **Peak**, **Next Peak**, **Min**, or **Next Min** to move it to signal features.
-
-### Trace Ops
-
-Open **Trace Ops** to create derived traces from existing traces:
-
-- **Offset** adds a constant value
-- **Scale** multiplies by a constant factor
-- **Smoothing** supports None, Moving Average, Median Filter, and Savitzky-Golay
-- **Trace Math** supports `A + B`, `A - B`, `A * B`, `A / B`
-
-Trace Math works over the overlapping X range only, uses A's grid, and offers interpolation control for mapping trace B onto A.
-
-Trace Math also shows short warning-only notes when logarithmic units can make the result misleading. That includes same-unit logarithmic math such as `dBm + dBm`, `dB * dB`, and mixed logarithmic-unit math such as `dB * dBm`. These notes do not block the operation and do not change the math.
-
-### Multi-Pane
-
-Use the **Pane** controls to switch between:
-
-- **1 Pane** for the current single-chart workflow
-- up to **4 stacked panes** for shared-X comparison with independent Y scaling
-
-In multi-pane mode you can:
-
-- set the active pane
-- add or remove panes
-- move the selected trace to any pane
-- drag a trace row from the sidebar and drop it onto a pane header or pane body
-- fit the current pane
-- fit all panes
-- clear one pane by moving its traces back to another pane
-
-Current first-release behavior:
-
-- X zoom and pan are shared across panes
-- Y zoom and fit are pane-local
-- marker search follows the active pane and its selected trace
-- reference lines are pane-local by default, with an optional lock mode to place linked lines across all panes
-
-### Noise PSD
-
-Open the **Noise PSD** panel, set the resolution bandwidth, and the tool computes noise power spectral density from the selected trace.
-
-### IP3 / TOI Measurement
-
-Assign marker roles (F1, F2, IM3L, IM3U) using the marker panel, then compute IP3 from the marked points.
-
-### Analysis
-
-Open **Analysis** to access pane-aware numeric tools that act on the selected trace in the active pane over the currently visible range:
-
-- **Peak / Spur Table**
-- **Marker Delta Table**
-- **Range Statistics**
-- **3 dB / 10 dB Bandwidth**
-- **Threshold Crossings**
-- **Ripple / Flatness**
-- **Occupied Bandwidth**
-- **Channel Power** with strict unit gating
-- **VSWR** (Touchstone reflection traces)
-- **Return Loss** (Touchstone reflection traces)
-- **Group Delay** (Touchstone traces)
-- **Reciprocity / Isolation** (Touchstone transmission traces)
-- **Touchstone Stability** (2-port, K / mu1 / mu2 / |delta|)
-
-Group Delay is computed from complex S-parameter data as $\tau_g(f)=-(1/(2\pi))\,d\phi/df$ using unwrapped phase from `atan2(im,re)`, frequency in Hz, central-difference derivatives for interior points, and forward/backward differences at the edges. Very low-magnitude regions are masked to avoid unstable phase-derivative spikes.
-
-### Touchstone Stability Analysis
-
-For 2-port Touchstone traces, the **Touchstone Stability** card computes stability metrics over the visible range and can generate scalar traces for:
-
-- `K`
-- `mu1`
-- `mu2`
-- `|delta|`
-
-The card summarizes min/max ranges, center-point values, and whether visible points satisfy unconditional stability checks (`K > 1` and `|delta| < 1`).
-
----
-
-## Supported File Shape
+| Format | Notes |
+|--------|-------|
+| R&S semicolon-delimited `.dat` | Primary tested spectrum analyzer export path |
+| Amplitude-only `.dat` | Frequency axis can be reconstructed from Start/Stop metadata |
+| Generic `.csv`, `.txt`, `.dat` tables | Import wizard supports comma, semicolon, and tab-delimited files |
+| Touchstone `.s1p` to `.sNp` | S/Y/Z trace workflows, Smith chart view, and network analysis |
 
 Typical R&S semicolon-delimited export:
 
@@ -195,138 +101,203 @@ Detector;RMS
 
 ---
 
+## Usage
+
+### Load Data
+
+Open the viewer, then drag a supported data file onto the chart area or use **Import / Export -> Import Data Files**. Ambiguous tabular files open the import wizard so you can confirm the delimiter, header rows, X column, Y columns, multipliers, and domain.
+
+### Work With Traces
+
+Use the sidebar to show, hide, select, and move traces. Drag traces between pane headers or pane bodies to compare them in different panes. The app keeps panes domain-compatible, so a time waveform and an RF spectrum will be split instead of overlaid.
+
+### Markers And Reference Lines
+
+Use marker tools to place normal or delta markers, snap to peaks/minima, and select the marker trace. Use line tools to add vertical or horizontal reference lines. Reference lines can stay pane-local or be locked across panes.
+
+### Trace Ops
+
+Open **Trace Ops** to create derived traces:
+
+- **Offset** adds a constant value.
+- **Scale** multiplies by a constant factor.
+- **Smoothing** supports moving average, median filter, and Savitzky-Golay.
+- **Trace Math** supports `A + B`, `A - B`, `A * B`, and `A / B`.
+
+Trace Math operates over the overlapping X range, uses trace A's grid, and offers interpolation modes: Auto, Exact only, Linear, Nearest, Previous, Next, and Cubic spline. Logarithmic-unit warnings are shown as notes; the app does not silently convert or reinterpret units.
+
+### Save And Export
+
+Use **Save Workspace** to export a portable JSON session containing imported files, traces, pane layout, zoom state, markers, reference lines, and saved analysis results.
+
+Use **Load Workspace** to restore a saved session. Use **Export Visible CSV** for the traces currently visible in the workspace. Use **PNG** or **SVG** to capture the current chart.
+
+---
+
+## Local Development
+
+```bash
+git clone https://github.com/AlpGoXd/mergen-scope.git
+cd mergen-scope
+npm install
+npm run dev
+```
+
+Then open `http://localhost:5173/` in your browser.
+
+Useful scripts:
+
+```bash
+npm run typecheck
+npm run test:unit
+npm run test:e2e
+npm run test:static
+npm run build
+```
+
+`npm run build` writes the production bundle to `dist/`.
+
+---
+
+## Deployment
+
+Production URL: <https://mergenscope.com>
+
+Legacy GitHub Pages URL: <https://alpgoxd.github.io/mergen-scope/>
+
+Cloudflare Workers / Pages settings:
+
+- Build command: `npm run build:cloudflare`
+- Deploy command: `npx wrangler deploy`
+
+GitHub Pages deployment is also wired through `.github/workflows/deploy-pages.yml` for the legacy project URL.
+
+---
+
 ## Architecture
 
-No build step. The app still runs directly in the browser from GitHub Pages using local vendored runtime files under `vendor/`.
+### Tech Stack
 
-`mergen_scope.html` is now a thin loader/bootstrap file. It mainly defines the document shell, loads the vendored browser runtime plus local `app-modules/*.js` files in order, and mounts `window.AppController.AppRoot` directly.
+| Layer | Technology |
+|-------|------------|
+| Framework | React 19 |
+| Language | TypeScript 6, strict mode |
+| Build | Vite 7 + vite-plugin-singlefile |
+| Charts | Recharts 2 |
+| State | React context + reducer stores |
+| Tests | Vitest, Testing Library, Playwright |
+| Deployment | Cloudflare static assets plus legacy GitHub Pages |
 
-The app runtime is split across browser-global modules under `app-modules/`:
+### Entry Points
 
-- `app-modules/app-hooks.js` for extracted React hooks plus helper wiring used by the controller
-- `app-modules/app-shell-components.js` for shell UI pieces such as buttons, trace rows, marker/ref-line cards, top bar, and footer components
-- `app-modules/app-analysis-components.js` for the analysis card/component stack used by the right-side analysis panel
-- `app-modules/app-chart-components.js` for the empty-chart state and chart workspace rendering components
-- `app-modules/app-controller.js` for app orchestration, derived view-model composition, and the browser-mounted `AppRoot`
+- `index.html` - static landing page.
+- `app.html` - React SPA shell that mounts `<div id="root">`.
+- `src/main.tsx` - React bootstrap and store provider setup.
 
-The split keeps the no-build architecture intact while moving the high-churn app code out of the HTML entrypoint. The current rules are:
+### Source Layout
 
-- keep direct file-open support
-- keep GitHub Pages compatibility
-- keep local plain scripts attached to `window`
-- keep the browser-global module boundary stable
+```text
+src/
+  components/
+    analysis/      Spectrum, shared, and Touchstone analysis cards
+    chart/         Cartesian panes, Smith chart, pane settings
+    layout/        Top bar, toolbar strip, sidebars, status/footer bars
+    panels/        Import/export and data table panels
+    sidebar/       Trace, marker, reference-line, and Touchstone controls
+    wizard/        Tabular import wizard
+  demo/            Demo workspace loader
+  domain/
+    analysis/      Pure measurement functions and registry
+    parsers/       R&S DAT, Touchstone, tabular, and format classifier
+    trace-ops.ts   Derived trace creation, smoothing, and binary math
+    trace-math.ts  Interpolation and point math
+    ref-lines.ts   Reference-line intersections and linked-line logic
+    workspace-*    JSON save/load and migrations
+  hooks/           UI/domain bridge hooks
+  stores/          Context-backed reducer stores
+  types/           Shared TypeScript contracts
+```
 
-Current helper split:
+### State Model
 
-- `app-modules/trace-helpers.js` for chart/window helpers
-- `app-modules/trace-model.js` for trace identity, units, and axis-label helpers
-- `app-modules/trace-ops-helpers.js` for smoothing, interpolation, and trace-math helpers
-- `app-modules/analysis-helpers.js` for Noise PSD, IP3 math, and saved-result shaping helpers
-- `app-modules/analysis-target-helpers.js` for pane-aware analysis registry, target resolution, and unit gating
-- `app-modules/range-analysis-helpers.js` for range stats, crossings, bandwidth, OBW, and channel-power math
-- `app-modules/file-store-helpers.js` for trace normalization, dedupe, and file-signature helpers
-- `app-modules/parser-helpers.js` for nearest-point lookup and R&S `.dat` parsing helpers
-- `app-modules/marker-helpers.js` for IP3 marker-role helpers and peak/min search math
-- `app-modules/derived-state-helpers.js` for derived-trace dependency cleanup helpers
-- `app-modules/ui-helpers.js` for formatting, theme colors, metric rows, and saved-result item components
-- `app-modules/pane-helpers.js` for pane ownership, per-pane trace filtering, and pane Y-domain helpers
-- `app-modules/workspace-helpers.js` for workspace snapshot normalization, demo preset restoration, and session import/export payload helpers
-- `app-modules/export-helpers.js` for chart export rendering and trace/data export package helpers
-- `app-modules/app-hooks.js` for extracted React hook blocks plus helper wiring previously living in `mergen_scope.html`
-- `app-modules/app-shell-components.js` for shell UI pieces such as buttons, trace rows, marker/ref-line cards, top bar, and footer components
-- `app-modules/app-analysis-components.js` for the analysis card/component stack used by the right-side analysis panel
-- `app-modules/app-chart-components.js` for the empty-chart state and chart workspace rendering components
-- `app-modules/app-controller.js` for app orchestration, root composition, and the browser-mounted `AppRoot`
+Stores are composed in `StoreRoot.tsx`:
 
-The app now has a practical raw-vs-derived trace model:
+```text
+UiStore -> AnalysisStore -> MarkerStore -> RefLineStore
+        -> FileStore -> TraceStore -> PaneStore -> <App />
+```
 
-- imported files create immutable raw traces
-- Trace Ops creates derived traces
-- derived traces keep source-trace references plus operation metadata
-- current derived operations include offset, scale, smoothing, and trace math
+There is no global singleton. Each store is a provider, and components subscribe only to the slices they need.
 
-Current multi-pane model:
+### Parser Pipeline
 
-- 1 to 4 stacked panes
-- shared or pane-local X navigation depending on the `Zoom All` toggle
-- independent Y scaling per pane
-- pane-local active trace
-- pane-local reference lines by default, with optional linked lock mode
-- marker and analysis actions act on the selected trace in the active pane
+```text
+file drop / open
+  -> parse-file.ts      format detection by filename and content heuristics
+      -> rs-dat.ts      R&S semicolon-delimited .dat
+      -> touchstone.ts  .s1p-.sNp network data
+      -> tabular.ts     CSV/TSV/TXT/DAT column data
+          -> ImportWizardModal when confidence is low or user import is explicit
+```
 
-Current sync philosophy:
+### Workspace Versioning
 
-- no permanent synchronized pane cursor line
-- no always-on shared vertical guide line
-- future pane synchronization should prefer marker-linked sync or hover-linked readout sync when needed, not a forced global cursor
+Saved sessions are v4 JSON snapshots. `workspace-migrate-v4.ts` upgrades older snapshots on load. The current format includes imported files, raw traces, derived traces, pane layout, zoom state, marker state, reference lines, and saved analysis results.
+
+---
+
+## Current Limitations
+
+- R&S `.dat` exports are the best-tested instrument path.
+- Generic tabular files depend on the import wizard configuration and may need manual column selection.
+- Multi-pane is limited to 1 to 4 stacked panes.
+- Touchstone stability metrics are currently 2-port only.
+- Smith chart workflows still need more real-world test coverage.
+- Large trace files can still stress the browser charting layer. FFT, Waveform and Harmonics run on the main thread; FFT of million-point captures with Range: Visible recomputes while panning.
+- PWA/offline install support is not implemented yet.
 
 ---
 
 ## Roadmap
 
-Current status:
+Completed:
 
-- Phase 3 is complete
-- Phase 4 is complete
-- Touchstone import support is complete
-- Touchstone measurement tools are in active expansion
+- TypeScript + Vite migration.
+- Multi-pane workspace.
+- Import/export and portable workspaces.
+- Expanded RF analysis cards.
+- Touchstone import and network analysis.
+- CSV/tabular import wizard.
+- Unit, static, and e2e test scaffolding.
 
-Roadmap in order:
+Next:
 
-1. First usable multi-pane release
-   Status: completed
-2. Expanded analysis toolkit
-   Status: completed
-3. Export and session portability
-   Status: completed
-   Implemented: workspace/session JSON export and import, trace/data export, saved analysis export, and chart PNG/SVG export
-4. Touchstone import support
-   Status: completed
-5. Touchstone measurement tools
-   Status: in progress
-   Implemented: Touchstone stability (K, mu1, mu2, |delta|) plus VSWR, Return Loss, Group Delay, and Reciprocity/Isolation cards
-6. Performance and scaling pass
-7. Oscilloscope waveform support
-
-Not planned right now:
-
-- a permanent synchronized pane cursor
-- an always-on shared pane guide line
-
----
-
-## Known Limitations
-
-- Only tested with R&S `.dat` exports. Other formats may need parser adjustments
-- Multi-pane is currently limited to 1 to 4 stacked panes
-- Touchstone stability in v1 is 2-port only
-- Oscilloscope waveform support is intentionally deferred to a later format-expansion phase
-- Pane synchronization does not use a permanent shared cursor line
-- Channel power is intentionally gated unless the trace unit is explicit spectral power density such as dBm/Hz or dBW/Hz
-- No PWA / offline install support
-- Large trace files (>10k points) may affect chart performance
+1. Performance pass for larger traces.
+2. More oscilloscope/waveform import coverage.
+3. More Touchstone edge-case validation.
+4. Smith chart polish.
+5. Better public examples and screenshots.
+6. Spectrogram (STFT) pane built on the FFT, and FFT in a web worker for very long captures.
 
 ---
 
 ## Why I Built This
 
-I'm an EE engineer. Like most of us, I don't have time to go deep into React or the rest of the web stack. That's not what I do. But when I went looking for something simple to visualize spectrum analyzer exports and other waveform files in the browser, I couldn't find anything that fit. So I vibecoded this into existence.
+I'm an EE engineer. I wanted a practical way to inspect spectrum analyzer exports, Touchstone files, and simple instrument tables directly in the browser. The early version was a tiny viewer; the current version is closer to a lightweight RF/signal analysis workspace.
 
-Right now it's only been tested with Rohde & Schwarz `.dat` files, but the goal is to eventually open any type of waveform or instrument export file, online, with no software to install.
-
-Feel free to open issues, suggest changes, and help make this tool better. The aim is to keep it as dependency-free as possible and useful for day-to-day measurement work.
+The goal is still the same: open real measurement files quickly, avoid heavy desktop setup, and keep the tool understandable enough that other engineers can improve it.
 
 ---
 
 ## Contributing
 
-Open an issue or submit a pull request. When testing changes, verify against the regression checklist in the HTML comment at the top of `mergen_scope.html`.
+Open an issue or submit a pull request. Please run `npm run build` before submitting larger changes, and include focused tests when touching parsers, trace math, workspace serialization, or analysis functions.
 
 ---
 
 ## License
 
-GNU GPL-3.0-only. See [LICENSE](LICENSE).
+Apache-2.0. See [LICENSE](LICENSE).
 
 ---
 
