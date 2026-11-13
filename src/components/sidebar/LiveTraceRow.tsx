@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import type { Trace } from '../../types/trace';
 import type { PaneRenderMode } from '../../types/pane';
 import { TraceRow as KitTrace } from '../left-panel/Rows';
-import { Popover, PopoverAt } from '../shared/Controls';
+import { Popover } from '../shared/Controls';
 import { Menu as KitMenu } from '../left-panel/Menu';
 import { TraceSymbol } from '../shared/TraceSymbol';
 import { useTraceSymbols } from '../../hooks/use-trace-symbols';
@@ -26,7 +26,6 @@ export function TraceRow(props: {
   onSelect: () => void;
   onRemove: () => void;
   onRename: (name: string) => void;
-  canResetName: boolean;
   onToggle: () => void;
   onColorChange: (color: string) => void;
   interpolation: InterpolationStrategy;
@@ -36,9 +35,8 @@ export function TraceRow(props: {
   compact?: boolean;
   removeLabel: string;
 }) {
-  const { trace, displayName, subtitle, isVisible, isSelected, paneIds, panes, onTogglePane, onNewPane, newPaneDisabledReason, traceColor, onSelect, onRemove, onRename, canResetName, onToggle, onColorChange, interpolation, sincDisabledReason, onInterpolationChange, onApplyInterpolation, removeLabel } = props;
+  const { trace, displayName, subtitle, isVisible, isSelected, paneIds, panes, onTogglePane, onNewPane, newPaneDisabledReason, traceColor, onSelect, onRemove, onRename, onToggle, onColorChange, interpolation, sincDisabledReason, onInterpolationChange, onApplyInterpolation, removeLabel } = props;
   const [editing, setEditing] = useState(false);
-  const [menu, setMenu] = useState<HTMLElement | null>(null);
   useEffect(() => { const start = () => { if (isSelected) setEditing(true); }; window.addEventListener('mergen-rename-trace', start); return () => window.removeEventListener('mergen-rename-trace', start); }, [isSelected]);
   const symbol = useTraceSymbols()(trace.id);
   const { allKnownTraces } = useTraceState();
@@ -60,8 +58,6 @@ export function TraceRow(props: {
   const panesControl = <span className="lp-pane-trigger" style={{ width: Math.max(20, paneIds.length * 19 - 3) }} title="Show in panes" onClick={event => event.stopPropagation()}><Popover label={paneLabels.length ? paneLabels.map(item => item.label).join(' ') : '—'}><KitMenu label="Show in" title="Show in" style={{ width: 220 }} checklist entries={[...panes.map(pane => ({ id: pane.id, label: `${pane.title} · ${{ cartesian: 'Chart', smith: 'Smith', 'smith-inverted': 'Smith', table: 'Table' }[pane.type]}`, note: pane.disabledReason, checked: paneIds.includes(pane.id), disabledReason: pane.disabledReason, noteBelow: true, onSelect: () => onTogglePane(pane.id) })), { id: 'new-pane', label: 'New pane', command: true, disabledReason: newPaneDisabledReason, onSelect: onNewPane }]} /></Popover><span className="lp-pane-trigger__face" aria-hidden="true">{paneLabels.length ? paneLabels.map(item => <span className="lp-pane" key={item.id}>{item.label}</span>) : <span className="lp-pane lp-pane--none">&#8212;</span>}</span></span>;
   return <div data-testid={`trace-row-${trace.name}`} tabIndex={0} onKeyDown={event => { if (event.key === 'F2' && !editing) { event.preventDefault(); event.stopPropagation(); setEditing(true); } }} draggable={!editing} onDragStart={event => { event.dataTransfer.setData('application/x-mergen-trace', trace.name); event.dataTransfer.setData('text/plain', trace.name); event.dataTransfer.effectAllowed = 'move'; }} title={removeLabel}>
     <KitTrace hue={270} color={traceColor} name={displayName} subline={subtitle} interp={labels[interpolation] as 'Auto' | 'Exact' | 'Lin' | 'Near' | 'Prev' | 'Next' | 'Cub' | 'Sinc'} panes={paneLabels.map(item => item.label)} visible={isVisible} selected={isSelected} created={trace.kind === 'derived'} child={trace.kind === 'derived'} onVisible={onToggle} onSelect={onSelect} onInterp={() => {}} onPanes={() => {}} onRename={() => setEditing(true)} editingName={editing} onCommitName={value => { setEditing(false); onRename(value); }} onCancelName={() => setEditing(false)} onRemove={onRemove} interpControl={interpControl} panesControl={panesControl}
-      actionsControl={<button type="button" className="lp-icon-btn" aria-label={`Trace menu: ${displayName}`} onClick={event => { event.stopPropagation(); setMenu(event.currentTarget); }}>⋯</button>}
       swatch={<span className={`lp-swatch lp-color-control${symbol !== null ? ' lp-swatch--symbol' : ''}`} style={symbol === null ? { background: isVisible ? traceColor : 'transparent', border: isVisible ? undefined : `1.5px solid ${traceColor}` } : undefined}>{symbol !== null && <svg width="16" height="12" viewBox="-8 -6 16 12" style={{ overflow: 'visible' }}><line x1="-8" y1="0" x2="8" y2="0" stroke={traceColor} strokeWidth={assignment ? traceWidth(assignment) : 1.5} opacity={isVisible ? 1 : 0.4} /><TraceSymbol kind={symbol} color={traceColor} background="var(--panel)" /></svg>}<input type="color" value={traceColor} title="Trace color" onClick={event => event.stopPropagation()} onChange={event => onColorChange(event.target.value)} /></span>} />
-    {menu && <PopoverAt label="Trace actions" at={menu} onClose={() => setMenu(null)}><KitMenu label="Trace actions" entries={[{ label: 'Rename', onSelect: () => { setMenu(null); setEditing(true); } }, ...(canResetName ? [{ label: 'Reset name', onSelect: () => { setMenu(null); onRename(''); } }] : [])]} /></PopoverAt>}
   </div>;
 }

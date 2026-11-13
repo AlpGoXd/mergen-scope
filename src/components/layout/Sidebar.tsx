@@ -413,7 +413,6 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
                   }}
                   traceColor={traceColor}
                   onSelect={() => selectTrace(trace.name)}
-                  canResetName={trace.dn !== automaticName}
                   onRename={(value) => {
                     const label = value.trim() || automaticName;
                     if (label === trace.dn) return;

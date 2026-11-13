@@ -45,8 +45,9 @@ test('derived trace rename is undoable and keeps its identity', async ({ page })
   const initial = page.locator('[data-testid^="trace-row-"]').filter({ has: page.locator('.lp-trace__fx') }).first();
   const id = await initial.getAttribute('data-testid');
   const row = page.getByTestId(id!);
-  await row.getByRole('button', { name: /^Trace menu: / }).click();
-  await page.getByRole('menuitem', { name: 'Rename', exact: true }).click();
+  await expect(row.getByRole('button', { name: /^Trace menu: / })).toHaveCount(0);
+  await row.locator('.lp-name').click();
+  if (!(await row.getByTestId('trace-name-input').isVisible())) await row.locator('.lp-name').click();
   await row.getByTestId('trace-name-input').fill('Custom derived');
   await row.getByTestId('trace-name-input').press('Enter');
   await expect(row.locator('.lp-name')).toHaveText('Custom derived');

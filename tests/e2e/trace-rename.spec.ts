@@ -8,9 +8,9 @@ test('trace names edit in place and reset', async ({ page }) => {
   const row = page.locator('[data-testid^="trace-row-"]').first();
   const name = row.locator('.lp-name');
   const original = await name.innerText();
-  await row.getByRole('button', { name: /^Trace menu: / }).click();
-  await expect(page.getByRole('menuitem', { name: 'Reset name' })).toHaveCount(0);
-  await page.getByRole('menuitem', { name: 'Rename', exact: true }).click();
+  await name.click();
+  if (!(await row.getByTestId('trace-name-input').isVisible())) await name.click();
+  await expect(row.locator('.lp-name__pencil')).toHaveCount(0);
   await row.getByTestId('trace-name-input').fill('Discard');
   await page.keyboard.press('Escape');
   await expect(name).toHaveText(original);
@@ -26,8 +26,7 @@ test('trace names edit in place and reset', async ({ page }) => {
   await row.click(); await page.locator('body').focus(); await page.keyboard.press('F2');
   await expect(row.getByTestId('trace-name-input')).toBeVisible();
   await page.keyboard.press('Escape');
-  await row.getByRole('button', { name: /^Trace menu: / }).click();
-  await page.getByRole('menuitem', { name: 'Reset name' }).click();
+  await name.click(); await row.getByTestId('trace-name-input').fill(''); await page.keyboard.press('Enter');
   await expect(name).toHaveText(original);
   await page.keyboard.press('Control+z'); await expect(name).toHaveText('Custom trace');
   await name.dblclick(); await row.getByTestId('trace-name-input').fill('   '); await page.keyboard.press('Enter');

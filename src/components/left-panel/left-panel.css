@@ -108,6 +108,12 @@
 }
 .lp-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lp-name.is-strong { font-weight: 600; }
+.lp-name--editable { flex: 0 1 auto; margin-right: auto; display: inline-flex; align-items: center; gap: 3px; cursor: text; }
+.lp-name__text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 3px; margin-left: -4px; border: 1px dashed transparent; border-radius: 3px; }
+.lp-name--editable:hover .lp-name__text { border-color: var(--border-strong); background: var(--raised); }
+.lp-name__pencil { flex: none; color: var(--text-muted); opacity: 0.55; }
+.lp-name--editable:hover .lp-name__pencil { opacity: 1; color: var(--text); }
+.lp-trace input.lp-name { padding: 0 3px; margin-left: -4px; border: 1px solid var(--accent); border-radius: 3px; background: var(--panel); color: var(--text); outline: none; }
 .lp-mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 .lp-pane {
   flex: none; height: 15px; display: inline-flex; align-items: center; padding: 0 4px; border-radius: 3px;
