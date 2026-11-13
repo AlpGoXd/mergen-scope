@@ -22,19 +22,16 @@ const stringMap = (v: unknown): boolean => object(v) && Object.values(v).every(x
 const boolMap = (v: unknown): boolean => object(v) && Object.values(v).every(x => typeof x === 'boolean');
 const strings = (v: unknown): v is string[] => Array.isArray(v) && v.every(x => typeof x === 'string');
 /**
- * Table pane settings (rows, range, follow). A Follow that no longer points at another non-table pane
- * becomes null ("Own traces") instead of refusing the file; unknown rows or range values refuse it.
+ * Table pane settings keep only `range`. Saves from the first Table build may also carry `rows` and `follow`;
+ * those are dropped (a table now always shows every point of its own traces). An unknown range refuses the file.
  */
-function withTableFollow<P>(panes: readonly P[]): P[] {
-  const modes = new Map(panes.flatMap(pane => object(pane) ? [[pane.id, pane.renderMode] as const] : []));
+function withTableRange<P>(panes: readonly P[]): P[] {
   return panes.map(pane => {
     if (!object(pane) || !object(pane.settings) || !object(pane.settings.table)) return pane;
-    const follow = pane.settings.table.follow;
-    const valid = typeof follow === 'string' && follow !== pane.id && modes.has(follow) && modes.get(follow) !== 'table';
-    return { ...pane, settings: { ...pane.settings, table: { ...pane.settings.table, follow: valid ? follow : null } } } as P;
+    return { ...pane, settings: { ...pane.settings, table: { range: pane.settings.table.range } } } as P;
   });
 }
-const validTable = (v: unknown): boolean => v === undefined || (object(v) && (v.rows === 'near' || v.rows === 'all') && (v.range === 'all' || v.range === 'visible') && (v.follow === null || typeof v.follow === 'string'));
+const validTable = (v: unknown): boolean => v === undefined || (object(v) && (v.range === 'all' || v.range === 'visible'));
 function hueSlots(value: unknown): Record<string, TraceColorAssignment> | undefined | null {
   if (value === undefined) return undefined;
   if (!object(value)) return null;
@@ -391,7 +388,7 @@ function migrateWorkspaceV5Body(raw: unknown): WorkspaceSnapshotV5 | null {
       : rawLayout;
     const paneOrder = Array.isArray(body.panes) ? body.panes.flatMap(pane => object(pane) && typeof pane.id === 'string' ? [pane.id] : []) : [];
     const refLines = migrateLines(body.refLines, paneOrder);
-    const panes = Array.isArray(body.panes) ? withTableFollow(body.panes).map(pane => {
+    const panes = Array.isArray(body.panes) ? withTableRange(body.panes).map(pane => {
       if (!object(pane) || !object(pane.settings) || !object(pane.settings.smith)) return pane;
       const smith = pane.settings.smith;
       const labels = smith.labels === true || smith.labels === undefined ? 'normalised' : smith.labels === false ? 'off' : smith.labels;
@@ -453,7 +450,7 @@ function migrateWorkspaceV5Body(raw: unknown): WorkspaceSnapshotV5 | null {
     const ids = sourcePanes.map(p => object(p) ? p.id : undefined);
     if (new Set(ids).size !== ids.length) return null;
     const ui = object(body.ui) ? body.ui : {};
-    const panes: WorkspacePaneV5[] = withTableFollow(sourcePanes.map((value): WorkspacePaneV5 => {
+    const panes: WorkspacePaneV5[] = withTableRange(sourcePanes.map((value): WorkspacePaneV5 => {
       const p = value as Record<string, unknown>;
       const s = object(p.settings) ? p.settings : {};
       const smith = object(s.smith) ? s.smith : {};
@@ -484,7 +481,7 @@ function migrateWorkspaceV5Body(raw: unknown): WorkspaceSnapshotV5 | null {
             direction: smith.direction === 'ends' || smith.direction === 'off' ? smith.direction : 'chevrons',
             readout: p.renderMode === 'smith-inverted' ? ['y', ...readout.filter(field => field !== 'y')] : readout,
           },
-          ...(object(s.table) ? { table: { rows: s.table.rows === 'all' ? 'all' as const : 'near' as const, range: s.table.range === 'visible' ? 'visible' as const : 'all' as const, follow: typeof s.table.follow === 'string' ? s.table.follow : null } } : {}),
+          ...(object(s.table) ? { table: { range: s.table.range === 'visible' ? 'visible' as const : 'all' as const } } : {}),
         },
       };
     }));

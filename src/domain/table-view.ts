@@ -5,17 +5,8 @@ import { defaultTableSettings } from '../types/pane';
 import type { XRange } from './table-rows';
 
 export function tableSettingsOf(pane: Pick<Pane, 'settings'> | undefined): TableSettings {
-  return { ...defaultTableSettings(), ...pane?.settings.table };
-}
-
-/** A pane a table can follow: any other pane that is not itself a table. */
-export function tableFollowChoices(panes: readonly Pick<Pane, 'id' | 'renderMode'>[], paneId: string): string[] {
-  return panes.filter(pane => pane.id !== paneId && pane.renderMode !== 'table').map(pane => pane.id);
-}
-
-/** The pane the table follows, or null for Own traces (also when the saved target was closed or became a table). */
-export function tableFollowedPane(panes: readonly Pick<Pane, 'id' | 'renderMode'>[], paneId: string, follow: string | null): string | null {
-  return follow !== null && tableFollowChoices(panes, paneId).includes(follow) ? follow : null;
+  // Only known keys: older saves may still carry `rows` or `follow`.
+  return { range: pane?.settings.table?.range === 'visible' ? 'visible' : defaultTableSettings().range };
 }
 
 /** X column heading: "Frequency", "Time", or "X" for anything else. */
@@ -29,28 +20,26 @@ export type TableVisibleRange =
   | { readonly available: true; readonly window: XRange | null }
   | { readonly available: false; readonly reason: string };
 
-export const VISIBLE_RANGE_REASON = 'Needs Follow or a linked pane';
+export const VISIBLE_RANGE_REASON = 'Needs a linked chart with the same X unit';
 
 /**
- * Range = Visible is offered only while the table follows a pane or is X-linked to a chart pane.
- * The window is that pane's X zoom (a linked pane holds its group's zoom); null when it is not zoomed (every row is visible).
+ * Range = Visible is offered only while the table is X-linked to a chart pane with the same X unit (its link group).
+ * The window is that pane's X zoom (every pane of a group holds the same zoom); null when it is not zoomed (every row is visible).
  */
 export function tableVisibleRange(input: {
-  readonly followedPaneId: string | null;
   /** A chart pane in the table's X link group (tableLinkedToChart), or null. */
   readonly linkedPaneId: string | null;
   readonly paneXZooms: Readonly<Record<string, ZoomWindow>>;
 }): TableVisibleRange {
   const toRange = (zoom: ZoomWindow | null | undefined): XRange | null =>
     zoom && Number.isFinite(zoom.left) && Number.isFinite(zoom.right) && zoom.right > zoom.left ? { min: zoom.left, max: zoom.right } : null;
-  if (input.followedPaneId) return { available: true, window: toRange(input.paneXZooms[input.followedPaneId]) };
   if (input.linkedPaneId) return { available: true, window: toRange(input.paneXZooms[input.linkedPaneId]) };
   return { available: false, reason: VISIBLE_RANGE_REASON };
 }
 
 /**
  * The chart pane a table is X-linked to: one in the same X link group showing the table's X unit, else null.
- * Tables never join a link group today (normalizeXLinks drops them), so this is null; Follow gives Range = Visible.
+ * Tables join a group with their header's link chip, like charts.
  */
 export function tableLinkedToChart(input: {
   readonly paneId: string;

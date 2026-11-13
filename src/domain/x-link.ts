@@ -18,10 +18,9 @@ export interface LinkPane {
 export type PaneXUnits = Readonly<Record<string, string | null>>;
 export type LinkCheck = { readonly ok: true } | { readonly ok: false; readonly reason: string };
 
-/** A pane's X unit: the one known unit all its traces share. Tables never link. */
+/** A pane's X unit: the one known unit all its traces share (charts, Smith and tables alike). */
 export function paneXUnits(panes: readonly LinkPane[], traces: readonly Trace[], memberships: Readonly<Record<string, readonly string[]>>): Record<string, string | null> {
   return Object.fromEntries(panes.map(pane => {
-    if (pane.renderMode === 'table') return [pane.id, null];
     let unit: string | null = null;
     for (const trace of traces) {
       if (!(memberships[trace.name] ?? []).includes(pane.id)) continue;
@@ -53,7 +52,6 @@ export function canLinkX(panes: readonly LinkPane[], units: PaneXUnits, paneId: 
   const other = panes.find(item => item.id === otherId);
   if (!pane || !other || pane.id === other.id) return { ok: false, reason: 'Pick another pane' };
   const name = paneName(panes, other.id);
-  if (other.renderMode === 'table') return { ok: false, reason: `${name} is a table` };
   const unit = units[pane.id] ?? null;
   const otherUnit = units[other.id] ?? null;
   if (unit === null) return { ok: false, reason: `${paneName(panes, pane.id)} has no X unit yet` };
@@ -100,7 +98,7 @@ export function normalizeXLinks<T extends LinkPane>(panes: readonly T[], units?:
     }
     const leaving = new Set(next.filter(pane => {
       const unit = units[pane.id] ?? null;
-      return pane.xLinkGroup && (pane.renderMode === 'table' || (unit !== null && unit !== groupUnit.get(pane.xLinkGroup)));
+      return pane.xLinkGroup && unit !== null && unit !== groupUnit.get(pane.xLinkGroup);
     }).map(pane => pane.id));
     if (leaving.size) next = withGroup(next, leaving, null);
   }
@@ -148,19 +146,20 @@ export function linkMenuRows(panes: readonly LinkPane[], units: PaneXUnits, pane
 
 /**
  * Workspaces saved before 11 Nov linked every pane automatically (`zoomAll`). Each set of two or more panes
- * with the same X unit becomes one group. Every pane shows the old shared zoom, as it did then.
+ * with the same X unit becomes one group (a Table then was linked to any chart of its unit). Every pane shows the
+ * old shared zoom, as it did then.
  */
 export function autoLinkByUnit<T extends LinkPane>(panes: readonly T[], units: PaneXUnits, sharedZoom: ZoomWindow | null): { readonly panes: T[]; readonly paneXZooms: Record<string, ZoomWindow> } {
   const byUnit = new Map<string, string[]>();
   for (const pane of panes) {
-    const unit = pane.renderMode === 'table' ? null : units[pane.id] ?? null;
+    const unit = units[pane.id] ?? null;
     if (unit !== null) byUnit.set(unit, [...(byUnit.get(unit) ?? []), pane.id]);
   }
   let next = panes.map(pane => (pane.xLinkGroup ?? null) === null ? pane : { ...pane, xLinkGroup: null });
   for (const ids of byUnit.values()) if (ids.length >= 2) next = withGroup(next, new Set(ids), newLinkGroupId(next));
   // With zoomAll on, the shared window replaced every pane's own zoom.
   const zooms: Record<string, ZoomWindow> = {};
-  if (sharedZoom) for (const pane of panes) if (pane.renderMode !== 'table') zooms[pane.id] = { ...sharedZoom };
+  if (sharedZoom) for (const pane of panes) zooms[pane.id] = { ...sharedZoom };
   return { panes: next, paneXZooms: zooms };
 }
 

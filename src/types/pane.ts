@@ -21,16 +21,12 @@ export interface SmithSettings {
 
 /** Table pane settings (table kit, P2). */
 export interface TableSettings {
-  /** 'near' = Near cursor (default), 'all' = Every point. */
-  readonly rows: 'near' | 'all';
-  /** 'all' (default) or 'visible': the followed or linked pane's visible X range. */
+  /** 'all' (default) or 'visible': the linked pane's visible X range. */
   readonly range: 'all' | 'visible';
-  /** Id of the pane whose traces, cursor and visible range the table follows; null = Own traces. */
-  readonly follow: string | null;
 }
 
 export function defaultTableSettings(): TableSettings {
-  return { rows: 'near', range: 'all', follow: null };
+  return { range: 'all' };
 }
 
 // ---------------------------------------------------------------------------

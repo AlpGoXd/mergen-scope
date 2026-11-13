@@ -53,7 +53,7 @@ describe('X link groups', () => {
     expect(canLinkX(five, units, 'p1', 'p3')).toEqual({ ok: false, reason: 'Pane 3 shows time (s)' });
     expect(linkXPanes(five, units, 'p1', 'p3')).toEqual({ ok: false, reason: 'Pane 3 shows time (s)' });
     expect(canLinkX(five, units, 'p1', 'p5')).toEqual({ ok: false, reason: 'Pane 5 has no data yet' });
-    expect(canLinkX([...five, pane('p6', null, 'table')], { ...units, p6: null }, 'p1', 'p6')).toEqual({ ok: false, reason: 'Pane 6 is a table' });
+    expect(canLinkX([...five, pane('p6', null, 'table')], { ...units, p6: 'Hz' }, 'p1', 'p6')).toEqual({ ok: true });
     expect(canLinkX(five, { ...units, p1: 'V' }, 'p1', 'p2')).toEqual({ ok: false, reason: 'Pane 2 shows frequency (Hz)' });
   });
 
@@ -90,7 +90,7 @@ describe('X link groups', () => {
     const hz = makeTestTrace({ name: 'a', units: { x: 'hz', y: 'dBm' } });
     const time = makeTestTrace({ name: 'b', units: { x: 'sec', y: 'V' } });
     const panes = [pane('p1'), pane('p2'), pane('p3'), pane('p4'), pane('p5', null, 'table')];
-    expect(paneXUnits(panes, [hz, time], { a: ['p1', 'p3', 'p5'], b: ['p2', 'p3'] })).toEqual({ p1: 'Hz', p2: 's', p3: null, p4: null, p5: null });
+    expect(paneXUnits(panes, [hz, time], { a: ['p1', 'p3', 'p5'], b: ['p2', 'p3'] })).toEqual({ p1: 'Hz', p2: 's', p3: null, p4: null, p5: 'Hz' });
   });
 
   it('fits a linked pane to the data of its whole group', () => {

@@ -182,36 +182,30 @@ describe('table pane settings', () => {
     let state = initialWorkspaceState();
     state = workspaceReducer(state, { slice: 'panes', limit: 4, action: { type: 'SET_PANE_COUNT', payload: 2 } });
     state = workspaceReducer(state, { slice: 'panes', limit: 4, action: { type: 'SET_RENDER_MODE', payload: { paneId: 'pane-2', mode: 'table', traces: [] } } });
-    return workspaceReducer(state, { slice: 'panes', limit: 4, action: { type: 'SET_PANE_SETTINGS', payload: { paneId: 'pane-2', patch: { table: { rows: 'all', range: 'visible', follow: 'pane-1' } } } } });
+    return workspaceReducer(state, { slice: 'panes', limit: 4, action: { type: 'SET_PANE_SETTINGS', payload: { paneId: 'pane-2', patch: { table: { range: 'visible' } } } } });
   };
-  it('saves Follow, Rows and Range and restores them', () => {
-    const state = twoPanes();
-    const snapshot = snapshotFromWorkspace(state);
+  it('saves Range and restores it', () => {
+    const snapshot = snapshotFromWorkspace(twoPanes());
     if (!snapshot) throw new Error('snapshot');
-    expect(snapshot.panes.find(pane => pane.id === 'pane-2')?.settings.table).toEqual({ rows: 'all', range: 'visible', follow: 'pane-1' });
+    expect(snapshot.panes.find(pane => pane.id === 'pane-2')?.settings.table).toEqual({ range: 'visible' });
     const reloaded = migrateWorkspaceV5(JSON.parse(JSON.stringify(snapshot)));
     if (!reloaded) throw new Error('migration');
     const restored = workspaceFromSnapshot(initialWorkspaceState(), reloaded);
     const table = restored?.panes.panes.find(pane => pane.id === 'pane-2');
     expect(table?.renderMode).toBe('table');
-    expect(table?.settings.table).toEqual({ rows: 'all', range: 'visible', follow: 'pane-1' });
+    expect(table?.settings.table).toEqual({ range: 'visible' });
     expect(restored?.panes.panes.find(pane => pane.id === 'pane-1')?.settings.table).toBeUndefined();
   });
-  it('migrates a missing or stale Follow to Own traces and refuses unknown values', () => {
+  it('drops Rows and Follow from first-build saves and refuses an unknown range', () => {
     const snapshot = snapshotFromWorkspace(twoPanes());
     if (!snapshot) throw new Error('snapshot');
     const withTable = (table: unknown) => ({ ...snapshot, panes: snapshot.panes.map(pane => pane.id === 'pane-2' ? { ...pane, settings: { ...pane.settings, table } } : pane) });
-    const followOf = (table: unknown) => migrateWorkspaceV5(withTable(table))?.panes.find(pane => pane.id === 'pane-2')?.settings.table?.follow;
-    expect(followOf({ rows: 'near', range: 'all', follow: 'pane-9' })).toBeNull();
-    expect(followOf({ rows: 'near', range: 'all', follow: 'pane-2' })).toBeNull();
-    expect(followOf({ rows: 'near', range: 'all', follow: 'pane-1' })).toBe('pane-1');
-    expect(migrateWorkspaceV5(withTable(undefined))?.panes.find(pane => pane.id === 'pane-2')?.settings.table).toBeUndefined();
-    expect(migrateWorkspaceV5(withTable({ rows: 'some', range: 'all', follow: null }))).toBeNull();
-    expect(migrateWorkspaceV5(withTable({ rows: 'near', range: 'everything', follow: null }))).toBeNull();
+    const tableOf = (raw: unknown) => migrateWorkspaceV5(raw)?.panes.find(pane => pane.id === 'pane-2')?.settings.table;
+    expect(tableOf(withTable({ rows: 'near', range: 'all', follow: 'pane-1' }))).toEqual({ range: 'all' });
+    expect(tableOf({ ...withTable({ rows: 'all', range: 'visible', follow: 'gone' }), version: 4 })).toEqual({ range: 'visible' });
+    expect(tableOf(withTable(undefined))).toBeUndefined();
+    expect(migrateWorkspaceV5(withTable({ range: 'everything' }))).toBeNull();
     expect(migrateWorkspaceV5(withTable('pane-1'))).toBeNull();
-    // A saved v4-shaped body (the save path) keeps valid settings and drops a stale Follow.
-    const legacy = { ...withTable({ rows: 'all', range: 'visible', follow: 'gone' }), version: 4 };
-    expect(migrateWorkspaceV5(legacy)?.panes.find(pane => pane.id === 'pane-2')?.settings.table).toEqual({ rows: 'all', range: 'visible', follow: null });
   });
   it('new panes do not copy the Table settings', () => {
     const state = twoPanes();
