@@ -52,7 +52,6 @@ npm with a committed `package-lock.json`. Ask before adding a dependency, and ne
 ## Visual design work
 
 - Explore look and feel (palette, toolbar styling, layout mockups) in Claude Design first; once the user picks a direction, port the tokens/styles into `src/index.css` and the components.
-- The design canvas only renders standalone components: most layout/chart components depend on store providers (see `.design-sync/NOTES.md`). Judge chart panes, sidebar and top bar in the real app (`npm run dev`), not on the canvas.
 - Use the `frontend-design` plugin for UI changes. Visual changes still need `test:e2e`, since styling can break chart interaction.
 - Codex is not the tool for visual taste; use it for review of interaction/logic changes only.
 
