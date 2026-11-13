@@ -233,7 +233,7 @@ export function CrossingsList({ groups, valueLabel, capNote, emptyText = 'No cro
 function MenuItem({ item, active, onPick }: { item: AddMenuItem; active: boolean; onPick: (id: string) => void }): ReactElement {
   return (
     <button type="button" role="option" className="an-menu__item" aria-selected={active}
-      aria-disabled={item.disabledReason ? true : undefined} title={item.disabledReason}
+      aria-disabled={item.disabledReason ? true : undefined} title={item.disabledReason ?? item.note}
       onClick={item.disabledReason ? undefined : () => onPick(item.id)}>
       <span className="an-menu__lead"><KindIcon kind={item.kind} /></span>
       <span className="an-menu__text"><span>{item.title}</span><span className="an-menu__note">{item.disabledReason ?? item.note}</span></span>
