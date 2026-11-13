@@ -2,6 +2,9 @@
 .pane-layout-grid { display: grid; width: 100%; height: 100%; }
 /* Panes are separated by an 8 px grab area that is invisible at rest; each pane carries its own hairline. */
 .pane-layout-cell { display: flex; min-width: 160px; min-height: 120px; overflow: hidden; box-shadow: 0 0 0 1px var(--border); }
+/* The pane fills its cell and never grows past it: otherwise a full header (title, chips, Samples, settings) widens the
+ * pane, the cell clips its right edge, and the header never steps down to its compact levels. */
+.pane-layout-cell > * { min-width: 0; }
 .pane-layout-cell.is-dimmed { opacity: 0.82; }
 .layout-divider { position: relative; z-index: 1; background: transparent; outline: none; touch-action: none; }
 .layout-divider--vertical { cursor: ew-resize; }

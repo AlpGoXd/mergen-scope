@@ -212,3 +212,22 @@ test('linked Rows show X ticks only on the bottom pane; unlinked Rows show them 
   await expect(ticks(1)).toHaveCount(0);
   await expect(ticks(2).first()).toBeVisible();
 });
+
+test('a pane never grows past its cell: headers step down and the settings button stays inside', async ({ page }) => {
+  // The demo's 2 x 2 layout has long pane names and the X link chip in every header.
+  await page.setViewportSize({ width: 1000, height: 900 });
+  await page.goto('/app.html?demo=1');
+  await expect(page.getByTestId('chart-pane-header-pane-1')).toContainText('S21 Gain');
+  for (const id of [1, 2, 3, 4]) {
+    const header = page.getByTestId(`chart-pane-header-pane-${id}`);
+    const fit = await header.evaluate(h => {
+      const cell = (h.closest('.pane-layout-cell') as HTMLElement).getBoundingClientRect();
+      const gear = (h.querySelector('.ph-gear') as HTMLElement).getBoundingClientRect();
+      return { header: h.getBoundingClientRect().right - cell.right, gear: gear.right - cell.right, overflow: h.scrollWidth - h.clientWidth, level: Number(h.dataset.level) };
+    });
+    expect(fit.header).toBeLessThanOrEqual(0.5);
+    expect(fit.gear).toBeLessThanOrEqual(0.5);
+    expect(fit.overflow).toBeLessThanOrEqual(0);
+    expect(fit.level).toBeGreaterThan(0);
+  }
+});
