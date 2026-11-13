@@ -203,3 +203,43 @@ test('cells, rows, columns and blocks can be selected and copied as tab-separate
   await page.keyboard.press('Escape');
   await expect(table.locator('[aria-selected="true"][role="cell"]')).toHaveCount(0);
 });
+
+test('markers show on their row in the table, can be selected there, and can be placed from a cell', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/app.html');
+  await page.getByTestId('app-open-input').setInputFiles(DAT);
+  await expect(page.locator('[data-testid^="trace-row-"]').first()).toBeVisible();
+  await tableInPane2(page);
+  const table = page.getByTestId('table-pane-pane-2');
+
+  // A peak marker placed from the toolbar appears in the table, on its row, and the table scrolls to it.
+  await page.getByTestId('chart-pane-header-pane-1').click();
+  await page.getByRole('button', { name: 'Peak', exact: true }).click();
+  await expect(page.locator('[data-testid^="marker-row-"]')).toHaveCount(1);
+  const chip = table.locator('.tbp-mark[data-marker="M1"]');
+  await expect(chip).toBeVisible();
+  await expect(chip).toHaveAttribute('aria-pressed', 'true');
+  const cell = table.locator('.tbp-c.has-mark');
+  await expect(cell).toHaveCount(1);
+  await expect(cell.locator('.tbp-v')).not.toHaveText('–');
+  const area = await table.locator('.tbp-scroll').boundingBox();
+  const box = await chip.boundingBox();
+  if (!area || !box) throw new Error('no boxes');
+  expect(box.y).toBeGreaterThanOrEqual(area.y);
+  expect(box.y + box.height).toBeLessThanOrEqual(area.y + area.height);
+
+  // With the marker tool armed, clicking a value cell places a marker on that trace at that row.
+  await page.getByRole('button', { name: 'New Marker' }).click();
+  const target = table.locator('[role="row"]:not(.tbp-head)').nth(3).getByRole('cell').first();
+  await expect(target).toHaveClass(/is-placing/);
+  await target.click();
+  await expect(page.locator('[data-testid^="marker-row-"]')).toHaveCount(2);
+  await expect(table.locator('.tbp-mark[data-marker="M2"]')).toBeVisible();
+  await expect(table.locator('.tbp-mark[data-marker="M2"]')).not.toContainText('≈');
+
+  // Clicking a chip selects that marker.
+  await chip.scrollIntoViewIfNeeded();
+  await chip.click();
+  await expect(chip).toHaveAttribute('aria-pressed', 'true');
+  await expect(table.locator('.tbp-mark[data-marker="M2"]')).toHaveAttribute('aria-pressed', 'false');
+});

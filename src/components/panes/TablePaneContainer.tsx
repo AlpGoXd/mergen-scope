@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { usePaneDispatch } from '../../stores/pane-store';
+import { useMarkerDispatch, useMarkerState } from '../../stores/marker-store';
+import { useRefLineDispatch } from '../../stores/ref-line-store';
 import { useSharedHover } from '../../stores/shared-hover-store';
 import { useUiState } from '../../stores/ui-store';
 import { useTraceState } from '../../stores/trace-store';
@@ -7,6 +9,7 @@ import { useTraceColors } from '../../hooks/use-trace-colors';
 import { useTraceSymbols } from '../../hooks/use-trace-symbols';
 import { useTableView } from '../../hooks/use-table-view';
 import { mergeTableRows } from '../../domain/table-rows';
+import { tableMarks } from '../../domain/table-markers';
 import { tableXFormat, tableYFormat } from '../../domain/table-format';
 import { tableXLabel } from '../../domain/table-view';
 import { xUnitGroup } from '../../domain/pane-placement';
@@ -27,6 +30,9 @@ export function TablePaneContainer({ paneId }: { paneId: string; fitRequest?: nu
   const color = useTraceColors();
   const symbol = useTraceSymbols();
   const paneDispatch = usePaneDispatch();
+  const { markers, selectedMkrIdx, armed } = useMarkerState();
+  const markerDispatch = useMarkerDispatch();
+  const lineDispatch = useRefLineDispatch();
   const assignments = useMemo(() => allocateTraceColors(allKnownTraces, new Map(Object.entries(traceHueSlots))), [allKnownTraces, traceHueSlots]);
 
   // Shared cursor: the crosshair X of any other pane with the same X unit. It stays when the pointer leaves.
@@ -59,6 +65,21 @@ export function TablePaneContainer({ paneId }: { paneId: string; fitRequest?: nu
     };
   }), [traces, sources, color, symbolKey, assignments]);
   const formats = useMemo(() => new Map(columns.map(column => [column.id, column.format])), [columns]);
+  const marks = useMemo(() => tableMarks(markers, traces.map(trace => trace.name), rows.x), [markers, traces, rows.x]);
+  const selectedMarkerId = markers[selectedMkrIdx]?.id ?? null;
+  const selectMarker = (id: string) => {
+    lineDispatch({ type: 'SET_SELECTED', payload: null });
+    markerDispatch({ type: 'SET_SELECTED_IDX', payload: markers.findIndex(marker => marker.id === id) });
+  };
+  // Same rules as a chart click: a delta marker goes only on its reference marker's trace.
+  const placeAt = (row: number, column: number) => {
+    const trace = traces[column];
+    const x = rows.x[row];
+    if (!armed || !trace || x === undefined) return;
+    if (armed.kind === 'delta' && markers.find(marker => marker.id === armed.refId)?.trace !== trace.name) return;
+    lineDispatch({ type: 'SET_SELECTED', payload: null });
+    markerDispatch({ type: 'PLACE_MARKER', payload: { trace, targetFreq: x, markerType: armed.kind, refId: armed.kind === 'delta' ? armed.refId : null } });
+  };
 
   if (traces.length === 0) {
     const addTraces = () => {
@@ -83,6 +104,7 @@ export function TablePaneContainer({ paneId }: { paneId: string; fitRequest?: nu
     <div data-testid={`table-pane-${paneId}`} style={{ position: 'absolute', inset: 0 }}>
       <TablePane xLabel={tableXLabel(first?.domain, xGroup)} xUnit={xFormat.unit} columns={columns} rows={rows} cursorX={cursorX}
         formatX={xFormat.format} formatY={(y, column) => formats.get(column.id)?.(y) ?? String(y)}
+        marks={marks} selectedMarkerId={selectedMarkerId} onMarkClick={selectMarker} placing={armed !== null} onPlace={placeAt}
         status={settings.range === 'visible' && visible.available ? 'Visible range' : undefined} />
     </div>
   );
