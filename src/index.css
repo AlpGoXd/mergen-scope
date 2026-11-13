@@ -16,6 +16,7 @@
   --control-height: 28px; --control-sm-height: 22px; --row-height: 30px; --gap: 6px; --panel-padding: 12px; --input-height: 24px; --z-popover: 140;
   --radius-control: 6px; --radius-card: 8px; --radius-input: 5px; --radius-badge: 4px;
   --marker-hue: 20; --marker-color: oklch(0.50 0.0799 20);
+  --brand-marker: oklch(0.62 0.17 20);
   --lines-hue: 80; --lines-color: oklch(0.50 0.0799 80);
   --search-hue: 140; --search-color: oklch(0.50 0.0799 140);
   --export-hue: 160; --export-color: oklch(0.50 0.0799 160);
@@ -64,6 +65,7 @@
   --dAlt: var(--panel); --dAmp: var(--lines-color); --noiseTr: var(--analysis-color); --ip3C: var(--marker-color); --refV: var(--text-muted); --refH: var(--text-muted); --cross: oklch(0.50 0.1399 255 / 0.6);
 }
 .theme-dark { color-scheme: dark; --neutral-c: 0.016;
+  --brand-marker: oklch(0.75 0.14 20);
   --text-soft: oklch(0.86 0.012 255); --diag-bg: oklch(0.22 0.014 255); --menu-shadow: 0 8px 24px oklch(0 0 0 / 0.45);
   --bg: oklch(0.17 0.016 var(--neutral-h)); --panel: oklch(0.20 0.016 var(--neutral-h)); --raised: oklch(0.24 0.016 var(--neutral-h));
   --border: oklch(0.31 var(--neutral-c) var(--neutral-h)); --border-strong: oklch(0.42 var(--neutral-c) var(--neutral-h)); --text-muted: oklch(0.72 var(--neutral-c) var(--neutral-h)); --text: oklch(0.93 0.010 var(--neutral-h)); --accent: oklch(0.78 0.1129 255);

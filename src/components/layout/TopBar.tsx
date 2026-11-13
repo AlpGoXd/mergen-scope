@@ -10,6 +10,7 @@ import { useOptionalAggregateWorkspace } from '../../stores/aggregate-workspace-
 import { Btn } from '../shared/Btn';
 import { useTraceState } from '../../stores/trace-store';
 import { tracesToCSV } from '../../domain/export';
+import { BrandMark } from './BrandMark';
 
 function downloadTextFile(fileName: string, text: string, mimeType: string) {
   const url = URL.createObjectURL(new Blob([text], { type: mimeType }));
@@ -55,7 +56,7 @@ export function TopBar({ onOpen, onExport }: TopBarProps = {}) {
   const icon = (path: React.ReactNode) => <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">{path}</svg>;
   return <div style={{ minHeight: 'var(--top-row-height)', display: 'flex', alignItems: 'center', gap: 4, padding: '0 8px', background: 'var(--panel)', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
     <style>{'@media (max-width: 1279px) { .topbar-action-label { display: none; } }'}</style>
-    <span style={{ whiteSpace: 'nowrap', fontSize: 'var(--font-title)', marginRight: 8 }}>Mergen <span style={{ color: 'var(--accent)' }}>Scope</span></span>
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4em', whiteSpace: 'nowrap', fontSize: 'var(--font-title)', marginRight: 8 }}><BrandMark /><span>Mergen <span style={{ color: 'var(--accent)' }}>Scope</span></span></span>
     <Btn variant="chip" tone="left" active={ui.showSidebar} title="Toggle left panel" onClick={() => toggle('showSidebar', ui.showSidebar)}>Left</Btn>
     <span aria-hidden="true" style={{ height: 20, borderLeft: '1px solid var(--border)', margin: '0 4px' }} />
     <input data-testid="topbar-workspace-input" type="file" ref={fileInputRef} style={{ display: 'none' }} accept=".json" onChange={e => { if (e.target.files?.[0]) loadFromFile(e.target.files[0]); e.target.value = ''; }} />
