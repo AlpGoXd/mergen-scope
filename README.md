@@ -16,22 +16,7 @@ Files are read and processed in your browser. No account, measurement upload, or
 
 [**Open the app**](https://mergenscope.com/app.html) · [**Try the demo workspace**](https://mergenscope.com/app.html?demo=1) · [Website](https://mergenscope.com/)
 
-<table>
-  <tr>
-    <td width="56%">
-      <picture>
-        <source media="(prefers-color-scheme: dark)" srcset="landing-assets/img/pane-smith-dark.webp">
-        <img src="landing-assets/img/pane-smith-light.webp" alt="Smith pane showing an S11 trace, a marker, and impedance, reflection coefficient, and VSWR readouts" width="100%">
-      </picture>
-    </td>
-    <td width="44%">
-      <picture>
-        <source media="(prefers-color-scheme: dark)" srcset="landing-assets/img/panel-analysis-dark.webp">
-        <img src="landing-assets/img/panel-analysis-light.webp" alt="Analysis panel with Bandwidth, Ripple, and Smooth cards" width="100%">
-      </picture>
-    </td>
-  </tr>
-</table>
+![Mergen Scope workspace with a four-pane layout showing gain, Smith chart, waveforms, and two-tone IP3 analysis](docs/images/mergen-scope-workspace.png)
 
 ## The workspace
 
