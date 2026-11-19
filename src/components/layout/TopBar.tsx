@@ -63,8 +63,8 @@ export function TopBar({ onOpen, onExport }: TopBarProps = {}) {
   };
   const icon = (path: React.ReactNode) => <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">{path}</svg>;
   // One row: brand, Left and the file buttons stay fixed on the left, the tool groups wrap inside their own
-  // container, Analysis stays at the right end. Each fixed cluster is one row tall, so a wrapped second line
-  // of groups does not move them.
+  // container (only they wrap), Clear All and Analysis stay at the right end. Each fixed cluster is one row
+  // tall, so a wrapped second line of groups does not move them.
   const cluster = { display: 'flex', alignItems: 'center', gap: 4, height: 'var(--top-row-height)', flex: 'none' } as const;
   return <div style={{ minHeight: 'var(--top-row-height)', display: 'flex', alignItems: 'flex-start', gap: 4, padding: '0 8px', background: 'var(--panel)', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
     <style>{'@media (max-width: 1279px) { .topbar-action-label { display: none; } }'}</style>
@@ -80,7 +80,10 @@ export function TopBar({ onOpen, onExport }: TopBarProps = {}) {
     {exportMenu && <PopoverAt label="Export" at={exportMenu} onClose={() => setExportMenu(null)}><ExportMenu onClose={() => setExportMenu(null)} onExportCsv={exportVisibleCsv} csvReason={visibleTraces.length ? null : 'Load a trace to export'} /></PopoverAt>}
     <span aria-hidden="true" style={{ height: 20, borderLeft: '1px solid var(--border)', margin: '0 4px' }} />
     </div>
-    <ToolGroups>{!onOpen && <Btn title="Remove all loaded files and clear state" onClick={clearAll}>Clear All</Btn>}</ToolGroups>
-    <div style={{ ...cluster, marginLeft: 'auto' }}><Btn variant="chip" tone="analysis" active={ui.showRightPanel} onClick={() => toggle('showRightPanel', ui.showRightPanel)}>Analysis</Btn></div>
+    <ToolGroups />
+    <div style={{ ...cluster, marginLeft: 'auto' }}>
+      {!onOpen && <Btn title="Remove all loaded files and clear state" onClick={clearAll}>Clear All</Btn>}
+      <Btn variant="chip" tone="analysis" active={ui.showRightPanel} onClick={() => toggle('showRightPanel', ui.showRightPanel)}>Analysis</Btn>
+    </div>
   </div>;
 }

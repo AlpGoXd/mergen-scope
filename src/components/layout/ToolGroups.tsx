@@ -39,11 +39,12 @@ function ToolZone({ tone, label, open, onToggle, children }: { tone: ZoneTone; l
 
 /**
  * The Markers / Search / Lines / Pane groups of the top bar (chart-local actions in the active pane).
- * Own flex-wrap container: a whole group moves to a second line when it does not fit. `children` end the
- * container (the bar's Clear All), so they keep their place after the groups.
+ * Own flex-wrap container: a whole group moves to a second line when it does not fit. Nothing else lives in
+ * it (Clear All and Analysis are outside), so only the groups themselves ever wrap.
  */
-export function ToolGroups({ children }: { children?: React.ReactNode } = {}) {
+export function ToolGroups() {
   const [deltaAnchor, setDeltaAnchor] = React.useState<HTMLElement | null>(null);
+  const traceSelect = React.useRef<HTMLSelectElement>(null);
   const {
     showPaneTools,
     showSearchTools,
@@ -156,9 +157,13 @@ export function ToolGroups({ children }: { children?: React.ReactNode } = {}) {
     }
   }}>
     <ToolZone tone="marker" label="Markers" open={showMarkerTools} onToggle={() => toggle('showMarkerTools', showMarkerTools)}>
-      <label>Trace: <select className="ui-select tool-zone__select" value={markerTrace} onChange={e => uiDispatch({ type: 'SET', payload: { key: 'markerTrace', value: e.target.value } })} title="Auto picks the selected trace or first visible trace">
-        <option value="__auto__">Auto</option>{visiblePaneTraces.map(trace => <option key={trace.name} value={trace.name}>{trace.dn || trace.name}</option>)}
-      </select></label>
+      {/* "Trace:" and the arrow sit inside the control's face; a click anywhere on it opens the same picker. */}
+      <span className="tool-zone__field" onMouseDown={event => { if (event.target === traceSelect.current) return; event.preventDefault(); traceSelect.current?.focus(); traceSelect.current?.showPicker?.(); }}>
+        <span className="tool-zone__field-label" aria-hidden="true">Trace:</span>
+        <select ref={traceSelect} className="tool-zone__select" aria-label="Trace" value={markerTrace} onChange={e => uiDispatch({ type: 'SET', payload: { key: 'markerTrace', value: e.target.value } })} title="Auto picks the selected trace or first visible trace">
+          <option value="__auto__">Auto</option>{visiblePaneTraces.map(trace => <option key={trace.name} value={trace.name}>{trace.dn || trace.name}</option>)}
+        </select>
+      </span>
       <Btn small variant="armed" tone="marker" active={!!armed} aria-pressed={!!armed} aria-label="New Marker" title="Place a marker (N)" onClick={selectNormal}>+ New</Btn>
       <Btn small aria-label="Choose a delta marker reference" aria-expanded={deltaAnchor !== null} onClick={event => setDeltaAnchor(deltaAnchor ? null : event.currentTarget)}>▾</Btn>
       {deltaAnchor && <PopoverAt label="Delta marker reference" at={deltaAnchor} onClose={() => setDeltaAnchor(null)}><div role="menu" aria-label="Delta marker reference" style={{ display: 'grid', minWidth: 170 }}>
@@ -183,6 +188,5 @@ export function ToolGroups({ children }: { children?: React.ReactNode } = {}) {
       <Btn small disabled={panes.length <= 1 || !aggregate} title={panes.length <= 1 ? "At least one pane must remain" : !aggregate ? "Pane removal requires workspace history" : "Remove the last pane"} onClick={removeLastPane}>- Pane</Btn>
       <Btn small title="Fit all panes" onClick={() => paneDispatch({ type: 'CLEAR_ALL_ZOOMS' })}>Fit all</Btn>
     </ToolZone>
-    {children}
   </div>;
 }
