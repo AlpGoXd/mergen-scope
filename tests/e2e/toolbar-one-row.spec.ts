@@ -17,7 +17,7 @@ const rows = (page: Page) => page.locator('.tool-zone').evaluateAll(zones => new
 
 test('each open group is a square tint block around its pressed chip: control height + 4 px, 2 px above and below, 3 px at the ends, round tools inside', async ({ page }) => {
   await openApp(page, 2048);
-  expect(await rows(page)).toBe(1);
+  await expect.poll(() => rows(page)).toBe(1);
   const report = await page.locator('.tool-zone.is-open').evaluateAll(zones => zones.map((zone, index) => {
     const box = (el: Element) => el.getBoundingClientRect();
     const probe = (property: string, value: string) => { const span = document.createElement('span'); span.style.setProperty(property, value); document.body.appendChild(span); const out = getComputedStyle(span).getPropertyValue(property); span.remove(); return out; };
@@ -175,7 +175,7 @@ test('Left and Analysis are panel toggles with their icon, and the wordmark is s
   expect(await brand.evaluate(el => { const wrap = el.closest('span[style*="font-weight"]')!; const style = getComputedStyle(wrap); const logo = wrap.querySelector('svg')!.getBoundingClientRect(), text = wrap.lastElementChild!.getBoundingClientRect(); return { weight: style.fontWeight, centred: Math.abs((logo.top + logo.height / 2) - (text.top + text.height / 2)) <= 1 }; })).toEqual({ weight: '600', centred: true });
 });
 
-test('every control in an open zone shares one shape; only Dir (icon only, 0 6px) and the split button (parts carry the padding) differ in padding', async ({ page }) => {
+test('every control in an open zone shares one shape; only Dir (dashed border) and the split button (parts carry the padding) differ', async ({ page }) => {
   await openApp(page, 2048);
   const read = () => page.locator('.tool-zone.is-open .zone-tool').evaluateAll(tools => {
     const small = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--control-sm-height'));
@@ -191,11 +191,11 @@ test('every control in an open zone shares one shape; only Dir (icon only, 0 6px
   expect(idle.tools.length).toBe(13);
   for (const tool of idle.tools) {
     expect(tool, tool.name).toMatchObject({ height: idle.small, radius: idle.radius, width: '1px', size: '13px', line: '18px', sizing: 'border-box' });
-    expect(tool.style, tool.name).toBe('solid');
-    expect(tool.padding, tool.name).toBe(tool.split ? '0px' : tool.dir ? '0px 6px' : '0px 7px');
+    expect(tool.style, tool.name).toBe(tool.dir ? 'dashed' : 'solid');
+    expect(tool.padding, tool.name).toBe(tool.split ? '0px' : '0px 7px');
   }
-  // Plain buttons, the select's field, the Layout button, Dir and the split button all have the same flat white fill.
-  const fills = new Set(idle.tools.map(tool => tool.bg));
+  // Plain buttons, the select's field, the Layout button and the split button all have the same flat white fill.
+  const fills = new Set(idle.tools.filter(tool => !tool.dir).map(tool => tool.bg));
   expect(fills.size).toBe(1);
 
   // The inner parts of the split button and the native select have no box of their own.
@@ -285,45 +285,30 @@ test('selects use the control radius like buttons; text inputs keep the input ra
   expect(control).not.toBe(await token('--radius-input'));
 });
 
-test('search direction is a normal arrow-only tool button that flips the direction Next peak and Next min search in', async ({ page }) => {
+test('Dir is a dashed setting button that flips the direction Next peak and Next min search in', async ({ page }) => {
   await openApp(page, 2048);
-  const dir = page.getByRole('button', { name: /^Search direction/ });
+  const dir = page.getByRole('button', { name: /^Dir L/ });
   const peak = page.getByRole('button', { name: 'Peak', exact: true });
   await expect(dir).toHaveCount(1);
-  await expect(page.getByRole('button', { name: /Dir L/ })).toHaveCount(0);
-  // The direction is the UI store's searchDirection: Next peak moves the marker up in frequency when it reads left to
-  // right and down when it reads right to left.
+  await expect(dir).toHaveText('Dir L → R');
+  await expect(dir).toHaveAttribute('title', 'Change search direction');
+  // The only dashed button in the zones: it keeps the shared shape and changes only its border.
+  expect(await dir.evaluate(el => getComputedStyle(el).borderTopStyle)).toBe('dashed');
+  expect(await peak.evaluate(el => getComputedStyle(el).borderTopStyle)).toBe('solid');
+  // The direction is the UI store's searchDirection: Next peak moves the marker up in frequency when it reads
+  // L → R and down when it reads L ← R.
   const frequency = async () => Number(/([\d.]+) GHz/.exec(await page.getByTestId('marker-row-1').innerText())![1]);
   const nextPeak = async () => { const before = await frequency(); await page.getByRole('button', { name: 'Next peak', exact: true }).click(); await expect.poll(frequency).not.toBe(before); return frequency(); };
   await peak.click();
   await expect(page.getByTestId('marker-row-1')).toBeVisible();
-  const arrows = { right: 'M5 12h14M13 6l6 6-6 6', left: 'M19 12H5M11 6l-6 6 6 6' };
-  const expectState = async (state: 'right' | 'left') => {
-    const words = state === 'right' ? 'left to right' : 'right to left';
-    await expect(dir).toHaveAccessibleName(`Search direction: ${words}`);
-    await expect(dir).toHaveAttribute('title', `Search direction: ${state === 'right' ? 'left → right' : 'right → left'}. Click to flip.`);
-    await expect(dir.locator('svg path')).toHaveAttribute('d', arrows[state]);
-    // A flip, not on/off: no aria-pressed.
-    expect(await dir.getAttribute('aria-pressed')).toBeNull();
-  };
-  await expectState('right');
   const start = await frequency();
   const up = await nextPeak();
   expect(up).toBeGreaterThan(start);
-  // An arrow only: a 13 px stroke icon, no text, no dashed border, the same height, fill and radius as the other tools.
-  await expect(dir).toHaveText('');
-  const look = (button: typeof dir) => button.evaluate(el => {
-    const style = getComputedStyle(el), icon = el.querySelector('svg'), iconStyle = icon ? getComputedStyle(icon) : null;
-    return { height: el.getBoundingClientRect().height, radius: style.borderTopLeftRadius, border: style.borderTopStyle, borderWidth: style.borderTopWidth, bg: style.backgroundColor, padding: style.padding, icon: icon && iconStyle ? [icon.getBoundingClientRect().width, iconStyle.strokeWidth, iconStyle.strokeLinecap, iconStyle.strokeLinejoin, icon.getAttribute('aria-hidden')] : null };
-  });
-  const arrow = await look(dir), plain = await look(peak);
-  expect(arrow).toMatchObject({ height: plain.height, radius: plain.radius, border: 'solid', borderWidth: '1px', bg: plain.bg, padding: '0px 6px', icon: [13, '1.75px', 'round', 'round', 'true'] });
   await dir.click();
-  await expectState('left');
+  await expect(dir).toHaveText('Dir L ← R');
   expect(await nextPeak()).toBeLessThan(up);
   await dir.click();
-  await expectState('right');
-  expect(await nextPeak()).toBeGreaterThan(await frequency() - 1e-9);
+  await expect(dir).toHaveText('Dir L → R');
 });
 
 test('pressing a group chip moves nothing: not the chip, nothing to its left; the tools appear only to its right', async ({ page }) => {

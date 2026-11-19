@@ -166,10 +166,7 @@ export function ToolGroups() {
       <Btn small className="zone-tool" disabled={!canSearch} title={canSearch ? 'Find next peak' : 'Select a trace with data'} onClick={handleNextPeak}>Next peak</Btn>
       <Btn small className="zone-tool" disabled={!canSearch} title={canSearch ? 'Find minimum' : 'Select a trace with data'} onClick={handleMin}>Min</Btn>
       <Btn small className="zone-tool" disabled={!canSearch} title={canSearch ? 'Find next minimum' : 'Select a trace with data'} onClick={handleNextMin}>Next min</Btn>
-      {/* Search direction: a flip, not on/off (no aria-pressed). It shows only an arrow, the way Next peak / Next min go. */}
-      <Btn small className="zone-tool tool-zone__dir" aria-label={`Search direction: ${searchDirection === 'right' ? 'left to right' : 'right to left'}`} title={`Search direction: ${searchDirection === 'right' ? 'left → right' : 'right → left'}. Click to flip.`} onClick={() => uiDispatch({ type: 'SET', payload: { key: 'searchDirection', value: searchDirection === 'right' ? 'left' : 'right' } })}>
-        <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><path d={searchDirection === 'right' ? 'M5 12h14M13 6l6 6-6 6' : 'M19 12H5M11 6l-6 6 6 6'} /></svg>
-      </Btn>
+      <Btn small className="zone-tool tool-zone__dir" title="Change search direction" onClick={() => uiDispatch({ type: 'SET', payload: { key: 'searchDirection', value: searchDirection === 'right' ? 'left' : 'right' } })}>{searchDirection === 'right' ? 'Dir L → R' : 'Dir L ← R'}</Btn>
     </ToolZone>
     <ToolZone tone="lines" label="Lines" open={showLineTools} onToggle={() => toggle('showLineTools', showLineTools)}>
       <Btn small className="zone-tool" variant="armed" tone="lines" active={refMode === 'v'} aria-pressed={refMode === 'v'} aria-label="V-Line" title="Place vertical line" onClick={() => toggleRefPlacement('v')}>V line</Btn>
