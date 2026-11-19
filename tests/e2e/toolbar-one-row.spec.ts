@@ -42,7 +42,8 @@ test('Clear All is outside the wrapping groups, so only the groups wrap', async 
   const clear = page.getByRole('button', { name: 'Clear All' });
   await expect(page.locator('.tool-groups').getByRole('button', { name: 'Clear All' })).toHaveCount(0);
   const [clearBox, analysisBox, firstZone] = await Promise.all([clear.boundingBox(), page.getByRole('button', { name: 'Analysis', exact: true }).boundingBox(), page.locator('.tool-zone').first().boundingBox()]);
-  expect(clearBox?.y).toBe(analysisBox?.y);
+  // Same centre line (Analysis is a group-chip height, Clear All a control height), on the first line.
+  expect((clearBox?.y ?? 0) + (clearBox?.height ?? 0) / 2).toBe((analysisBox?.y ?? 0) + (analysisBox?.height ?? 0) / 2);
   expect(clearBox?.y).toBeLessThanOrEqual((firstZone?.y ?? 0) + 4);
   expect((clearBox?.x ?? 0) + (clearBox?.width ?? 0)).toBeLessThanOrEqual(analysisBox?.x ?? 0);
 });
@@ -62,4 +63,43 @@ test('Trace is one control with its label inside it, and a chip is the same size
   await chip.click();
   await expect(chip).toHaveAttribute('aria-expanded', 'false');
   expect(await measure()).toEqual(open);
+});
+
+test('Left and Analysis are panel toggles with their icon, a divider sets Analysis apart, and the wordmark is semibold', async ({ page }) => {
+  await openApp(page, 1024);
+  const left = page.getByRole('button', { name: 'Left', exact: true });
+  const analysis = page.getByRole('button', { name: 'Analysis', exact: true });
+  const group = page.getByRole('button', { name: 'Lines', exact: true });
+  for (const [button, path] of [[left, 'M3 4h18v16H3zM9 4v16'], [analysis, 'M3 4h18v16H3zM15 4v16']] as const) {
+    const icon = button.locator('svg');
+    await expect(icon).toHaveAttribute('aria-hidden', 'true');
+    await expect(icon.locator('path')).toHaveAttribute('d', path);
+    expect(await icon.evaluate(el => { const style = getComputedStyle(el); return [el.getBoundingClientRect().width, style.strokeWidth, style.strokeLinecap, style.strokeLinejoin]; })).toEqual([13, '1.75px', 'round', 'round']);
+    // The text stays visible at 1024 px, 5 px after the icon, and the chip is as tall as a group chip.
+    const [iconBox, textGap, height] = await button.evaluate(el => { const svg = el.querySelector('svg')!.getBoundingClientRect(), range = document.createRange(); range.selectNodeContents(el.lastChild!); return [svg.right, Math.round(range.getBoundingClientRect().left - svg.right), el.getBoundingClientRect().height]; });
+    expect(iconBox).toBeGreaterThan(0);
+    expect(textGap).toBe(5);
+    expect(height).toBe((await group.boundingBox())?.height);
+  }
+  // Off = neutral, on = the panel's chip colours; never the open-group zone look.
+  const paint = (button: typeof left) => button.evaluate(el => { const style = getComputedStyle(el); return { bg: style.backgroundColor, border: style.borderTopColor, inZone: !!el.closest('.tool-zone') }; });
+  await expect(analysis).toHaveAttribute('aria-pressed', 'false');
+  const off = await paint(analysis);
+  await analysis.click();
+  await expect(analysis).toHaveAttribute('aria-pressed', 'true');
+  await expect.poll(async () => (await paint(analysis)).bg).not.toBe(off.bg);
+  expect((await paint(analysis)).inZone || off.inZone).toBe(false);
+  const probe = (variable: string) => page.evaluate(name => { const span = document.createElement('span'); span.style.color = `var(${name})`; document.body.appendChild(span); const colour = getComputedStyle(span).color; span.remove(); return colour; }, variable);
+  // Colours transition over 120 ms, so poll for the settled value.
+  await expect.poll(() => analysis.evaluate(el => getComputedStyle(el).color)).toBe(await probe('--analysis-ink'));
+  await expect(left).toHaveAttribute('aria-pressed', 'true');
+  await expect.poll(() => left.evaluate(el => getComputedStyle(el).color)).toBe(await probe('--left-ink'));
+
+  // A 1 px divider sits between Clear All and Analysis.
+  const divider = await page.getByRole('button', { name: 'Clear All' }).evaluate(el => { const next = el.nextElementSibling as HTMLElement; const style = getComputedStyle(next); return { hidden: next.getAttribute('aria-hidden'), border: style.borderLeftWidth, between: next.getBoundingClientRect().left >= el.getBoundingClientRect().right && next.getBoundingClientRect().right <= document.querySelector<HTMLElement>('button[aria-pressed][class*="topbar-panel-toggle"]:last-of-type')!.getBoundingClientRect().left + 1 }; });
+  expect(divider).toMatchObject({ hidden: 'true', border: '1px', between: true });
+
+  // Wordmark: semibold, accent "Scope", logo centred on the text.
+  const brand = page.getByText('Mergen', { exact: false }).first();
+  expect(await brand.evaluate(el => { const wrap = el.closest('span[style*="font-weight"]')!; const style = getComputedStyle(wrap); const logo = wrap.querySelector('svg')!.getBoundingClientRect(), text = wrap.lastElementChild!.getBoundingClientRect(); return { weight: style.fontWeight, centred: Math.abs((logo.top + logo.height / 2) - (text.top + text.height / 2)) <= 1 }; })).toEqual({ weight: '600', centred: true });
 });

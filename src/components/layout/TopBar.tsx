@@ -62,15 +62,17 @@ export function TopBar({ onOpen, onExport }: TopBarProps = {}) {
     dispatch({ type: 'SET', payload: { key, value: !value } });
   };
   const icon = (path: React.ReactNode) => <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">{path}</svg>;
+  // Panel toggles (Left, Analysis) show their panel: a box with the panel's side marked. They open panels, not tool groups.
+  const panelIcon = (path: string) => <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><path d={path} /></svg>;
   // One row: brand, Left and the file buttons stay fixed on the left, the tool groups wrap inside their own
   // container (only they wrap), Clear All and Analysis stay at the right end. Each fixed cluster is one row
   // tall, so a wrapped second line of groups does not move them.
   const cluster = { display: 'flex', alignItems: 'center', gap: 4, height: 'var(--top-row-height)', flex: 'none' } as const;
   return <div style={{ minHeight: 'var(--top-row-height)', display: 'flex', alignItems: 'flex-start', gap: 4, padding: '0 8px', background: 'var(--panel)', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
-    <style>{'@media (max-width: 1279px) { .topbar-action-label { display: none; } }'}</style>
+    <style>{'@media (max-width: 1279px) { .topbar-action-label { display: none; } } .ui-btn.topbar-panel-toggle { height: var(--zone-height); min-height: 0; gap: 5px; }'}</style>
     <div style={cluster}>
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4em', whiteSpace: 'nowrap', fontSize: 'var(--font-title)', marginRight: 8 }}><BrandMark /><span>Mergen <span style={{ color: 'var(--accent)' }}>Scope</span></span></span>
-    <Btn variant="chip" tone="left" active={ui.showSidebar} title="Toggle left panel" onClick={() => toggle('showSidebar', ui.showSidebar)}>Left</Btn>
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4em', whiteSpace: 'nowrap', fontSize: 'var(--font-title)', fontWeight: 'var(--fw-semibold)', marginRight: 8 }}><BrandMark /><span>Mergen <span style={{ color: 'var(--accent)' }}>Scope</span></span></span>
+    <Btn variant="chip" tone="left" active={ui.showSidebar} className="topbar-panel-toggle" title="Toggle left panel" onClick={() => toggle('showSidebar', ui.showSidebar)}>{panelIcon('M3 4h18v16H3zM9 4v16')}Left</Btn>
     <span aria-hidden="true" style={{ height: 20, borderLeft: '1px solid var(--border)', margin: '0 4px' }} />
     <input data-testid="topbar-workspace-input" type="file" ref={fileInputRef} style={{ display: 'none' }} accept=".json" onChange={e => { if (e.target.files?.[0]) loadFromFile(e.target.files[0]); e.target.value = ''; }} />
     <Btn title={onOpen ? 'Open… (Ctrl+O)' : 'Load Workspace JSON'} aria-label="Open" onClick={onOpen ?? (() => fileInputRef.current?.click())}>{icon(<path d="M3 19V5h7l2 3h9v11z" />)}<span className="topbar-action-label">Open</span></Btn>
@@ -82,8 +84,11 @@ export function TopBar({ onOpen, onExport }: TopBarProps = {}) {
     </div>
     <ToolGroups />
     <div style={{ ...cluster, marginLeft: 'auto' }}>
-      {!onOpen && <Btn title="Remove all loaded files and clear state" onClick={clearAll}>Clear All</Btn>}
-      <Btn variant="chip" tone="analysis" active={ui.showRightPanel} onClick={() => toggle('showRightPanel', ui.showRightPanel)}>Analysis</Btn>
+      {!onOpen && <>
+        <Btn title="Remove all loaded files and clear state" onClick={clearAll}>Clear All</Btn>
+        <span aria-hidden="true" style={{ height: 20, borderLeft: '1px solid var(--border)', margin: '0 4px' }} />
+      </>}
+      <Btn variant="chip" tone="analysis" active={ui.showRightPanel} className="topbar-panel-toggle" onClick={() => toggle('showRightPanel', ui.showRightPanel)}>{panelIcon('M3 4h18v16H3zM15 4v16')}Analysis</Btn>
     </div>
   </div>;
 }
