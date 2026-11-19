@@ -248,7 +248,7 @@ table {
 .ui-btn--solid.is-danger { background: var(--solid-danger); border-color: var(--solid-danger); color: var(--solid-ink); }
 .ui-btn--secondary { background: var(--secondary-fill); border-color: var(--secondary-line); color: var(--secondary-ink); }
 .ui-btn:disabled { opacity: .45; cursor: not-allowed; }
-.ui-select { min-height: var(--control-height); border: 1px solid var(--border); border-radius: var(--radius-input); padding: 0 8px; background: var(--raised); color: var(--text); font: inherit; }
+.ui-select { min-height: var(--control-height); border: 1px solid var(--border); border-radius: var(--radius-control); padding: 0 8px; background: var(--raised); color: var(--text); font: inherit; }
 .ui-segmented, .ui-split { display: inline-flex; gap: 4px; }
 .ui-menu-root, .ui-tooltip-anchor { position: relative; display: inline-flex; }
 .ui-tooltip { position: fixed; z-index: var(--z-popover); top: 0; left: 0; pointer-events: none; width: max-content; max-width: 240px; padding: 4px 8px; background: var(--raised); color: var(--text); border: 1px solid var(--border-strong); border-radius: var(--radius-input); box-shadow: 0 4px 12px oklch(0 0 0 / .15); }

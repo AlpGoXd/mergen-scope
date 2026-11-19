@@ -104,7 +104,7 @@ test('every control in an open zone shares one shape; only Dir (dashed border) a
   const read = () => page.locator('.tool-zone.is-open .zone-tool').evaluateAll(tools => {
     const small = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--control-sm-height'));
     return {
-      small,
+      small, radius: getComputedStyle(document.documentElement).getPropertyValue('--radius-control').trim(),
       tools: tools.map(tool => {
         const style = getComputedStyle(tool), box = tool.getBoundingClientRect();
         return { name: tool.textContent!.trim().slice(0, 14), height: box.height, radius: style.borderTopLeftRadius, width: style.borderTopWidth, style: style.borderTopStyle, padding: style.padding, size: style.fontSize, line: style.lineHeight, sizing: style.boxSizing, split: tool.classList.contains('split-btn'), dir: tool.classList.contains('tool-zone__dir'), bg: style.backgroundColor, active: tool.classList.contains('is-active') || tool.classList.contains('is-armed') };
@@ -114,7 +114,7 @@ test('every control in an open zone shares one shape; only Dir (dashed border) a
   const idle = await read();
   expect(idle.tools.length).toBe(13);
   for (const tool of idle.tools) {
-    expect(tool, tool.name).toMatchObject({ height: idle.small, radius: '4px', width: '1px', size: '13px', line: '18px', sizing: 'border-box' });
+    expect(tool, tool.name).toMatchObject({ height: idle.small, radius: idle.radius, width: '1px', size: '13px', line: '18px', sizing: 'border-box' });
     expect(tool.style, tool.name).toBe(tool.dir ? 'dashed' : 'solid');
     expect(tool.padding, tool.name).toBe(tool.split ? '0px' : '0px 7px');
   }
@@ -190,4 +190,21 @@ test('the divider before the groups grows with the row; the fixed clusters stay 
   }
   expect(wrapped.mids.brand).toBe(one.mids.brand);
   expect(wrapped.mids.analysis).toBe(one.mids.analysis);
+});
+
+test('selects use the control radius like buttons; text inputs keep the input radius', async ({ page }) => {
+  await openApp(page, 2048);
+  const token = (name: string) => page.evaluate(variable => getComputedStyle(document.documentElement).getPropertyValue(variable).trim(), name);
+  const radius = (selector: string) => page.locator(selector).first().evaluate(el => getComputedStyle(el).borderTopLeftRadius);
+  await page.getByTestId('chart-pane-pane-1').getByTitle('Pane settings').click();
+  const select = page.getByLabel('Grid line style');
+  await expect(select).toBeVisible();
+  const control = await token('--radius-control');
+  expect(await select.evaluate(el => getComputedStyle(el).borderTopLeftRadius)).toBe(control);
+  // Same corners as a small button, and the Trace field in the toolbar.
+  expect(await page.getByRole('button', { name: 'Peak', exact: true }).evaluate(el => getComputedStyle(el).borderTopLeftRadius)).toBe(control);
+  expect(await radius('.tool-zone__field')).toBe(control);
+  // Text inputs keep the input radius.
+  expect(await radius('.pset-num')).toBe(await token('--radius-input'));
+  expect(control).not.toBe(await token('--radius-input'));
 });

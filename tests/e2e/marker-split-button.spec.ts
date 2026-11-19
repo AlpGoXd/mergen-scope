@@ -41,7 +41,7 @@ test('"+ Marker ▾" is one flat split button: main part, divider, ▾ part', as
   expect(await split.evaluate(el => {
     const style = getComputedStyle(el), divider = el.querySelector('.split-btn__divider')!;
     return { height: el.getBoundingClientRect().height, radius: style.borderTopLeftRadius, border: style.borderTopColor, dividerWidth: divider.getBoundingClientRect().width };
-  })).toEqual({ height: 22, radius: '4px', border: 'rgba(0, 0, 0, 0)', dividerWidth: 1 });
+  })).toEqual({ height: 22, radius: '6px', border: 'rgba(0, 0, 0, 0)', dividerWidth: 1 });
   // The old separate controls are gone.
   await expect(page.getByRole('button', { name: 'Choose a delta marker reference' })).toHaveCount(0);
   // Hover shows the border around the whole button; an open menu paints the ▾ part with the Slate fill.

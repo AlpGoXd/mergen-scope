@@ -37,13 +37,15 @@
 }
 
 /* ONE shape for every control in an open zone: plain buttons, the Trace field, the Layout menu button, the
-   "+ Marker ▾" split button (its outer box) and Dir (which keeps only its dashed border). Same height, radius,
-   1 px border (transparent at rest, shown on hover), fill, padding and text size. Armed tools keep their filled look
+   "+ Marker ▾" split button (its outer box) and Dir (which keeps only its dashed border). It is the app's small
+   button shape (.ui-btn.is-small: control-sm height, the control radius; the buttons keep those classes) with a
+   0 7px padding, so the Trace field and the split button match them. Same 1 px border (transparent at rest, shown
+   on hover), fill and text size. Armed tools keep their filled look
    (they are excluded from the fill and border colour only, never from the shape). */
 .tool-zone__tools .zone-tool {
   box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; gap: 4px;
   height: var(--control-sm-height); min-height: 0; padding: 0 7px;
-  border-width: 1px; border-style: solid; border-radius: 4px;
+  border-width: 1px; border-style: solid; border-radius: var(--radius-control);
   font-size: var(--font-body); line-height: var(--lh-body);
 }
 .tool-zone__tools .zone-tool:not(.is-active):not(.is-armed) { background: var(--raised); border-color: transparent; }
