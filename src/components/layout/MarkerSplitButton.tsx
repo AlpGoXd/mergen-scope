@@ -60,7 +60,7 @@ export function MarkerSplitButton() {
     rows[next]?.focus();
   };
 
-  return <span className={`split-btn${armed ? ' is-armed' : ''}${anchor ? ' is-open' : ''}`} style={{ '--armed-hue': 'var(--marker-hue)' } as React.CSSProperties}>
+  return <span className={`zone-tool split-btn${armed ? ' is-armed' : ''}${anchor ? ' is-open' : ''}`} style={{ '--armed-hue': 'var(--marker-hue)' } as React.CSSProperties}>
     <Btn small variant="armed" tone="marker" active={!!armed} aria-pressed={!!armed} aria-label="New Marker" title={`Place a marker (${shortcutText('new-marker')})`} className="split-btn__main" onClick={selectNormal}>{face}</Btn>
     <span className="split-btn__divider" aria-hidden="true" />
     <button type="button" ref={more} className="split-btn__more" aria-label="Choose marker type" title="Choose marker type" aria-haspopup="menu" aria-expanded={anchor !== null} onClick={event => setAnchor(anchor ? null : event.currentTarget)}>▾</button>

@@ -151,7 +151,7 @@ export function ToolGroups() {
   }}>
     <ToolZone tone="marker" label="Markers" open={showMarkerTools} onToggle={() => toggle('showMarkerTools', showMarkerTools)}>
       {/* "Trace:" and the arrow sit inside the control's face; a click anywhere on it opens the same picker. */}
-      <span className="tool-zone__field" onMouseDown={event => { if (event.target === traceSelect.current) return; event.preventDefault(); traceSelect.current?.focus(); traceSelect.current?.showPicker?.(); }}>
+      <span className="zone-tool tool-zone__field" onMouseDown={event => { if (event.target === traceSelect.current) return; event.preventDefault(); traceSelect.current?.focus(); traceSelect.current?.showPicker?.(); }}>
         <span className="tool-zone__field-label" aria-hidden="true">Trace:</span>
         <select ref={traceSelect} className="tool-zone__select" aria-label="Trace" value={markerTrace} onChange={e => uiDispatch({ type: 'SET', payload: { key: 'markerTrace', value: e.target.value } })} title="Auto picks the selected trace or first visible trace">
           <option value="__auto__">Auto</option>{visiblePaneTraces.map(trace => <option key={trace.name} value={trace.name}>{trace.dn || trace.name}</option>)}
@@ -160,21 +160,21 @@ export function ToolGroups() {
       <MarkerSplitButton />
     </ToolZone>
     <ToolZone tone="search" label="Search" open={showSearchTools} onToggle={() => toggle('showSearchTools', showSearchTools)}>
-      <Btn small disabled={!canSearch} title={canSearch ? 'Find peak' : 'Select a trace with data'} onClick={handlePeak}>Peak</Btn>
-      <Btn small disabled={!canSearch} title={canSearch ? 'Find next peak' : 'Select a trace with data'} onClick={handleNextPeak}>Next peak</Btn>
-      <Btn small disabled={!canSearch} title={canSearch ? 'Find minimum' : 'Select a trace with data'} onClick={handleMin}>Min</Btn>
-      <Btn small disabled={!canSearch} title={canSearch ? 'Find next minimum' : 'Select a trace with data'} onClick={handleNextMin}>Next min</Btn>
-      <Btn small className="tool-zone__dir" title="Change search direction" onClick={() => uiDispatch({ type: 'SET', payload: { key: 'searchDirection', value: searchDirection === 'right' ? 'left' : 'right' } })}>{searchDirection === 'right' ? 'Dir L → R' : 'Dir L ← R'}</Btn>
+      <Btn small className="zone-tool" disabled={!canSearch} title={canSearch ? 'Find peak' : 'Select a trace with data'} onClick={handlePeak}>Peak</Btn>
+      <Btn small className="zone-tool" disabled={!canSearch} title={canSearch ? 'Find next peak' : 'Select a trace with data'} onClick={handleNextPeak}>Next peak</Btn>
+      <Btn small className="zone-tool" disabled={!canSearch} title={canSearch ? 'Find minimum' : 'Select a trace with data'} onClick={handleMin}>Min</Btn>
+      <Btn small className="zone-tool" disabled={!canSearch} title={canSearch ? 'Find next minimum' : 'Select a trace with data'} onClick={handleNextMin}>Next min</Btn>
+      <Btn small className="zone-tool tool-zone__dir" title="Change search direction" onClick={() => uiDispatch({ type: 'SET', payload: { key: 'searchDirection', value: searchDirection === 'right' ? 'left' : 'right' } })}>{searchDirection === 'right' ? 'Dir L → R' : 'Dir L ← R'}</Btn>
     </ToolZone>
     <ToolZone tone="lines" label="Lines" open={showLineTools} onToggle={() => toggle('showLineTools', showLineTools)}>
-      <Btn small variant="armed" tone="lines" active={refMode === 'v'} aria-pressed={refMode === 'v'} aria-label="V-Line" title="Place vertical line" onClick={() => toggleRefPlacement('v')}>V line</Btn>
-      <Btn small variant="armed" tone="lines" active={refMode === 'h'} aria-pressed={refMode === 'h'} aria-label="H-Line" title="Place horizontal line" onClick={() => toggleRefPlacement('h')}>H line</Btn>
+      <Btn small className="zone-tool" variant="armed" tone="lines" active={refMode === 'v'} aria-pressed={refMode === 'v'} aria-label="V-Line" title="Place vertical line" onClick={() => toggleRefPlacement('v')}>V line</Btn>
+      <Btn small className="zone-tool" variant="armed" tone="lines" active={refMode === 'h'} aria-pressed={refMode === 'h'} aria-label="H-Line" title="Place horizontal line" onClick={() => toggleRefPlacement('h')}>H line</Btn>
     </ToolZone>
     <ToolZone tone="pane" label="Pane" open={showPaneTools} onToggle={() => toggle('showPaneTools', showPaneTools)}>
-      {aggregate && <LayoutMenu paneCount={panes.length} limit={limit} />}
-      <Btn small disabled={panes.length >= limit || !aggregate} title={panes.length >= limit ? `Maximum ${limit} panes` : 'Add a pane'} onClick={() => { const targetPaneId = activePaneId ?? panes[0]?.id; if (targetPaneId) aggregate?.dispatch({ slice: 'layout', action: { type: 'ADD_PANE_AFTER', targetPaneId, limit } }); }}>+ Pane</Btn>
-      <Btn small disabled={panes.length <= 1 || !aggregate} title={panes.length <= 1 ? "At least one pane must remain" : !aggregate ? "Pane removal requires workspace history" : "Remove the last pane"} onClick={removeLastPane}>- Pane</Btn>
-      <Btn small title="Fit all panes" onClick={() => paneDispatch({ type: 'CLEAR_ALL_ZOOMS' })}>Fit all</Btn>
+      {aggregate && <LayoutMenu paneCount={panes.length} limit={limit} className="zone-tool" />}
+      <Btn small className="zone-tool" disabled={panes.length >= limit || !aggregate} title={panes.length >= limit ? `Maximum ${limit} panes` : 'Add a pane'} onClick={() => { const targetPaneId = activePaneId ?? panes[0]?.id; if (targetPaneId) aggregate?.dispatch({ slice: 'layout', action: { type: 'ADD_PANE_AFTER', targetPaneId, limit } }); }}>+ Pane</Btn>
+      <Btn small className="zone-tool" disabled={panes.length <= 1 || !aggregate} title={panes.length <= 1 ? "At least one pane must remain" : !aggregate ? "Pane removal requires workspace history" : "Remove the last pane"} onClick={removeLastPane}>- Pane</Btn>
+      <Btn small className="zone-tool" title="Fit all panes" onClick={() => paneDispatch({ type: 'CLEAR_ALL_ZOOMS' })}>Fit all</Btn>
     </ToolZone>
   </div>;
 }

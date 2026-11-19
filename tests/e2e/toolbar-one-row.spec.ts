@@ -98,3 +98,54 @@ test('Left and Analysis are panel toggles with their icon, and the wordmark is s
   const brand = page.getByText('Mergen', { exact: false }).first();
   expect(await brand.evaluate(el => { const wrap = el.closest('span[style*="font-weight"]')!; const style = getComputedStyle(wrap); const logo = wrap.querySelector('svg')!.getBoundingClientRect(), text = wrap.lastElementChild!.getBoundingClientRect(); return { weight: style.fontWeight, centred: Math.abs((logo.top + logo.height / 2) - (text.top + text.height / 2)) <= 1 }; })).toEqual({ weight: '600', centred: true });
 });
+
+test('every control in an open zone shares one shape; only Dir (dashed border) and the split button (parts carry the padding) differ', async ({ page }) => {
+  await openApp(page, 2048);
+  const read = () => page.locator('.tool-zone.is-open .zone-tool').evaluateAll(tools => {
+    const small = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--control-sm-height'));
+    return {
+      small,
+      tools: tools.map(tool => {
+        const style = getComputedStyle(tool), box = tool.getBoundingClientRect();
+        return { name: tool.textContent!.trim().slice(0, 14), height: box.height, radius: style.borderTopLeftRadius, width: style.borderTopWidth, style: style.borderTopStyle, padding: style.padding, size: style.fontSize, line: style.lineHeight, sizing: style.boxSizing, split: tool.classList.contains('split-btn'), dir: tool.classList.contains('tool-zone__dir'), bg: style.backgroundColor, active: tool.classList.contains('is-active') || tool.classList.contains('is-armed') };
+      }),
+    };
+  });
+  const idle = await read();
+  expect(idle.tools.length).toBe(13);
+  for (const tool of idle.tools) {
+    expect(tool, tool.name).toMatchObject({ height: idle.small, radius: '4px', width: '1px', size: '13px', line: '18px', sizing: 'border-box' });
+    expect(tool.style, tool.name).toBe(tool.dir ? 'dashed' : 'solid');
+    expect(tool.padding, tool.name).toBe(tool.split ? '0px' : '0px 7px');
+  }
+  // Plain buttons, the select's field, the Layout button and the split button all have the same flat white fill.
+  const fills = new Set(idle.tools.filter(tool => !tool.dir).map(tool => tool.bg));
+  expect(fills.size).toBe(1);
+
+  // The inner parts of the split button and the native select have no box of their own.
+  expect(await page.locator('.split-btn > *').evaluateAll(parts => parts.map(part => { const style = getComputedStyle(part); return [style.borderTopLeftRadius, style.borderTopWidth]; }))).toEqual([['0px', '0px'], ['0px', '0px'], ['0px', '0px']]);
+  expect(await page.locator('.tool-zone__select').evaluate(el => { const style = getComputedStyle(el); return [style.borderTopLeftRadius, style.borderTopWidth, style.padding]; })).toEqual(['0px', '0px', '0px']);
+  await expect(page.locator('.tool-zone .ui-select')).toHaveCount(0);
+
+  // The border shows on hover for plain buttons, the select's field and the split button alike.
+  for (const target of [page.getByRole('button', { name: 'Peak', exact: true }), page.locator('.tool-zone__field'), page.locator('.split-btn')]) {
+    await target.hover();
+    await expect.poll(() => target.evaluate(el => getComputedStyle(el).borderTopColor)).toBe(await page.evaluate(() => { const span = document.createElement('span'); span.style.color = 'var(--border-strong)'; document.body.appendChild(span); const colour = getComputedStyle(span).color; span.remove(); return colour; }));
+  }
+
+  // Armed tools keep the same shape, only the fill changes.
+  await page.getByRole('button', { name: 'New Marker', exact: true }).click();
+  const armed = await read();
+  expect(armed.tools.map(tool => [tool.height, tool.radius, tool.width])).toEqual(idle.tools.map(tool => [tool.height, tool.radius, tool.width]));
+  await page.getByRole('button', { name: 'V-Line', exact: true }).click();
+  expect((await read()).tools.map(tool => [tool.height, tool.radius, tool.width])).toEqual(idle.tools.map(tool => [tool.height, tool.radius, tool.width]));
+
+  // The zone title chip lines up with the tools' text: same size, same vertical position.
+  const alignment = await page.locator('.tool-zone.is-open').evaluateAll(zones => zones.map(zone => {
+    const mid = (el: Element) => { const range = document.createRange(); range.selectNodeContents(el); const box = range.getBoundingClientRect(); return [box.top + box.height / 2, box.bottom]; };
+    const chip = zone.querySelector('.tool-zone__chip')!, first = zone.querySelector('.tool-zone__tools .zone-tool')!;
+    const label = first.querySelector('.tool-zone__field-label') ?? first.querySelector('.split-btn__main') ?? first;
+    return { chip: mid(chip.firstChild!), tool: mid(label.firstChild!), size: getComputedStyle(chip).fontSize === getComputedStyle(label).fontSize };
+  }));
+  for (const zone of alignment) expect(zone).toEqual({ chip: zone.tool, tool: zone.chip, size: true });
+});
