@@ -4,9 +4,9 @@
    no shadows. Tones come from the --<tone>-zone / -ink / -line tokens in index.css. */
 
 /* Own flex-wrap container: a whole group moves to a second line when it does not fit, never split. 8 px between
-   groups, open or closed. The padding centres a 28 px line in the bar's row height; it grows only when the
+   groups, open or closed. The padding centres a 26 px line (the zone height) in the bar's row height, so the first line sits on the same centre line as the fixed clusters; it grows only when the
    groups wrap. */
-.tool-groups { flex: 1 1 0; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding-block: calc((var(--top-row-height) - var(--control-height)) / 2); }
+.tool-groups { flex: 1 1 0; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding-block: calc((var(--top-row-height) - var(--zone-height)) / 2); }
 
 /* 4 px between the chip and its first tool, and between tools. */
 .tool-zone { display: inline-flex; align-items: center; gap: 4px; flex: none; white-space: nowrap; }

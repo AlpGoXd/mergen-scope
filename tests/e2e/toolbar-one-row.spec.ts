@@ -149,3 +149,45 @@ test('every control in an open zone shares one shape; only Dir (dashed border) a
   }));
   for (const zone of alignment) expect(zone).toEqual({ chip: zone.tool, tool: zone.chip, size: true });
 });
+
+test('the divider before the groups grows with the row; the fixed clusters stay on the first line', async ({ page }) => {
+  const measure = () => page.evaluate(() => {
+    const box = (el: Element) => { const rect = el.getBoundingClientRect(); return { top: rect.top, bottom: rect.bottom, mid: rect.top + rect.height / 2, height: rect.height }; };
+    const bar = document.querySelector('.tool-groups')!.parentElement!;
+    const barBox = bar.getBoundingClientRect();
+    const dividers = Array.from(bar.querySelectorAll('[aria-hidden="true"]')).filter(el => getComputedStyle(el).borderLeftWidth === '1px');
+    const named = (label: string) => Array.from(bar.querySelectorAll('button')).find(button => button.getAttribute('aria-label') === label || button.textContent!.trim() === label)!;
+    return {
+      contentHeight: barBox.height - 1,
+      lines: new Set(Array.from(document.querySelectorAll('.tool-zone')).map(zone => Math.round(zone.getBoundingClientRect().top))).size,
+      leftDivider: box(dividers[0]!), groupsDivider: box(document.querySelector('[data-testid="topbar-groups-divider"]')!),
+      mids: { brand: box(document.querySelector('svg[viewBox="0 0 24 24"]')!.parentElement!).mid, left: box(named('Left')).mid, open: box(named('Open')).mid, analysis: box(named('Analysis')).mid, firstZone: box(document.querySelector('.tool-zone')!).mid },
+    };
+  });
+
+  // One line: the divider keeps its normal height, the same as the Left | Open divider, centred in the row.
+  await openApp(page, 2048);
+  const one = await measure();
+  expect(one.lines).toBe(1);
+  expect(one.groupsDivider.height).toBe(20);
+  expect(one.groupsDivider.height).toBe(one.leftDivider.height);
+  expect(one.groupsDivider.mid).toBe(one.leftDivider.mid);
+
+  // Wrapped: it spans every line, with the same inset above and below, and the Left | Open divider stays short.
+  await page.setViewportSize({ width: 1024, height: 900 });
+  await expect.poll(async () => (await measure()).lines).toBeGreaterThan(1);
+  const wrapped = await measure();
+  expect(wrapped.leftDivider.height).toBe(20);
+  expect(wrapped.groupsDivider.top).toBe(one.groupsDivider.top);
+  expect(wrapped.contentHeight - wrapped.groupsDivider.bottom).toBe(one.groupsDivider.top);
+  expect(wrapped.groupsDivider.height).toBe(wrapped.contentHeight - 2 * one.groupsDivider.top);
+  expect(wrapped.groupsDivider.height).toBeGreaterThan(2 * one.groupsDivider.height);
+
+  // On both, brand, Left, Open, Analysis and the first line of groups share one centre line (the first line).
+  for (const result of [one, wrapped]) {
+    const mids = Object.values(result.mids);
+    expect(Math.max(...mids) - Math.min(...mids)).toBeLessThanOrEqual(0.5);
+  }
+  expect(wrapped.mids.brand).toBe(one.mids.brand);
+  expect(wrapped.mids.analysis).toBe(one.mids.analysis);
+});

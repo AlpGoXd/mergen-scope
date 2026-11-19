@@ -42,11 +42,14 @@ export function TopBar({ onOpen, onExport }: TopBarProps = {}) {
   const icon = (path: React.ReactNode) => <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">{path}</svg>;
   // Panel toggles (Left, Analysis) show their panel: a box with the panel's side marked. They open panels, not tool groups.
   const panelIcon = (path: string) => <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><path d={path} /></svg>;
-  // One row: brand, Left and the file buttons stay fixed on the left, the tool groups wrap inside their own
-  // container (only they wrap), Analysis stays alone at the right end. Each fixed cluster is one row tall, so a
-  // wrapped second line of groups does not move them. (Clear workspace… lives in the Files ⋯ menu.)
-  const cluster = { display: 'flex', alignItems: 'center', gap: 4, height: 'var(--top-row-height)', flex: 'none' } as const;
-  return <div style={{ minHeight: 'var(--top-row-height)', display: 'flex', alignItems: 'flex-start', gap: 4, padding: '0 8px', background: 'var(--panel)', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+  // One row of siblings: the left block (brand, Left, file buttons), the divider, the tool groups (which wrap inside
+  // their own container, only they wrap) and Analysis at the right end. The bar stretches its children, so the
+  // wrapping container sets the bar's height. The two fixed clusters are one row tall and pinned to the top line,
+  // so a wrapped second line of groups does not move them. The divider before the groups stretches with the bar
+  // (by layout, not by measuring), so it spans both lines when the groups wrap, with the same inset above and
+  // below that centres a 20 px divider on one line. (Clear workspace… lives in the Files ⋯ menu.)
+  const cluster = { display: 'flex', alignItems: 'center', alignSelf: 'flex-start', gap: 4, height: 'var(--top-row-height)', flex: 'none' } as const;
+  return <div style={{ minHeight: 'var(--top-row-height)', display: 'flex', alignItems: 'stretch', gap: 4, padding: '0 8px', background: 'var(--panel)', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
     <style>{'@media (max-width: 1279px) { .topbar-action-label { display: none; } } .ui-btn.topbar-panel-toggle { height: var(--zone-height); min-height: 0; gap: 5px; }'}</style>
     <div style={cluster}>
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4em', whiteSpace: 'nowrap', fontSize: 'var(--font-title)', fontWeight: 'var(--fw-semibold)', marginRight: 8 }}><BrandMark /><span>Mergen <span style={{ color: 'var(--accent)' }}>Scope</span></span></span>
@@ -58,8 +61,8 @@ export function TopBar({ onOpen, onExport }: TopBarProps = {}) {
     <Btn ref={exportButton} title={visibleTraces.length || onExport ? `Export the target pane (${shortcutText('export')})` : 'Load a trace to export'} aria-label="Export" aria-haspopup="menu" aria-expanded={exportMenu !== null} active={exportMenu !== null} disabled={!onExport && visibleTraces.length === 0}
       onClick={event => { if (onExport) { onExport(); return; } setExportMenu(exportMenu ? null : event.currentTarget); }}>{icon(<><path d="M12 3v12m-4-4 4 4 4-4"/><path d="M4 17v4h16v-4"/></>)}<span className="topbar-action-label">Export…</span></Btn>
     {exportMenu && <PopoverAt label="Export" at={exportMenu} onClose={() => setExportMenu(null)}><ExportMenu onClose={() => setExportMenu(null)} onExportCsv={exportVisibleCsv} csvReason={visibleTraces.length ? null : 'Load a trace to export'} /></PopoverAt>}
-    <span aria-hidden="true" style={{ height: 20, borderLeft: '1px solid var(--border)', margin: '0 4px' }} />
     </div>
+    <span data-testid="topbar-groups-divider" aria-hidden="true" style={{ alignSelf: 'stretch', flex: 'none', width: 0, borderLeft: '1px solid var(--border)', margin: 'calc((var(--top-row-height) - 20px) / 2) 4px' }} />
     <ToolGroups />
     <div style={{ ...cluster, marginLeft: 'auto' }}>
       <Btn variant="chip" tone="analysis" active={ui.showRightPanel} className="topbar-panel-toggle" onClick={() => toggle('showRightPanel', ui.showRightPanel)}>{panelIcon('M3 4h18v16H3zM15 4v16')}Analysis</Btn>
