@@ -226,7 +226,7 @@ test("a multi-channel time CSV fills one new pane instead of one pane per channe
 test("Touchstone traces load while the sidebar is hidden", async ({ page }) => {
   await importFromEmptyPane(page, datFixture);
   await expect(page.locator(".lp-file--header .lp-name").filter({ hasText: "cascade_ip3_-12dBm.DAT" })).toBeVisible();
-  await page.getByRole("button", { name: "Left" }).click();
+  await page.getByRole("button", { name: "Left", exact: true }).click();
   await expect(page.locator(".lp-file--header .lp-name").filter({ hasText: "cascade_ip3_-12dBm.DAT" })).toHaveCount(0);
 
   await page.getByTestId("app-open-input").setInputFiles(touchstoneFixture);

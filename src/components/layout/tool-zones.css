@@ -1,37 +1,34 @@
-/* Top bar tool groups, design board T2 section 2b, option 1 "full-height band": one row, the open group's chip is its
-   zone title, its tools follow inline. The zone is ONE element per open group (chip + all its tools): a full-height
-   SQUARE band (the whole row height, radius 0, no border, the group's tint as background) that touches the bar's top
-   edge and its bottom border. Only the tools inside it are rounded; they are flat white with a transparent border
-   (shown on hover); no shadows. Tones come from the --<tone>-zone / -ink / -line tokens in index.css. */
+/* Top bar tool groups, design board T2 "square colour zone, round buttons": one row, the open group's name is a
+   pressed button, its tools follow inline. The zone is ONE element per open group (name button + all its tools): a
+   SQUARE tint block (radius 0, no border, the group's tint as background), 28 px tall (control-sm + 6 px), centred in
+   the row, with 3 px padding left and right. Everything inside it is a normal round button (the control radius).
+   Tones come from the --<tone>-zone / -fill / -line / -ink tokens in index.css. */
 
 /* Own flex-wrap container: a whole group moves to a second line when it does not fit, never split. 8 px between
-   groups, open or closed, where the bar's own background shows (two bands never touch). No vertical padding and no
-   row gap: every line is exactly one row tall, so a band fills its own line top to bottom. */
-.tool-groups { flex: 1 1 0; min-width: 0; display: flex; flex-wrap: wrap; align-content: flex-start; align-items: stretch; gap: 0 8px; padding: 0; }
+   groups side by side and 6 px between wrapped lines, so two zones never touch. The vertical padding centres a
+   28 px line in the bar's row height, so the first line sits on the same centre line as the fixed clusters. */
+.tool-groups { flex: 1 1 0; min-width: 0; display: flex; flex-wrap: wrap; align-content: flex-start; align-items: center; gap: 6px 8px; padding-block: calc((var(--top-row-height) - var(--zone-block-height)) / 2); }
 
-/* Every group, open or closed, is one row tall and centres its content; 4 px between the chip and its first tool,
-   and between tools. A closed group is just its normal small chip, centred in the row. */
-.tool-zone { display: inline-flex; align-items: center; gap: 4px; flex: none; height: var(--top-row-height); white-space: nowrap; }
+/* Every group, open or closed, is one 28 px line and centres its content; 4 px between the name button and its first
+   tool, and between tools. A closed group is just its normal small chip, centred in the line. */
+.tool-zone { display: inline-flex; align-items: center; gap: 4px; flex: none; height: var(--zone-block-height); white-space: nowrap; }
 .tool-zone--marker { --zone-bg: var(--marker-zone); --zone-ink: var(--marker-ink); --zone-line: var(--marker-line); }
 .tool-zone--search { --zone-bg: var(--search-zone); --zone-ink: var(--search-ink); --zone-line: var(--search-line); }
 .tool-zone--lines { --zone-bg: var(--lines-zone); --zone-ink: var(--lines-ink); --zone-line: var(--lines-line); }
 .tool-zone--pane { --zone-bg: var(--pane-zone); --zone-ink: var(--pane-ink); --zone-line: var(--pane-line); }
 
-/* A closed chip is the normal small chip (zone height, 6 px corners), centred in the row. */
+/* A closed chip is the normal small chip (zone height, 6 px corners), centred in the line. */
 .tool-zone .tool-zone__chip { height: var(--zone-height); min-height: 0; }
 
 /* The chevron reads "opens to the right"; open, it points back (closes). */
 .tool-zone__chevron { flex: none; opacity: 0.7; transition: transform 200ms cubic-bezier(0.2, 0.7, 0.2, 1); }
 .tool-zone.is-open .tool-zone__chevron { transform: rotate(180deg); }
 
-/* Open: a full-height square band around chip and tools, 8 px before the title and 8 px after the last tool. Its chip
-   is the title: no fill, no border, no padding of its own (the band's 8 px puts the label where the closed chip's
-   label was, so it does not jump), and it fills the band's height so the whole title is the click target. Its focus
-   ring is drawn inside, since the band touches the top of the bar. */
-.tool-zone.is-open { padding: 0 8px; background: var(--zone-bg); border-radius: 0; }
-.tool-zone.is-open > .tool-zone__chip.is-active,
-.tool-zone.is-open > .tool-zone__chip.is-active:hover:not(:disabled) { height: 100%; padding: 0; background: transparent; border-color: transparent; border-radius: 0; color: var(--zone-ink); font-weight: var(--fw-semibold); }
-.tool-zone.is-open > .tool-zone__chip:focus-visible { outline-offset: -2px; }
+/* Open: a square block around the name button and the tools, 3 px of padding at each end. The name is a real round
+   button in its pressed state: the group's fill, line and ink (the chip's own pressed look, from the tone variables),
+   semibold, control-sm tall like the tools. Clicking it closes the group (aria-expanded stays on it). */
+.tool-zone.is-open { padding: 0 3px; background: var(--zone-bg); border-radius: 0; }
+.tool-zone.is-open > .tool-zone__chip.is-active { height: var(--control-sm-height); padding: 0 7px; font-weight: var(--fw-semibold); }
 
 .tool-zone__tools { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 /* Opening slides the tools out of the chip. Closing is instant (they unmount). `overflow` is hidden only while the
@@ -43,7 +40,7 @@
 }
 
 /* ONE shape for every control in an open zone: plain buttons, the Trace field, the Layout menu button, the
-   "+ Marker ▾" split button (its outer box) and Dir (which keeps only its dashed border). It is the app's small
+   "+ Marker ▾" split button (its outer box) and the Dir arrow button. It is the app's small
    button shape (.ui-btn.is-small: control-sm height, the control radius; the buttons keep those classes) with a
    0 7px padding, so the Trace field and the split button match them. Same 1 px border (transparent at rest, shown
    on hover), fill and text size. Armed tools keep their filled look
@@ -67,10 +64,9 @@
 .tool-zone__select { field-sizing: content; appearance: none; -webkit-appearance: none; min-height: 0; height: 100%; max-width: 96px; margin: 0; padding: 0; border: 0; border-radius: 0; outline: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; text-overflow: ellipsis; }
 .tool-zone__select option { background: var(--raised); color: var(--text); }
 
-/* "Dir L → R" is a setting, not an action: the only dashed button. It keeps the shared shape and changes only
-   its border (dashed, in the group's line colour) and its fill and text colours. */
-.tool-zone__tools .zone-tool.tool-zone__dir:not(.is-active):not(.is-armed) { background: transparent; border-style: dashed; border-color: var(--zone-line); color: var(--zone-ink); }
-.tool-zone__tools .zone-tool.tool-zone__dir:not(.is-active):not(.is-armed):hover:not(:disabled) { background: transparent; border-color: var(--zone-ink); }
+/* The search direction is a normal tool that shows only an arrow (a flip, not on/off): same shape and look as the
+   other tools, a little narrower (0 6px) since it holds just the icon. */
+.tool-zone__tools .zone-tool.tool-zone__dir { padding: 0 6px; }
 
 /* "+ Marker ▾": ONE split button. Only the outer box has the shared shape (radius, 1 px border, hover border); the
    inner parts have no radius or border of their own, with the 1 px divider between "+ Marker" and "▾". Each part

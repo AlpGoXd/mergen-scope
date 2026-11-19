@@ -15,48 +15,68 @@ async function openApp(page: Page, width: number) {
 
 const rows = (page: Page) => page.locator('.tool-zone').evaluateAll(zones => new Set(zones.map(zone => Math.round(zone.getBoundingClientRect().y))).size);
 
-test('each open group is a full-height square band around its chip and all its tools: 8 px padding, 4 px inside, 8 px apart', async ({ page }) => {
+test('each open group is a square 28 px tint block: a pressed round name button and round tools inside, 3 px padding, 4 px and 8 px gaps', async ({ page }) => {
   await openApp(page, 2048);
   expect(await rows(page)).toBe(1);
   const report = await page.locator('.tool-zone.is-open').evaluateAll(zones => zones.map((zone, index) => {
     const box = (el: Element) => el.getBoundingClientRect();
-    const zoneBox = box(zone), chip = box(zone.querySelector('.tool-zone__chip')!), tools = Array.from(zone.querySelectorAll('.tool-zone__tools > *')).map(box);
+    const probe = (property: string, value: string) => { const span = document.createElement('span'); span.style.setProperty(property, value); document.body.appendChild(span); const out = getComputedStyle(span).getPropertyValue(property); span.remove(); return out; };
+    const tone = /tool-zone--(\w+)/.exec(zone.className)![1]!;
+    const root = getComputedStyle(document.documentElement);
+    const zoneBox = box(zone), name = zone.querySelector('.tool-zone__chip')!, nameBox = box(name), nameStyle = getComputedStyle(name);
+    const tools = Array.from(zone.querySelectorAll('.tool-zone__tools > *')).map(box);
     const style = getComputedStyle(zone), next = zones[index + 1], bar = zone.parentElement!.parentElement!;
-    const barBox = box(bar), barStyle = getComputedStyle(bar);
+    const barBox = box(bar), content = barBox.height - parseFloat(getComputedStyle(bar).borderBottomWidth);
+    const mid = (rect: DOMRect) => rect.top + rect.height / 2;
     return {
-      height: zoneBox.height, row: parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--top-row-height')),
-      // The band touches the bar's top edge and its bottom border, with no vertical padding on the bar.
-      top: zoneBox.top - barBox.top, bottom: barBox.bottom - parseFloat(barStyle.borderBottomWidth) - zoneBox.bottom, barPadding: [barStyle.paddingTop, barStyle.paddingBottom],
+      tone, small: parseFloat(root.getPropertyValue('--control-sm-height')), height: zoneBox.height,
+      // Not full height: centred in the row, with the same space above and below.
+      above: zoneBox.top - barBox.top, below: barBox.top + content - zoneBox.bottom, content,
       radius: style.borderTopLeftRadius + style.borderBottomRightRadius, border: style.borderTopWidth, shadow: style.boxShadow, padding: style.padding,
-      inside: chip.left >= zoneBox.left && tools.every(tool => tool.right <= zoneBox.right + 0.01),
-      toolsCentred: tools.every(tool => Math.abs((tool.top + tool.height / 2) - (zoneBox.top + zoneBox.height / 2)) <= 0.5),
-      chipToFirst: Math.round((tools[0]?.left ?? 0) - chip.right), toolGaps: tools.slice(1).map((tool, i) => Math.round(tool.left - tools[i]!.right)),
-      lastToEdge: Math.round(zoneBox.right - tools[tools.length - 1]!.right), toNext: next ? Math.round(box(next).left - zoneBox.right) : 8,
+      bg: style.backgroundColor === probe('background-color', `var(--${tone}-zone)`),
+      inside: nameBox.left >= zoneBox.left && tools.every(tool => tool.right <= zoneBox.right + 0.01),
+      centred: [nameBox, ...tools].every(rect => Math.abs(mid(rect) - mid(zoneBox)) <= 0.5),
+      chipToFirst: Math.round((tools[0]?.left ?? 0) - nameBox.right), toolGaps: tools.slice(1).map((tool, i) => Math.round(tool.left - tools[i]!.right)),
+      lastToEdge: Math.round(zoneBox.right - tools[tools.length - 1]!.right), firstToEdge: Math.round(nameBox.left - zoneBox.left), toNext: next ? Math.round(box(next).left - zoneBox.right) : 8,
+      // The name is a real round button in its pressed state: the group's fill, line and ink, semibold, control-sm tall.
+      name: {
+        height: nameBox.height, radius: nameStyle.borderTopLeftRadius, radiusToken: root.getPropertyValue('--radius-control').trim(), weight: nameStyle.fontWeight, borderWidth: nameStyle.borderTopWidth,
+        fill: nameStyle.backgroundColor === probe('background-color', `var(--${tone}-fill)`), line: nameStyle.borderTopColor === probe('border-top-color', `var(--${tone}-line)`), ink: nameStyle.color === probe('color', `var(--${tone}-ink)`),
+        expanded: name.getAttribute('aria-expanded'),
+      },
     };
   }));
   expect(report).toHaveLength(4);
   for (const zone of report) {
-    expect(zone).toMatchObject({ height: zone.row, top: 0, bottom: 0, barPadding: ['0px', '0px'], radius: '0px0px', border: '0px', shadow: 'none', padding: '0px 8px', inside: true, toolsCentred: true, chipToFirst: 4, lastToEdge: 8, toNext: 8 });
-    expect(zone.toolGaps.every(gap => gap === 4)).toBe(true);
+    expect(zone, zone.tone).toMatchObject({ height: zone.small + 6, radius: '0px0px', border: '0px', shadow: 'none', padding: '0px 3px', bg: true, inside: true, centred: true, chipToFirst: 4, lastToEdge: 3, firstToEdge: 3, toNext: 8 });
+    expect(zone.above, zone.tone).toBe(zone.below);
+    expect(zone.above, zone.tone).toBeGreaterThan(0);
+    expect(zone.above + zone.height + zone.below, zone.tone).toBe(zone.content);
+    expect(zone.toolGaps.every(gap => gap === 4), zone.tone).toBe(true);
+    expect(zone.name, zone.tone).toMatchObject({ height: zone.small, radius: zone.name.radiusToken, weight: '600', borderWidth: '1px', fill: true, line: true, ink: true, expanded: 'true' });
   }
 });
 
-test('wrapped, every line is one full row and each band fills its own line, with no gap between lines', async ({ page }) => {
+test('wrapped, the zones sit 6 px apart vertically and never touch, one 28 px line each', async ({ page }) => {
   await openApp(page, 1024);
-  const read = () => page.evaluate(() => {
-    const row = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--top-row-height'));
+  const { small, inset, content, zones } = await page.evaluate(() => {
+    const small = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--control-sm-height'));
     const bar = document.querySelector('.tool-groups')!.parentElement!;
     const barBox = bar.getBoundingClientRect(), borderBottom = parseFloat(getComputedStyle(bar).borderBottomWidth);
-    const zones = Array.from(document.querySelectorAll('.tool-zone')).map(zone => ({ top: zone.getBoundingClientRect().top - barBox.top, height: zone.getBoundingClientRect().height, open: zone.classList.contains('is-open') }));
-    return { row, content: barBox.height - borderBottom, zones };
+    const zones = Array.from(document.querySelectorAll('.tool-zone')).map(zone => { const rect = zone.getBoundingClientRect(); return { top: rect.top - barBox.top, height: rect.height, left: rect.left, right: rect.right }; });
+    return { small, inset: (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--top-row-height')) - (small + 6)) / 2, content: barBox.height - borderBottom, zones };
   });
-  const { row, content, zones } = await read();
   const tops = [...new Set(zones.map(zone => zone.top))].sort((a, b) => a - b);
   expect(tops.length).toBeGreaterThan(1);
-  // Lines sit directly on top of each other, one row apart, starting at the bar's top edge and ending at its border.
-  expect(tops).toEqual(tops.map((_, line) => line * row));
-  expect(content).toBe(tops.length * row);
-  for (const zone of zones) expect(zone.height).toBe(row);
+  // The first line is centred in the row; the next lines follow 6 px below the one before.
+  expect(tops).toEqual(tops.map((_, line) => inset + line * (small + 6 + 6)));
+  expect(content).toBe(inset + tops.length * (small + 6) + (tops.length - 1) * 6 + inset);
+  for (const zone of zones) expect(zone.height).toBe(small + 6);
+  // Side by side they are 8 px apart.
+  for (const top of tops) {
+    const line = zones.filter(zone => zone.top === top).sort((a, b) => a.left - b.left);
+    line.slice(1).forEach((zone, i) => expect(Math.round(zone.left - line[i]!.right)).toBe(8));
+  }
 });
 
 test('only the groups wrap: Analysis stands alone at the right end and Clear All is gone from the top bar', async ({ page }) => {
@@ -80,24 +100,20 @@ test('Trace is one control with its label inside it, and a group title does not 
   expect(await trace.evaluate(el => getComputedStyle(el).borderTopWidth)).toBe('0px');
 
   const chip = page.getByRole('button', { name: 'Lines', exact: true });
-  // The open title fills the band's height, the closed chip is the normal small chip (6 px corners); the label stays
-  // exactly where it was, both across and down, so the row does not jump.
+  // Open, the name is a pressed round button (control-sm tall); closed, the group is the normal small chip (6 px corners).
   const measure = () => chip.evaluate(el => {
-    const box = el.getBoundingClientRect(), text = document.createRange();
-    text.selectNodeContents(el.firstChild!);
-    const label = text.getBoundingClientRect(), style = getComputedStyle(el);
-    return { height: box.height, radius: style.borderTopLeftRadius, labelLeft: label.left, labelMid: label.top + label.height / 2 };
+    const box = el.getBoundingClientRect(), style = getComputedStyle(el);
+    return { height: box.height, radius: style.borderTopLeftRadius, weight: style.fontWeight, expanded: el.getAttribute('aria-expanded'), pressed: el.classList.contains('is-active') };
   });
+  const token = (name: string) => page.evaluate(variable => getComputedStyle(document.documentElement).getPropertyValue(variable).trim(), name);
+  const small = parseFloat(await token('--control-sm-height'));
   const open = await measure();
-  const row = await page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--top-row-height')));
-  expect(open).toMatchObject({ height: row, radius: '0px' });
+  expect(open).toMatchObject({ height: small, radius: await token('--radius-control'), weight: '600', expanded: 'true', pressed: true });
   await chip.click();
   await expect(chip).toHaveAttribute('aria-expanded', 'false');
   const closed = await measure();
-  expect(closed.radius).toBe(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--radius-control').trim()));
-  expect(closed.height).toBe(await page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--control-sm-height')) + 4));
-  expect(closed.labelLeft).toBe(open.labelLeft);
-  expect(closed.labelMid).toBe(open.labelMid);
+  expect(closed).toMatchObject({ height: small + 4, radius: await token('--radius-control'), expanded: 'false', pressed: false });
+  expect(closed.weight).not.toBe('600');
 });
 
 test('Left and Analysis are panel toggles with their icon, and the wordmark is semibold', async ({ page }) => {
@@ -137,7 +153,7 @@ test('Left and Analysis are panel toggles with their icon, and the wordmark is s
   expect(await brand.evaluate(el => { const wrap = el.closest('span[style*="font-weight"]')!; const style = getComputedStyle(wrap); const logo = wrap.querySelector('svg')!.getBoundingClientRect(), text = wrap.lastElementChild!.getBoundingClientRect(); return { weight: style.fontWeight, centred: Math.abs((logo.top + logo.height / 2) - (text.top + text.height / 2)) <= 1 }; })).toEqual({ weight: '600', centred: true });
 });
 
-test('every control in an open zone shares one shape; only Dir (dashed border) and the split button (parts carry the padding) differ', async ({ page }) => {
+test('every control in an open zone shares one shape; only Dir (icon only, 0 6px) and the split button (parts carry the padding) differ in padding', async ({ page }) => {
   await openApp(page, 2048);
   const read = () => page.locator('.tool-zone.is-open .zone-tool').evaluateAll(tools => {
     const small = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--control-sm-height'));
@@ -153,11 +169,11 @@ test('every control in an open zone shares one shape; only Dir (dashed border) a
   expect(idle.tools.length).toBe(13);
   for (const tool of idle.tools) {
     expect(tool, tool.name).toMatchObject({ height: idle.small, radius: idle.radius, width: '1px', size: '13px', line: '18px', sizing: 'border-box' });
-    expect(tool.style, tool.name).toBe(tool.dir ? 'dashed' : 'solid');
-    expect(tool.padding, tool.name).toBe(tool.split ? '0px' : '0px 7px');
+    expect(tool.style, tool.name).toBe('solid');
+    expect(tool.padding, tool.name).toBe(tool.split ? '0px' : tool.dir ? '0px 6px' : '0px 7px');
   }
-  // Plain buttons, the select's field, the Layout button and the split button all have the same flat white fill.
-  const fills = new Set(idle.tools.filter(tool => !tool.dir).map(tool => tool.bg));
+  // Plain buttons, the select's field, the Layout button, Dir and the split button all have the same flat white fill.
+  const fills = new Set(idle.tools.map(tool => tool.bg));
   expect(fills.size).toBe(1);
 
   // The inner parts of the split button and the native select have no box of their own.
@@ -245,4 +261,45 @@ test('selects use the control radius like buttons; text inputs keep the input ra
   // Text inputs keep the input radius.
   expect(await radius('.pset-num')).toBe(await token('--radius-input'));
   expect(control).not.toBe(await token('--radius-input'));
+});
+
+test('search direction is a normal arrow-only tool button that flips the direction Next peak and Next min search in', async ({ page }) => {
+  await openApp(page, 2048);
+  const dir = page.getByRole('button', { name: /^Search direction/ });
+  const peak = page.getByRole('button', { name: 'Peak', exact: true });
+  await expect(dir).toHaveCount(1);
+  await expect(page.getByRole('button', { name: /Dir L/ })).toHaveCount(0);
+  // The direction is the UI store's searchDirection: Next peak moves the marker up in frequency when it reads left to
+  // right and down when it reads right to left.
+  const frequency = async () => Number(/([\d.]+) GHz/.exec(await page.getByTestId('marker-row-1').innerText())![1]);
+  const nextPeak = async () => { const before = await frequency(); await page.getByRole('button', { name: 'Next peak', exact: true }).click(); await expect.poll(frequency).not.toBe(before); return frequency(); };
+  await peak.click();
+  await expect(page.getByTestId('marker-row-1')).toBeVisible();
+  const arrows = { right: 'M5 12h14M13 6l6 6-6 6', left: 'M19 12H5M11 6l-6 6 6 6' };
+  const expectState = async (state: 'right' | 'left') => {
+    const words = state === 'right' ? 'left to right' : 'right to left';
+    await expect(dir).toHaveAccessibleName(`Search direction: ${words}`);
+    await expect(dir).toHaveAttribute('title', `Search direction: ${state === 'right' ? 'left → right' : 'right → left'}. Click to flip.`);
+    await expect(dir.locator('svg path')).toHaveAttribute('d', arrows[state]);
+    // A flip, not on/off: no aria-pressed.
+    expect(await dir.getAttribute('aria-pressed')).toBeNull();
+  };
+  await expectState('right');
+  const start = await frequency();
+  const up = await nextPeak();
+  expect(up).toBeGreaterThan(start);
+  // An arrow only: a 13 px stroke icon, no text, no dashed border, the same height, fill and radius as the other tools.
+  await expect(dir).toHaveText('');
+  const look = (button: typeof dir) => button.evaluate(el => {
+    const style = getComputedStyle(el), icon = el.querySelector('svg'), iconStyle = icon ? getComputedStyle(icon) : null;
+    return { height: el.getBoundingClientRect().height, radius: style.borderTopLeftRadius, border: style.borderTopStyle, borderWidth: style.borderTopWidth, bg: style.backgroundColor, padding: style.padding, icon: icon && iconStyle ? [icon.getBoundingClientRect().width, iconStyle.strokeWidth, iconStyle.strokeLinecap, iconStyle.strokeLinejoin, icon.getAttribute('aria-hidden')] : null };
+  });
+  const arrow = await look(dir), plain = await look(peak);
+  expect(arrow).toMatchObject({ height: plain.height, radius: plain.radius, border: 'solid', borderWidth: '1px', bg: plain.bg, padding: '0px 6px', icon: [13, '1.75px', 'round', 'round', 'true'] });
+  await dir.click();
+  await expectState('left');
+  expect(await nextPeak()).toBeLessThan(up);
+  await dir.click();
+  await expectState('right');
+  expect(await nextPeak()).toBeGreaterThan(await frequency() - 1e-9);
 });
