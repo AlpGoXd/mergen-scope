@@ -5,6 +5,7 @@ import { FileRow as KitFileRow, Info, Matrix } from '../left-panel/FileRow';
 import type { FileFormat, MatrixView } from '../left-panel/types';
 import { Popover } from '../shared/Controls';
 import { Menu as KitMenu } from '../left-panel/Menu';
+import type { MenuEntry } from '../left-panel/Menu';
 import type { ToastKind } from '../../stores/toast-store';
 import { useTraceColors } from '../../hooks/use-trace-colors';
 import { planMatrixAdd } from '../../domain/matrix-add';
@@ -22,6 +23,7 @@ import { adaptDisplayTracesToLegacyTraces } from '../../domain/display-trace-ada
 import { useTouchstoneState } from '../../hooks/use-touchstone-state';
 import { useTheme } from '../../hooks/use-theme';
 import { useTraceActions } from '../../hooks/use-trace-actions';
+import { useClearWorkspace } from '../../hooks/use-clear-workspace';
 import { useFileDispatch, useFileState } from '../../stores/file-store';
 import { useOptionalAggregateWorkspace, workspaceReducer, traceView, type WorkspaceAction } from '../../stores/aggregate-workspace-store';
 import { useMarkerDispatch, useMarkerState, type MarkerAction } from '../../stores/marker-store';
@@ -70,6 +72,7 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
   const { touchstoneStateByFileId, appendCell, setActiveFamily, setActiveView } = useTouchstoneState();
   const { selectTrace, removeTrace, toggleVisibility } = useTraceActions();
   const { colors } = useTheme();
+  const { clearWorkspace, canClear } = useClearWorkspace();
 
   const [hoveredMarkerId, setHoveredMarkerId] = useState<string | null>(null);
   const [expandedByFileId, setExpandedByFileId] = useState<Record<string, { columns?: boolean; meta?: boolean }>>({});
@@ -153,7 +156,7 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
           const actions = files.map(file => ({ slice: 'files' as const, action: { type: 'REMOVE_FILE' as const, payload: { fileId: String(file.id) } } }));
           if (aggregate) aggregate.historyDispatch({ type: 'change', toastMessage: `Closed ${files.length} files`, toastKind: 'close', command: { slice: 'transaction', actions } });
           else actions.forEach(item => fileDispatch(item.action));
-        } }]} rightElement={
+        } }, { label: 'Clear workspace…', danger: true, separatorBefore: true, disabled: !canClear, reason: 'Nothing to clear', run: clearWorkspace }]} rightElement={
           // With no file open the drop area below offers Open… and Load demo; the header button joins once a file is open.
           files.length > 0 ? <OpenButton onOpen={() => onOpenFiles?.()} /> : undefined
         }>
@@ -594,7 +597,8 @@ function SidebarEmpty({ text, compact = false }: { text: string; compact?: boole
   );
 }
 
-type SidebarAction = { label: string; run: () => void; disabled?: boolean; note?: string; danger?: boolean };
+/** `reason` replaces the generic tooltip of a disabled action; `separatorBefore` draws a line above it. */
+type SidebarAction = { label: string; run: () => void; disabled?: boolean; reason?: string; note?: string; danger?: boolean; separatorBefore?: boolean };
 function MoreViews({ family, view, onChange }: { family: string; view: TouchstoneView; onChange: (view: TouchstoneView) => void }) {
   const ref = useRef<HTMLSpanElement>(null);
   const moreViews: TouchstoneView[] = ['VSWR', 'Return loss', 'Group delay'];
@@ -603,7 +607,7 @@ function MoreViews({ family, view, onChange }: { family: string; view: Touchston
 }
 function ActionMenu({ label, actions }: { label: string; actions: SidebarAction[] }) {
   const ref = useRef<HTMLSpanElement>(null);
-  return <span ref={ref} className="lp-action-menu"><Popover label={label}><KitMenu label={label} entries={actions.map(action => ({ label: action.label, note: action.note, danger: action.danger, disabledReason: action.disabled ? 'Unavailable until the required data or integration is present' : undefined, onSelect: () => { action.run(); ref.current?.querySelector<HTMLButtonElement>('.ui-menu-root > button')?.click(); } }))} /></Popover></span>;
+  return <span ref={ref} className="lp-action-menu"><Popover label={label}><KitMenu label={label} entries={actions.flatMap((action): MenuEntry[] => [...(action.separatorBefore ? ['separator' as const] : []), { label: action.label, note: action.note, danger: action.danger, disabledReason: action.disabled ? (action.reason ?? 'Unavailable until the required data or integration is present') : undefined, onSelect: () => { action.run(); ref.current?.querySelector<HTMLButtonElement>('.ui-menu-root > button')?.click(); } }])} /></Popover></span>;
 }
 function PanelSection({ title, count, children, rightElement, actions = [] }: { title: string; count: number; children: ReactNode; rightElement?: ReactNode; actions?: SidebarAction[] }) {
   const key = `mergen.sidebar.collapsed.${title.toLowerCase()}`;

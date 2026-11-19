@@ -251,6 +251,7 @@
   display: flex; flex-direction: column;
 }
 .lp-menu__title { padding: 4px 8px 2px; font-size: var(--font-caption); font-weight: var(--fw-bold); color: var(--text-muted); }
+.lp-menu__heading { padding: 4px 8px 2px; font-size: var(--font-caption); color: var(--text-muted); }
 .lp-menu__item {
   display: flex; align-items: flex-start; gap: 8px; width: 100%; padding: 5px 8px; border: 0; border-radius: 5px;
   background: none; color: inherit; font: inherit; text-align: left; cursor: pointer;
@@ -259,6 +260,8 @@
 .lp-menu__item[aria-disabled='true'] { color: var(--text-muted); cursor: not-allowed; }
 .lp-menu__item[aria-disabled='true']:hover { background: none; }
 .lp-menu__item--danger { color: var(--danger-ink); }
+/* Inside a popover the generic .ui-popover [role=menuitem] rule would paint a danger item in the text colour. */
+.ui-popover .lp-menu__item--danger[role=menuitem] { color: var(--danger-ink); }
 .lp-menu__check { width: 12px; flex: none; color: var(--accent); }
 .lp-menu__body { display: flex; flex-direction: column; flex: 1; min-width: 0; }
 .lp-menu__note { font-size: var(--font-caption); color: var(--text-muted); }

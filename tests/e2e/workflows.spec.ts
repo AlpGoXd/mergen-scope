@@ -3,6 +3,7 @@ import { expect, type Locator, type Page, test } from "@playwright/test";
 import { acceptImport } from "./import-helpers";
 import { readFileSync } from "fs";
 import { addAnalysis, analysisCard, openAnalysisPanel } from "./analysis-helpers";
+import { clearWorkspace } from "./workspace-helpers";
 import { resolve } from "path";
 
 const datFixture = resolve(process.cwd(), "test files/cascade_ip3_-12dBm.DAT");
@@ -89,7 +90,7 @@ test("multi-pane assignment survives workspace save and reload", async ({ page }
   const workspacePath = await workspaceDownload.path();
   expect(workspacePath).toBeTruthy();
 
-  await page.getByRole("button", { name: "Clear All" }).click();
+  await clearWorkspace(page);
   await expect(page.getByTestId("chart-pane-pane-1").getByTestId("empty-chart-dropzone")).toBeVisible();
 
   page.once("dialog", (dialog) => dialog.accept());
@@ -264,7 +265,7 @@ test("loading a workspace keeps traces in their saved pane even when another pan
   await page.getByTitle("Save Workspace JSON").click();
   const workspacePath = await (await downloadPromise).path();
 
-  await page.getByRole("button", { name: "Clear All" }).click();
+  await clearWorkspace(page);
   page.once("dialog", (dialog) => dialog.accept());
   await page.getByTestId("topbar-workspace-input").setInputFiles(workspacePath!);
   await expect(firstTraceRow(page)).toContainText("P2");

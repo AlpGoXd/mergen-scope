@@ -2,11 +2,6 @@ import React from 'react';
 import { useUiState, useUiDispatch } from '../../stores/ui-store';
 import type { UiState } from '../../stores/ui-store';
 import { useWorkspace } from '../../hooks/use-workspace';
-import { useFileState, useFileDispatch } from '../../stores/file-store';
-import { useMarkerDispatch } from '../../stores/marker-store';
-import { useRefLineState, useRefLineDispatch } from '../../stores/ref-line-store';
-import { usePaneDispatch } from '../../stores/pane-store';
-import { useOptionalAggregateWorkspace } from '../../stores/aggregate-workspace-store';
 import { Btn } from '../shared/Btn';
 import { useTraceState } from '../../stores/trace-store';
 import { tracesToCSV } from '../../domain/export';
@@ -34,10 +29,6 @@ export function TopBar({ onOpen, onExport }: TopBarProps = {}) {
   const dispatch = useUiDispatch();
   const { downloadWorkspace, loadFromFile } = useWorkspace();
   const fileInputRef = React.useRef<HTMLInputElement>(null);
-  const { files } = useFileState(); const fileDispatch = useFileDispatch();
-  const markerDispatch = useMarkerDispatch(); const { refLines } = useRefLineState();
-  const lineDispatch = useRefLineDispatch(); const paneDispatch = usePaneDispatch();
-  const aggregate = useOptionalAggregateWorkspace();
   const { allTraces, vis } = useTraceState();
   const visibleTraces = allTraces.filter(trace => vis[trace.name] !== false);
   const exportVisibleCsv = () => { if (visibleTraces.length) downloadTextFile('visible-traces.csv', tracesToCSV(visibleTraces, 'Frequency'), 'text/csv;charset=utf-8'); };
@@ -45,19 +36,6 @@ export function TopBar({ onOpen, onExport }: TopBarProps = {}) {
   const [exportMenu, setExportMenu] = React.useState<HTMLElement | null>(null);
   const exportButton = React.useRef<HTMLButtonElement | null>(null);
   useShortcut('export', () => { if (onExport) { onExport(); return; } if (!exportButton.current || exportButton.current.disabled) return false; setExportMenu(exportButton.current); });
-  const clearAll = () => {
-    if (aggregate) {
-      aggregate.historyDispatch({type:'change',toastMessage:'Cleared workspace',toastKind:'delete',command:{slice:'transaction', actions:[
-        ...files.map(file => ({slice:'files' as const,action:{type:'REMOVE_FILE' as const,payload:{fileId:String(file.id)}}})),
-        {slice:'markers',action:{type:'CLEAR_ALL'}},
-        ...refLines.map(line => ({slice:'lines' as const,action:{type:'REMOVE_LINE' as const,payload:line.id}})),
-        {slice:'panes',limit:4,action:{type:'CLEAR_ALL_ZOOMS'}},
-      ]}}); return;
-    }
-    files.forEach(file => fileDispatch({type:'REMOVE_FILE',payload:{fileId:String(file.id)}}));
-    markerDispatch({type:'CLEAR_ALL'}); refLines.forEach(line => lineDispatch({type:'REMOVE_LINE',payload:line.id}));
-    paneDispatch({type:'CLEAR_ALL_ZOOMS'});
-  };
   const toggle = (key: keyof UiState, value: boolean) => {
     dispatch({ type: 'SET', payload: { key, value: !value } });
   };
@@ -65,8 +43,8 @@ export function TopBar({ onOpen, onExport }: TopBarProps = {}) {
   // Panel toggles (Left, Analysis) show their panel: a box with the panel's side marked. They open panels, not tool groups.
   const panelIcon = (path: string) => <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><path d={path} /></svg>;
   // One row: brand, Left and the file buttons stay fixed on the left, the tool groups wrap inside their own
-  // container (only they wrap), Clear All and Analysis stay at the right end. Each fixed cluster is one row
-  // tall, so a wrapped second line of groups does not move them.
+  // container (only they wrap), Analysis stays alone at the right end. Each fixed cluster is one row tall, so a
+  // wrapped second line of groups does not move them. (Clear workspace… lives in the Files ⋯ menu.)
   const cluster = { display: 'flex', alignItems: 'center', gap: 4, height: 'var(--top-row-height)', flex: 'none' } as const;
   return <div style={{ minHeight: 'var(--top-row-height)', display: 'flex', alignItems: 'flex-start', gap: 4, padding: '0 8px', background: 'var(--panel)', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
     <style>{'@media (max-width: 1279px) { .topbar-action-label { display: none; } } .ui-btn.topbar-panel-toggle { height: var(--zone-height); min-height: 0; gap: 5px; }'}</style>
@@ -84,10 +62,6 @@ export function TopBar({ onOpen, onExport }: TopBarProps = {}) {
     </div>
     <ToolGroups />
     <div style={{ ...cluster, marginLeft: 'auto' }}>
-      {!onOpen && <>
-        <Btn title="Remove all loaded files and clear state" onClick={clearAll}>Clear All</Btn>
-        <span aria-hidden="true" style={{ height: 20, borderLeft: '1px solid var(--border)', margin: '0 4px' }} />
-      </>}
       <Btn variant="chip" tone="analysis" active={ui.showRightPanel} className="topbar-panel-toggle" onClick={() => toggle('showRightPanel', ui.showRightPanel)}>{panelIcon('M3 4h18v16H3zM15 4v16')}Analysis</Btn>
     </div>
   </div>;

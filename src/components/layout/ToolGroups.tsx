@@ -10,7 +10,7 @@ import { defaultTraceForPane } from '../../domain/default-trace';
 import { paneName } from '../../domain/line-view';
 import { useInteractionMode } from '../../hooks/use-interaction-mode';
 import { Btn } from '../shared/Btn';
-import { PopoverAt } from '../shared/Controls';
+import { MarkerSplitButton } from './MarkerSplitButton';
 import { planLastPaneLines, planLastPaneRemoval, useOptionalAggregateWorkspace } from '../../stores/aggregate-workspace-store';
 import { LayoutMenu } from '../chart/LayoutMenu';
 import './tool-zones.css';
@@ -43,7 +43,6 @@ function ToolZone({ tone, label, open, onToggle, children }: { tone: ZoneTone; l
  * it (Clear All and Analysis are outside), so only the groups themselves ever wrap.
  */
 export function ToolGroups() {
-  const [deltaAnchor, setDeltaAnchor] = React.useState<HTMLElement | null>(null);
   const traceSelect = React.useRef<HTMLSelectElement>(null);
   const {
     showPaneTools,
@@ -57,7 +56,7 @@ export function ToolGroups() {
 
   const { allTraces, vis } = useTraceState();
   const aggregate = useOptionalAggregateWorkspace();
-  const { markers, selectedMkrIdx, armed } = useMarkerState();
+  const { markers, selectedMkrIdx } = useMarkerState();
   const { panes, activePaneId, tracePaneMap } = usePaneState();
   const { refMode } = useRefLineState();
   const refDispatch = useRefLineDispatch();
@@ -66,7 +65,7 @@ export function ToolGroups() {
   const uiDispatch = useUiDispatch();
   const markerDispatch = useMarkerDispatch();
   const paneDispatch = usePaneDispatch();
-  const { toggleRefPlacement, selectNormal } = useInteractionMode();
+  const { toggleRefPlacement } = useInteractionMode();
   const toggle = (key: keyof UiState, value: boolean) => uiDispatch({ type: 'SET', payload: { key, value: !value } });
 
   const paneTraceNames = React.useMemo(() => Object.entries(tracePaneMap)
@@ -118,12 +117,6 @@ export function ToolGroups() {
     moveOrPlace(best.freq, best.amp);
   };
 
-  const normalMarkers = markers.filter(marker => marker.type !== 'delta');
-  const selected = markers[selectedMkrIdx];
-  const armDelta = (refId: string) => {
-    refDispatch({ type: 'SET_MODE', payload: null });
-    markerDispatch({ type: 'ARM', payload: { kind: 'delta', refId } });
-  };
   const canSearch = !!activeTr?.data.length;
   const removeLastPane = () => {
     if (panes.length <= 1) return;
@@ -164,12 +157,7 @@ export function ToolGroups() {
           <option value="__auto__">Auto</option>{visiblePaneTraces.map(trace => <option key={trace.name} value={trace.name}>{trace.dn || trace.name}</option>)}
         </select>
       </span>
-      <Btn small variant="armed" tone="marker" active={!!armed} aria-pressed={!!armed} aria-label="New Marker" title="Place a marker (N)" onClick={selectNormal}>+ New</Btn>
-      <Btn small aria-label="Choose a delta marker reference" aria-expanded={deltaAnchor !== null} onClick={event => setDeltaAnchor(deltaAnchor ? null : event.currentTarget)}>▾</Btn>
-      {deltaAnchor && <PopoverAt label="Delta marker reference" at={deltaAnchor} onClose={() => setDeltaAnchor(null)}><div role="menu" aria-label="Delta marker reference" style={{ display: 'grid', minWidth: 170 }}>
-          {normalMarkers.map((marker, i) => <Btn role="menuitem" key={marker.id} small onClick={() => { armDelta(marker.id); setDeltaAnchor(null); }}>+ Δ from {marker.label || `M${i + 1}`}</Btn>)}
-          <Btn role="menuitem" small disabled={!selected || selected.type === 'delta'} title={!selected || selected.type === 'delta' ? 'Select a normal marker first' : 'Place delta from selected marker (Shift+N)'} onClick={() => { if (selected) armDelta(selected.id); setDeltaAnchor(null); }}>+ Δ from selected</Btn>
-      </div></PopoverAt>}
+      <MarkerSplitButton />
     </ToolZone>
     <ToolZone tone="search" label="Search" open={showSearchTools} onToggle={() => toggle('showSearchTools', showSearchTools)}>
       <Btn small disabled={!canSearch} title={canSearch ? 'Find peak' : 'Select a trace with data'} onClick={handlePeak}>Peak</Btn>

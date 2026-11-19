@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { resolve } from 'node:path';
 import { addAnalysis } from './analysis-helpers';
+import { clearWorkspace } from './workspace-helpers';
 
 test('trace rename preserves placement and marker association and is undoable', async ({ page }) => {
   await page.goto('/app.html');
@@ -29,7 +30,7 @@ test('trace rename preserves placement and marker association and is undoable', 
   const download = page.waitForEvent('download');
   await page.getByTitle('Save Workspace JSON').click();
   const path = await (await download).path();
-  await page.getByRole('button', { name: 'Clear All' }).click();
+  await clearWorkspace(page);
   await page.getByTestId('topbar-workspace-input').setInputFiles(path!);
   await expect(page.locator('[data-testid^="trace-row-"]').first().locator('.lp-name')).toHaveText('Renamed trace');
   await expect(page.locator('[data-testid^="trace-row-"]').first()).toHaveAttribute('data-testid', original!);

@@ -19,7 +19,9 @@ export interface MenuItem {
   disabledReason?: string;
   onSelect?: () => void;
 }
-export type MenuEntry = MenuItem | 'separator';
+/** A small muted line that names the rows below it. It is text, not a command. */
+export interface MenuHeading { heading: string }
+export type MenuEntry = MenuItem | MenuHeading | 'separator';
 
 export interface MenuProps {
   title?: string;
@@ -38,6 +40,8 @@ export function Menu({ title, entries, checklist, footer, style, label }: MenuPr
       {entries.map((e, i) =>
         e === 'separator' ? (
           <div key={`sep-${i}`} className="lp-menu__sep" role="separator" />
+        ) : 'heading' in e ? (
+          <div key={`heading-${i}`} className="lp-menu__heading" role="presentation">{e.heading}</div>
         ) : (
           <button
             key={e.id ?? e.label}

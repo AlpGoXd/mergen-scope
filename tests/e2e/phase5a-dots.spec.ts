@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 
 import { acceptImport } from './import-helpers';
+import { clearWorkspace } from './workspace-helpers';
 
 for (const theme of ['light', 'dark'] as const) {
   test(`sample dots are independent, undoable and survive save and reload (${theme})`, async ({ page }) => {
@@ -34,7 +35,7 @@ for (const theme of ['light', 'dark'] as const) {
     await page.getByTitle('Save Workspace JSON').click();
     const path = await (await download).path();
     expect(path).toBeTruthy();
-    await page.getByRole('button', {name:'Clear All'}).click();
+    await clearWorkspace(page);
     page.once('dialog', dialog => dialog.accept());
     await page.getByTestId('topbar-workspace-input').setInputFiles(path!);
     await expect(dots1).toHaveCount(3);

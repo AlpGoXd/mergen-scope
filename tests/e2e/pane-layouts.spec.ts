@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 
 import { acceptImport } from './import-helpers';
+import { clearWorkspace } from './workspace-helpers';
 import type { Locator, Page } from '@playwright/test';
 import { resolve } from 'path';
 import { linkX } from './x-link-helpers';
@@ -131,7 +132,7 @@ test('sizes persist by layout and through workspace save and reopen', async ({ p
   await selectLayout(page, 'Columns');
   const download = page.waitForEvent('download'); await page.getByTitle('Save Workspace JSON').click();
   const path = await (await download).path(); if (!path) throw new Error('Workspace download missing');
-  await page.getByRole('button', { name: 'Clear All' }).click();
+  await clearWorkspace(page);
   page.once('dialog', dialog => dialog.accept()); await page.getByTestId('topbar-workspace-input').setInputFiles(path);
   await expect(layoutButton(page)).toContainText('Columns'); await expect(pane(page, 2)).toBeVisible();
   await expect.poll(async () => Math.abs((await box(pane(page, 1))).width - columnWidth)).toBeLessThan(3);
@@ -152,7 +153,7 @@ test('a resized four-pane grid survives saving and reopening', async ({ page }) 
   const resized = (await box(pane(page, 1))).width;
   const download = page.waitForEvent('download'); await page.getByTitle('Save Workspace JSON').click();
   const path = await (await download).path(); if (!path) throw new Error('Workspace download missing');
-  await page.getByRole('button', { name: 'Clear All' }).click();
+  await clearWorkspace(page);
   page.once('dialog', dialog => dialog.accept()); await page.getByTestId('topbar-workspace-input').setInputFiles(path);
   await expect(layoutButton(page)).toContainText('2 × 2'); await expect(pane(page, 4)).toBeVisible();
   await expect.poll(async () => Math.abs((await box(pane(page, 1))).width - resized)).toBeLessThan(3);

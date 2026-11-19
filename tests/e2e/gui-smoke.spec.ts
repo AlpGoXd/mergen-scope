@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { readFileSync } from "fs";
 import { resolve } from "path";
+import { clearWorkspace } from "./workspace-helpers";
 
 const datFixture = resolve(process.cwd(), "test files/cascade_ip3_-12dBm.DAT");
 
@@ -38,7 +39,7 @@ test("imports data, uses marker/search tools, exports CSV, and reloads a workspa
   const workspacePath = await workspaceDownload.path();
   expect(workspacePath).toBeTruthy();
 
-  await page.getByRole("button", { name: "Clear All" }).click();
+  await clearWorkspace(page);
   await expect(page.getByTestId("empty-chart-dropzone")).toBeVisible();
 
   await page.getByTestId("topbar-workspace-input").setInputFiles(workspacePath!);

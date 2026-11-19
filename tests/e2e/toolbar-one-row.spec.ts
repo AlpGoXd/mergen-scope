@@ -36,16 +36,15 @@ test('each open group is one zone around its chip and all its tools, 8 px apart,
   }
 });
 
-test('Clear All is outside the wrapping groups, so only the groups wrap', async ({ page }) => {
+test('only the groups wrap: Analysis stands alone at the right end and Clear All is gone from the top bar', async ({ page }) => {
   await openApp(page, 1024);
   expect(await rows(page)).toBeGreaterThan(1);
-  const clear = page.getByRole('button', { name: 'Clear All' });
-  await expect(page.locator('.tool-groups').getByRole('button', { name: 'Clear All' })).toHaveCount(0);
-  const [clearBox, analysisBox, firstZone] = await Promise.all([clear.boundingBox(), page.getByRole('button', { name: 'Analysis', exact: true }).boundingBox(), page.locator('.tool-zone').first().boundingBox()]);
-  // Same centre line (Analysis is a group-chip height, Clear All a control height), on the first line.
-  expect((clearBox?.y ?? 0) + (clearBox?.height ?? 0) / 2).toBe((analysisBox?.y ?? 0) + (analysisBox?.height ?? 0) / 2);
-  expect(clearBox?.y).toBeLessThanOrEqual((firstZone?.y ?? 0) + 4);
-  expect((clearBox?.x ?? 0) + (clearBox?.width ?? 0)).toBeLessThanOrEqual(analysisBox?.x ?? 0);
+  await expect(page.getByRole('button', { name: 'Clear All' })).toHaveCount(0);
+  const [analysisBox, firstZone, barBox] = await Promise.all([page.getByRole('button', { name: 'Analysis', exact: true }).boundingBox(), page.locator('.tool-zone').first().boundingBox(), page.locator('.tool-groups').evaluate(el => el.parentElement!.getBoundingClientRect().toJSON() as { right: number })]);
+  // On the first line, at the right end of the bar (its 8 px padding), and no divider before it.
+  expect(analysisBox?.y).toBeLessThanOrEqual((firstZone?.y ?? 0) + 4);
+  expect(Math.round(barBox.right - ((analysisBox?.x ?? 0) + (analysisBox?.width ?? 0)))).toBe(8);
+  expect(await page.getByRole('button', { name: 'Analysis', exact: true }).evaluate(el => (el.previousElementSibling as HTMLElement | null)?.getAttribute('aria-hidden') ?? null)).toBeNull();
 });
 
 test('Trace is one control with its label inside it, and a chip is the same size closed and open', async ({ page }) => {
@@ -65,7 +64,7 @@ test('Trace is one control with its label inside it, and a chip is the same size
   expect(await measure()).toEqual(open);
 });
 
-test('Left and Analysis are panel toggles with their icon, a divider sets Analysis apart, and the wordmark is semibold', async ({ page }) => {
+test('Left and Analysis are panel toggles with their icon, and the wordmark is semibold', async ({ page }) => {
   await openApp(page, 1024);
   const left = page.getByRole('button', { name: 'Left', exact: true });
   const analysis = page.getByRole('button', { name: 'Analysis', exact: true });
@@ -94,10 +93,6 @@ test('Left and Analysis are panel toggles with their icon, a divider sets Analys
   await expect.poll(() => analysis.evaluate(el => getComputedStyle(el).color)).toBe(await probe('--analysis-ink'));
   await expect(left).toHaveAttribute('aria-pressed', 'true');
   await expect.poll(() => left.evaluate(el => getComputedStyle(el).color)).toBe(await probe('--left-ink'));
-
-  // A 1 px divider sits between Clear All and Analysis.
-  const divider = await page.getByRole('button', { name: 'Clear All' }).evaluate(el => { const next = el.nextElementSibling as HTMLElement; const style = getComputedStyle(next); return { hidden: next.getAttribute('aria-hidden'), border: style.borderLeftWidth, between: next.getBoundingClientRect().left >= el.getBoundingClientRect().right && next.getBoundingClientRect().right <= document.querySelector<HTMLElement>('button[aria-pressed][class*="topbar-panel-toggle"]:last-of-type')!.getBoundingClientRect().left + 1 }; });
-  expect(divider).toMatchObject({ hidden: 'true', border: '1px', between: true });
 
   // Wordmark: semibold, accent "Scope", logo centred on the text.
   const brand = page.getByText('Mergen', { exact: false }).first();
