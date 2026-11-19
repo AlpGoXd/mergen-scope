@@ -1,5 +1,6 @@
 import React from 'react';
 import { useUiState, useUiDispatch } from '../../stores/ui-store';
+import type { UiState } from '../../stores/ui-store';
 import { useMarkerState, useMarkerDispatch } from '../../stores/marker-store';
 import { usePaneState, usePaneDispatch, usePaneLimit } from '../../stores/pane-store';
 import { useTraceState } from '../../stores/trace-store';
@@ -12,12 +13,36 @@ import { Btn } from '../shared/Btn';
 import { PopoverAt } from '../shared/Controls';
 import { planLastPaneLines, planLastPaneRemoval, useOptionalAggregateWorkspace } from '../../stores/aggregate-workspace-store';
 import { LayoutMenu } from '../chart/LayoutMenu';
+import './tool-zones.css';
+
+type ZoneTone = 'marker' | 'search' | 'lines' | 'pane';
+
+const Chevron = () => <svg className="tool-zone__chevron" aria-hidden="true" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round"><path d="M8.5 5l7 7-7 7" /></svg>;
 
 /**
- * ToolbarStrip component for chart-local actions in the active pane.
- * Ported from legacy ToolbarStrip in app-shell-components.js.
+ * One tool group of the top bar: its chip is the zone's title, and when open the tools follow inline,
+ * in the same row. Closed, it is just the chip. The tools slide out when the group goes from closed to open,
+ * not when it is already open at first paint.
  */
-export function ToolbarStrip() {
+function ToolZone({ tone, label, open, onToggle, children }: { tone: ZoneTone; label: string; open: boolean; onToggle: () => void; children: React.ReactNode }) {
+  const wasOpen = React.useRef(open);
+  const slideRef = React.useRef(false);
+  if (open && !wasOpen.current) slideRef.current = true;
+  if (!open) slideRef.current = false;
+  wasOpen.current = open;
+  const slide = slideRef.current;
+  return <div className={`tool-zone tool-zone--${tone}${open ? ' is-open' : ''}`}>
+    <Btn variant="chip" tone={tone} active={open} aria-expanded={open} className="tool-zone__chip" onClick={onToggle}>{label}<Chevron /></Btn>
+    {open && <div className={`tool-zone__tools${slide ? ' is-sliding' : ''}`}>{children}</div>}
+  </div>;
+}
+
+/**
+ * The Markers / Search / Lines / Pane groups of the top bar (chart-local actions in the active pane).
+ * Own flex-wrap container: a whole group moves to a second line when it does not fit. `children` end the
+ * container (the bar's Clear All), so they keep their place after the groups.
+ */
+export function ToolGroups({ children }: { children?: React.ReactNode } = {}) {
   const [deltaAnchor, setDeltaAnchor] = React.useState<HTMLElement | null>(null);
   const {
     showPaneTools,
@@ -40,7 +65,8 @@ export function ToolbarStrip() {
   const uiDispatch = useUiDispatch();
   const markerDispatch = useMarkerDispatch();
   const paneDispatch = usePaneDispatch();
-  const { toggleRefPlacement, selectNormal, hint } = useInteractionMode();
+  const { toggleRefPlacement, selectNormal } = useInteractionMode();
+  const toggle = (key: keyof UiState, value: boolean) => uiDispatch({ type: 'SET', payload: { key, value: !value } });
 
   const paneTraceNames = React.useMemo(() => Object.entries(tracePaneMap)
     .filter(([, pid]) => pid.includes(activePaneId ?? ''))
@@ -50,8 +76,6 @@ export function ToolbarStrip() {
   // --- Active trace resolution ---
   const activeTraceName = defaultTraceForPane(allTraces, selectedTraceName, activePaneId, tracePaneMap, vis)?.name ?? null;
   const activeTr = allTraces.find(t => t.name === activeTraceName) ?? null;
-
-  if (!showMarkerTools && !showSearchTools && !showLineTools && !showPaneTools) return null;
 
   // --- Peak/Min search handlers ---
   const moveOrPlace = (freq: number, amp: number) => {
@@ -93,19 +117,6 @@ export function ToolbarStrip() {
     moveOrPlace(best.freq, best.amp);
   };
 
-  const group = (title: string, tone: string, children: React.ReactNode) => (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 8px', minHeight: 'var(--tool-row-height)', background: `var(--${tone}-tint)`, flex: '0 0 auto', whiteSpace: 'nowrap' }}>
-      <span style={{ color: `var(--${tone}-ink)`, fontWeight: 'var(--fw-bold)', marginRight: 4 }}>{title}</span>{children}
-    </div>
-  );
-  // Size each reserved hint slot to its longest sentence, keeping groups still
-  // when placement is armed without reserving arbitrary extra width.
-  const hintSlot = (longest: string, message: string | null) => (
-    <span style={{ display: 'inline-grid', color: 'var(--text-muted)' }}>
-      <span aria-hidden="true" style={{ gridArea: '1 / 1', visibility: 'hidden' }}>{longest}</span>
-      <span aria-live="polite" style={{ gridArea: '1 / 1' }}>{message}</span>
-    </span>
-  );
   const normalMarkers = markers.filter(marker => marker.type !== 'delta');
   const selected = markers[selectedMkrIdx];
   const armDelta = (refId: string) => {
@@ -132,7 +143,7 @@ export function ToolbarStrip() {
       aggregate.historyDispatch({ type: 'change', command: { slice: 'remove-last-pane', targetPaneId: removed.id, expectedRevision: aggregate.state.revision, confirmed: unplaced.length > 0 || linePlan.length > 0, limit }, ...(moved.length ? { toastMessage: message, toastKind: 'moved' as const } : {}) });
     }
   };
-  return <div onKeyDown={event => {
+  return <div className="tool-groups" onKeyDown={event => {
     // The global shortcut intentionally ignores native controls; let Escape
     // cancel placement when focus remains on a toolbar button.
     if (event.key === 'Escape' && event.target instanceof HTMLButtonElement) {
@@ -143,9 +154,9 @@ export function ToolbarStrip() {
       uiDispatch({ type: 'SET', payload: { key: 'selectedTraceName', value: null } });
       event.preventDefault();
     }
-  }} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'stretch', borderBottom: '1px solid var(--border)', background: 'var(--panel)', flexShrink: 0 }}>
-    {showMarkerTools && group('Markers', 'marker', <>
-      <label>Trace: <select className="ui-select" style={{ minHeight: 20, height: 20, maxWidth: 110, padding: '0 4px' }} value={markerTrace} onChange={e => uiDispatch({ type: 'SET', payload: { key: 'markerTrace', value: e.target.value } })} title="Auto picks the selected trace or first visible trace">
+  }}>
+    <ToolZone tone="marker" label="Markers" open={showMarkerTools} onToggle={() => toggle('showMarkerTools', showMarkerTools)}>
+      <label>Trace: <select className="ui-select tool-zone__select" value={markerTrace} onChange={e => uiDispatch({ type: 'SET', payload: { key: 'markerTrace', value: e.target.value } })} title="Auto picks the selected trace or first visible trace">
         <option value="__auto__">Auto</option>{visiblePaneTraces.map(trace => <option key={trace.name} value={trace.name}>{trace.dn || trace.name}</option>)}
       </select></label>
       <Btn small variant="armed" tone="marker" active={!!armed} aria-pressed={!!armed} aria-label="New Marker" title="Place a marker (N)" onClick={selectNormal}>+ New</Btn>
@@ -154,24 +165,24 @@ export function ToolbarStrip() {
           {normalMarkers.map((marker, i) => <Btn role="menuitem" key={marker.id} small onClick={() => { armDelta(marker.id); setDeltaAnchor(null); }}>+ Δ from {marker.label || `M${i + 1}`}</Btn>)}
           <Btn role="menuitem" small disabled={!selected || selected.type === 'delta'} title={!selected || selected.type === 'delta' ? 'Select a normal marker first' : 'Place delta from selected marker (Shift+N)'} onClick={() => { if (selected) armDelta(selected.id); setDeltaAnchor(null); }}>+ Δ from selected</Btn>
       </div></PopoverAt>}
-    </>)}
-    {showSearchTools && group('Search', 'search', <>
+    </ToolZone>
+    <ToolZone tone="search" label="Search" open={showSearchTools} onToggle={() => toggle('showSearchTools', showSearchTools)}>
       <Btn small disabled={!canSearch} title={canSearch ? 'Find peak' : 'Select a trace with data'} onClick={handlePeak}>Peak</Btn>
       <Btn small disabled={!canSearch} title={canSearch ? 'Find next peak' : 'Select a trace with data'} onClick={handleNextPeak}>Next peak</Btn>
       <Btn small disabled={!canSearch} title={canSearch ? 'Find minimum' : 'Select a trace with data'} onClick={handleMin}>Min</Btn>
       <Btn small disabled={!canSearch} title={canSearch ? 'Find next minimum' : 'Select a trace with data'} onClick={handleNextMin}>Next min</Btn>
-      <Btn small style={{ borderStyle: 'dashed' }} title="Change search direction" onClick={() => uiDispatch({ type: 'SET', payload: { key: 'searchDirection', value: searchDirection === 'right' ? 'left' : 'right' } })}>{searchDirection === 'right' ? 'Dir L → R' : 'Dir L ← R'}</Btn>
-    </>)}
-    {showLineTools && group('Lines', 'lines', <>
+      <Btn small className="tool-zone__dir" title="Change search direction" onClick={() => uiDispatch({ type: 'SET', payload: { key: 'searchDirection', value: searchDirection === 'right' ? 'left' : 'right' } })}>{searchDirection === 'right' ? 'Dir L → R' : 'Dir L ← R'}</Btn>
+    </ToolZone>
+    <ToolZone tone="lines" label="Lines" open={showLineTools} onToggle={() => toggle('showLineTools', showLineTools)}>
       <Btn small variant="armed" tone="lines" active={refMode === 'v'} aria-pressed={refMode === 'v'} aria-label="V-Line" title="Place vertical line" onClick={() => toggleRefPlacement('v')}>V line</Btn>
       <Btn small variant="armed" tone="lines" active={refMode === 'h'} aria-pressed={refMode === 'h'} aria-label="H-Line" title="Place horizontal line" onClick={() => toggleRefPlacement('h')}>H line</Btn>
-    </>)}
-    {showPaneTools && group('Pane', 'pane', <>
+    </ToolZone>
+    <ToolZone tone="pane" label="Pane" open={showPaneTools} onToggle={() => toggle('showPaneTools', showPaneTools)}>
       {aggregate && <LayoutMenu paneCount={panes.length} limit={limit} />}
       <Btn small disabled={panes.length >= limit || !aggregate} title={panes.length >= limit ? `Maximum ${limit} panes` : 'Add a pane'} onClick={() => { const targetPaneId = activePaneId ?? panes[0]?.id; if (targetPaneId) aggregate?.dispatch({ slice: 'layout', action: { type: 'ADD_PANE_AFTER', targetPaneId, limit } }); }}>+ Pane</Btn>
       <Btn small disabled={panes.length <= 1 || !aggregate} title={panes.length <= 1 ? "At least one pane must remain" : !aggregate ? "Pane removal requires workspace history" : "Remove the last pane"} onClick={removeLastPane}>- Pane</Btn>
       <Btn small title="Fit all panes" onClick={() => paneDispatch({ type: 'CLEAR_ALL_ZOOMS' })}>Fit all</Btn>
-    </>)}
-    {(showMarkerTools || showLineTools) && hintSlot('Click to place a delta marker', (showMarkerTools && armed) || (showLineTools && refMode) ? hint : null)}
+    </ToolZone>
+    {children}
   </div>;
 }

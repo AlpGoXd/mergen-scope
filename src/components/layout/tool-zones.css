@@ -1,0 +1,49 @@
+/* Top bar tool groups, design board T2 look A ("tint only, one edge at a time"): one row, the open group's chip is
+   its zone title, its tools follow inline. The zone is a tint with no border; tools are flat white with a transparent
+   border (shown on hover); no shadows. Tones come from the --<tone>-zone / -ink / -line / -hue tokens in index.css. */
+
+/* Own flex-wrap container: a whole group moves to a second line when it does not fit, never split. The padding
+   centres a 28 px line in the bar's row height; it grows only when the groups wrap. */
+.tool-groups { flex: 1 1 0; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding-block: calc((var(--top-row-height) - var(--control-height)) / 2); }
+
+.tool-zone { display: inline-flex; align-items: center; gap: 4px; flex: none; white-space: nowrap; }
+.tool-zone--marker { --zone-bg: var(--marker-zone); --zone-ink: var(--marker-ink); --zone-line: var(--marker-line); }
+.tool-zone--search { --zone-bg: var(--search-zone); --zone-ink: var(--search-ink); --zone-line: var(--search-line); }
+.tool-zone--lines { --zone-bg: var(--lines-zone); --zone-ink: var(--lines-ink); --zone-line: var(--lines-line); }
+.tool-zone--pane { --zone-bg: var(--pane-zone); --zone-ink: var(--pane-ink); --zone-line: var(--pane-line); }
+
+/* The chevron reads "opens to the right"; open, it points back (closes). */
+.tool-zone__chevron { flex: none; opacity: 0.7; transition: transform 200ms cubic-bezier(0.2, 0.7, 0.2, 1); }
+.tool-zone.is-open .tool-zone__chevron { transform: rotate(180deg); }
+
+/* Open: the zone is one block. Its chip is the title: no fill, no border. */
+.tool-zone.is-open { height: var(--zone-height); padding-right: 4px; background: var(--zone-bg); border-radius: var(--radius-control); }
+.tool-zone.is-open > .tool-zone__chip.is-active,
+.tool-zone.is-open > .tool-zone__chip.is-active:hover:not(:disabled) { height: 100%; min-height: 0; background: transparent; border-color: transparent; color: var(--zone-ink); font-weight: var(--fw-semibold); }
+
+.tool-zone__tools { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+/* Opening slides the tools out of the chip. Closing is instant (they unmount). `overflow` is hidden only while the
+   animation runs, so focus rings are not clipped afterwards. */
+.tool-zone__tools.is-sliding { animation: tool-zone-slide 220ms cubic-bezier(0.2, 0.7, 0.2, 1); }
+@keyframes tool-zone-slide {
+  from { max-width: 0; opacity: 0; overflow: hidden; }
+  to { max-width: 420px; opacity: 1; overflow: hidden; }
+}
+
+/* Tools: flat white, transparent 1 px border at rest, border on hover. Armed tools keep their filled look. */
+.tool-zone__tools .ui-btn:not(.is-active),
+.tool-zone__tools .ui-btn:not(.is-active):hover:not(:disabled),
+.tool-zone__tools .ui-select { background: var(--raised); border-color: transparent; }
+.tool-zone__tools .ui-btn:not(.is-active):hover:not(:disabled),
+.tool-zone__tools .ui-select:hover { border-color: var(--border-strong); }
+.tool-zone__select { min-height: var(--control-sm-height); height: var(--control-sm-height); max-width: 110px; padding: 0 4px; }
+
+/* "Dir L → R" is a setting, not an action: the only dashed button. */
+.tool-zone__tools .ui-btn.tool-zone__dir,
+.tool-zone__tools .ui-btn.tool-zone__dir:hover:not(:disabled) { background: transparent; border: 1px dashed var(--zone-line); color: var(--zone-ink); }
+.tool-zone__tools .ui-btn.tool-zone__dir:hover:not(:disabled) { border-color: var(--zone-ink); }
+
+@media (prefers-reduced-motion: reduce) {
+  .tool-zone__tools.is-sliding { animation: none; }
+  .tool-zone__chevron { transition: none; }
+}

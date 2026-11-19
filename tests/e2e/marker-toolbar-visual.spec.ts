@@ -4,7 +4,8 @@ import { resolve } from 'path';
 for (const theme of ['light', 'dark'] as const) {
   test(`toolbar retains group positions while armed in ${theme}`, async ({ page }) => {
     await page.emulateMedia({ colorScheme: theme });
-    await page.setViewportSize({ width: 1440, height: 900 });
+    // Wide enough for all four open groups on one row (narrower windows wrap whole groups to a second line).
+    await page.setViewportSize({ width: 2048, height: 900 });
     await page.goto(process.env.MARKER_TOOLBAR_BASE_URL ?? '/app.html');
     const capture = async (state: string) => {
       if (process.env.MARKER_TOOLBAR_CAPTURE) await page.screenshot({ path: `docs/redesign/marker-toolbar-visual-evidence/${theme}-${state}.png`, animations: 'disabled' });
@@ -20,7 +21,7 @@ for (const theme of ['light', 'dark'] as const) {
     expect((await paneGroup.boundingBox())?.y).toBe(before?.y);
     await controls.click();
     await expect(controls).toHaveAttribute('aria-pressed', 'true');
-    await expect(page.getByText('Click to place a marker', { exact: true }).first()).toBeVisible();
+    await expect(page.getByTestId('footer-sentence')).toHaveText('Placing M1 · click a trace · Esc cancels');
     expect(await search.boundingBox()).toEqual(before);
     await capture('armed');
     await page.keyboard.press('Escape');

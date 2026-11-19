@@ -13,6 +13,7 @@ import { tracesToCSV } from '../../domain/export';
 import { BrandMark } from './BrandMark';
 import { PopoverAt } from '../shared/Controls';
 import { ExportMenu } from './ExportMenu';
+import { ToolGroups } from './ToolGroups';
 import { useShortcut } from '../../stores/shortcut-store';
 import { shortcutText } from '../../domain/shortcuts';
 
@@ -61,8 +62,13 @@ export function TopBar({ onOpen, onExport }: TopBarProps = {}) {
     dispatch({ type: 'SET', payload: { key, value: !value } });
   };
   const icon = (path: React.ReactNode) => <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">{path}</svg>;
-  return <div style={{ minHeight: 'var(--top-row-height)', display: 'flex', alignItems: 'center', gap: 4, padding: '0 8px', background: 'var(--panel)', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+  // One row: brand, Left and the file buttons stay fixed on the left, the tool groups wrap inside their own
+  // container, Analysis stays at the right end. Each fixed cluster is one row tall, so a wrapped second line
+  // of groups does not move them.
+  const cluster = { display: 'flex', alignItems: 'center', gap: 4, height: 'var(--top-row-height)', flex: 'none' } as const;
+  return <div style={{ minHeight: 'var(--top-row-height)', display: 'flex', alignItems: 'flex-start', gap: 4, padding: '0 8px', background: 'var(--panel)', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
     <style>{'@media (max-width: 1279px) { .topbar-action-label { display: none; } }'}</style>
+    <div style={cluster}>
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4em', whiteSpace: 'nowrap', fontSize: 'var(--font-title)', marginRight: 8 }}><BrandMark /><span>Mergen <span style={{ color: 'var(--accent)' }}>Scope</span></span></span>
     <Btn variant="chip" tone="left" active={ui.showSidebar} title="Toggle left panel" onClick={() => toggle('showSidebar', ui.showSidebar)}>Left</Btn>
     <span aria-hidden="true" style={{ height: 20, borderLeft: '1px solid var(--border)', margin: '0 4px' }} />
@@ -73,11 +79,8 @@ export function TopBar({ onOpen, onExport }: TopBarProps = {}) {
       onClick={event => { if (onExport) { onExport(); return; } setExportMenu(exportMenu ? null : event.currentTarget); }}>{icon(<><path d="M12 3v12m-4-4 4 4 4-4"/><path d="M4 17v4h16v-4"/></>)}<span className="topbar-action-label">Export…</span></Btn>
     {exportMenu && <PopoverAt label="Export" at={exportMenu} onClose={() => setExportMenu(null)}><ExportMenu onClose={() => setExportMenu(null)} onExportCsv={exportVisibleCsv} csvReason={visibleTraces.length ? null : 'Load a trace to export'} /></PopoverAt>}
     <span aria-hidden="true" style={{ height: 20, borderLeft: '1px solid var(--border)', margin: '0 4px' }} />
-    <Btn variant="chip" tone="marker" active={ui.showMarkerTools} onClick={() => toggle('showMarkerTools', ui.showMarkerTools)}>Markers</Btn>
-    <Btn variant="chip" tone="search" active={ui.showSearchTools} onClick={() => toggle('showSearchTools', ui.showSearchTools)}>Search</Btn>
-    <Btn variant="chip" tone="lines" active={ui.showLineTools} onClick={() => toggle('showLineTools', ui.showLineTools)}>Lines</Btn>
-    <Btn variant="chip" tone="pane" active={ui.showPaneTools} onClick={() => toggle('showPaneTools', ui.showPaneTools)}>Pane</Btn>
-    {!onOpen && <Btn title="Remove all loaded files and clear state" onClick={clearAll}>Clear All</Btn>}
-    <Btn style={{ marginLeft: 'auto' }} variant="chip" tone="analysis" active={ui.showRightPanel} onClick={() => toggle('showRightPanel', ui.showRightPanel)}>Analysis</Btn>
+    </div>
+    <ToolGroups>{!onOpen && <Btn title="Remove all loaded files and clear state" onClick={clearAll}>Clear All</Btn>}</ToolGroups>
+    <div style={{ ...cluster, marginLeft: 'auto' }}><Btn variant="chip" tone="analysis" active={ui.showRightPanel} onClick={() => toggle('showRightPanel', ui.showRightPanel)}>Analysis</Btn></div>
   </div>;
 }
