@@ -1,31 +1,37 @@
-/* Top bar tool groups, design board T2 look A ("tint only, one edge at a time"): one row, the open group's chip is
-   its zone title, its tools follow inline. The zone is ONE element per open group (chip + all its tools) with the
-   group's tint as its background and no border; tools are flat white with a transparent border (shown on hover);
-   no shadows. Tones come from the --<tone>-zone / -ink / -line tokens in index.css. */
+/* Top bar tool groups, design board T2 section 2b, option 1 "full-height band": one row, the open group's chip is its
+   zone title, its tools follow inline. The zone is ONE element per open group (chip + all its tools): a full-height
+   SQUARE band (the whole row height, radius 0, no border, the group's tint as background) that touches the bar's top
+   edge and its bottom border. Only the tools inside it are rounded; they are flat white with a transparent border
+   (shown on hover); no shadows. Tones come from the --<tone>-zone / -ink / -line tokens in index.css. */
 
 /* Own flex-wrap container: a whole group moves to a second line when it does not fit, never split. 8 px between
-   groups, open or closed. The padding centres a 26 px line (the zone height) in the bar's row height, so the first line sits on the same centre line as the fixed clusters; it grows only when the
-   groups wrap. */
-.tool-groups { flex: 1 1 0; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding-block: calc((var(--top-row-height) - var(--zone-height)) / 2); }
+   groups, open or closed, where the bar's own background shows (two bands never touch). No vertical padding and no
+   row gap: every line is exactly one row tall, so a band fills its own line top to bottom. */
+.tool-groups { flex: 1 1 0; min-width: 0; display: flex; flex-wrap: wrap; align-content: flex-start; align-items: stretch; gap: 0 8px; padding: 0; }
 
-/* 4 px between the chip and its first tool, and between tools. */
-.tool-zone { display: inline-flex; align-items: center; gap: 4px; flex: none; white-space: nowrap; }
+/* Every group, open or closed, is one row tall and centres its content; 4 px between the chip and its first tool,
+   and between tools. A closed group is just its normal small chip, centred in the row. */
+.tool-zone { display: inline-flex; align-items: center; gap: 4px; flex: none; height: var(--top-row-height); white-space: nowrap; }
 .tool-zone--marker { --zone-bg: var(--marker-zone); --zone-ink: var(--marker-ink); --zone-line: var(--marker-line); }
 .tool-zone--search { --zone-bg: var(--search-zone); --zone-ink: var(--search-ink); --zone-line: var(--search-line); }
 .tool-zone--lines { --zone-bg: var(--lines-zone); --zone-ink: var(--lines-ink); --zone-line: var(--lines-line); }
 .tool-zone--pane { --zone-bg: var(--pane-zone); --zone-ink: var(--pane-ink); --zone-line: var(--pane-line); }
 
-/* The chip is the same height closed and open (the zone's height), so the row does not jump when a group opens. */
+/* A closed chip is the normal small chip (zone height, 6 px corners), centred in the row. */
 .tool-zone .tool-zone__chip { height: var(--zone-height); min-height: 0; }
 
 /* The chevron reads "opens to the right"; open, it points back (closes). */
 .tool-zone__chevron { flex: none; opacity: 0.7; transition: transform 200ms cubic-bezier(0.2, 0.7, 0.2, 1); }
 .tool-zone.is-open .tool-zone__chevron { transform: rotate(180deg); }
 
-/* Open: the zone is one block around chip and tools. Its chip is the title: no fill, no border. */
-.tool-zone.is-open { height: var(--zone-height); padding: 0 3px 0 0; background: var(--zone-bg); border-radius: var(--radius-control); }
+/* Open: a full-height square band around chip and tools, 8 px before the title and 8 px after the last tool. Its chip
+   is the title: no fill, no border, no padding of its own (the band's 8 px puts the label where the closed chip's
+   label was, so it does not jump), and it fills the band's height so the whole title is the click target. Its focus
+   ring is drawn inside, since the band touches the top of the bar. */
+.tool-zone.is-open { padding: 0 8px; background: var(--zone-bg); border-radius: 0; }
 .tool-zone.is-open > .tool-zone__chip.is-active,
-.tool-zone.is-open > .tool-zone__chip.is-active:hover:not(:disabled) { background: transparent; border-color: transparent; color: var(--zone-ink); font-weight: var(--fw-semibold); }
+.tool-zone.is-open > .tool-zone__chip.is-active:hover:not(:disabled) { height: 100%; padding: 0; background: transparent; border-color: transparent; border-radius: 0; color: var(--zone-ink); font-weight: var(--fw-semibold); }
+.tool-zone.is-open > .tool-zone__chip:focus-visible { outline-offset: -2px; }
 
 .tool-zone__tools { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 /* Opening slides the tools out of the chip. Closing is instant (they unmount). `overflow` is hidden only while the

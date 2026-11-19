@@ -15,25 +15,48 @@ async function openApp(page: Page, width: number) {
 
 const rows = (page: Page) => page.locator('.tool-zone').evaluateAll(zones => new Set(zones.map(zone => Math.round(zone.getBoundingClientRect().y))).size);
 
-test('each open group is one zone around its chip and all its tools, 8 px apart, with 4 px inside', async ({ page }) => {
+test('each open group is a full-height square band around its chip and all its tools: 8 px padding, 4 px inside, 8 px apart', async ({ page }) => {
   await openApp(page, 2048);
   expect(await rows(page)).toBe(1);
   const report = await page.locator('.tool-zone.is-open').evaluateAll(zones => zones.map((zone, index) => {
     const box = (el: Element) => el.getBoundingClientRect();
     const zoneBox = box(zone), chip = box(zone.querySelector('.tool-zone__chip')!), tools = Array.from(zone.querySelectorAll('.tool-zone__tools > *')).map(box);
-    const style = getComputedStyle(zone), next = zones[index + 1];
+    const style = getComputedStyle(zone), next = zones[index + 1], bar = zone.parentElement!.parentElement!;
+    const barBox = box(bar), barStyle = getComputedStyle(bar);
     return {
-      height: zoneBox.height, border: style.borderTopWidth, shadow: style.boxShadow, padding: style.padding,
+      height: zoneBox.height, row: parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--top-row-height')),
+      // The band touches the bar's top edge and its bottom border, with no vertical padding on the bar.
+      top: zoneBox.top - barBox.top, bottom: barBox.bottom - parseFloat(barStyle.borderBottomWidth) - zoneBox.bottom, barPadding: [barStyle.paddingTop, barStyle.paddingBottom],
+      radius: style.borderTopLeftRadius + style.borderBottomRightRadius, border: style.borderTopWidth, shadow: style.boxShadow, padding: style.padding,
       inside: chip.left >= zoneBox.left && tools.every(tool => tool.right <= zoneBox.right + 0.01),
+      toolsCentred: tools.every(tool => Math.abs((tool.top + tool.height / 2) - (zoneBox.top + zoneBox.height / 2)) <= 0.5),
       chipToFirst: Math.round((tools[0]?.left ?? 0) - chip.right), toolGaps: tools.slice(1).map((tool, i) => Math.round(tool.left - tools[i]!.right)),
-      toNext: next ? Math.round(box(next).left - zoneBox.right) : 8,
+      lastToEdge: Math.round(zoneBox.right - tools[tools.length - 1]!.right), toNext: next ? Math.round(box(next).left - zoneBox.right) : 8,
     };
   }));
   expect(report).toHaveLength(4);
   for (const zone of report) {
-    expect(zone).toMatchObject({ height: 26, border: '0px', shadow: 'none', padding: '0px 3px 0px 0px', inside: true, chipToFirst: 4, toNext: 8 });
+    expect(zone).toMatchObject({ height: zone.row, top: 0, bottom: 0, barPadding: ['0px', '0px'], radius: '0px0px', border: '0px', shadow: 'none', padding: '0px 8px', inside: true, toolsCentred: true, chipToFirst: 4, lastToEdge: 8, toNext: 8 });
     expect(zone.toolGaps.every(gap => gap === 4)).toBe(true);
   }
+});
+
+test('wrapped, every line is one full row and each band fills its own line, with no gap between lines', async ({ page }) => {
+  await openApp(page, 1024);
+  const read = () => page.evaluate(() => {
+    const row = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--top-row-height'));
+    const bar = document.querySelector('.tool-groups')!.parentElement!;
+    const barBox = bar.getBoundingClientRect(), borderBottom = parseFloat(getComputedStyle(bar).borderBottomWidth);
+    const zones = Array.from(document.querySelectorAll('.tool-zone')).map(zone => ({ top: zone.getBoundingClientRect().top - barBox.top, height: zone.getBoundingClientRect().height, open: zone.classList.contains('is-open') }));
+    return { row, content: barBox.height - borderBottom, zones };
+  });
+  const { row, content, zones } = await read();
+  const tops = [...new Set(zones.map(zone => zone.top))].sort((a, b) => a - b);
+  expect(tops.length).toBeGreaterThan(1);
+  // Lines sit directly on top of each other, one row apart, starting at the bar's top edge and ending at its border.
+  expect(tops).toEqual(tops.map((_, line) => line * row));
+  expect(content).toBe(tops.length * row);
+  for (const zone of zones) expect(zone.height).toBe(row);
 });
 
 test('only the groups wrap: Analysis stands alone at the right end and Clear All is gone from the top bar', async ({ page }) => {
@@ -41,13 +64,13 @@ test('only the groups wrap: Analysis stands alone at the right end and Clear All
   expect(await rows(page)).toBeGreaterThan(1);
   await expect(page.getByRole('button', { name: 'Clear All' })).toHaveCount(0);
   const [analysisBox, firstZone, barBox] = await Promise.all([page.getByRole('button', { name: 'Analysis', exact: true }).boundingBox(), page.locator('.tool-zone').first().boundingBox(), page.locator('.tool-groups').evaluate(el => el.parentElement!.getBoundingClientRect().toJSON() as { right: number })]);
-  // On the first line, at the right end of the bar (its 8 px padding), and no divider before it.
-  expect(analysisBox?.y).toBeLessThanOrEqual((firstZone?.y ?? 0) + 4);
+  // On the first line (centred in the first row, like the first line of groups), at the right end of the bar (its 8 px padding), and no divider before it.
+  expect((analysisBox?.y ?? 0) + (analysisBox?.height ?? 0) / 2).toBe((firstZone?.y ?? 0) + (firstZone?.height ?? 0) / 2);
   expect(Math.round(barBox.right - ((analysisBox?.x ?? 0) + (analysisBox?.width ?? 0)))).toBe(8);
   expect(await page.getByRole('button', { name: 'Analysis', exact: true }).evaluate(el => (el.previousElementSibling as HTMLElement | null)?.getAttribute('aria-hidden') ?? null)).toBeNull();
 });
 
-test('Trace is one control with its label inside it, and a chip is the same size closed and open', async ({ page }) => {
+test('Trace is one control with its label inside it, and a group title does not move when it opens or closes', async ({ page }) => {
   await openApp(page, 2048);
   const trace = page.getByRole('combobox', { name: 'Trace', exact: true });
   await expect(trace).toHaveCount(1);
@@ -57,11 +80,24 @@ test('Trace is one control with its label inside it, and a chip is the same size
   expect(await trace.evaluate(el => getComputedStyle(el).borderTopWidth)).toBe('0px');
 
   const chip = page.getByRole('button', { name: 'Lines', exact: true });
-  const measure = () => chip.evaluate(el => { const box = el.getBoundingClientRect(), text = document.createRange(); text.selectNodeContents(el.firstChild!); return { height: box.height, textOffset: Math.round(text.getBoundingClientRect().y - box.y) }; });
+  // The open title fills the band's height, the closed chip is the normal small chip (6 px corners); the label stays
+  // exactly where it was, both across and down, so the row does not jump.
+  const measure = () => chip.evaluate(el => {
+    const box = el.getBoundingClientRect(), text = document.createRange();
+    text.selectNodeContents(el.firstChild!);
+    const label = text.getBoundingClientRect(), style = getComputedStyle(el);
+    return { height: box.height, radius: style.borderTopLeftRadius, labelLeft: label.left, labelMid: label.top + label.height / 2 };
+  });
   const open = await measure();
+  const row = await page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--top-row-height')));
+  expect(open).toMatchObject({ height: row, radius: '0px' });
   await chip.click();
   await expect(chip).toHaveAttribute('aria-expanded', 'false');
-  expect(await measure()).toEqual(open);
+  const closed = await measure();
+  expect(closed.radius).toBe(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--radius-control').trim()));
+  expect(closed.height).toBe(await page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--control-sm-height')) + 4));
+  expect(closed.labelLeft).toBe(open.labelLeft);
+  expect(closed.labelMid).toBe(open.labelMid);
 });
 
 test('Left and Analysis are panel toggles with their icon, and the wordmark is semibold', async ({ page }) => {
@@ -69,12 +105,14 @@ test('Left and Analysis are panel toggles with their icon, and the wordmark is s
   const left = page.getByRole('button', { name: 'Left', exact: true });
   const analysis = page.getByRole('button', { name: 'Analysis', exact: true });
   const group = page.getByRole('button', { name: 'Lines', exact: true });
+  await group.click();
+  await expect(group).toHaveAttribute('aria-expanded', 'false');
   for (const [button, path] of [[left, 'M3 4h18v16H3zM9 4v16'], [analysis, 'M3 4h18v16H3zM15 4v16']] as const) {
     const icon = button.locator('svg');
     await expect(icon).toHaveAttribute('aria-hidden', 'true');
     await expect(icon.locator('path')).toHaveAttribute('d', path);
     expect(await icon.evaluate(el => { const style = getComputedStyle(el); return [el.getBoundingClientRect().width, style.strokeWidth, style.strokeLinecap, style.strokeLinejoin]; })).toEqual([13, '1.75px', 'round', 'round']);
-    // The text stays visible at 1024 px, 5 px after the icon, and the chip is as tall as a group chip.
+    // The text stays visible at 1024 px, 5 px after the icon, and the chip is as tall as a (closed) group chip.
     const [iconBox, textGap, height] = await button.evaluate(el => { const svg = el.querySelector('svg')!.getBoundingClientRect(), range = document.createRange(); range.selectNodeContents(el.lastChild!); return [svg.right, Math.round(range.getBoundingClientRect().left - svg.right), el.getBoundingClientRect().height]; });
     expect(iconBox).toBeGreaterThan(0);
     expect(textGap).toBe(5);
