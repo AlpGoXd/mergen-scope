@@ -22,7 +22,9 @@ const Chevron = () => <svg className="tool-zone__chevron" aria-hidden="true" wid
 /**
  * One tool group of the top bar: its chip is the zone's title, and when open the tools follow inline,
  * in the same row. Closed, it is just the chip. The tools slide out when the group goes from closed to open,
- * not when it is already open at first paint.
+ * not when it is already open at first paint. The chip keeps the SAME box closed and pressed (only its colours and
+ * the chevron's direction change): the label cell also holds a hidden semibold copy of the label, so the chip is as
+ * wide as its semibold text in both states and does not jump when it opens.
  */
 function ToolZone({ tone, label, open, onToggle, children }: { tone: ZoneTone; label: string; open: boolean; onToggle: () => void; children: React.ReactNode }) {
   const wasOpen = React.useRef(open);
@@ -32,7 +34,7 @@ function ToolZone({ tone, label, open, onToggle, children }: { tone: ZoneTone; l
   wasOpen.current = open;
   const slide = slideRef.current;
   return <div className={`tool-zone tool-zone--${tone}${open ? ' is-open' : ''}`}>
-    <Btn variant="chip" tone={tone} active={open} aria-expanded={open} className="tool-zone__chip" onClick={onToggle}>{label}<Chevron /></Btn>
+    <Btn variant="chip" tone={tone} active={open} aria-expanded={open} className="tool-zone__chip" onClick={onToggle}><span className="tool-zone__label"><span>{label}</span><span aria-hidden="true">{label}</span></span><Chevron /></Btn>
     {open && <div className={`tool-zone__tools${slide ? ' is-sliding' : ''}`}>{children}</div>}
   </div>;
 }

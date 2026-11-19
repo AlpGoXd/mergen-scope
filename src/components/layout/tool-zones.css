@@ -1,34 +1,42 @@
-/* Top bar tool groups, design board T2 "square colour zone, round buttons": one row, the open group's name is a
-   pressed button, its tools follow inline. The zone is ONE element per open group (name button + all its tools): a
-   SQUARE tint block (radius 0, no border, the group's tint as background), 28 px tall (control-sm + 6 px), centred in
-   the row, with 3 px padding left and right. Everything inside it is a normal round button (the control radius).
+/* Top bar tool groups, design board T2 "square colour zone, round buttons": one row, the open group's chip is pressed
+   and its tools follow inline. The chip keeps the SAME box closed and pressed (control height, same padding, text
+   size and chevron; only its colours change and the chevron flips). The zone is ONE element per open group: a SQUARE
+   tint block (radius 0, no border, the group's tint as background) that grows AROUND the chip, control height + 4 px
+   (2 px above and below, 3 px at each end), centred in the row. The tools inside are small round buttons.
    Tones come from the --<tone>-zone / -fill / -line / -ink tokens in index.css. */
 
 /* Own flex-wrap container: a whole group moves to a second line when it does not fit, never split. 8 px between
    groups side by side and 6 px between wrapped lines, so two zones never touch. The vertical padding centres a
-   28 px line in the bar's row height, so the first line sits on the same centre line as the fixed clusters. */
+   zone-high line in the bar's row height, so the first line sits on the same centre line as the fixed clusters. */
 .tool-groups { flex: 1 1 0; min-width: 0; display: flex; flex-wrap: wrap; align-content: flex-start; align-items: center; gap: 6px 8px; padding-block: calc((var(--top-row-height) - var(--zone-block-height)) / 2); }
 
-/* Every group, open or closed, is one 28 px line and centres its content; 4 px between the name button and its first
-   tool, and between tools. A closed group is just its normal small chip, centred in the line. */
-.tool-zone { display: inline-flex; align-items: center; gap: 4px; flex: none; height: var(--zone-block-height); white-space: nowrap; }
+/* Every group, open or closed, is one zone-high line and centres its content; 4 px between the chip and its first
+   tool, and between tools. A closed group is just its normal chip, centred in the line. */
+.tool-zone { box-sizing: border-box; display: inline-flex; align-items: center; gap: 4px; flex: none; height: var(--zone-block-height); white-space: nowrap; }
 .tool-zone--marker { --zone-bg: var(--marker-zone); --zone-ink: var(--marker-ink); --zone-line: var(--marker-line); }
 .tool-zone--search { --zone-bg: var(--search-zone); --zone-ink: var(--search-ink); --zone-line: var(--search-line); }
 .tool-zone--lines { --zone-bg: var(--lines-zone); --zone-ink: var(--lines-ink); --zone-line: var(--lines-line); }
 .tool-zone--pane { --zone-bg: var(--pane-zone); --zone-ink: var(--pane-ink); --zone-line: var(--pane-line); }
 
-/* A closed chip is the normal small chip (zone height, 6 px corners), centred in the line. */
-.tool-zone .tool-zone__chip { height: var(--zone-height); min-height: 0; }
+/* The group chip: the normal chip (control height, 6 px corners), the SAME box closed and pressed. Its label cell holds
+   the label twice in one grid cell: the visible one, and a hidden semibold copy that reserves the semibold width, so
+   semibold (pressed) never changes the chip's width. */
+.tool-zone .tool-zone__chip { height: var(--control-height); min-height: 0; }
+.tool-zone__label { display: inline-grid; justify-items: center; }
+.tool-zone__label > * { grid-area: 1 / 1; }
+.tool-zone__label > [aria-hidden="true"] { font-weight: var(--fw-semibold); visibility: hidden; }
 
 /* The chevron reads "opens to the right"; open, it points back (closes). */
 .tool-zone__chevron { flex: none; opacity: 0.7; transition: transform 200ms cubic-bezier(0.2, 0.7, 0.2, 1); }
 .tool-zone.is-open .tool-zone__chevron { transform: rotate(180deg); }
 
-/* Open: a square block around the name button and the tools, 3 px of padding at each end. The name is a real round
-   button in its pressed state: the group's fill, line and ink (the chip's own pressed look, from the tone variables),
-   semibold, control-sm tall like the tools. Clicking it closes the group (aria-expanded stays on it). */
-.tool-zone.is-open { padding: 0 3px; background: var(--zone-bg); border-radius: 0; }
-.tool-zone.is-open > .tool-zone__chip.is-active { height: var(--control-sm-height); padding: 0 7px; font-weight: var(--fw-semibold); }
+/* Open: a square block around the pressed chip and the tools: 2 px above and below, 3 px at each end. The chip is
+   pressed (the group's fill, line and ink, from its tone variables; semibold) but keeps its box. The 3 px on its left
+   is taken from the space before the group (margin -3px), so the chip does not move when the group opens and nothing
+   to its left moves either: the tools appear only to its right. Clicking the chip closes the group (aria-expanded
+   stays on it). */
+.tool-zone.is-open { padding: 2px 3px; margin-left: -3px; background: var(--zone-bg); border-radius: 0; }
+.tool-zone.is-open > .tool-zone__chip { font-weight: var(--fw-semibold); }
 
 .tool-zone__tools { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 /* Opening slides the tools out of the chip. Closing is instant (they unmount). `overflow` is hidden only while the

@@ -50,7 +50,7 @@ export function TopBar({ onOpen, onExport }: TopBarProps = {}) {
   // below that centres a 20 px divider on one line. (Clear workspace… lives in the Files ⋯ menu.)
   const cluster = { display: 'flex', alignItems: 'center', alignSelf: 'flex-start', gap: 4, height: 'var(--top-row-height)', flex: 'none' } as const;
   return <div style={{ minHeight: 'var(--top-row-height)', display: 'flex', alignItems: 'stretch', gap: 4, padding: '0 8px', background: 'var(--panel)', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
-    <style>{'@media (max-width: 1279px) { .topbar-action-label { display: none; } } .ui-btn.topbar-panel-toggle { height: var(--zone-height); min-height: 0; gap: 5px; }'}</style>
+    <style>{'@media (max-width: 1279px) { .topbar-action-label { display: none; } } .ui-btn.topbar-panel-toggle { height: var(--control-height); min-height: 0; gap: 5px; }'}</style>
     <div style={cluster}>
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4em', whiteSpace: 'nowrap', fontSize: 'var(--font-title)', fontWeight: 'var(--fw-semibold)', marginRight: 8 }}><BrandMark /><span>Mergen <span style={{ color: 'var(--accent)' }}>Scope</span></span></span>
     <Btn variant="chip" tone="left" active={ui.showSidebar} className="topbar-panel-toggle" title="Toggle left panel" onClick={() => toggle('showSidebar', ui.showSidebar)}>{panelIcon('M3 4h18v16H3zM9 4v16')}Left</Btn>

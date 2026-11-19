@@ -16,7 +16,7 @@
   --lh-caption: 15px; --lh-label: 17px; --lh-body: 18px; --lh-title: 20px;
   --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-5: 24px;
   --top-row-height: 36px; --tool-row-height: 36px; --pane-header-height: 30px; --footer-height: 26px; --left-panel-width: 280px; --right-panel-width: 320px; --pane-min-height: 160px;
-  --control-height: 28px; --control-sm-height: 22px; --zone-height: calc(var(--control-sm-height) + 4px); --zone-block-height: calc(var(--control-sm-height) + 6px); --row-height: 30px; --gap: 6px; --panel-padding: 12px; --input-height: 24px; --z-popover: 140;
+  --control-height: 28px; --control-sm-height: 22px; --zone-block-height: calc(var(--control-height) + 4px); --row-height: 30px; --gap: 6px; --panel-padding: 12px; --input-height: 24px; --z-popover: 140;
   --radius-control: 6px; --radius-card: 8px; --radius-input: 5px; --radius-badge: 4px;
   --marker-hue: 20; --marker-color: oklch(0.50 0.0799 20);
   --brand-marker: oklch(0.62 0.17 20);
