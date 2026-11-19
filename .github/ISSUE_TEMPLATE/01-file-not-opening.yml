@@ -1,0 +1,62 @@
+name: File didn't open
+description: A file fails to load, or loads with wrong axes or units
+title: "[File] "
+labels: ["file-support"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Mergen Scope never uploads your files. Anything you attach **on this page** is public on GitHub.
+        Confidential data? Open the issue without attachments and email alpgokalp@hotmail.com.tr.
+  - type: dropdown
+    id: file_type
+    attributes:
+      label: File type
+      options:
+        - Spectrum analyzer (.dat)
+        - Oscilloscope or log (.csv, .txt, .tsv)
+        - Touchstone (.s1p … .sNp)
+        - Other columns file
+    validations:
+      required: true
+  - type: input
+    id: instrument
+    attributes:
+      label: Instrument, model and firmware
+      placeholder: "e.g. R&S FSVA3044, firmware 4.x"
+    validations:
+      required: true
+  - type: textarea
+    id: what_happened
+    attributes:
+      label: What happened?
+      description: Error message, blank panel, wrong axis or units. Screenshots are welcome, drag them in.
+    validations:
+      required: true
+  - type: textarea
+    id: header
+    attributes:
+      label: First 10–15 lines of the file
+      description: Open the file in a text editor and paste the top lines. Remove serial numbers and anything confidential.
+      render: text
+  - type: textarea
+    id: attachment
+    attributes:
+      label: Attach the file (optional)
+      description: |
+        Drag and drop into this box. Up to 25 MB. `.csv`, `.tsv`, `.txt`, `.log` and `.json` attach directly; zip anything else (`.dat`, `.s2p`).
+        Only attach data you are allowed to share publicly.
+  - type: input
+    id: env
+    attributes:
+      label: Browser, OS and app version
+      placeholder: "e.g. Chrome 131, Windows 11, v1.0.0-beta.1"
+    validations:
+      required: true
+  - type: checkboxes
+    id: public
+    attributes:
+      label: Public issue
+      options:
+        - label: I understand this issue and any attachments are public.
+          required: true

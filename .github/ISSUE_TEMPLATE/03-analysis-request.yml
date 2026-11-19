@@ -1,0 +1,27 @@
+name: Request an analysis
+description: Ask for a measurement or analysis that is missing
+title: "[Analysis] "
+labels: ["analysis-request"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What should it measure?
+    validations:
+      required: true
+  - type: textarea
+    id: definition
+    attributes:
+      label: Definition or reference
+      description: Formula, standard, or the page of the instrument manual that defines it.
+    validations:
+      required: true
+  - type: textarea
+    id: example
+    attributes:
+      label: Example input and expected result
+      description: For instance, the value your instrument reports for a known trace. Do not attach confidential data.
+  - type: textarea
+    id: usecase
+    attributes:
+      label: What do you use it for?

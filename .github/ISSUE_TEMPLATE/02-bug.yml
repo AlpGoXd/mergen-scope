@@ -1,0 +1,64 @@
+name: Bug or wrong result
+description: A crash, a UI problem, or a measurement that looks wrong
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Anything you attach **on this page** is public on GitHub. A saved workspace contains your trace data, not only settings.
+        For confidential sessions, email alpgokalp@hotmail.com.tr instead of attaching.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Where does it happen?
+      options:
+        - Measurements (IP3, channel power, OBW, …)
+        - Math or FFT
+        - Network analysis (VSWR, K/μ, group delay, Smith chart)
+        - Panels, markers or zoom
+        - Workspace save or load
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: "1. Open …  2. Add a marker …  3. …"
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected result
+      description: For a wrong measurement, include the value your instrument or reference tool reports.
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual result
+    validations:
+      required: true
+  - type: textarea
+    id: workspace
+    attributes:
+      label: Saved workspace (optional)
+      description: |
+        Save the workspace in the app, then drag the `.json` file into this box (up to 25 MB). It lets me reproduce your panels, markers and math traces.
+        The file contains your trace data. Only attach it if you are allowed to share that data publicly. Tip: crop to the smallest span that still shows the problem before saving.
+  - type: input
+    id: env
+    attributes:
+      label: Browser, OS and app version
+      placeholder: "e.g. Firefox 133, Ubuntu 24.04, v1.0.0-beta.1"
+    validations:
+      required: true
+  - type: checkboxes
+    id: public
+    attributes:
+      label: Public issue
+      options:
+        - label: I understand this issue and any attachments are public.
+          required: true
