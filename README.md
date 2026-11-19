@@ -6,90 +6,63 @@
 
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](LICENSE)
 
-**A browser workspace for RF, waveform, and network measurements.**
+**A browser workspace for spectrum analyzer, scope and S-parameter files. Your files stay in your browser.**
 
-Mergen Scope opens instrument exports and turns them into an interactive workspace for comparing traces, placing markers, measuring signals, and creating derived data. Spectrum analyzer captures, oscilloscope waveforms, and Touchstone networks can live in the same session, with compatible traces arranged across multiple panes.
-
-The 1.0.0-beta.1 prerelease is a complete TypeScript rewrite with a redesigned interface, flexible pane layouts, an interactive Smith chart, a unified analysis panel, and workspace undo/redo. It has grown from a spectrum file viewer into a measurement workbench.
-
-Files are read and processed in your browser. No account, measurement upload, or desktop installation is required.
-
-[**Open the app**](https://mergenscope.com/app.html) · [**Try the demo workspace**](https://mergenscope.com/app.html?demo=1) · [Website](https://mergenscope.com/)
+[**Try the demo**](https://mergenscope.com/app.html?demo=1) · [**Open the app**](https://mergenscope.com/app.html) · [Sample files](test%20files/) · [Feedback](https://github.com/AlpGoXd/mergen-scope/discussions)
 
 ![Mergen Scope workspace with a four-pane layout showing gain, Smith chart, waveforms, and two-tone IP3 analysis](docs/images/mergen-scope-workspace.png)
 
-## The workspace
+## Try it in 30 seconds
 
-- **Multiple files and traces.** Compare measurements, rename traces, change colours and symbols, and manage visibility from file cards in the left panel.
-- **Flexible panes.** Use rows, columns, a 2 × 2 grid, or one large pane with smaller panes beside it. Resize and rearrange panes, show a trace in more than one pane, and link compatible X axes while keeping Y controls independent.
-- **Chart and Smith views.** Plot scalar traces on Cartesian axes or inspect network reflections on a Smith chart. Pane settings control grids, samples, marker tags, reference lines, and chart type.
-- **Markers and search.** Place normal and delta markers, edit their positions, find peaks and minima, and assign tone roles for IP3 measurements.
-- **Reference lines.** Add horizontal and vertical lines, choose which panes show them, and list their intersections with traces.
-- **Analysis cards.** Add measurements and trace transformations from one searchable panel. Keep several cards open, with their settings, results, and chart overlays together.
-- **Undo and redo.** Recover workspace edits with `Ctrl+Z` and redo with `Ctrl+Y` or `Ctrl+Shift+Z`.
-- **Appearance and controls.** Light, dark, and system themes; three interface sizes; a colour-blind-safe palette; trace symbols; resizable side panels; and in-app help.
+1. Download a file from [`test files/`](test%20files/), for example `cascaded chain.s2p` or `scope_1khz_sine_100ksps.csv`.
+2. [Open the app](https://mergenscope.com/app.html).
+3. Drop the file into the workspace and place a marker on the trace.
 
-The normal limit is four panes. Settings offers an experimental eight-pane mode; layouts above four panes use rows or columns.
+No file at hand? [Load the demo workspace](https://mergenscope.com/app.html?demo=1).
 
-## Supported data
+## Supported files
 
-| Input | What opens |
-| --- | --- |
-| R&S `.dat` exports | Spectrum traces with instrument metadata such as frequency span, RBW, and detector. Amplitude-only exports can reconstruct the X axis from Start/Stop metadata. |
-| `.csv`, `.tsv`, `.txt`, and tabular `.dat` | Time or frequency traces from delimited columns. The import wizard handles delimiter, header rows, X/Y columns, multipliers, and units. |
-| Touchstone `.s1p` through `.sNp` | Multiport S-parameter networks in real/imaginary, magnitude/angle, or dB/angle form. Touchstone 1.x and 2.0 parsing is supported. |
-| Workspace `.json` | A saved Mergen Scope session, including its measurement data and workspace configuration. |
+| Format | What you get | Tested with |
+| --- | --- | --- |
+| R&S `.dat` | Spectrum traces with span, RBW and detector metadata. Amplitude-only exports rebuild the X axis from Start/Stop. | R&S FSVA3044 exports (`cascade_ip3_*.DAT`) |
+| `.csv`, `.tsv`, `.txt`, tabular `.dat` | Time or frequency traces. An import wizard maps delimiter, header rows, X/Y columns, multipliers and units. | Oscilloscope CSVs (`scope_1khz_sine_100ksps.csv`) |
+| Touchstone `.s1p` to `.sNp` (1.x and 2.0) | S-parameter networks in RI, MA or dB/angle form, with S, Y, Z and (two-port) ABCD views, VSWR, return loss, group delay and a Smith chart. | `cascaded chain.s2p` |
+| Workspace `.json` | A saved session: data, panes, markers, lines and analyses. | Round trip in the unit tests |
 
-For Touchstone data, the file card includes a matrix picker for adding parameter views. S, Y, and Z families are available, with ABCD conversion for two-port networks. Views include dB, magnitude, phase, real, and imaginary components where applicable, plus VSWR, return loss, and group delay for appropriate S-parameters. Input files must contain S-parameters; Y, Z, and ABCD are calculated from that network.
+R&S `.dat` is the primary tested instrument path. Generic tables may need manual column and unit mapping.
 
-The Smith pane accepts reflection parameters such as S11 and S22. It includes impedance/admittance grids, frequency-range selection, direction indicators, and marker readouts for impedance, admittance, reflection coefficient, VSWR, and return loss.
+## What you can measure
 
-## Analysis and trace processing
+- **Markers and lines:** normal and delta markers, peak and minimum search, tone roles for IP3, and reference lines that list their intersections with traces.
+- **Spectrum and RF:** harmonics (THD, SFDR), IP3, noise PSD, occupied bandwidth and channel power.
+- **Time domain:** frequency, period, levels, RMS, rise/fall time, overshoot and duty cycle; resample; FFT with windows, averaging and max hold.
+- **Networks:** Smith chart with impedance, admittance, VSWR and return-loss readouts; two-port stability and reciprocity/isolation.
+- **Trace math:** offset/scale, smoothing (moving average, median, Savitzky-Golay) and add, subtract, multiply or divide of two traces.
+- **Workspace:** up to four panes (experimental eight), linked X axes, undo/redo, save/restore as JSON, CSV export.
 
-Select a trace, open **Analysis**, and choose **+ Add analysis**. The menu distinguishes **Measure** tools from **Math** tools and explains when a tool cannot use the selected data.
+A typical chain: `Time capture -> Resample if needed -> FFT -> Harmonics / Peak Table / Channel power`.
 
-| Area | Available tools |
-| --- | --- |
-| General measurements | Peak Table, Range Statistics, Bandwidth, Threshold crossings, Ripple, and reference-line crossing lists |
-| Spectrum and RF | Harmonics, Noise PSD, IP3, Occupied bandwidth, and Channel power |
-| Time domain | Waveform measurements, FFT, and Resample |
-| Network | Two-port Stability and Reciprocity / Isolation |
-| Trace processing | Offset / Scale, Smooth, and Trace math |
+Each tool states when it cannot use the selected data. FFT needs evenly spaced time samples, Channel power needs density units such as `dBm/Hz`, and the network cards need a two-port. SNR, SINAD, ENOB and THD+N need the window and noise-bandwidth information that only the app's own FFT spectra carry, so they are not reported for ordinary analyzer traces.
 
-**Math cards create derived traces.** Offset / Scale applies constants; Smooth offers moving average, median, and Savitzky–Golay filters. Trace math adds, subtracts, multiplies, or divides two traces, with controls for the sample grid and filling gaps when their X values differ.
+## Privacy
 
-**Waveform** measures frequency, period, levels, mean, RMS, rise/fall time, overshoot, and duty cycle. **Resample** makes an evenly spaced time trace using linear or cubic-spline interpolation. **FFT** creates a single-sided RMS spectrum with selectable windows, point counts, detrending, averaging or max hold, and amplitude or density scales.
+Files are read and processed in your browser. Nothing is uploaded, and there is no account.
+Appearance preferences stay in the browser; a workspace is only saved when you download it.
+Anything you attach to a GitHub issue is public, so share only data you are allowed to share.
 
-A typical workflow is:
+## Feedback
 
-```text
-Time capture -> Resample if needed -> FFT -> Harmonics / Peak Table / Channel power
-```
+- **Bug, file that will not open, or a missing measurement:** [open an issue](https://github.com/AlpGoXd/mergen-scope/issues/new/choose) and pick the matching form. An example file or reproduction steps help most.
+- **Questions, ideas, general feedback:** [Discussions](https://github.com/AlpGoXd/mergen-scope/discussions).
 
-**Harmonics** reports the fundamental, harmonics, THD, and SFDR. Noise-dependent results such as SNR, SINAD, ENOB, and THD+N require the window and noise-bandwidth information carried by spectra created with the app's FFT; these results are not reported for ordinary analyzer traces.
+## Why I built this
 
-Measurements respect their data requirements: FFT needs evenly spaced time samples, Channel power needs spectral-density units such as `dBm/Hz` or `dBW/Hz`, Noise PSD estimates density using the trace sample spacing, and the network measurement cards require a two-port network.
+Mergen Scope started as the data viewer for [Mergen-21](https://github.com/AlpGoXd/mergen-21), my graduation project: a low-cost 21 cm hydrogen-line radio telescope that made its first on-sky H I detection in April 2026. I wanted one place to open spectrum analyzer sweeps, scope captures and VNA files from the bench without installing anything or moving data off my machine. It grew into a general RF measurement workspace.
 
-## Getting started
+<details>
+<summary><strong>Development</strong></summary>
 
-1. [Open the app](https://mergenscope.com/app.html) and choose **Load demo** in the empty left panel, or [open the demo directly](https://mergenscope.com/app.html?demo=1).
-2. To use your own measurements, drag files into the workspace or use **Open** in the left panel. Confirm column mappings in the import wizard when prompted. The top-bar **Open** button loads a saved workspace JSON.
-3. Select a trace in the left panel. Use its pane controls or drag it to a pane to arrange comparisons. Time and frequency data stay in compatible panes.
-4. Enable **Markers**, **Search**, **Lines**, or **Pane** in the top bar to show the corresponding tools. Use **Pane** to add panes and choose a layout.
-5. Add analysis cards, then use **Save** to download the session as a portable JSON file.
-
-For chart navigation, right-drag to zoom an X range, scroll to scale Y, Shift+scroll to offset Y, Ctrl+scroll to zoom X around the cursor, and Ctrl+drag or middle-drag to pan. Double-click or press `F` to fit all. In a Smith pane, scrolling zooms both axes. Open **?** in the footer for help.
-
-### Saving and sharing
-
-- **Save** downloads a version 5 workspace JSON containing imported data, derived traces, analysis instances and results, pane layout and settings, zoom state, markers, reference lines, and trace assignments. Older workspace formats are migrated on load.
-- **Open** in the top bar restores a workspace. Workspace JSON files can also be dropped into the app. Loading a workspace asks before replacing an existing session.
-- **Export…** in the top bar downloads visible traces as CSV. A pane's settings also offers CSV export for its traces.
-- **Copy chart** in a Cartesian pane's settings copies its plot as a PNG image when the browser supports clipboard image writing.
-
-Appearance preferences are saved in the browser separately from workspace files. Save a workspace JSON to keep or share your measurement session.
-
-## Local development
+### Setup
 
 Use Node.js 22.13+ on the 22.x line, or Node.js 24+, with npm. In a fresh clone:
 
@@ -100,9 +73,9 @@ npm ci
 npm run dev
 ```
 
-Open **http://localhost:5173/app.html** for the application. The root URL serves the landing page; `app.html?demo=1` loads the demo session.
+Open **http://localhost:5173/app.html** for the app. The root URL serves the landing page; `app.html?demo=1` loads the demo session. Run `npm ci` only in a fresh checkout without `node_modules`. Install the Playwright browser once with `npx playwright install chromium`.
 
-Run `npm ci` only in a fresh checkout without an existing `node_modules` directory. See [AGENTS.md](AGENTS.md) for repository safety and collaboration rules.
+### Scripts
 
 | Command | Purpose |
 | --- | --- |
@@ -115,17 +88,11 @@ Run `npm ci` only in a fresh checkout without an existing `node_modules` directo
 | `npm run test:static` | Test the built site using Vite preview; run after building |
 | `npm run preview` | Serve the production build locally |
 
-Install the test browser once before running Playwright:
+The production build bundles scripts and styles into `dist/app.html`, next to the static landing page, fonts, demo data and images. Nothing is loaded from a CDN.
 
-```bash
-npx playwright install chromium
-```
+### Codebase
 
-The production build bundles the React application's scripts and styles into `dist/app.html`, alongside the static landing page, fonts, demo data, and image assets. Runtime assets are served locally rather than loaded from a CDN.
-
-## Codebase
-
-The application uses **React 19, TypeScript 6 in strict mode, Vite 7, and Recharts 2**. Smith rendering and network calculations live in dedicated modules. Tests use Vitest, Testing Library, and Playwright.
+React 19, TypeScript 6 (strict), Vite 7 and Recharts 2. Tests use Vitest, Testing Library and Playwright.
 
 ```text
 index.html                  Static landing page
@@ -158,31 +125,24 @@ tests/
   static/                   Built-site checks
 ```
 
-The aggregate workspace provider coordinates changes across files, traces, panes, markers, lines, and analyses so related edits can be undone together. Store adapters expose those slices to components. Domain functions handle parsing, calculations, trace alignment, and workspace migration separately from the UI.
+The aggregate workspace provider coordinates changes across files, traces, panes, markers, lines and analyses so related edits undo together. Domain functions handle parsing, calculations, trace alignment and workspace migration separately from the UI. Saved workspaces are version 5; older formats are migrated on load.
 
-## Current scope
+### Current scope
 
-- R&S `.dat` is the primary tested instrument export path; generic tables may need manual column and unit mapping.
-- Chart and Smith panes are available. Table, polar, eye, and spectrogram views are marked as planned in the pane picker.
-- Network input is S-parameter Touchstone data. Stability and reciprocity/isolation measurements are two-port only.
-- Large captures can stress browser rendering and calculations. FFT, Waveform, and Harmonics currently run on the main thread.
-- The app works with imported files and saved sessions. Live instrument connections and PWA installation are not implemented.
+- Chart and Smith panes exist. Table, polar, eye and spectrogram views are marked as planned.
+- Network input is S-parameter Touchstone data. Stability and reciprocity/isolation are two-port only.
+- FFT, Waveform and Harmonics run on the main thread, so very large captures can be slow.
+- Live instrument connections and PWA installation are not implemented.
 
-## Contributing
+### Contributing
 
-Issues and pull requests are welcome. Include an example file or reproduction steps when reporting an import or analysis problem. The in-app **Feedback** menu opens GitHub issue forms with the app version and browser details, without attaching measurement files.
+Issues and pull requests are welcome. Before opening a PR, run typecheck, unit tests, browser tests, build and static tests in that order, and add focused coverage when changing parsers, calculations, workspace persistence or history. Follow [AGENTS.md](AGENTS.md); the design requirements are in [design decisions](docs/design/design-decisions-2026-11-10.md) and the remaining work is in [the plan](docs/plan.md).
 
-For code changes, run typecheck, unit tests, browser tests, build, and static tests in that order. Add focused coverage when changing parsers, calculations, workspace persistence, or history. Follow [AGENTS.md](AGENTS.md); the design requirements are in [design decisions](docs/design/design-decisions-2026-11-10.md) and the remaining work is in [the plan](docs/plan.md).
-
-## Why I built this
-
-I'm an EE engineer, and I wanted a practical way to inspect measurement files without setting up a heavy desktop tool. Mergen Scope started with spectrum analyzer exports; the rewrite brings waveform and network work into the same browser workspace.
-
-The goal is to open real measurements quickly, make comparisons and calculations easy to inspect, and keep the source understandable enough for other engineers to improve it.
+</details>
 
 ## License and contact
 
 [Apache-2.0](LICENSE).
 
-**Alp Gokalp** — RF/Microwave Engineering, Analog IC Design<br>
+**Alp Gokalp**, RF/Microwave Engineering, Analog IC Design<br>
 [GitHub](https://github.com/alpgoxd) · [alpgokalp@hotmail.com.tr](mailto:alpgokalp@hotmail.com.tr)
