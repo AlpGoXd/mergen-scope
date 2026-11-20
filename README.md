@@ -52,8 +52,8 @@ Anything you attach to a GitHub issue is public, so share only data you are allo
 
 ## Feedback
 
-- **Bug, file that will not open, or a missing measurement:** [open an issue](https://github.com/AlpGoXd/mergen-scope/issues/new/choose) and pick the matching form. An example file or reproduction steps help most.
-- **Questions, ideas, general feedback:** [Discussions](https://github.com/AlpGoXd/mergen-scope/discussions).
+- **Bug, file that will not open, missing measurement, or feature request:** [open an issue](https://github.com/AlpGoXd/mergen-scope/issues/new/choose) and pick the matching form. An example file or reproduction steps help most.
+- **Questions and general feedback:** [Discussions](https://github.com/AlpGoXd/mergen-scope/discussions).
 
 ## Why I built this
 
