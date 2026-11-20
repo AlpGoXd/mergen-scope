@@ -78,7 +78,8 @@ export function useDocumentExport(renderPane: RenderExportPane) {
             ? [zoom.left, zoom.right] as const : manual ? [manual.startHz, manual.stopHz] as const : null);
           return { name: paneName(panes, pane.id), traces, range, markers: options.csvMarkers ? selectedMarkers : [] };
         });
-        return { kind: 'text', text: documentCsv(data, 24), makeCsv: () => documentCsv(data) };
+        const previewRowsPerPane = Math.max(1, Math.floor(24 / data.length));
+        return { kind: 'text', text: documentCsv(data, previewRowsPerPane), makeCsv: () => documentCsv(data) };
       }
 
       const pdf = format === 'pdf';

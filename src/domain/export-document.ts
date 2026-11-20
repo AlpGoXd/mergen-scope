@@ -92,22 +92,23 @@ export interface ExportCsvPane {
 }
 
 /** Each row carries its units, so panes with different domains can share one CSV. */
-export function documentCsv(panes: readonly ExportCsvPane[], limit = Infinity): string {
+export function documentCsv(panes: readonly ExportCsvPane[], rowsPerPane = Infinity): string {
   const lines = ['Pane,Trace,X,X unit,Y,Y unit,Marker'];
   const cell = (value: string | number) => typeof value === 'string' && /[",\r\n]/.test(value) ? `"${value.replaceAll('"', '""')}"` : String(value);
   for (const pane of panes) {
     const inRange = (x: number) => !pane.range || (x >= pane.range[0] && x <= pane.range[1]);
-    for (const trace of pane.traces) {
+    const end = lines.length + rowsPerPane;
+    paneTraces: for (const trace of pane.traces) {
       const add = (x: number, y: number, marker: string) => {
         if (!Number.isFinite(x) || !Number.isFinite(y) || !inRange(x)) return;
         lines.push([pane.name, trace.dn || trace.name, x, trace.units.x ?? '', y, trace.units.y ?? '', marker].map(cell).join(','));
       };
       for (const point of trace.data) {
-        if (lines.length > limit) return lines.join('\r\n');
+        if (lines.length >= end) break paneTraces;
         add(point.freq, point.amp, '');
       }
       for (const marker of pane.markers) {
-        if (lines.length > limit) return lines.join('\r\n');
+        if (lines.length >= end) break paneTraces;
         if (marker.trace === trace.name) add(marker.x, marker.y, marker.name);
       }
     }

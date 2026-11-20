@@ -62,9 +62,10 @@ export function ExportDocumentDialog({ paneId, format: requestedFormat = 'png', 
   paneId?: string; format?: ExportFormat; close: () => void; renderPane: RenderExportPane;
 }) {
   const { panes, activePaneId, allTraces, tracePaneMap, vis, render } = useDocumentExport(renderPane);
-  const [scope, setScope] = useState<ExportScope>(paneId ? 'pane' : 'all');
+  const [scopeChoice, setScope] = useState<ExportScope | null>(null);
   const [picked, setPicked] = useState<string[]>(paneId ? [paneId] : panes.map(pane => pane.id));
   const [format, setFormat] = useState<ExportFormat>(requestedFormat);
+  const scope = scopeChoice ?? (paneId && format !== 'csv' ? 'pane' : 'all');
   const [tab, setTab] = useState<'preview' | 'code'>('preview');
   const [prefs, setPrefs] = useState(readSettings);
   const [revision, setRevision] = useState<PreviewState | null>(null);
