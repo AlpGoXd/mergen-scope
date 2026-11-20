@@ -28,3 +28,28 @@ export function oklchHue(color: string): number | null {
   if (rgb) return hueOfRgb(Number(rgb[1]), Number(rgb[2]), Number(rgb[3]));
   return null;
 }
+
+const linearToSrgb = (v: number): number => (v <= 0.0031308 ? 12.92 * v : 1.055 * v ** (1 / 2.4) - 0.055);
+const hexByte = (v: number): string => Math.round(Math.min(1, Math.max(0, v)) * 255).toString(16).padStart(2, '0');
+
+/**
+ * "#rrggbb" for an oklch(L C H) or hex colour (what <input type="color"> accepts); null for anything else.
+ * Out-of-gamut channels are clipped.
+ */
+export function cssColorToHex(color: string): string | null {
+  const text = color.trim().toLowerCase();
+  const hex = /^#([0-9a-f]{3}|[0-9a-f]{6})$/.exec(text);
+  if (hex) { const raw = hex[1] ?? ''; return `#${raw.length === 3 ? raw.split('').map(c => c + c).join('') : raw}`; }
+  const oklch = /^oklch\(\s*([\d.]+)(%?)\s+([\d.]+)\s+(-?[\d.]+)(?:deg)?\s*(?:\/[^)]*)?\)$/.exec(text);
+  if (!oklch) return null;
+  const l = Number(oklch[1]) / (oklch[2] ? 100 : 1), c = Number(oklch[3]), h = (Number(oklch[4]) * Math.PI) / 180;
+  if (![l, c, h].every(Number.isFinite)) return null;
+  const a = c * Math.cos(h), b = c * Math.sin(h);
+  const x = (l + 0.3963377774 * a + 0.2158037573 * b) ** 3;
+  const y = (l - 0.1055613458 * a - 0.0638541728 * b) ** 3;
+  const z = (l - 0.0894841775 * a - 1.291485548 * b) ** 3;
+  const r = 4.0767416621 * x - 3.3077115913 * y + 0.2309699292 * z;
+  const g = -1.2684380046 * x + 2.6097574011 * y - 0.3413193965 * z;
+  const bl = -0.0041960863 * x - 0.7034186147 * y + 1.707614701 * z;
+  return `#${[r, g, bl].map(v => hexByte(linearToSrgb(Math.min(1, Math.max(0, v))))).join('')}`;
+}

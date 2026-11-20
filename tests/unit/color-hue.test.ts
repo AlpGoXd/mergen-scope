@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { oklchHue } from '../../src/domain/color-hue';
+import { cssColorToHex, oklchHue } from '../../src/domain/color-hue';
 
 describe('oklchHue', () => {
   it('reads the hue of an oklch() colour directly', () => {
@@ -19,5 +19,22 @@ describe('oklchHue', () => {
     expect(oklchHue('#808080')).toBeNull();
     expect(oklchHue('var(--tr0)')).toBeNull();
     expect(oklchHue('not a colour')).toBeNull();
+  });
+});
+
+describe('cssColorToHex', () => {
+  it('turns oklch() colours into #rrggbb for the colour picker', () => {
+    expect(cssColorToHex('oklch(1 0 0)')).toBe('#ffffff');
+    expect(cssColorToHex('oklch(0 0 0)')).toBe('#000000');
+    // CSS Color 4 reference: sRGB red is oklch(0.6279 0.2577 29.23).
+    expect(cssColorToHex('oklch(0.6279 0.2577 29.23)')).toBe('#ff0000');
+    expect(cssColorToHex('oklch(0.58 0.16 270)')).toMatch(/^#[0-9a-f]{6}$/);
+    expect(cssColorToHex('oklch(62.79% 0.2577 29.23)')).toBe('#ff0000');
+  });
+  it('passes hex through, expands #rgb and rejects anything else', () => {
+    expect(cssColorToHex('#A1B2C3')).toBe('#a1b2c3');
+    expect(cssColorToHex('#f00')).toBe('#ff0000');
+    expect(cssColorToHex('var(--tr0)')).toBeNull();
+    expect(cssColorToHex('oklch(nope)')).toBeNull();
   });
 });
