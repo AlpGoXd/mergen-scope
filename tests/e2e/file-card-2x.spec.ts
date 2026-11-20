@@ -21,8 +21,8 @@ test('file card controls and typography reflect the reference', async ({ page })
   await expect(name.locator('..').getByTitle('Remove file', { exact: true })).toHaveText('\u00d7');
   await page.getByRole('button', { name: 'Actions for cascaded chain.s2p' }).click();
   const menu = page.getByRole('menu');
-  await expect(menu.getByRole('menuitem')).toHaveText(['Info', 'Replace file\u2026', 'Rename', 'Show all', 'Hide all', 'Remove file\u2026']);
-  await expect(menu.getByRole('menuitem', { name: 'Replace file\u2026' })).toHaveAttribute('aria-disabled', 'true');
+  // Replace file\u2026 stays hidden until it is built.
+  await expect(menu.getByRole('menuitem')).toHaveText(['Info', 'Rename', 'Show all', 'Hide all', 'Remove file\u2026']);
   await expect(menu.getByRole('menuitem', { name: 'Rename' })).toBeEnabled();
   await expect(page.getByTestId('touchstone-cell-S11')).toHaveCSS('font-family', '"JetBrains Mono", monospace');
   await page.getByRole('button', { name: 'More network views' }).focus();

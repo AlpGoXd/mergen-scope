@@ -573,7 +573,7 @@ function FileTitleRow({ fileName, error, summary, matrixOpen, onMatrix, compact:
   const [editing, setEditing] = useState(false);
   const extension = fileName.split('.').pop()?.toUpperCase() ?? '';
   const format: FileFormat = /^S[0-9]+P$/.test(extension) ? extension as FileFormat : extension === 'CSV' || extension === 'TXT' || extension === 'DAT' ? extension : 'DAT';
-  const actions: SidebarAction[] = [{ label: 'Info', run: onInfo }, { label: 'Replace file\u2026', disabled: !onReplace, run: () => onReplace?.() }, ...(onEdit ? [{ label: 'Import settings\u2026', run: onEdit }] : []), { label: 'Rename', run: () => setEditing(true) }, ...(multiTrace ? [{ label: 'Show all', run: () => onVisibility(true) }, { label: 'Hide all', run: () => onVisibility(false) }] : []), { label: 'Remove file\u2026', danger: true, run: onRemove }];
+  const actions: SidebarAction[] = [{ label: 'Info', run: onInfo }, ...(onReplace ? [{ label: 'Replace file\u2026', run: onReplace }] : []),...(onEdit ? [{ label: 'Import settings\u2026', run: onEdit }] : []), { label: 'Rename', run: () => setEditing(true) }, ...(multiTrace ? [{ label: 'Show all', run: () => onVisibility(true) }, { label: 'Hide all', run: () => onVisibility(false) }] : []), { label: 'Remove file\u2026', danger: true, run: onRemove }];
   return <KitFileRow headerOnly format={format} name={fileName} title={`${fileName} \u00b7 ${summary}`} state={error ? 'error' : onPlot ? 'traceRemoved' : 'ready'} errorReason={error} summary={showSummary ? summary : undefined}
     matrix={onMatrix ? { open: !!matrixOpen, onToggle: onMatrix } : undefined}
     columns={onColumns ? { open: !!columnsOpen, onToggle: onColumns, items: [] } : undefined}

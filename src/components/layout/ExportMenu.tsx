@@ -40,7 +40,6 @@ export function ExportMenu({ onClose, onExportCsv, csvReason }: { onClose: () =>
       <Item label="Copy as LaTeX" reason={unavailable('latex')} onSelect={run(paneId => imageExport?.copyLatex(paneId))} />
       <div className="xm-sep" role="separator" />
       <Item label="Export data (CSV)…" reason={csvReason} onSelect={() => { onClose(); onExportCsv(); }} />
-      <Item label="All panes…" reason="Coming with the export dialog" note="Coming with the export dialog" onSelect={() => {}} />
     </div>
   );
 }
