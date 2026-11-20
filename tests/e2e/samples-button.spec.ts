@@ -4,7 +4,9 @@ import { acceptImport } from './import-helpers';
 import { readFileSync } from 'node:fs';
 
 test('header Samples stays in sync, supports undo and remains visible', async ({ page }) => {
-  await page.setViewportSize({ width: 1024, height: 640 });
+  // 760 px tall: at 1024 px wide the top bar wraps its four open groups to 4 lines (125 px). Below ~760 px the pane
+  // settings popover no longer fits under its button, flips above and covers the button that closes it.
+  await page.setViewportSize({ width: 1024, height: 760 });
   await page.goto('/app.html');
   await page.getByTestId('app-open-input').setInputFiles({ name: 'samples.csv', mimeType: 'text/csv', buffer: Buffer.from('Time (s),CH1 (V)\n0,1\n0.5,2\n1,3\n') });
   await acceptImport(page);

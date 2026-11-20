@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { TopBar } from './components/layout/TopBar';
-import { ToolbarStrip } from './components/layout/ToolbarStrip';
 import { Sidebar } from './components/layout/Sidebar';
 import { ChartWorkspace } from './components/chart/ChartWorkspace';
 import { LineCrossingsContext } from './components/analysis/line-crossings-context';
@@ -234,7 +233,6 @@ export function App() {
 
       <ExportImageProvider>
       <TopBar />
-      <ToolbarStrip />
 
       <LineCrossingsContext.Provider value={{ listCrossings }}>
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minWidth: 0 }}>

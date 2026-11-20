@@ -23,8 +23,8 @@ test('build the demo workspace', async ({ page }) => {
   const plot = page.getByTestId('chart-plot-pane-1');
   const box = await plot.boundingBox();
   if (!box) throw new Error('plot box');
-  await page.getByLabel('Choose a delta marker reference').click();
-  await page.getByRole('menuitem', { name: /Δ from M1/ }).click();
+  await page.getByLabel('Choose marker type').click();
+  await page.getByRole('menuitem', { name: /^M1$/ }).click();
   await page.mouse.click(box.x + box.width * 0.62, box.y + box.height * 0.5);
   await expect(page.locator('[data-testid^="marker-row-"]')).toHaveCount(2);
   await page.getByRole('button', { name: 'V-Line' }).click();

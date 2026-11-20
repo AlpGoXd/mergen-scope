@@ -81,6 +81,6 @@ export function LeftPanel({ children, width }: { children: ReactNode; width?: nu
 export const EMPTY_TEXT = {
   files: 'No files. Open… or drop files here.',
   traces: 'No traces. Plot from a file’s Matrix or Columns.',
-  markers: 'No markers. N or + New in the Markers group.',
+  markers: 'No markers. N or + Marker in the Markers group.',
   lines: 'No lines. V line / H line in the Lines group.',
 } as const;

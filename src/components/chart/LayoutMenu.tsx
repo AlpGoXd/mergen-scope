@@ -20,7 +20,7 @@ function Preview({ preset, count }: { preset: PresetId; count: number }) {
     return <g key={i}><rect x={x} y={y} width={Math.max(0, width - 1)} height={Math.max(0, height - 1)} /><text x={x + width / 2} y={y + height / 2} textAnchor="middle" dominantBaseline="central">{i + 1}</text></g>;
   })}</svg>;
 }
-export function LayoutMenu({ paneCount, limit }: { paneCount: number; limit: 4 | 8 }) {
+export function LayoutMenu({ paneCount, limit, className }: { paneCount: number; limit: 4 | 8; className?: string }) {
   const { state, dispatch } = useAggregateWorkspace();
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
   const options = availablePresets(paneCount, limit);
@@ -34,7 +34,7 @@ export function LayoutMenu({ paneCount, limit }: { paneCount: number; limit: 4 |
     const index = buttons.indexOf(document.activeElement as HTMLButtonElement);
     buttons[(index + direction + buttons.length) % buttons.length]?.focus();
   };
-  return <><Btn small disabled={!paneCount} aria-haspopup="dialog" aria-expanded={!!anchor} onClick={event => setAnchor(anchor ? null : event.currentTarget)}>Layout: {labels[current]} ▾</Btn>
+  return <><Btn small {...(className ? { className } : {})} disabled={!paneCount} aria-haspopup="dialog" aria-expanded={!!anchor} onClick={event => setAnchor(anchor ? null : event.currentTarget)}>Layout: {labels[current]} ▾</Btn>
     {anchor && <PopoverAt label="Layout" at={anchor} onClose={close}><div className="layout-menu" role="group" aria-label="Layout presets" onKeyDown={keyboard}>
       {options.map(option => <button type="button" key={option.preset} data-layout-tile data-autofocus={option.preset === current ? '' : undefined} className={`layout-menu__tile${option.preset === current ? ' is-selected' : ''}${!option.ok ? ' is-unavailable' : ''}`} aria-disabled={!option.ok} aria-pressed={option.preset === current} title={!option.ok ? option.reason : labels[option.preset]} onClick={() => { if (!option.ok) return; dispatch({ slice: 'layout', action: { type: 'SET_LAYOUT_PRESET', preset: option.preset, limit } }); close(); }}><Preview preset={option.preset} count={option.preset === 'grid' ? 4 : option.preset === 'one-side' ? Math.max(3, Math.min(4, paneCount)) : paneCount} /><span className="t-label">{labels[option.preset]}</span>{!option.ok && <span className="t-caption">{option.reason}</span>}</button>)}
     </div></PopoverAt>}</>;

@@ -16,7 +16,7 @@
   --lh-caption: 15px; --lh-label: 17px; --lh-body: 18px; --lh-title: 20px;
   --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-5: 24px;
   --top-row-height: 36px; --tool-row-height: 36px; --pane-header-height: 30px; --footer-height: 26px; --left-panel-width: 280px; --right-panel-width: 320px; --pane-min-height: 160px;
-  --control-height: 28px; --control-sm-height: 22px; --row-height: 30px; --gap: 6px; --panel-padding: 12px; --input-height: 24px; --z-popover: 140;
+  --control-height: 28px; --control-sm-height: 22px; --zone-block-height: calc(var(--control-height) + 4px); --row-height: 30px; --gap: 6px; --panel-padding: 12px; --input-height: 24px; --z-popover: 140;
   --radius-control: 6px; --radius-card: 8px; --radius-input: 5px; --radius-badge: 4px;
   --marker-hue: 20; --marker-color: oklch(0.50 0.0799 20);
   --brand-marker: oklch(0.62 0.17 20);
@@ -40,11 +40,11 @@
   --slate-fill: oklch(0.92 0.0299 255); --slate-ink: oklch(0.32 0.0599 255); --slate-line: oklch(0.80 0.0449 255);
   --solid: oklch(0.50 0.1399 255); --solid-ink: oklch(1 0 0); --solid-hover: oklch(0.45 0.1399 255); --solid-danger: oklch(0.52 0.1699 25);
   --secondary-fill: oklch(0.95 0.0241 255); --secondary-line: oklch(0.80 0.0599 255); --secondary-ink: oklch(0.45 0.1299 255);
-  --marker-fill: oklch(0.95 0.0248 20); --marker-line: oklch(0.86 0.0499 20); --marker-ink: oklch(0.45 0.1199 20); --marker-tint: oklch(0.975 0.0099 20);
-  --lines-fill: oklch(0.95 0.0299 80); --lines-line: oklch(0.86 0.0499 80); --lines-ink: oklch(0.45 0.0932 80); --lines-tint: oklch(0.975 0.0099 80);
-  --search-fill: oklch(0.95 0.0299 140); --search-line: oklch(0.86 0.0499 140); --search-ink: oklch(0.45 0.1199 140); --search-tint: oklch(0.975 0.0099 140);
+  --marker-fill: oklch(0.95 0.0248 20); --marker-line: oklch(0.86 0.0499 20); --marker-ink: oklch(0.45 0.1199 20); --marker-tint: oklch(0.975 0.0099 20); --marker-zone: oklch(0.955 0.022 20);
+  --lines-fill: oklch(0.95 0.0299 80); --lines-line: oklch(0.86 0.0499 80); --lines-ink: oklch(0.45 0.0932 80); --lines-tint: oklch(0.975 0.0099 80); --lines-zone: oklch(0.955 0.022 80);
+  --search-fill: oklch(0.95 0.0299 140); --search-line: oklch(0.86 0.0499 140); --search-ink: oklch(0.45 0.1199 140); --search-tint: oklch(0.975 0.0099 140); --search-zone: oklch(0.955 0.022 140);
   --export-fill: oklch(0.95 0.0299 160); --export-line: oklch(0.86 0.0499 160); --export-ink: oklch(0.45 0.1017 160); --export-tint: oklch(0.975 0.0099 160);
-  --pane-fill: oklch(0.95 0.0299 200); --pane-line: oklch(0.86 0.0499 200); --pane-ink: oklch(0.45 0.0765 200); --pane-tint: oklch(0.975 0.0099 200);
+  --pane-fill: oklch(0.95 0.0299 200); --pane-line: oklch(0.86 0.0499 200); --pane-ink: oklch(0.45 0.0765 200); --pane-tint: oklch(0.975 0.0099 200); --pane-zone: oklch(0.955 0.022 200);
   --left-fill: oklch(0.95 0.0298 230); --left-line: oklch(0.86 0.0499 230); --left-ink: oklch(0.45 0.0896 230); --left-tint: oklch(0.975 0.0099 230);
   --analysis-fill: oklch(0.95 0.0299 310); --analysis-line: oklch(0.86 0.0499 310); --analysis-ink: oklch(0.45 0.1199 310); --analysis-tint: oklch(0.975 0.0099 310);
   --data-fill: oklch(0.95 0.0293 350); --data-line: oklch(0.86 0.0499 350); --data-ink: oklch(0.45 0.1199 350); --data-tint: oklch(0.975 0.0099 350);
@@ -75,11 +75,11 @@
   --slate-fill: oklch(0.34 0.0449 255); --slate-ink: oklch(0.93 0.0299 255); --slate-line: oklch(0.50 0.0599 255);
   --solid: oklch(0.78 0.1136 255); --solid-ink: oklch(0.17 0.0159 255); --solid-hover: oklch(0.83 0.0861 255); --solid-danger: oklch(0.72 0.1499 25);
   --secondary-fill: oklch(0.30 0.0499 255); --secondary-line: oklch(0.45 0.0799 255); --secondary-ink: oklch(0.88 0.0596 255);
-  --marker-color: oklch(0.75 0.0799 20); --marker-fill: oklch(0.33 0.0699 20); --marker-line: oklch(0.50 0.0999 20); --marker-ink: oklch(0.90 0.0519 20); --marker-tint: oklch(0.24 0.0199 20);
-  --lines-color: oklch(0.75 0.0799 80); --lines-fill: oklch(0.33 0.0683 80); --lines-line: oklch(0.50 0.0999 80); --lines-ink: oklch(0.90 0.0899 80); --lines-tint: oklch(0.24 0.0199 80);
-  --search-color: oklch(0.75 0.0799 140); --search-fill: oklch(0.33 0.0699 140); --search-line: oklch(0.50 0.0999 140); --search-ink: oklch(0.90 0.0899 140); --search-tint: oklch(0.24 0.0199 140);
+  --marker-color: oklch(0.75 0.0799 20); --marker-fill: oklch(0.33 0.0699 20); --marker-line: oklch(0.50 0.0999 20); --marker-ink: oklch(0.90 0.0519 20); --marker-tint: oklch(0.24 0.0199 20); --marker-zone: oklch(0.215 0.030 20);
+  --lines-color: oklch(0.75 0.0799 80); --lines-fill: oklch(0.33 0.0683 80); --lines-line: oklch(0.50 0.0999 80); --lines-ink: oklch(0.90 0.0899 80); --lines-tint: oklch(0.24 0.0199 80); --lines-zone: oklch(0.215 0.030 80);
+  --search-color: oklch(0.75 0.0799 140); --search-fill: oklch(0.33 0.0699 140); --search-line: oklch(0.50 0.0999 140); --search-ink: oklch(0.90 0.0899 140); --search-tint: oklch(0.24 0.0199 140); --search-zone: oklch(0.215 0.030 140);
   --export-color: oklch(0.75 0.0799 160); --export-fill: oklch(0.33 0.0699 160); --export-line: oklch(0.50 0.0999 160); --export-ink: oklch(0.90 0.0899 160); --export-tint: oklch(0.24 0.0199 160);
-  --pane-color: oklch(0.75 0.0799 200); --pane-fill: oklch(0.33 0.0561 200); --pane-line: oklch(0.50 0.085 200); --pane-ink: oklch(0.90 0.0899 200); --pane-tint: oklch(0.24 0.0199 200);
+  --pane-color: oklch(0.75 0.0799 200); --pane-fill: oklch(0.33 0.0561 200); --pane-line: oklch(0.50 0.085 200); --pane-ink: oklch(0.90 0.0899 200); --pane-tint: oklch(0.24 0.0199 200); --pane-zone: oklch(0.215 0.030 200);
   --left-color: oklch(0.75 0.0799 230); --left-fill: oklch(0.33 0.0657 230); --left-line: oklch(0.50 0.0996 230); --left-ink: oklch(0.90 0.0607 230); --left-tint: oklch(0.24 0.0199 230);
   --analysis-color: oklch(0.75 0.0799 310); --analysis-fill: oklch(0.33 0.0699 310); --analysis-line: oklch(0.50 0.0999 310); --analysis-ink: oklch(0.90 0.065 310); --analysis-tint: oklch(0.24 0.0199 310);
   --data-color: oklch(0.75 0.0799 350); --data-fill: oklch(0.33 0.0699 350); --data-line: oklch(0.50 0.0999 350); --data-ink: oklch(0.90 0.0615 350); --data-tint: oklch(0.24 0.0199 350);
@@ -248,7 +248,7 @@ table {
 .ui-btn--solid.is-danger { background: var(--solid-danger); border-color: var(--solid-danger); color: var(--solid-ink); }
 .ui-btn--secondary { background: var(--secondary-fill); border-color: var(--secondary-line); color: var(--secondary-ink); }
 .ui-btn:disabled { opacity: .45; cursor: not-allowed; }
-.ui-select { min-height: var(--control-height); border: 1px solid var(--border); border-radius: var(--radius-input); padding: 0 8px; background: var(--raised); color: var(--text); font: inherit; }
+.ui-select { min-height: var(--control-height); border: 1px solid var(--border); border-radius: var(--radius-control); padding: 0 8px; background: var(--raised); color: var(--text); font: inherit; }
 .ui-segmented, .ui-split { display: inline-flex; gap: 4px; }
 .ui-menu-root, .ui-tooltip-anchor { position: relative; display: inline-flex; }
 .ui-tooltip { position: fixed; z-index: var(--z-popover); top: 0; left: 0; pointer-events: none; width: max-content; max-width: 240px; padding: 4px 8px; background: var(--raised); color: var(--text); border: 1px solid var(--border-strong); border-radius: var(--radius-input); box-shadow: 0 4px 12px oklch(0 0 0 / .15); }
