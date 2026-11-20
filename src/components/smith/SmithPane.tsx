@@ -81,8 +81,11 @@ export interface SmithPaneProps {
   readonly readout?: readonly SmithReadoutField[];
   readonly showMarkers?: boolean;
   readonly showMarkerTags?: boolean;
+  readonly plainMarkerTags?: boolean;
   /** Samples: a filled dot (radius 2) on every measured sample, as on charts. */
   readonly showSamples?: boolean;
+  readonly showGrid?: boolean;
+  readonly traceLineWidth?: number;
   /** Frequency under the cursor of a linked pane: drawn as a ghost ring on every trace. */
   readonly cursorFrequencyHz?: number | null;
   /** The frequency under the pointer in this pane (null on leave), for ghost crosshairs elsewhere. */
@@ -165,7 +168,7 @@ function inBand(frequencyHz: number, band: SmithBand | null | undefined): boolea
 export function SmithPane({
   traces, markers = NO_MARKERS, markerNames, selectedMarkerId = null, onSelectMarker, onTraceClick, onMoveMarker, onMoveMarkerEnd, band = null, rangeBar,
   grid = 'z', labels = 'normalised', direction = 'chevrons', readout = DEFAULT_READOUT,
-  showMarkers = true, showMarkerTags = true, showSamples = false, cursorFrequencyHz = null, onHoverFrequency, onPointerGamma, fitRequest, size, markScale = 1,
+  showMarkers = true, showMarkerTags = true, plainMarkerTags = false, showSamples = false, showGrid = true, traceLineWidth, cursorFrequencyHz = null, onHoverFrequency, onPointerGamma, fitRequest, size, markScale = 1,
 }: SmithPaneProps) {
   const plotRef = useRef<HTMLDivElement>(null);
   const { width, height } = useElementSize(plotRef, size);
@@ -423,19 +426,19 @@ export function SmithPane({
           <svg className="smith-svg" width={width} height={height} viewBox={`0 0 ${width} ${height}`} aria-hidden="true">
             <g transform={transform}>
               {outsidePath && <path className="smith-active-area" d={outsidePath} fillRule="evenodd" data-testid="smith-active-area" />}
-              {yGrid && (
+              {showGrid && yGrid && (
                 <g className={`smith-grid smith-grid-y${zGrid ? ' is-secondary' : ''}`} data-testid="smith-grid-y">
                   {yGrid.circles.map(item => <path key={`g${item.value}`} d={item.path} />)}
                   {yGrid.arcs.map(item => <path key={`b${item.value}`} d={item.path} />)}
                 </g>
               )}
-              {zGrid && (
+              {showGrid && zGrid && (
                 <g className="smith-grid smith-grid-z" data-testid="smith-grid-z">
                   {zGrid.circles.map(item => <path key={`r${item.value}`} d={item.path} />)}
                   {zGrid.arcs.map(item => <path key={`x${item.value}`} d={item.path} />)}
                 </g>
               )}
-              <path className="smith-axis" d={REAL_AXIS_PATH} />
+              {showGrid && <path className="smith-axis" d={REAL_AXIS_PATH} />}
               <path className={`smith-rim${hasActive ? ' is-active' : ''}`} d={unitPath} />
               {hoverGrid && (
                 <g className="smith-hover-grid" data-testid="smith-hover-grid">
@@ -444,13 +447,13 @@ export function SmithPane({
                 </g>
               )}
               {tracePaths.map(({ trace, runs }) => (
-                <g key={trace.traceId} className="smith-trace" data-testid={`smith-trace-${trace.traceId}`} stroke={trace.color} strokeWidth={trace.created ? 2 : 1.5}>
+                <g key={trace.traceId} className="smith-trace" data-testid={`smith-trace-${trace.traceId}`} stroke={trace.color} strokeWidth={traceLineWidth ?? (trace.created ? 2 : 1.5)}>
                   {runs.map((run, index) => <path key={index} className={run.inBand ? undefined : 'is-faint'} d={run.path} />)}
                 </g>
               ))}
             </g>
 
-            {gridLabels.map(label => (
+            {showGrid && gridLabels.map(label => (
               <text key={label.key} className="smith-label" x={label.x} y={label.y} textAnchor="middle" dominantBaseline="central">{label.text}</text>
             ))}
 
@@ -502,8 +505,12 @@ export function SmithPane({
                   <path className="smith-marker-glyph" d={markerGlyph(marker.type, at.x, at.y, 5)} fill={trace.color} />
                   {showMarkerTags && (
                     <>
-                      <rect className="smith-tag" x={tagX} y={tagY} width={tagW} height={tagH} rx={4} />
-                      <text className="smith-tag-text" x={tagX + tagW / 2} y={tagY + tagH / 2} textAnchor="middle" dominantBaseline="central">{text}</text>
+                      {plainMarkerTags
+                        ? <line data-paper-marker-leader="" className="smith-axis" x1={at.x} y1={at.y + (below ? 5 : -5)} x2={tagX + tagW / 2} y2={below ? tagY : tagY + tagH} />
+                        : <rect className="smith-tag" x={tagX} y={tagY} width={tagW} height={tagH} rx={4} />}
+                      <text className="smith-tag-text" data-paper-marker-label={plainMarkerTags ? '' : undefined}
+                        data-anchor-x={plainMarkerTags ? at.x : undefined} data-anchor-y={plainMarkerTags ? at.y : undefined}
+                        x={tagX + tagW / 2} y={tagY + tagH / 2} textAnchor="middle" dominantBaseline="central">{text}</text>
                     </>
                   )}
                 </g>

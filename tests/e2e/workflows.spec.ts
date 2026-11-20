@@ -112,13 +112,15 @@ test("an Offset / Scale analysis creates a trace that Export includes in the CSV
 
   const csvDownloadPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "Export", exact: true }).click();
-  await page.getByRole("menu", { name: "Export" }).getByRole("menuitem", { name: /^Export data \(CSV\)/ }).click();
+  const exportDialog = page.getByRole("dialog", { name: /Export/ });
+  await exportDialog.getByRole("button", { name: "CSV", exact: true }).click();
+  await exportDialog.getByRole("button", { name: "Save CSV", exact: true }).click();
   const csvDownload = await csvDownloadPromise;
   const csvPath = await csvDownload.path();
   expect(csvPath).toBeTruthy();
 
   const csv = readFileSync(csvPath!, "utf8");
-  expect(csv).toContain("Frequency");
+  expect(csv).toContain("Pane,Trace,X,X unit,Y,Y unit,Marker");
   expect(csv.toLowerCase()).toContain("offset");
 });
 

@@ -37,17 +37,17 @@ const SANS = '"IBM Plex Sans", sans-serif';
 const MONO = '"JetBrains Mono", monospace';
 const SERIF = '"Times New Roman", Times, serif';
 
-export function exportFontFamily(paper: boolean): string {
-  return paper ? SERIF : SANS;
+export function exportFontFamily(paper: boolean, font: 'serif' | 'sans' = 'serif'): string {
+  return paper && font === 'serif' ? SERIF : SANS;
 }
 
 /** Inline tokens on top of the theme class: print colours (print only) and the export's fixed fonts. */
-export function exportTokens(theme: ResolvedExportTheme, paper: boolean): Record<string, string> {
-  const font = paper ? PAPER_FONT_PX : SCREEN_FONT_PX;
+export function exportTokens(theme: ResolvedExportTheme, paper: boolean, appearance?: { paperText: number; paperFont: 'serif' | 'sans' }): Record<string, string> {
+  const font = paper ? appearance ? ptToCssPx(appearance.paperText) : PAPER_FONT_PX : SCREEN_FONT_PX;
   return {
     ...(theme === 'print' ? PRINT : {}),
-    '--font-sans': paper ? SERIF : SANS,
-    '--font-mono': paper ? SERIF : MONO,
+    '--font-sans': exportFontFamily(paper, appearance?.paperFont),
+    '--font-mono': paper ? exportFontFamily(true, appearance?.paperFont) : MONO,
     '--font-label': `${font}px`,
     '--font-caption': `${paper ? font : font - 1}px`,
     '--font-title': `${paper ? font : font + 2}px`,

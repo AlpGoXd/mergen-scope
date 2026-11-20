@@ -1,12 +1,12 @@
-/* Help sheet and About panel: anchored above the footer's right-hand buttons. Tokens and text roles only. */
-.help-sheet, .about-panel {
-  position: absolute; right: var(--space-1); bottom: calc(100% + var(--space-1)); z-index: var(--z-popover);
+/* Help and About use the shared modal position and scrim. */
+.help-sheet.ui-dialog, .about-panel.ui-dialog {
+  padding: 0; gap: 0; height: fit-content;
   display: flex; flex-direction: column; white-space: normal;
   background: var(--raised); color: var(--text); border: 1px solid var(--border-strong); border-radius: var(--radius-card);
   box-shadow: var(--menu-shadow);
 }
-.help-sheet { width: min(520px, calc(100vw - 2 * var(--space-2))); max-height: 70vh; }
-.about-panel { width: min(320px, calc(100vw - 2 * var(--space-2))); }
+.help-sheet.ui-dialog { width: min(520px, calc(100vw - 64px)); max-height: min(70dvh, calc(100dvh - 64px)); }
+.about-panel.ui-dialog { width: min(320px, calc(100vw - 64px)); max-height: calc(100dvh - 64px); }
 .help-sheet__head, .about-panel__head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--border); }
 .help-sheet__body { overflow: auto; padding: 0 var(--space-3) var(--space-2); flex: 1; min-height: 0; }
 .help-sheet__section { padding-top: var(--space-3); }

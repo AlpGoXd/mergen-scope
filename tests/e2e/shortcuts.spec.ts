@@ -72,9 +72,9 @@ const checks: Record<ShortcutId, (page: Page, press: () => Promise<void>) => Pro
   },
   export: async (page, press) => {
     await press();
-    const menu = page.getByRole('menu', { name: 'Export' });
-    await expect(menu).toBeVisible();
-    await expect(menu.getByTestId('export-menu-title')).toHaveText('Export · Pane 1');
+    const dialog = page.getByRole('dialog', { name: /Export/ });
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByRole('button', { name: 'All panes' })).toHaveAttribute('aria-pressed', 'true');
   },
   'copy-image': async (page, press) => {
     await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
@@ -134,10 +134,10 @@ const checks: Record<ShortcutId, (page: Page, press: () => Promise<void>) => Pro
     await expect(armed(page)).toBeVisible();
     await press();
     await expect(armed(page)).toHaveCount(0);
-    // It also closes an open sheet.
+    // The native modal closes Escape independently of the workspace shortcut registry.
     await page.keyboard.press('Shift+Slash');
     await expect(page.getByTestId('help-sheet')).toBeVisible();
-    await press();
+    await page.keyboard.press('Escape');
     await expect(page.getByTestId('help-sheet')).toHaveCount(0);
   },
   delete: async (page, press) => {
@@ -226,10 +226,8 @@ test('Help lists every registry shortcut and the mouse hints; App settings opens
   expect(box.width).toBeLessThanOrEqual(521);
   expect(box.width).toBeGreaterThan(400);
   expect(box.height).toBeLessThanOrEqual(viewport.height * 0.7 + 1);
-  const helpButton = await page.getByRole('button', { name: 'Help', exact: true }).boundingBox();
-  if (!helpButton) throw new Error('no help button');
-  expect(box.y + box.height).toBeLessThanOrEqual(helpButton.y);
-  expect(Math.abs(box.x + box.width - (helpButton.x + helpButton.width))).toBeLessThan(40);
+  expect(box.x + box.width / 2).toBeCloseTo(viewport.width / 2, 0);
+  expect(box.y + box.height / 2).toBeCloseTo(viewport.height / 2, 0);
   const keyboard = sheet.getByRole('list', { name: 'Keyboard' }).or(sheet.locator('dl[aria-label="Keyboard"]'));
   for (const shortcut of SHORTCUTS) await expect(keyboard.locator(`[data-shortcut="${shortcut.id}"]`)).toContainText(shortcut.label);
   await expect(sheet.locator('dl[aria-label="Keyboard"] .kbd').first()).toBeVisible();

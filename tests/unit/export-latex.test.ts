@@ -55,11 +55,11 @@ describe('latexFigure', () => {
     expect(tex).toContain(String.raw`\label{fig:pane-1}`);
     expect((tex.match(/\\begin\{/g) ?? []).length).toBe((tex.match(/\\end\{/g) ?? []).length);
   });
-  it('defines one named colour per trace and uses print-safe marks and dashes', () => {
+  it('defines one named colour per trace and uses solid lines with marks', () => {
     expect(tex).toContain(String.raw`\definecolor{msTraceA}{RGB}{80,100,200}`);
     expect(tex).toContain(String.raw`\definecolor{msTraceB}{RGB}{190,60,100}`);
     expect(tex).toMatch(/\\addplot\[color=msTraceA, solid, mark=o,/);
-    expect(tex).toMatch(/\\addplot\[color=msTraceB, dashed, mark=square,/);
+    expect(tex).toMatch(/\\addplot\[color=msTraceB, solid, mark=square,/);
     expect(tex).toContain(String.raw`\addlegendentry{chain.s2p S11 magnitude-db}`);
   });
   it('limits points per trace and scales X', () => {

@@ -178,6 +178,8 @@ test('Export data (CSV)… downloads the pane as CSV', async ({ page }) => {
   const settings = page.locator('.ui-popover[aria-label="Pane 1 settings"]');
   const download = page.waitForEvent('download');
   await settings.getByRole('button', { name: 'Export data (CSV)…' }).click();
-  expect((await download).suggestedFilename()).toBe('Pane 1.csv');
+  const exportDialog = page.getByRole('dialog', { name: 'Export · Pane 1' });
+  await exportDialog.getByRole('button', { name: 'Save CSV' }).click();
+  expect((await download).suggestedFilename()).toMatch(/_Pane-1_\d{4}-\d{2}-\d{2}\.csv$/);
   await expect(settings).toHaveCount(0);
 });

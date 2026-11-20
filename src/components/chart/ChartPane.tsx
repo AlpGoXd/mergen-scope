@@ -63,12 +63,11 @@ import { PaneSettingsPopover } from './PaneSettingsPopover';
 import { PaneHeader, SamplesIcon } from './PaneHeader';
 import { XLinkChip } from './XLinkChip';
 import { fittedXBounds, linkedPeers } from '../../domain/x-link';
-import { downloadText } from './copy-chart';
 import { usePaneImageExport } from './export/export-context';
+import { autoExportAxes, exportAxisTitle, exportTick } from '../../domain/export-plot';
 import type { ExportView } from './export/export-context';
 import { ExportFrame } from './export/ExportFrame';
 import { PAPER_LINE_PT, ptToCssPx } from '../../domain/export-image';
-import { tracesToCSV } from '../../domain/export';
 import { defaultPaneSettings } from '../../types/pane';
 import { usePaneDrag } from './use-pane-drag';
 import { PaneDragOverlay } from './PaneDragOverlay';
@@ -124,7 +123,7 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
   const { refLines, refMode, selectedRefLineId, hoveredRefLineId } = useRefLineState();
   const refLineDispatch = useRefLineDispatch();
   const { selectedTraceName, markerTrace, traceHueSlots, paneAssignmentWarning } = useUiState();
-  const resolveColor = useTraceColors(exportView?.colorTheme);
+  const resolveColor = useTraceColors(exportView?.colorTheme, exportView?.paperTone);
   const traceSymbol = useTraceSymbols(isExport ? 'always' : undefined);
   const uiDispatch = useUiDispatch();
   const paneDispatch = usePaneDispatch();
@@ -150,7 +149,11 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
   }, [paneAssignmentWarning, paneId, uiDispatch]);
   const isActive = activePaneId === paneId;
   const isSmith = pane.renderMode === 'smith' || pane.renderMode === 'smith-inverted';
-  const settings = { ...defaultPaneSettings(), ...pane.settings };
+  const appearance = exportView?.appearance;
+  const settings = {
+    ...defaultPaneSettings(), ...pane.settings,
+    ...(appearance ? { gridMajor: appearance.grid, showMarkerLabels: appearance.include.markerTags, showReferenceLines: appearance.include.refLines } : {}),
+  };
 
   const [smithFitRequest, setSmithFitRequest] = useState(0);
   // Space fits the target pane: a Smith pane fits its own view.
@@ -910,10 +913,6 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
   // Export render: report the drawn ranges and axis titles (Copy as LaTeX builds its axis from them).
   const exportOnPlot = exportView?.onPlot;
   const exportXUnit = activePaneTrace ? (activePaneTrace.units.x ? String(activePaneTrace.units.x) : activePaneTrace.domain === 'time' ? 's' : 'Hz') : null;
-  useEffect(() => {
-    if (!exportOnPlot || !plotView) return;
-    exportOnPlot({ x: plotView.x, y: plotView.y, xLabel: xAxisLabelText, xUnit: exportXUnit, yLabel: yAxisLabelText });
-  }, [exportOnPlot, plotView, xAxisLabelText, exportXUnit, yAxisLabelText]);
 
   const shortYLabel = yAxisLabelText.match(/\([^()]+\)\s*$/)?.[0] ?? yAxisLabelText.split(/\s+/)[0] ?? '';
   // The export render knows its size up front; waiting for the resize observer would capture the plot without its Y title.
@@ -936,6 +935,22 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
     });
     return new Map(ticks.map((tick, index) => [tick, labels[index] ?? '--']));
   }, [activePaneTrace?.domain, activePaneTrace?.units.x, visibleXSpan, xTickValues]);
+  const exportYTicks = useMemo(() => isExport && plotView?.y ? makeNiceTicks({ min: plotView.y[0], max: plotView.y[1] }, NICE_TICK_COUNT) : undefined, [isExport, plotView?.y]);
+  const axes = useMemo(() => {
+    if (!isExport || !plotView?.x || !plotView.y) return null;
+    return autoExportAxes(paneTraces[0], plotView.x, plotView.y, xTickValues, exportYTicks, new Set(paneTraces.map(trace => trace.units.y)).size > 1);
+  }, [isExport, plotView, paneTraces, xTickValues, exportYTicks]);
+  const editedTitles = appearance?.axisTitles === 'edit' ? appearance.paneTitles[paneId] : undefined;
+  const exportXTitle = axes ? exportAxisTitle(axes.x, appearance?.axisTitles ?? 'auto', editedTitles?.x) : xAxisLabelText;
+  const exportYTitle = axes ? exportAxisTitle(axes.y, appearance?.axisTitles ?? 'auto', editedTitles?.y) : yAxisLabelText;
+  useEffect(() => {
+    if (!exportOnPlot || !plotView || !axes) return;
+    const legacy = !appearance;
+    exportOnPlot({
+      x: plotView.x, y: plotView.y, xLabel: legacy ? xAxisLabelText : exportXTitle, xUnit: exportXUnit,
+      yLabel: legacy ? yAxisLabelText : exportYTitle, autoX: axes.x, autoY: axes.y, xTicks: xTickValues, yTicks: exportYTicks,
+    });
+  }, [exportOnPlot, plotView, axes, appearance, exportXTitle, exportYTitle, exportXUnit, xAxisLabelText, yAxisLabelText, xTickValues, exportYTicks]);
 
   // Close pane (Pane settings and the empty-pane header): traces and lines move by the closing-pane rule.
   const closePane = () => {
@@ -1254,26 +1269,30 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
                   {...(hideXTicks ? { tick: false, height: 0 } : {})}
                   stroke="var(--muted)"
                   fontSize={'var(--font-label)'}
-                  tickFormatter={(value) => xTickLabelMap.get(Number(value)) ?? formatAdaptiveXAxisValue(Number(value), visibleXSpan, {
+                  tickSize={exportView?.tikzStyle ? -4 : undefined}
+                  tickMargin={exportView?.tikzStyle ? 12 : undefined}
+                  tickFormatter={(value) => appearance && axes ? exportTick(axes.x, Number(value)) : xTickLabelMap.get(Number(value)) ?? formatAdaptiveXAxisValue(Number(value), visibleXSpan, {
                     domain: activePaneTrace?.domain ?? 'frequency',
                     unit: activePaneTrace?.units.x ?? (activePaneTrace?.domain === 'time' ? 's' : 'Hz'),
                   })}
-                  label={hideXTicks ? undefined : { value: xAxisLabelText, position: 'insideBottom', offset: -5, style: { fontSize: 'var(--font-label)', fill: 'var(--muted)', textAnchor: 'middle' } }}
+                  label={hideXTicks || (appearance && !exportXTitle) ? undefined : { value: appearance ? exportXTitle : xAxisLabelText, position: 'insideBottom', offset: -5, style: { fontSize: 'var(--font-label)', fill: 'var(--muted)', textAnchor: 'middle' } }}
                 />
                 <YAxis
                   domain={yDomain}
                   allowDataOverflow={Array.isArray(yDomain) && yDomain[0] !== 'auto'}
-                  ticks={yTickValues}
+                  ticks={appearance ? exportYTicks ?? yTickValues : yTickValues}
                   stroke="var(--muted)"
+                  tickSize={exportView?.tikzStyle ? -4 : undefined}
+                  tickMargin={exportView?.tikzStyle ? 12 : undefined}
                   fontSize={'var(--font-label)'}
                   width={yAxisWidth}
-                  tickFormatter={formatYTick}
+                  tickFormatter={value => appearance && axes ? exportTick(axes.y, Number(value)) : formatYTick(value)}
 
-                  label={{ value: fittedYLabel, angle: -90, position: 'insideLeft', offset: 10, style: { fontSize: 'var(--font-label)', fill: 'var(--muted)', textAnchor: 'middle' } }}
+                  label={appearance && !exportYTitle ? undefined : { value: appearance ? exportYTitle : fittedYLabel, angle: -90, position: 'insideLeft', offset: 10, style: { fontSize: 'var(--font-label)', fill: 'var(--muted)', textAnchor: 'middle' } }}
                 />
                 <Tooltip isAnimationActive={false} cursor={false} content={() => null} />
                 {paneTraces.map((trace) => (
-                  <Line key={trace.name} type="linear" dataKey={trace.name} name={trace.dn || trace.name} stroke={resolveTraceColor(trace.name)} dot={settings.showSampleDots && traceSymbol(trace.id) === null ? { r: 2, fill: resolveTraceColor(trace.name), stroke: resolveTraceColor(trace.name) } : false} activeDot={false} isAnimationActive={false} connectNulls strokeWidth={exportView?.paper ? ptToCssPx(PAPER_LINE_PT) : colorAssignments.get(trace.id) ? traceWidth(colorAssignments.get(trace.id) as NonNullable<ReturnType<typeof colorAssignments.get>>) : 1.5} />
+                  <Line key={trace.name} type="linear" dataKey={trace.name} name={trace.dn || trace.name} stroke={resolveTraceColor(trace.name)} dot={settings.showSampleDots && traceSymbol(trace.id) === null ? { r: 2, fill: resolveTraceColor(trace.name), stroke: resolveTraceColor(trace.name) } : false} activeDot={false} isAnimationActive={false} connectNulls strokeWidth={exportView?.paper ? ptToCssPx(appearance?.paperLine ?? PAPER_LINE_PT) : colorAssignments.get(trace.id) ? traceWidth(colorAssignments.get(trace.id) as NonNullable<ReturnType<typeof colorAssignments.get>>) : 1.5} />
                 ))}
                 {!isExport && hoverFreq != null && Number.isFinite(hoverFreq) && <ReferenceLine x={hoverFreq} stroke="color-mix(in srgb, var(--accent) 60%, white)" strokeDasharray="4 4" strokeWidth={1} />}
                 {!isExport && hoverFreq == null && ghostX != null && Number.isFinite(ghostX) && <ReferenceLine className="x-ghost-crosshair" x={ghostX} stroke="color-mix(in srgb, var(--accent) 60%, white)" strokeDasharray="4 4" strokeWidth={1} />}
@@ -1303,7 +1322,10 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
                         const tagPx = exportView?.tagPx ?? 11;
                         const tagScale = tagPx / 11;
                         const glyphScale = exportView?.markScale ?? 1;
-                        const labelYOffset = roundedCy < 30 * tagScale ? 18 * tagScale : -14 * tagScale;
+                        const paperTag = !!appearance && !!exportView?.paper;
+                        const stagger = paperTag && index % 2 === 1 ? tagPx : 0;
+                        const tagBelow = roundedCy < (30 + stagger) * tagScale;
+                        const labelYOffset = tagBelow ? 18 * tagScale + stagger : -14 * tagScale - stagger;
                         // Paper tags are serif: narrower glyphs and a box that hugs the 7.5 pt text.
                         const charWidth = exportView?.paper ? tagPx * 0.46 : 6.5 * tagScale;
                         const pillPadX = exportView?.paper ? tagPx * 0.35 : 5 * tagScale;
@@ -1342,20 +1364,24 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
                             {/* Label pill (gated by showMarkerLabels) */}
                             {settings.showMarkerLabels && (
                               <>
-                                <rect
+                                {!paperTag && <rect
                                   x={pillX} y={pillY}
                                   width={pillW} height={pillH}
                                   rx={4} ry={4}
                                   fill="rgba(255,255,255,0.88)"
                                   stroke="rgba(0,0,0,0.13)"
                                   strokeWidth={1}
-                                />
+                                />}
                                 <line
+                                  data-paper-marker-leader={paperTag ? '' : undefined}
                                   x1={roundedCx} y1={pillY + pillH}
-                                  x2={roundedCx} y2={roundedCy - 7 * glyphScale}
+                                  x2={roundedCx} y2={roundedCy + (paperTag && tagBelow ? 7 : -7) * glyphScale}
                                   stroke="rgba(0,0,0,0.25)" strokeWidth={1}
                                 />
                                 <text
+                                  data-paper-marker-label={paperTag ? '' : undefined}
+                                  data-anchor-x={paperTag ? roundedCx : undefined}
+                                  data-anchor-y={paperTag ? roundedCy : undefined}
                                   x={roundedCx} y={pillY + pillH - pillPadY - 1}
                                   textAnchor="middle"
                                   fontSize={tagPx}
@@ -1379,7 +1405,7 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
                   onContextMenu={(line, event) => { event.preventDefault(); markerDispatch({ type: 'SET_SELECTED_IDX', payload: -1 }); refLineDispatch({ type: 'SET_SELECTED', payload: line.id }); setLineMenu({ lineId: line.id, at: { x: event.clientX, y: event.clientY }, mode: 'main' }); }}
                   onLabelClick={(line) => { markerDispatch({ type: 'SET_SELECTED_IDX', payload: -1 }); refLineDispatch({ type: 'SET_SELECTED', payload: line.id }); }} />} />
                 <Customized component={<OverlaysLayer overlays={overlays} />} />
-                <Customized component={<SymbolsLayer traces={paneTraces} showDots={settings.showSampleDots} symbolSetting={isExport ? 'always' : undefined} markScale={exportView?.markScale} colorTheme={exportView?.colorTheme} />} />
+                <Customized component={<SymbolsLayer traces={paneTraces} showDots={settings.showSampleDots} symbolSetting={isExport ? 'always' : undefined} markScale={exportView?.markScale} colorTheme={exportView?.colorTheme} paperTone={exportView?.paperTone} />} />
                 {/* ΔX between V-line delta pairs */}
                 {settings.showReferenceLines && vDeltaPairs.map(([a, b]) => {
                   const lo = Math.min(a.value, b.value);
@@ -1515,12 +1541,12 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
             } : null}
             onFit={isSmith && paneTraces.length > 0 ? () => setSmithFitRequest(value => value + 1) : null}
             actions={{
-              onCopyImage: imageExport && !TableRenderer && paneTraces.length > 0 ? () => imageExport.copyImage(paneId) : null,
-              onDownloadImage: imageExport && !TableRenderer && paneTraces.length > 0 ? () => imageExport.downloadImage(paneId) : null,
-              onDownloadSvg: imageExport && !TableRenderer && paneTraces.length > 0 ? () => imageExport.downloadSvg(paneId) : null,
-              onCopyLatex: imageExport && !TableRenderer && !isSmith && paneTraces.length > 0 ? () => imageExport.copyLatex(paneId) : null,
-              onExportOptions: imageExport && !TableRenderer && paneTraces.length > 0 ? () => imageExport.openOptions(paneId) : null,
-              onExportData: paneTraces.length > 0 ? () => downloadText(`${paneName(panes, paneId)}.csv`, tracesToCSV(paneTraces, paneTraces[0]?.domain === 'time' ? 'Time' : 'Frequency'), 'text/csv;charset=utf-8') : null,
+              onCopyImage: imageExport && paneTraces.length > 0 ? () => imageExport.copyImage(paneId) : null,
+              onDownloadImage: imageExport && paneTraces.length > 0 ? () => imageExport.downloadImage(paneId) : null,
+              onDownloadSvg: imageExport && paneTraces.length > 0 ? () => imageExport.downloadSvg(paneId) : null,
+              onCopyLatex: imageExport && !TableRenderer && paneTraces.length > 0 ? () => imageExport.copyLatex(paneId) : null,
+              onExportOptions: imageExport && traceNamesInPane.length > 0 ? () => imageExport.openDialog(paneId) : null,
+              onExportData: imageExport && traceNamesInPane.length > 0 ? () => imageExport.openDialog(paneId, 'csv') : null,
               onClose: panes.length > 1 ? closePane : null,
             }} />
         </PaneHeader>

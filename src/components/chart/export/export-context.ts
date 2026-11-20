@@ -1,4 +1,7 @@
 import { createContext, useContext } from 'react';
+import type { ExportDocumentOptions } from '../../../domain/export-document';
+import type { SmithPaneTrace } from '../../smith/SmithPane';
+import type { ExportAxis } from '../../../domain/export-plot';
 
 /** Props that turn ChartPane / SmithPaneContainer into an export render (no chrome, no interaction, fixed size). */
 export interface ExportView {
@@ -11,12 +14,16 @@ export interface ExportView {
   readonly print: boolean;
   /** Paper size: 8 pt text and 0.75 pt lines at final size. */
   readonly paper: boolean;
+  readonly paperTone?: boolean;
+  readonly tikzStyle?: boolean;
   /** Size of trace symbols, sample dots and marker glyphs relative to the screen (1 on screen and pane-size exports). */
   readonly markScale: number;
   /** Marker tag text size in CSS px (11 on screen). */
   readonly tagPx: number;
   /** Chart panes report what they drew: ranges and axis labels (Copy as LaTeX uses them). */
   readonly onPlot?: (info: ExportPlotInfo) => void;
+  readonly onSmith?: (traces: readonly SmithPaneTrace[]) => void;
+  readonly appearance?: Pick<ExportDocumentOptions, 'grid' | 'axisTitles' | 'paneTitles' | 'paperLine' | 'include'>;
 }
 
 export interface ExportPlotInfo {
@@ -25,6 +32,10 @@ export interface ExportPlotInfo {
   readonly xLabel: string;
   readonly xUnit: string | null;
   readonly yLabel: string;
+  readonly autoX?: ExportAxis;
+  readonly autoY?: ExportAxis;
+  readonly xTicks?: readonly number[];
+  readonly yTicks?: readonly number[];
 }
 
 export interface ExportNotice {
@@ -45,6 +56,7 @@ export interface PaneImageExport {
   unavailable: (paneId: string, format: 'image' | 'latex') => string | null;
   /** Opens the small Options popover at an element or a point. */
   openOptions: (paneId: string, at?: HTMLElement | { x: number; y: number }) => void;
+  openDialog: (paneId?: string, format?: 'csv' | 'latex') => void;
   notice: ExportNotice | null;
   dismissNotice: () => void;
 }

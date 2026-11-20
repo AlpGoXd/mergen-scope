@@ -1,0 +1,59 @@
+.exd.ui-dialog {
+  width: min(1100px, calc(100vw - 64px));
+  height: min(720px, calc(100dvh - 64px));
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+  box-shadow: 0 16px 36px oklch(0 0 0 / .34);
+}
+.exd:not([open]) { display: none; }
+.exd form { display: flex; flex-direction: column; overflow: hidden; min-height: 0; }
+.exd-head, .exd-foot { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--raised); }
+.exd-head { justify-content: space-between; border-bottom: 1px solid var(--border); }
+.exd-head h2 { margin: 0; }
+.exd-body { flex: 1 1 auto; display: grid; grid-template-columns: minmax(0, 1fr) minmax(315px, 37%); min-height: 0; overflow: hidden; }
+.exd-preview { display: flex; flex-direction: column; min-width: 0; min-height: 0; background: var(--bg); overflow: hidden; }
+.exd-preview-tabs { display: flex; align-items: center; gap: var(--gap); padding: var(--space-2); border-bottom: 1px solid var(--border); }
+.exd-preview-tabs > button:last-child:not([role="tab"]) { margin-left: auto; }
+.exd-preview-content { min-height: 0; flex: 1; display: grid; place-content: safe center; justify-items: center; gap: var(--gap); padding: var(--panel-padding); overflow: auto; }
+.exd-preview img { display: block; max-width: 100%; max-height: min(50vh, 460px); box-shadow: var(--menu-shadow); object-fit: contain; }
+.exd-preview-content > p { margin: 0; color: var(--text-muted); text-align: center; }
+.exd-code-preview { place-content: stretch; justify-items: stretch; grid-template-rows: minmax(0, 1fr); }
+.exd-preview pre { padding: var(--panel-padding); margin: 0; background: var(--panel); color: var(--text); overflow: auto; border: 1px solid var(--border); }
+.exd-code-preview pre { background: var(--bg); }
+.exd-settings { padding: 10px 12px; display: flex; flex-direction: column; gap: 7px; overflow: auto; border-left: 1px solid var(--border); }
+.exd-row { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 6px; align-items: start; }
+.exd-row > span { padding-top: 4px; }
+.exd-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 3px; min-width: 0; }
+.exd-controls .ui-btn { flex: 0 1 auto; white-space: nowrap; }
+.exd [aria-disabled="true"] { opacity: .48; cursor: default; }
+.exd input:not([type="checkbox"]) { min-width: 0; width: 100%; box-sizing: border-box; color: var(--text); background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-control); padding: 0 var(--space-2); height: var(--control-sm-height); }
+.exd input.exd-num { width: 72px; }
+.exd-height { display: flex; align-items: center; gap: var(--space-1); white-space: nowrap; }
+.exd-height input.exd-num { width: 54px; }
+.exd-section { display: grid; gap: var(--gap); padding: var(--space-1) 0 0; margin: 0; border: 0; border-top: 1px solid var(--border); min-width: 0; }
+.exd-section > legend { padding-right: var(--space-2); }
+.exd-axis-fields { display: grid; grid-template-columns: 1fr 1fr; gap: var(--gap); }
+.exd-axis-table { table-layout: fixed; width: 100%; border-collapse: separate; border-spacing: var(--space-1); text-align: left; }
+.exd-axis-table th { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-weight: var(--fw-regular); }
+.exd-axis-table th:first-child { width: 25%; }
+.exd-checks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 6px; }
+.exd-checks label, .exd-check { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.exd-checks label { padding: 2px var(--space-1); border-radius: var(--radius-control); background: var(--bg); }
+.exd input[type="checkbox"] { accent-color: var(--accent); }
+.exd-filename, .exd-format-note { margin: 0; color: var(--text-muted); }
+.exd-filename { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.exd-foot { justify-content: flex-end; border-top: 1px solid var(--border); }
+.exd-foot [role="alert"] { margin-right: auto; color: var(--danger-ink); }
+[data-export-paper] .smith-pane {
+  --smith-grid: var(--grid);
+  --smith-grid-z-both: var(--grid);
+  --smith-grid-y-both: var(--grid);
+}
+[data-export-paper] .smith-label, [data-export-paper] .smith-tag-text { font-family: var(--font-sans); }
+@media (max-width: 760px) {
+  .exd-body { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 2fr) minmax(0, 3fr); }
+  .exd-preview { min-height: 0; }
+  .exd-preview img { max-height: 27dvh; }
+  .exd-settings { border-left: 0; border-top: 1px solid var(--border); }
+}
