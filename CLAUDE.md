@@ -1,5 +1,7 @@
 # Mergen Scope — Claude Code instructions
 
+> Translation of the human's usual prompt: "refactor everything to TS, make no mistakes." Below is the version with actual instructions.
+
 Browser RF/signal analysis app (R&S `.dat`, CSV/TSV, Touchstone `.sNp`). React 19 + TypeScript 6 strict + Vite 7 (single-file build) + Recharts. Architecture, source layout, store order and parser pipeline are in `README.md` → "Architecture"; read it instead of re-deriving.
 
 ## Layout and boundaries
@@ -38,7 +40,13 @@ npm with a committed `package-lock.json`. Ask before adding a dependency, and ne
 
 ## Git
 
-- Work happens on `ts_refactor`; `main` deploys.
+- `main` is the released line and the only branch that deploys. Don't commit on it.
+- The next version is collected on an integration branch, currently `beta-2` (folder `gits/mergen-scope-beta-2`). Features are built on their own branch and merged into it.
+- Branch names are `type/kebab-slug`: `feat/` for features, `fix/` for bug fixes, `chore/` for housekeeping, `codex/` for Codex jobs.
+- **Adding a feature:** branch from the integration branch (`git switch -c feat/<slug> beta-2`), commit there, then merge it back with `git merge --no-ff feat/<slug>` and delete it with `git branch -d feat/<slug>`. Run typecheck, unit and e2e on the integration branch after each merge.
+- **Releasing:** bump the version in `package.json`, merge the integration branch into `main`, tag `v<version>` (for example `v1.0.0-beta.2`). The user pushes.
+- **Agent worktrees:** one per agent task, in `gits/_worktrees/<slug>`, created from the integration branch and removed after the merge. Never run two writers in the same folder.
+- **No duplicate `node_modules`:** `gits/node_modules` is one shared install that every folder under `gits/` finds by itself, so a worktree needs no install, copy or junction. Never run `npm install` or `npm ci` in a worktree. If a task changes `package-lock.json`, stop and tell the user, who refreshes the shared install.
 - **Never `git push`** (blocked by a deny rule in `.claude/settings.local.json`). Commit only when the user asks; the user pushes. Worktree branches never need pushing: merge them locally.
 - Commit style: short imperative subject, optional scope prefix (`refactor(ts): …`, `design-sync: …`).
 - `dist/` is build output and is not tracked (it is in `.gitignore`; CI and Cloudflare Pages build it from source). Never force-add it.
@@ -101,7 +109,7 @@ Don't delegate trivial edits, one-file fixes Claude can verify in a minute, or a
 
 ### Rules
 
-- **One writer per file.** Never let Claude and Codex (or two Codex jobs) edit the same files at the same time. Write-capable Codex runs go in a git worktree (`git worktree add ../mergen-scope-codex-<task> -b codex/<task>`), passed via `--cwd`. Read-only runs may use the main tree.
+- **One writer per file.** Never let Claude and Codex (or two Codex jobs) edit the same files at the same time. Write-capable Codex runs go in a git worktree (`git worktree add ../_worktrees/codex-<task> -b codex/<task> beta-2`), passed via `--cwd`. Read-only runs may use the main tree.
 - Give Codex a self-contained prompt: goal, files involved, constraints from this file, and the verification command to run.
 - Treat Codex output as a proposal. Claude reads the diff, rejects what doesn't fit, merges the rest, then runs the verification commands above itself. Codex reporting "tests pass" is not enough.
 - Tell the user which model did what and what was accepted or rejected. Remove worktrees/branches once merged or abandoned.
