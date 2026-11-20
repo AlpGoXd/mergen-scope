@@ -1,0 +1,33 @@
+﻿name: Request a feature
+description: Suggest an improvement to the workspace or workflow
+title: "[Feature] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For a missing measurement, use the **Request an analysis** form instead.
+        Issues and attachments are public; do not include confidential data.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you trying to solve?
+      description: Describe your workflow and what is difficult today.
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: What would you like to happen?
+      description: Describe the improvement and how you would use it.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives or workarounds
+      description: What have you tried so far?
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Add examples or screenshots if they help. Only share data you can make public.
