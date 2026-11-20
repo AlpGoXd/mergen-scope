@@ -175,7 +175,7 @@ test('Left and Analysis are panel toggles with their icon, and the wordmark is s
   expect(await brand.evaluate(el => { const wrap = el.closest('span[style*="font-weight"]')!; const style = getComputedStyle(wrap); const logo = wrap.querySelector('svg')!.getBoundingClientRect(), text = wrap.lastElementChild!.getBoundingClientRect(); return { weight: style.fontWeight, centred: Math.abs((logo.top + logo.height / 2) - (text.top + text.height / 2)) <= 1 }; })).toEqual({ weight: '600', centred: true });
 });
 
-test('every control in an open zone shares one shape; only Dir (dashed border) and the split button (parts carry the padding) differ', async ({ page }) => {
+test('every control in an open zone shares one shape; only the split button (its parts carry the padding) differs in padding', async ({ page }) => {
   await openApp(page, 2048);
   const read = () => page.locator('.tool-zone.is-open .zone-tool').evaluateAll(tools => {
     const small = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--control-sm-height'));
@@ -183,7 +183,7 @@ test('every control in an open zone shares one shape; only Dir (dashed border) a
       small, radius: getComputedStyle(document.documentElement).getPropertyValue('--radius-control').trim(),
       tools: tools.map(tool => {
         const style = getComputedStyle(tool), box = tool.getBoundingClientRect();
-        return { name: tool.textContent!.trim().slice(0, 14), height: box.height, radius: style.borderTopLeftRadius, width: style.borderTopWidth, style: style.borderTopStyle, padding: style.padding, size: style.fontSize, line: style.lineHeight, sizing: style.boxSizing, split: tool.classList.contains('split-btn'), dir: tool.classList.contains('tool-zone__dir'), bg: style.backgroundColor, active: tool.classList.contains('is-active') || tool.classList.contains('is-armed') };
+        return { name: tool.textContent!.trim().slice(0, 14), height: box.height, radius: style.borderTopLeftRadius, width: style.borderTopWidth, style: style.borderTopStyle, padding: style.padding, size: style.fontSize, line: style.lineHeight, sizing: style.boxSizing, split: tool.classList.contains('split-btn'), bg: style.backgroundColor, active: tool.classList.contains('is-active') || tool.classList.contains('is-armed') };
       }),
     };
   });
@@ -191,11 +191,11 @@ test('every control in an open zone shares one shape; only Dir (dashed border) a
   expect(idle.tools.length).toBe(13);
   for (const tool of idle.tools) {
     expect(tool, tool.name).toMatchObject({ height: idle.small, radius: idle.radius, width: '1px', size: '13px', line: '18px', sizing: 'border-box' });
-    expect(tool.style, tool.name).toBe(tool.dir ? 'dashed' : 'solid');
+    expect(tool.style, tool.name).toBe('solid');
     expect(tool.padding, tool.name).toBe(tool.split ? '0px' : '0px 7px');
   }
-  // Plain buttons, the select's field, the Layout button and the split button all have the same flat white fill.
-  const fills = new Set(idle.tools.filter(tool => !tool.dir).map(tool => tool.bg));
+  // Plain buttons, the select's field, the Layout button, Dir and the split button all have the same flat white fill.
+  const fills = new Set(idle.tools.map(tool => tool.bg));
   expect(fills.size).toBe(1);
 
   // The inner parts of the split button and the native select have no box of their own.
@@ -285,16 +285,28 @@ test('selects use the control radius like buttons; text inputs keep the input ra
   expect(control).not.toBe(await token('--radius-input'));
 });
 
-test('Dir is a dashed setting button that flips the direction Next peak and Next min search in', async ({ page }) => {
+test('Dir is a normal tool button with a text label that flips the direction Next peak and Next min search in', async ({ page }) => {
   await openApp(page, 2048);
   const dir = page.getByRole('button', { name: /^Dir L/ });
   const peak = page.getByRole('button', { name: 'Peak', exact: true });
   await expect(dir).toHaveCount(1);
+  // Same label, same tooltip, same accessible name as before.
   await expect(dir).toHaveText('Dir L → R');
+  await expect(dir).toHaveAccessibleName('Dir L → R');
   await expect(dir).toHaveAttribute('title', 'Change search direction');
-  // The only dashed button in the zones: it keeps the shared shape and changes only its border.
-  expect(await dir.evaluate(el => getComputedStyle(el).borderTopStyle)).toBe('dashed');
-  expect(await peak.evaluate(el => getComputedStyle(el).borderTopStyle)).toBe('solid');
+  // The same look as every other tool: .ui-btn.is-small, flat white, transparent border, the control radius, the
+  // shared padding; no dashed border and no special colour.
+  const look = (button: typeof dir) => button.evaluate(el => {
+    const style = getComputedStyle(el);
+    return { small: el.classList.contains('ui-btn') && el.classList.contains('is-small'), height: el.getBoundingClientRect().height, radius: style.borderTopLeftRadius, borderStyle: style.borderTopStyle, borderWidth: style.borderTopWidth, border: style.borderTopColor, bg: style.backgroundColor, color: style.color, padding: style.padding, fontSize: style.fontSize };
+  });
+  const tool = await look(peak);
+  expect(await look(dir)).toEqual(tool);
+  expect(tool).toMatchObject({ small: true, borderStyle: 'solid', borderWidth: '1px', border: 'rgba(0, 0, 0, 0)' });
+  // The border shows on hover, as on the other tools.
+  const strong = await page.evaluate(() => { const span = document.createElement('span'); span.style.color = 'var(--border-strong)'; document.body.appendChild(span); const colour = getComputedStyle(span).color; span.remove(); return colour; });
+  await dir.hover();
+  await expect.poll(() => dir.evaluate(el => getComputedStyle(el).borderTopColor)).toBe(strong);
   // The direction is the UI store's searchDirection: Next peak moves the marker up in frequency when it reads
   // L → R and down when it reads L ← R.
   const frequency = async () => Number(/([\d.]+) GHz/.exec(await page.getByTestId('marker-row-1').innerText())![1]);
@@ -306,6 +318,7 @@ test('Dir is a dashed setting button that flips the direction Next peak and Next
   expect(up).toBeGreaterThan(start);
   await dir.click();
   await expect(dir).toHaveText('Dir L ← R');
+  await expect(dir).toHaveAccessibleName('Dir L ← R');
   expect(await nextPeak()).toBeLessThan(up);
   await dir.click();
   await expect(dir).toHaveText('Dir L → R');
