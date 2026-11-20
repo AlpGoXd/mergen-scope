@@ -88,20 +88,27 @@ test('dragging, minimums, reset and keyboard resize are undoable', async ({ page
   await addPanes(page, 2);
   const divider = page.getByRole('separator', { name: 'Resize panes' });
   await expect(divider).toHaveAttribute('aria-orientation', 'horizontal');
-  const before = await box(pane(page, 1));
+  // Compare the two panes with each other, not with a height read once: the grid can still be settling
+  // (its height changed by ~40 px in about one run in twenty) when the second pane has just appeared.
+  const heights = async () => [(await box(pane(page, 1))).height, (await box(pane(page, 2))).height] as const;
+  const lead = async () => { const [a, b] = await heights(); return a - b; };
+  await expect.poll(async () => Math.abs(await lead())).toBeLessThan(3);
   await moveDivider(page, divider, 0, 80);
   await expect(divider.locator('.layout-divider__tag')).toHaveText(/\d+% · \d+%/);
   const colours = await divider.evaluate(el => ({ actual: getComputedStyle(el, '::after').backgroundColor, opacity: getComputedStyle(el, '::after').opacity, thickness: getComputedStyle(el, '::after').height, accent: getComputedStyle(el).getPropertyValue('--accent').trim() }));
   expect(colours.opacity).toBe('1'); expect(colours.thickness).toBe('2px');
   const resolvedAccent = await divider.evaluate((el, accent) => { const probe = document.createElement('span'); probe.style.color = accent; el.appendChild(probe); const value = getComputedStyle(probe).color; probe.remove(); return value; }, colours.accent);
   expect(colours.actual).toBe(resolvedAccent);
-  await page.mouse.up(); await expect.poll(async () => (await box(pane(page, 1))).height).toBeGreaterThan(before.height + 30);
-  await page.keyboard.press('Control+z'); await expect.poll(async () => Math.abs((await box(pane(page, 1))).height - before.height)).toBeLessThan(3);
-  await divider.focus(); await page.keyboard.press('ArrowDown'); await expect.poll(async () => (await box(pane(page, 1))).height).toBeGreaterThan(before.height);
-  await page.keyboard.press('Shift+ArrowDown'); const larger = await box(pane(page, 1)); expect(larger.height).toBeGreaterThan(before.height + 20);
-  await page.keyboard.press('Home'); await expect.poll(async () => (await box(pane(page, 1))).height).toBeGreaterThanOrEqual(119);
-  await moveDivider(page, divider, 0, 2000); await page.mouse.up(); expect((await box(pane(page, 2))).height).toBeGreaterThanOrEqual(119);
-  await divider.dblclick(); const a = await box(pane(page, 1)); const b = await box(pane(page, 2)); expect(Math.abs(a.height - b.height)).toBeLessThan(3);
+  // An 80 px drag moves one pane edge, so pane 1 leads pane 2 by about 160 px.
+  await page.mouse.up(); await expect.poll(lead).toBeGreaterThan(60);
+  await page.keyboard.press('Control+z'); await expect.poll(async () => Math.abs(await lead())).toBeLessThan(3);
+  await divider.focus(); await page.keyboard.press('ArrowDown'); await expect.poll(lead).toBeGreaterThan(10);
+  await page.keyboard.press('Shift+ArrowDown'); await expect.poll(lead).toBeGreaterThan(100);
+  await page.keyboard.press('Home'); await expect.poll(async () => (await heights())[0]).toBeGreaterThanOrEqual(119);
+  await expect.poll(lead).toBeLessThan(0);
+  await moveDivider(page, divider, 0, 2000); await page.mouse.up();
+  await expect.poll(lead).toBeGreaterThan(0); await expect.poll(async () => (await heights())[1]).toBeGreaterThanOrEqual(119);
+  await divider.dblclick(); await expect.poll(async () => Math.abs(await lead())).toBeLessThan(3);
 });
 
 test('Escape cancels a pointer drag without adding an undo step', async ({ page }) => {
