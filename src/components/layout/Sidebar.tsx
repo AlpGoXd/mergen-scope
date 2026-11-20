@@ -152,7 +152,7 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
 
   return (
     <LeftPanel width={effectiveWidth}>
-        <PanelSection title="Files" count={files.length} actions={[{ label: 'Close all files…', disabled: !files.length, run: () => {
+        <PanelSection title="Files" count={files.length} actions={[{ label: 'Close all files…', disabled: !files.length, reason: 'No files open', run: () => {
           const actions = files.map(file => ({ slice: 'files' as const, action: { type: 'REMOVE_FILE' as const, payload: { fileId: String(file.id) } } }));
           if (aggregate) aggregate.historyDispatch({ type: 'change', toastMessage: `Closed ${files.length} files`, toastKind: 'close', command: { slice: 'transaction', actions } });
           else actions.forEach(item => fileDispatch(item.action));
@@ -343,7 +343,7 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
 
         {files.length > 0 && <>
         <PanelSection title="Traces" count={allTraces.length} actions={[
-          ...([true, false] as const).map(visible => ({ label: visible ? 'Show all' : 'Hide all', disabled: !allTraces.length, run: () => { const actions = allTraces.map(trace => ({ slice: 'traces' as const, action: { type: 'SET_VISIBILITY' as const, name: trace.name, visible } })); if (aggregate) aggregate.historyDispatch({ type: 'change', command: { slice: 'transaction', actions } }); else actions.forEach(item => traceDispatch(item.action)); } })),
+          ...([true, false] as const).map(visible => ({ label: visible ? 'Show all' : 'Hide all', disabled: !allTraces.length, reason: 'No traces yet', run: () => { const actions = allTraces.map(trace => ({ slice: 'traces' as const, action: { type: 'SET_VISIBILITY' as const, name: trace.name, visible } })); if (aggregate) aggregate.historyDispatch({ type: 'change', command: { slice: 'transaction', actions } }); else actions.forEach(item => traceDispatch(item.action)); } })),
         ]}>
           <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 2, minWidth: 0 }}>
             {allTraces.length > 0 && <TraceColumnsHeader />}
@@ -459,7 +459,7 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
           <PanelSection 
             title="Markers" 
             count={markers.length}
-            actions={[{ label: 'Remove all', disabled: !markers.length, run: () => { const action = { type: 'CLEAR_ALL' as const }; if (aggregate) aggregate.historyDispatch({ type: 'change', toastMessage: 'Removed all markers', toastKind: 'delete', command: { slice: 'markers', action } }); else markerDispatch(action); } }]}
+            actions={[{ label: 'Remove all', disabled: !markers.length, reason: 'No markers', run: () => { const action = { type: 'CLEAR_ALL' as const }; if (aggregate) aggregate.historyDispatch({ type: 'change', toastMessage: 'Removed all markers', toastKind: 'delete', command: { slice: 'markers', action } }); else markerDispatch(action); } }]}
           >
             <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: '4px', minWidth: 0 }}>
               {markers.map((marker, index) => {
@@ -527,7 +527,7 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
             {markers.length === 0 && <SidebarEmpty text={EMPTY_TEXT.markers} />}
           </PanelSection>
 
-          <PanelSection title="Lines" count={refLines.length} actions={[{ label: 'Remove all', disabled: !refLines.length, run: () => {
+          <PanelSection title="Lines" count={refLines.length} actions={[{ label: 'Remove all', disabled: !refLines.length, reason: 'No lines', run: () => {
             const actions = refLines.map(line => ({ slice: 'lines' as const, action: { type: 'REMOVE_LINE' as const, payload: line.id } }));
             if (aggregate) aggregate.historyDispatch({ type: 'change', toastMessage: 'Removed all lines', toastKind: 'delete', command: { slice: 'transaction', actions } });
             else actions.forEach(item => refLineDispatch(item.action));
