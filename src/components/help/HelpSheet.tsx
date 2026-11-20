@@ -1,12 +1,12 @@
 ﻿import { useLayoutEffect, useRef } from 'react';
 import { MOUSE_HINTS, SHORTCUTS } from '../../domain/shortcuts';
-import { APP_VERSION, feedbackUrl } from './shortcuts';
+import { APP_VERSION } from './shortcuts';
 import './help-sheet.css';
 
-/** The two GitHub issue links; `menu` marks them as the items of a menu (the footer's Feedback menu). */
+/** Feedback destinations shared by the footer menu and Help sheet. */
 export function FeedbackLinks({ menu = false }: { menu?: boolean }) {
   const role = menu ? 'menuitem' : undefined;
-  return <><a role={role} href={feedbackUrl('problem')} target="_blank" rel="noopener noreferrer">Report a problem ↗</a><a role={role} href={feedbackUrl('idea')} target="_blank" rel="noopener noreferrer">Suggest an idea ↗</a></>;
+  return <><a role={role} href="https://github.com/AlpGoXd/mergen-scope/issues/new/choose" target="_blank" rel="noopener noreferrer">Report a problem ↗</a><a role={role} href="https://github.com/AlpGoXd/mergen-scope/discussions" target="_blank" rel="noopener noreferrer">Suggest an idea ↗</a><a role={role} href="https://tally.so/r/jeoN9x" target="_blank" rel="noopener noreferrer">Feedback without a GitHub account ↗</a></>;
 }
 
 const PRIVACY = 'Your files never leave this browser.';

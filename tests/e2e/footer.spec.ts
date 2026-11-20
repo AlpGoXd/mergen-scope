@@ -3,7 +3,6 @@ import type { Locator, Page } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { footerHints, MOUSE_HINTS } from '../../src/domain/shortcuts';
-import { APP_VERSION } from '../../src/components/help/shortcuts';
 
 const DAT = 'test files/cascade_ip3_-12dBm.DAT';
 const S2P = 'test files/cascaded chain.s2p';
@@ -229,21 +228,19 @@ test('Local only opens its note and Feedback opens its menu', async ({ page }) =
   const menu = page.getByRole('menu', { name: 'Feedback' });
   await expect(menu).toBeVisible();
   const items = menu.getByRole('menuitem');
-  await expect(items).toHaveText(['Report a problem ↗', 'Suggest an idea ↗']);
-  await expect(menu).toContainText('Needs a GitHub account. Adds the app version, browser and OS; never your files.');
+  await expect(items).toHaveText(['Report a problem \u2197', 'Suggest an idea \u2197', 'Feedback without a GitHub account \u2197']);
   // The menu opens above the button.
   const [menuBox, buttonBox] = [await menu.boundingBox(), await footer(page).getByRole('button', { name: 'Feedback', exact: true }).boundingBox()];
   expect((menuBox?.y ?? 0) + (menuBox?.height ?? 0)).toBeLessThanOrEqual(buttonBox?.y ?? 0);
-  for (const kind of ['Problem', 'Idea']) {
-    const link = items.nth(kind === 'Problem' ? 0 : 1);
-    expect(await link.getAttribute('target')).toBe('_blank');
-    const url = new URL((await link.getAttribute('href')) ?? '');
-    expect(`${url.origin}${url.pathname}`).toBe('https://github.com/AlpGoXd/mergen-scope/issues/new');
-    expect(url.searchParams.get('title')).toContain(kind);
-    const body = url.searchParams.get('body') ?? '';
-    expect(body).toContain(`App version: ${APP_VERSION}`);
-    expect(body).toContain('Browser / OS: ');
-    expect(url.toString()).not.toMatch(/cascade|\.DAT|ip3/i);
+  const urls = [
+    'https://github.com/AlpGoXd/mergen-scope/issues/new/choose',
+    'https://github.com/AlpGoXd/mergen-scope/discussions',
+    'https://tally.so/r/jeoN9x',
+  ];
+  for (const [index, url] of urls.entries()) {
+    await expect(items.nth(index)).toHaveAttribute('href', url);
+    await expect(items.nth(index)).toHaveAttribute('target', '_blank');
+    await expect(items.nth(index)).toHaveAttribute('rel', 'noopener noreferrer');
   }
 });
 
