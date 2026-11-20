@@ -2,6 +2,7 @@
 import { MOUSE_HINTS, SHORTCUTS } from '../../domain/shortcuts';
 import { APP_VERSION } from './shortcuts';
 import './help-sheet.css';
+import { useCenteredDialog } from '../../hooks/use-centered-dialog';
 
 /** Feedback destinations shared by the footer menu and Help sheet. */
 export function FeedbackLinks({ menu = false }: { menu?: boolean }) {
@@ -26,16 +27,17 @@ function HelpList({ items, label }: { items: readonly { readonly keys: readonly 
 }
 
 /**
- * Help: Mouse and Keyboard (both from src/domain/shortcuts.ts), anchored above the footer's "?" button.
+ * Help: Mouse and Keyboard (both from src/domain/shortcuts.ts).
  * `focus="keyboard"` (App settings › Keyboard shortcuts) opens it scrolled to the Keyboard section.
  */
 export function HelpSheet({ onClose, onAbout, focus = 'top' }: { onClose: () => void; onAbout: () => void; focus?: 'top' | 'keyboard' }) {
+  const dialog = useCenteredDialog();
   const body = useRef<HTMLDivElement>(null);
   const keyboard = useRef<HTMLElement>(null);
   useLayoutEffect(() => {
     if (focus === 'keyboard' && body.current && keyboard.current) body.current.scrollTop = keyboard.current.offsetTop - body.current.offsetTop;
   }, [focus]);
-  return <section className="help-sheet" role="dialog" aria-label="Help" data-testid="help-sheet">
+  return <dialog ref={dialog} className="ui-dialog help-sheet" role="dialog" aria-modal="true" aria-label="Help" data-testid="help-sheet" onCancel={event => { event.preventDefault(); onClose(); }}>
     <header className="help-sheet__head"><span className="t-title">Help</span><button type="button" className="help-close" onClick={onClose} aria-label="Close help">×</button></header>
     <div className="help-sheet__body" ref={body}>
       <section className="help-sheet__section" aria-labelledby="help-mouse"><h3 id="help-mouse" className="t-section">Mouse</h3><HelpList items={MOUSE_HINTS} label="Mouse" /></section>
@@ -47,12 +49,13 @@ export function HelpSheet({ onClose, onAbout, focus = 'top' }: { onClose: () => 
       <FeedbackLinks /><span aria-hidden="true">·</span>
       <span>{PRIVACY}</span>
     </footer>
-  </section>;
+  </dialog>;
 }
 
 /** About: name, version, licence, GitHub link and the privacy sentence. */
 export function AboutPanel({ onClose }: { onClose: () => void }) {
-  return <section className="about-panel" role="dialog" aria-label="About Mergen Scope" data-testid="about-panel">
+  const dialog = useCenteredDialog();
+  return <dialog ref={dialog} className="ui-dialog about-panel" role="dialog" aria-modal="true" aria-label="About Mergen Scope" data-testid="about-panel" onCancel={event => { event.preventDefault(); onClose(); }}>
     <header className="about-panel__head"><span className="t-title">About Mergen Scope</span><button type="button" className="help-close" onClick={onClose} aria-label="Close about">×</button></header>
     <div className="about-panel__body">
       <p className="t-label">Mergen Scope <span className="t-readout">{APP_VERSION}</span></p>
@@ -60,5 +63,5 @@ export function AboutPanel({ onClose }: { onClose: () => void }) {
       <p className="t-label"><a href="https://github.com/AlpGoXd/mergen-scope" target="_blank" rel="noopener noreferrer">GitHub ↗</a></p>
       <p className="t-caption">{PRIVACY}</p>
     </div>
-  </section>;
+  </dialog>;
 }

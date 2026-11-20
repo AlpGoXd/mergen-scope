@@ -125,7 +125,7 @@ test('the overlays keep to the role sizes too: wizard, settings, help, export me
   for (const open of [
     async () => { await page.getByRole('button', { name: 'Settings', exact: true }).click(); await expect(page.getByRole('dialog', { name: 'App settings' })).toBeVisible(); },
     async () => { await page.getByRole('button', { name: 'Help', exact: true }).click(); await expect(page.getByTestId('help-sheet')).toBeVisible(); },
-    async () => { await page.getByRole('button', { name: /^Export/ }).click(); await expect(page.getByRole('menu', { name: 'Export' })).toBeVisible(); },
+    async () => { await page.getByRole('button', { name: /^Export/ }).click(); await expect(page.getByRole('dialog', { name: /Export/ })).toBeVisible(); },
     async () => { await page.getByRole('button', { name: 'Feedback', exact: true }).click(); await expect(page.getByRole('menu', { name: 'Feedback' })).toBeVisible(); },
   ]) {
     await open();

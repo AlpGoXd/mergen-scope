@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
+import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
 const pane = (page: Page, n: number) => page.getByTestId(`chart-pane-pane-${n}`);
@@ -172,12 +173,43 @@ test('Close pane in Pane settings closes any pane and moves its traces', async (
   await expect(header(page, 1).locator('.ph-count')).toHaveText('2 traces');
 });
 
-test('Export data (CSV)… downloads the pane as CSV', async ({ page }) => {
+test('Export data (CSV)… previews and downloads all panes by default', async ({ page }) => {
   await chartAndSmith(page);
   await header(page, 1).getByTitle('Pane settings').click();
   const settings = page.locator('.ui-popover[aria-label="Pane 1 settings"]');
-  const download = page.waitForEvent('download');
   await settings.getByRole('button', { name: 'Export data (CSV)…' }).click();
-  expect((await download).suggestedFilename()).toBe('Pane 1.csv');
   await expect(settings).toHaveCount(0);
+  const exportDialog = page.getByRole('dialog', { name: 'Export · All panes' });
+  await expect(exportDialog.getByRole('button', { name: 'All panes' })).toHaveAttribute('aria-pressed', 'true');
+  const preview = exportDialog.getByRole('region', { name: 'Live preview' }).locator('pre');
+  await expect(preview).toContainText('Pane 1,');
+  await expect(preview).toContainText('Pane 2,');
+
+  const download = page.waitForEvent('download');
+  await exportDialog.getByRole('button', { name: 'Save CSV' }).click();
+  const file = await download;
+  expect(file.suggestedFilename()).toMatch(/_All-panes_\d{4}-\d{2}-\d{2}\.csv$/);
+  const csv = await readFile(await file.path(), 'utf8');
+  expect(csv).toMatch(/^Pane 1,/m);
+  expect(csv).toMatch(/^Pane 2,/m);
+});
+
+test('Switching a pane export to CSV defaults to all panes and allows exporting this pane', async ({ page }) => {
+  await chartAndSmith(page);
+  await header(page, 1).getByTitle('Pane settings').click();
+  await page.getByRole('button', { name: 'Export…', exact: true }).click();
+  const exportDialog = page.getByRole('dialog', { name: /^Export · / });
+  const thisPane = exportDialog.getByRole('button', { name: 'This pane' });
+  await expect(thisPane).toHaveAttribute('aria-pressed', 'true');
+  await exportDialog.getByRole('button', { name: 'CSV', exact: true }).click();
+  await expect(exportDialog.getByRole('button', { name: 'All panes' })).toHaveAttribute('aria-pressed', 'true');
+  await thisPane.click();
+
+  const download = page.waitForEvent('download');
+  await exportDialog.getByRole('button', { name: 'Save CSV' }).click();
+  const file = await download;
+  expect(file.suggestedFilename()).toMatch(/_Pane-1_\d{4}-\d{2}-\d{2}\.csv$/);
+  const csv = await readFile(await file.path(), 'utf8');
+  expect(csv).toMatch(/^Pane 1,/m);
+  expect(csv).not.toMatch(/^Pane 2,/m);
 });

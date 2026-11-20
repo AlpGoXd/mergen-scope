@@ -7,9 +7,9 @@ import { useTraceSymbols } from '../../hooks/use-trace-symbols';
 import { useTraceColors } from '../../hooks/use-trace-colors';
 
 /** `markScale` sizes symbols and dots for paper exports (1 on screen). */
-export function SymbolsLayer({ traces, showDots, symbolSetting, markScale = 1, colorTheme, xAxisMap, yAxisMap, offset }: ChartScaleProps & { traces: readonly Trace[]; showDots: boolean; symbolSetting?: SymbolSetting; markScale?: number; colorTheme?: Theme }) {
+export function SymbolsLayer({ traces, showDots, symbolSetting, markScale = 1, colorTheme, paperTone, xAxisMap, yAxisMap, offset }: ChartScaleProps & { traces: readonly Trace[]; showDots: boolean; symbolSetting?: SymbolSetting; markScale?: number; colorTheme?: Theme; paperTone?: boolean }) {
   const symbol = useTraceSymbols(symbolSetting);
-  const resolveTraceColor = useTraceColors(colorTheme);
+  const resolveTraceColor = useTraceColors(colorTheme, paperTone);
   const x = xAxisMap ? Object.values(xAxisMap)[0]?.scale : undefined;
   const y = yAxisMap ? Object.values(yAxisMap)[0]?.scale : undefined;
   if (!x || !y || !offset) return null;

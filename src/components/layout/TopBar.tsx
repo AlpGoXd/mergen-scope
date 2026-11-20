@@ -11,6 +11,7 @@ import { ExportMenu } from './ExportMenu';
 import { ToolGroups } from './ToolGroups';
 import { useShortcut } from '../../stores/shortcut-store';
 import { shortcutText } from '../../domain/shortcuts';
+import { usePaneImageExport } from '../chart/export/export-context';
 
 function downloadTextFile(fileName: string, text: string, mimeType: string) {
   const url = URL.createObjectURL(new Blob([text], { type: mimeType }));
@@ -32,10 +33,17 @@ export function TopBar({ onOpen, onExport }: TopBarProps = {}) {
   const { allTraces, vis } = useTraceState();
   const visibleTraces = allTraces.filter(trace => vis[trace.name] !== false);
   const exportVisibleCsv = () => { if (visibleTraces.length) downloadTextFile('visible-traces.csv', tracesToCSV(visibleTraces, 'Frequency'), 'text/csv;charset=utf-8'); };
-  // Until the Export dialog, Export… is a small menu acting on the target pane (Ctrl+Shift+E opens it too).
+  // The menu is the fallback for callers outside the export provider.
   const [exportMenu, setExportMenu] = React.useState<HTMLElement | null>(null);
   const exportButton = React.useRef<HTMLButtonElement | null>(null);
-  useShortcut('export', () => { if (onExport) { onExport(); return; } if (!exportButton.current || exportButton.current.disabled) return false; setExportMenu(exportButton.current); });
+  const imageExport = usePaneImageExport();
+  const hasTraces = imageExport ? allTraces.length > 0 : visibleTraces.length > 0;
+  const openExport = onExport ?? imageExport?.openDialog;
+  useShortcut('export', () => {
+    if (!exportButton.current || exportButton.current.disabled) return false;
+    if (openExport) openExport();
+    else setExportMenu(exportButton.current);
+  });
   const toggle = (key: keyof UiState, value: boolean) => {
     dispatch({ type: 'SET', payload: { key, value: !value } });
   };
@@ -58,8 +66,8 @@ export function TopBar({ onOpen, onExport }: TopBarProps = {}) {
     <input data-testid="topbar-workspace-input" type="file" ref={fileInputRef} style={{ display: 'none' }} accept=".json" onChange={e => { if (e.target.files?.[0]) loadFromFile(e.target.files[0]); e.target.value = ''; }} />
     <Btn title={onOpen ? 'Open… (Ctrl+O)' : 'Load Workspace JSON'} aria-label="Open" onClick={onOpen ?? (() => fileInputRef.current?.click())}>{icon(<path d="M3 19V5h7l2 3h9v11z" />)}<span className="topbar-action-label">Open</span></Btn>
     <Btn title="Save Workspace JSON" aria-label="Save" onClick={() => downloadWorkspace()}>{icon(<><path d="M4 3h14l3 3v15H4z"/><path d="M8 3v6h9V3M8 21v-8h9v8"/></>)}<span className="topbar-action-label">Save</span></Btn>
-    <Btn ref={exportButton} title={visibleTraces.length || onExport ? `Export the target pane (${shortcutText('export')})` : 'Load a trace to export'} aria-label="Export" aria-haspopup="menu" aria-expanded={exportMenu !== null} active={exportMenu !== null} disabled={!onExport && visibleTraces.length === 0}
-      onClick={event => { if (onExport) { onExport(); return; } setExportMenu(exportMenu ? null : event.currentTarget); }}>{icon(<><path d="M12 3v12m-4-4 4 4 4-4"/><path d="M4 17v4h16v-4"/></>)}<span className="topbar-action-label">Export…</span></Btn>
+    <Btn ref={exportButton} title={hasTraces || onExport ? `Export… (${shortcutText('export')})` : 'Load a trace to export'} aria-label="Export" aria-haspopup={openExport ? 'dialog' : 'menu'} aria-expanded={openExport ? undefined : exportMenu !== null} active={exportMenu !== null} disabled={!onExport && !hasTraces}
+      onClick={event => { if (openExport) openExport(); else setExportMenu(exportMenu ? null : event.currentTarget); }}>{icon(<><path d="M12 3v12m-4-4 4 4 4-4"/><path d="M4 17v4h16v-4"/></>)}<span className="topbar-action-label">Export…</span></Btn>
     {exportMenu && <PopoverAt label="Export" at={exportMenu} onClose={() => setExportMenu(null)}><ExportMenu onClose={() => setExportMenu(null)} onExportCsv={exportVisibleCsv} csvReason={visibleTraces.length ? null : 'Load a trace to export'} /></PopoverAt>}
     </div>
     <span data-testid="topbar-groups-divider" aria-hidden="true" style={{ alignSelf: 'stretch', flex: 'none', width: 0, borderLeft: '1px solid var(--border)', margin: 'calc((var(--top-row-height) - 20px) / 2) 4px' }} />

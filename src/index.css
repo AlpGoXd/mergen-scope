@@ -260,8 +260,12 @@ table {
 .ui-message { display: flex; align-items: center; gap: 8px; padding: 8px; color: var(--text); background: var(--panel); border: 1px solid var(--message-line); border-radius: var(--radius-control); }
 .ui-message svg { color: var(--message-ink); flex: none; }
 .ui-message--danger { --message-line: var(--danger-line); --message-ink: var(--danger-ink); } .ui-message--warning { --message-line: var(--warning-line); --message-ink: var(--warning-ink); } .ui-message--success { --message-line: var(--success-line); --message-ink: var(--success-ink); } .ui-message--info { --message-line: var(--info-line); --message-ink: var(--info-ink); }
-.ui-dialog-backdrop { position: fixed; inset: 0; z-index: 150; display: grid; place-items: center; background: oklch(0 0 0 / .45); }
+:root { --dialog-scrim: oklch(0 0 0 / .45); }
+.ui-dialog-backdrop { position: fixed; inset: 0; z-index: 150; display: grid; place-items: center; background: var(--dialog-scrim); }
 .ui-dialog { display: grid; gap: 16px; width: min(480px, calc(100vw - 32px)); padding: 16px; background: var(--raised); color: var(--text); border: 1px solid var(--border-strong); border-radius: var(--radius-card); }
+dialog.ui-dialog { position: fixed; inset: 0; margin: auto; box-sizing: border-box; }
+dialog.ui-dialog:not([open]) { display: none; }
+dialog.ui-dialog::backdrop { background: var(--dialog-scrim); }
 .ui-dialog h2 { font-size: var(--font-title); font-weight: var(--fw-semibold); }.ui-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .ui-toast-host { position: fixed; z-index: 200; bottom: calc(var(--footer-height) + 8px); left: 50%; transform: translateX(-50%); display: grid; gap: 8px; }
 .ui-toast { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: var(--radius-card); background: oklch(.20 .016 255); color: oklch(.93 .01 255); border: 1px solid oklch(.42 .016 255); animation: ui-toast-in 150ms ease-out; }

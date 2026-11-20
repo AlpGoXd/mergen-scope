@@ -37,7 +37,7 @@ export function SmithPaneContainer({ paneId, fitRequest = 0, exportView }: { pan
   const markerDispatch = useMarkerDispatch();
   const historyDispatch = useOptionalAggregateWorkspace()?.historyDispatch;
   const lineDispatch = useRefLineDispatch();
-  const color = useTraceColors(exportView?.colorTheme);
+  const color = useTraceColors(exportView?.colorTheme, exportView?.paperTone);
   const symbol = useTraceSymbols(isExport ? 'always' : undefined);
   const assignments = useMemo(() => allocateTraceColors(allKnownTraces, new Map(Object.entries(traceHueSlots))), [allKnownTraces, traceHueSlots]);
   const pane = panes.find(item => item.id === paneId);
@@ -63,11 +63,13 @@ export function SmithPaneContainer({ paneId, fitRequest = 0, exportView }: { pan
   }, [panes, paneId, allKnownTraces, tracePaneMap]);
   const linkedZoom = linkedPane ? paneXZooms[linkedPane.id] ?? null : null;
   const band = useMemo(() => smithLinkedBand(!!linkedPane, linkedZoom, traces), [linkedPane, linkedZoom, traces]);
-  if (!pane) return null;
-  const smith = pane.settings.smith;
+  const smith = pane?.settings.smith;
   const linked = band ? { startHz: band.minHz, stopHz: band.maxHz } : null;
   // While linked, the chart pane decides the range: a fitted chart shows the full range, not the pane's own.
-  const model = smithRangeModel(traces, linkedPane ? null : smith.range ?? null, linked, smith.outside ?? 'hidden');
+  const model = smithRangeModel(traces, linkedPane ? null : smith?.range ?? null, linked, smith?.outside ?? 'hidden');
+  const report = exportView?.onSmith;
+  useEffect(() => { report?.(model.traces); }, [report, model.traces]);
+  if (!pane || !smith) return null;
   const setRange = (range: typeof smith.range) => paneDispatch({ type: 'SET_PANE_SETTINGS', payload: { paneId, patch: { smith: { ...smith, range } } } });
   return <SmithPane traces={model.traces} markers={markers} selectedMarkerId={isExport ? null : markers[selectedMkrIdx]?.id ?? null}
     {...(exportView ? { size: { width: exportView.width, height: exportView.height }, markScale: exportView.markScale } : {})}
@@ -96,5 +98,8 @@ export function SmithPaneContainer({ paneId, fitRequest = 0, exportView }: { pan
     onPointerGamma={gamma => { if (!isExport) publishReadout(gamma ? smithPointerText(gamma, traces[0]?.z0 ?? 50) : null, paneId); }}
     grid={smith?.grid ?? (pane.renderMode === 'smith-inverted' ? 'y' : 'z')} labels={smith?.labels ?? 'normalised'}
     direction={smith?.direction ?? 'chevrons'} readout={smith?.readout ?? ['z', 'gamma', 'vswr']}
-    showMarkers={pane.settings.showMarkers} showMarkerTags={pane.settings.showMarkerLabels} showSamples={pane.settings.showSampleDots} fitRequest={fitRequest} />;
+    showMarkers={pane.settings.showMarkers} showMarkerTags={exportView?.appearance?.include.markerTags ?? pane.settings.showMarkerLabels}
+    plainMarkerTags={!!exportView?.paper && !!exportView.appearance}
+    showGrid={exportView?.appearance?.grid} traceLineWidth={exportView?.paper ? (exportView.appearance?.paperLine ?? 0.75) * 96 / 72 : undefined}
+    showSamples={pane.settings.showSampleDots} fitRequest={fitRequest} />;
 }

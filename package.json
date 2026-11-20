@@ -29,9 +29,11 @@
   "homepage": "https://github.com/AlpGoXd/mergen-scope#readme",
   "dependencies": {
     "@chenglou/pretext": "^0.0.4",
+    "jspdf": "4.2.1",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
-    "recharts": "^2.15.3"
+    "recharts": "^2.15.3",
+    "svg2pdf.js": "2.9.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.60.0",

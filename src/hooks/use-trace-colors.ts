@@ -6,10 +6,16 @@ import { useTheme } from './use-theme';
 import type { Theme } from '../domain/trace-palette';
 
 /** `themeOverride` resolves colours for another theme (image export); on screen it is omitted. */
-export function useTraceColors(themeOverride?: Theme) {
+export function useTraceColors(themeOverride?: Theme, paper = false) {
   const { allKnownTraces } = useTraceState();
   const { traceColors, traceHueSlots, huePalette } = useUiState();
   const { theme: appTheme } = useTheme();
   const theme = themeOverride ?? appTheme;
-  return useMemo(() => makeTraceColorResolver(allKnownTraces, traceColors, theme, traceHueSlots, huePalette), [allKnownTraces, theme, traceColors, traceHueSlots, huePalette]);
+  return useMemo(() => {
+    const resolve = makeTraceColorResolver(allKnownTraces, traceColors, theme, traceHueSlots, huePalette);
+    return (trace: Parameters<typeof resolve>[0]) => {
+      const color = resolve(trace);
+      return paper ? `oklch(from ${color} 0.50 c h)` : color;
+    };
+  }, [allKnownTraces, theme, traceColors, traceHueSlots, huePalette, paper]);
 }

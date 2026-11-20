@@ -82,60 +82,19 @@ test('Copy as LaTeX puts a pgfplots figure of the pane on the clipboard', async 
   expect(tex).toMatch(/xmin=[-\d.e]+, xmax=[-\d.e]+, ymin=[-\d.e]+, ymax=[-\d.e]+/);
 });
 
-test('the top bar Export… menu names the target pane once, in its header, and its items follow the target', async ({ page }) => {
-  await openS21(page);
-  await page.getByRole('button', { name: '+ Pane', exact: true }).click();
-  await pane(page, 2).locator('.ptp-tile').filter({ hasText: 'Smith' }).click();
-  await page.getByTestId('touchstone-cell-S11').click();
-  await expect(pane(page, 2).locator('[data-testid^="smith-trace-"]').first()).toBeVisible();
-
-  await page.getByTestId('chart-plot-pane-1').click({ position: { x: 5, y: 5 } });
-  await page.getByRole('button', { name: 'Export', exact: true }).click();
-  const menu = page.getByRole('menu', { name: 'Export' });
-  const items = menu.getByRole('menuitem');
-  await expect(menu.getByTestId('export-menu-title')).toHaveText('Export · Pane 1');
-  await expect(menu).toContainText('the target pane · click a pane to change it');
-  await expect(items).toHaveCount(6);
-  await expect(items.locator('.xm-item__label')).toHaveText(['Copy image', 'Download image', 'Download SVG', 'Copy as LaTeX', 'Export data (CSV)…', 'All panes…Coming with the export dialog']);
-  // Shortcuts share the row, right-aligned, in the readout role.
-  const keys = items.nth(0).locator('kbd');
-  await expect(keys).toHaveText('Ctrl+Shift+C');
-  await expect(keys).toHaveClass(/t-readout/);
-  await expect(items.nth(1).locator('kbd')).toHaveText('Ctrl+Shift+S');
-  const row = await items.nth(0).boundingBox();
-  const chip = await keys.boundingBox();
-  expect(Math.abs((row?.x ?? 0) + (row?.width ?? 0) - (chip?.x ?? 0) - (chip?.width ?? 0))).toBeLessThan(12);
-  expect(Math.abs((row?.y ?? 0) + (row?.height ?? 0) / 2 - (chip?.y ?? 0) - (chip?.height ?? 0) / 2)).toBeLessThan(4);
-  const allPanes = items.nth(5);
-  await expect(allPanes).toContainText('All panes…');
-  await expect(allPanes).toHaveAttribute('aria-disabled', 'true');
-  await expect(allPanes).toHaveAttribute('title', 'Coming with the export dialog');
-  await expect(allPanes).toContainText('Coming with the export dialog');
-  const download = page.waitForEvent('download');
-  await items.nth(2).click();
-  expect((await download).suggestedFilename()).toMatch(/_Pane-1_\d{4}-\d{2}-\d{2}\.svg$/);
-  await expect(menu).toHaveCount(0);
-
-  // Target the Smith pane: the items follow it, and LaTeX says why it is not available.
-  await pane(page, 2).getByTestId('smith-pane').click({ position: { x: 10, y: 10 } });
-  await page.getByRole('button', { name: 'Export', exact: true }).click();
-  await expect(menu.getByTestId('export-menu-title')).toHaveText('Export · Pane 2');
-  await expect(items.nth(3)).toHaveAttribute('aria-disabled', 'true');
-  await expect(items.nth(3)).toHaveAttribute('title', 'Copy as LaTeX supports chart panes for now');
-  await page.keyboard.press('Escape');
-});
-
-test('a pane with a custom name shows it, muted, after its position in the Export… header', async ({ page }) => {
+test('This pane uses the active pane and the dialog shows its custom name', async ({ page }) => {
   await page.goto('/app.html?demo=1');
   const target = page.getByTestId('chart-pane-pane-3');
   await expect(target.locator('.recharts-line').first()).toBeVisible();
   await target.getByTestId('chart-plot-pane-3').click({ position: { x: 4, y: 4 } });
+  const title = await target.locator('.ph-title').innerText();
   await page.getByRole('button', { name: 'Export', exact: true }).click();
-  const title = page.getByRole('menu', { name: 'Export' }).getByTestId('export-menu-title');
-  await expect(title).toContainText('Export · Pane 3');
-  const custom = title.locator('.t-caption');
-  await expect(custom).toHaveText(await target.locator('.ph-title').innerText());
+  const dialog = page.getByRole('dialog', { name: /^Export/ });
+  await expect(dialog.getByRole('button', { name: 'All panes' })).toHaveAttribute('aria-pressed', 'true');
+  await dialog.getByRole('button', { name: 'This pane' }).click();
+  await expect(dialog.getByRole('heading')).toHaveText('Export \u00b7 ' + title);
   await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
 });
 
 test('paper sizes scale symbols, dots, marker glyphs and tags with the 8 pt text; pane size keeps screen sizes', async ({ page }) => {

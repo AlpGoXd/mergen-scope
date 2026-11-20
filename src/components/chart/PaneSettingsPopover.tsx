@@ -231,7 +231,7 @@ export function PaneSettingsPopover({
                 ['Download image', 'Download image (Ctrl+Shift+S)', actions.onDownloadImage],
                 ['Download SVG', 'Download this pane as an SVG file', actions.onDownloadSvg],
                 ['Copy as LaTeX', 'Copy a pgfplots figure of this pane', actions.onCopyLatex],
-                ['Export data (CSV)…', "Download this pane's traces as CSV", actions.onExportData],
+                ['Export data (CSV)…', 'Choose panes and export their traces as CSV', actions.onExportData],
                 ['Export…', 'Export… (Ctrl+Shift+E)', actions.onExportOptions],
               ] as const).map(([label, title, run]) => run
                 ? <Btn key={label} small title={title} onClick={() => { close(); run(); }}>{label}</Btn>
