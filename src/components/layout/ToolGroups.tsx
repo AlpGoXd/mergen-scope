@@ -16,6 +16,7 @@ import { LayoutMenu } from '../chart/LayoutMenu';
 import { useAsk } from '../../stores/dialog-store';
 import { useOptionalToast } from '../../stores/toast-store';
 import { closePaneText } from '../../domain/confirm-text';
+import { exportTraceName } from '../../domain/export-plot';
 import './tool-zones.css';
 
 type ZoneTone = 'marker' | 'search' | 'lines' | 'pane';
@@ -135,7 +136,8 @@ export function ToolGroups() {
     const { moved, unplaced } = result.plan;
     const linePlan = planLastPaneLines(aggregate.state, removed.id, result.plan.memberships);
     if (unplaced.length || linePlan.length) {
-      const lines = [...moved.map(move => `${move.traceName} -> ${paneName(panes, move.to)}`), ...unplaced.map(name => `${name} -> not in a pane`), ...linePlan.map(move => `${move.line.label || `Line ${move.line.id}`} -> ${move.to ? paneName(panes, move.to) : 'not in a pane'}`)];
+      const label = (name: string) => { const trace = allTraces.find(item => item.name === name); return trace ? exportTraceName(trace) : name; };
+      const lines = [...moved.map(move => `${label(move.traceName)} → ${paneName(panes, move.to)}`), ...unplaced.map(name => `${label(name)} → not in a pane`), ...linePlan.map(move => `${move.line.label || `Line ${move.line.id}`} → ${move.to ? paneName(panes, move.to) : 'not in a pane'}`)];
       const hiddenMarkers = aggregate.state.markers.markers.filter(marker => unplaced.includes(marker.trace)).length;
       if (await ask(closePaneText(paneName(panes, removed.id), lines, unplaced.length, hiddenMarkers, true)) !== 'confirm') return;
     }

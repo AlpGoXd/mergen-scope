@@ -252,7 +252,7 @@ test('cancelling an empty-pane close preserves an unplaceable reference line', a
   await answerAppDialog(page, 'Replace');
   await expect(page.getByTestId('ref-line-row-V99')).toBeVisible();
   await page.getByTestId('chart-pane-header-pane-2').getByRole('button', { name: 'Close Pane 2' }).click();
-  expect(await answerAppDialog(page, 'Cancel')).toContain('V99 -> not in a pane');
+  expect(await answerAppDialog(page, 'Cancel')).toContain('V99 → not in a pane');
   await expect(page.getByTestId('chart-pane-pane-2')).toBeVisible();
   await expect(page.getByTestId('ref-line-row-V99')).toBeVisible();
 });

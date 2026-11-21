@@ -68,7 +68,7 @@ import { PaneHeader, SamplesIcon } from './PaneHeader';
 import { XLinkChip } from './XLinkChip';
 import { fittedXBounds, linkedPeers } from '../../domain/x-link';
 import { usePaneImageExport } from './export/export-context';
-import { autoExportAxes, exportAxisTitle, exportTick, fitAxisTitle } from '../../domain/export-plot';
+import { autoExportAxes, exportAxisTitle, exportTick, exportTraceName, fitAxisTitle } from '../../domain/export-plot';
 import type { ExportView } from './export/export-context';
 import { ExportFrame } from './export/ExportFrame';
 import { PAPER_LINE_PT, ptToCssPx } from '../../domain/export-image';
@@ -968,7 +968,8 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
     const { moved, unplaced } = result.plan;
     const lines = planLastPaneLines(state, paneId, result.plan.memberships);
     if (unplaced.length || lines.length) {
-      const details = [...moved.map(move => `${move.traceName} -> ${paneName(panes, move.to)}`), ...unplaced.map(name => `${name} -> not in a pane`), ...lines.map(move => `${move.line.label || `Line ${move.line.id}`} -> ${move.to ? paneName(panes, move.to) : 'not in a pane'}`)];
+      const label = (name: string) => { const trace = allKnownTraces.find(item => item.name === name); return trace ? exportTraceName(trace) : name; };
+      const details = [...moved.map(move => `${label(move.traceName)} → ${paneName(panes, move.to)}`), ...unplaced.map(name => `${label(name)} → not in a pane`), ...lines.map(move => `${move.line.label || `Line ${move.line.id}`} → ${move.to ? paneName(panes, move.to) : 'not in a pane'}`)];
       const hiddenMarkers = state.markers.markers.filter(marker => unplaced.includes(marker.trace)).length;
       if (await ask(closePaneText(paneName(panes, paneId), details, unplaced.length, hiddenMarkers)) !== 'confirm') return;
     }
