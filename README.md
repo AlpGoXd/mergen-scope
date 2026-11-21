@@ -54,6 +54,8 @@ Anything you attach to a GitHub issue is public, so share only data you are allo
 
 - **Bug, file that will not open, missing measurement, or feature request:** [open an issue](https://github.com/AlpGoXd/mergen-scope/issues/new/choose) and pick the matching form. An example file or reproduction steps help most.
 - **Questions and general feedback:** [Discussions](https://github.com/AlpGoXd/mergen-scope/discussions).
+- **No GitHub account?** [Use the feedback form](https://tally.so/r/jeoN9x?src=readme).
+- Attachments on GitHub issues are public.
 
 ## Why I built this
 
