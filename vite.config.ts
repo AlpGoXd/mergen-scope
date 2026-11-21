@@ -90,7 +90,8 @@ function copyRuntimeAssets(): Plugin {
           if (file === "index.html") {
             const { version } = JSON.parse(readFileSync(resolve(__dirname, "package.json"), "utf8")) as { version: string };
             const html = readFileSync(src, "utf8");
-            const versionSpan = /(<span\b[^>]*\bid="version"[^>]*>)[^<]*(<\/span>)/;
+            // Every <span data-version> (hero and footer) shows the package version.
+            const versionSpan = /(<span\b[^>]*\bdata-version\b[^>]*>)[^<]*(<\/span>)/g;
             if (versionSpan.test(html)) {
               writeFileSync(
                 dest,
@@ -98,7 +99,7 @@ function copyRuntimeAssets(): Plugin {
                 "utf8",
               );
             } else {
-              console.warn("Could not update app version: index.html does not contain a span with id=\"version\".");
+              console.warn("Could not update app version: index.html does not contain a span with data-version.");
               writeFileSync(dest, html, "utf8");
             }
           } else {

@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { resolve } from 'node:path';
 import { addAnalysis } from './analysis-helpers';
+import { answerAppDialog } from './workspace-helpers';
 
 test('mismatched stimulus requires alignment choices', async ({ page }) => {
   await page.goto('/app.html');
@@ -27,6 +28,7 @@ test('identical stimuli need no choices', async ({ page }) => {
   const file = resolve('test files/cascade_ip3_-12dBm.DAT');
   await page.getByTestId('app-open-input').setInputFiles(file);
   await page.getByTestId('app-open-input').setInputFiles(file);
+  await answerAppDialog(page, 'Add as a new file');
   const card = await addAnalysis(page, 'Trace math');
   await card.locator('.an-select').nth(1).click();
   await page.getByRole('menu', { name: 'Trace B' }).getByRole('menuitemcheckbox').last().click();

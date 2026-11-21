@@ -91,7 +91,8 @@ const nextFrame = () => new Promise<void>(resolve => requestAnimationFrame(() =>
  * Copy image / Download image / Download SVG / Copy as LaTeX, the Options popover, the export notice and the
  * Copy image / Download image shortcuts.
  */
-export function ExportImageProvider({ children }: { children: ReactNode }) {
+/** `shortcutsOff` (embed mode): Copy image and Download image keys are taken but do nothing. */
+export function ExportImageProvider({ children, shortcutsOff = false }: { children: ReactNode; shortcutsOff?: boolean }) {
   const { panes, activePaneId, tracePaneMap } = usePaneState();
   const { allTraces, vis } = useTraceState();
   const { theme: appTheme } = useUiState();
@@ -214,8 +215,8 @@ export function ExportImageProvider({ children }: { children: ReactNode }) {
     const { panes: current, activePaneId: active } = latest.current;
     return current.some(pane => pane.id === active) ? active : current[0]?.id ?? null;
   };
-  useShortcut('copy-image', () => { const paneId = targetPane(); if (!paneId) return false; copyImage(paneId); });
-  useShortcut('download-image', () => { const paneId = targetPane(); if (!paneId) return false; downloadImage(paneId); });
+  useShortcut('copy-image', () => { if (shortcutsOff) return; const paneId = targetPane(); if (!paneId) return false; copyImage(paneId); });
+  useShortcut('download-image', () => { if (shortcutsOff) return; const paneId = targetPane(); if (!paneId) return false; downloadImage(paneId); });
   const openDialog = useCallback((paneId?: string, format?: 'csv' | 'latex') => setDialog({ paneId, format }), []);
 
   const value = useMemo<PaneImageExport>(() => ({

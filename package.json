@@ -14,6 +14,7 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "test:static": "playwright test --config=playwright.static.config.ts",
+    "capture:landing": "node scripts/refresh-landing-assets.mjs",
     "test": "npm run test:unit && npm run test:e2e"
   },
   "repository": {

@@ -46,6 +46,8 @@ import { formatWithUnit } from '../sidebar/live-row-helpers';
 
 export interface SidebarProps {
   width?: number;
+  /** Embed mode: stays mounted (it owns the Touchstone trace reconciliation) but renders nothing. */
+  hidden?: boolean;
   onOpenFiles?: () => void;
   onDropFiles?: (files: FileList) => void;
   onLoadDemo?: () => void;
@@ -54,7 +56,7 @@ export interface SidebarProps {
   onRenameFile?: (fileId: string) => void;
   onThresholdCrossings?: (lineId: number) => void;
 }
-export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onReplaceFile, onEditColumns, onThresholdCrossings }: SidebarProps) {
+export function Sidebar({ width = 280, hidden = false, onOpenFiles, onDropFiles, onLoadDemo, onReplaceFile, onEditColumns, onThresholdCrossings }: SidebarProps) {
   const { files, rawFileData } = useFileState();
   const { allTraces, allKnownTraces, allDisplayTraces, vis } = useTraceState();
   const { analyses } = useAnalysisState();
@@ -149,7 +151,7 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
     return getTraceDataSpan(trace);
   };
 
-  if (!showSidebar) {
+  if (!showSidebar || hidden) {
     return null;
   }
 

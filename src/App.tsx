@@ -57,6 +57,13 @@ export function App() {
       workspaceDispatch({ slice: 'files', action: { type: 'REPORT_IMPORT_ERROR', payload: { fileName: 'Demo', message: 'The demo could not be loaded. Open the app from the website, or open demo.json from the demo-assets folder.' } } });
     }
   }, [importFiles, workspaceDispatch]);
+  // ?embed=1: the landing page frames the app. Read once; it hides the side panels, toasts and Help.
+  const [embed] = useState(() => typeof window !== 'undefined' && new URL(window.location.href).searchParams.get('embed') === '1');
+  useEffect(() => {
+    if (!embed) return;
+    document.documentElement.classList.add('app-embed');
+    return () => document.documentElement.classList.remove('app-embed');
+  }, [embed]);
   useEffect(() => {
     const url = new URL(window.location.href);
     if (url.searchParams.get('demo') !== '1') return;
@@ -66,8 +73,9 @@ export function App() {
   }, [loadDemo]);
   const sidebarFileInput = useRef<HTMLInputElement>(null);
   const { downloadWorkspace } = useWorkspace();
-  useShortcut('open', () => { sidebarFileInput.current?.click(); });
-  useShortcut('save', () => { downloadWorkspace(); });
+  // In embed mode these actions have no button; the handler still takes the key so the browser does not act on it.
+  useShortcut('open', () => { if (!embed) sidebarFileInput.current?.click(); });
+  useShortcut('save', () => { if (!embed) downloadWorkspace(); });
   const { activePaneId } = usePaneState();
 
   const lastActivePaneIdRef = useRef(activePaneId);
@@ -231,18 +239,18 @@ export function App() {
         </div>
       )}
 
-      <ExportImageProvider>
-      <TopBar />
+      <ExportImageProvider shortcutsOff={embed}>
+      <TopBar embed={embed} />
 
       <LineCrossingsContext.Provider value={{ listCrossings }}>
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minWidth: 0 }}>
         {/* Always mounted (renders nothing when hidden): it owns the Touchstone trace reconciliation. */}
         <input data-testid="app-open-input" ref={sidebarFileInput} type="file" accept={DATA_FILE_ACCEPT} multiple hidden onChange={event => { if (event.target.files?.length) void importFiles(event.target.files); event.target.value = ''; }} />
-        <Sidebar width={leftPanelWidth} onLoadDemo={() => void loadDemo()} onOpenFiles={() => sidebarFileInput.current?.click()} onThresholdCrossings={listCrossings} />
-        {showSidebar && <PanelResizeHandle side="left" onMouseDown={startResize('left')} />}
+        <Sidebar hidden={embed} width={leftPanelWidth} onLoadDemo={() => void loadDemo()} onOpenFiles={() => sidebarFileInput.current?.click()} onThresholdCrossings={listCrossings} />
+        {showSidebar && !embed && <PanelResizeHandle side="left" onMouseDown={startResize('left')} />}
         <ChartWorkspace />
-        {showRightPanel && <PanelResizeHandle side="right" onMouseDown={startResize('right')} />}
-        <RightPanelStack width={rightPanelWidth} />
+        {showRightPanel && !embed && <PanelResizeHandle side="right" onMouseDown={startResize('right')} />}
+        {!embed && <RightPanelStack width={rightPanelWidth} />}
       </div>
       </LineCrossingsContext.Provider>
 

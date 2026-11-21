@@ -21,11 +21,13 @@ function downloadTextFile(fileName: string, text: string, mimeType: string) {
 }
 
 interface TopBarProps {
+  /** Embed mode (landing page frame): the brand links back to the site, out of the frame. */
+  embed?: boolean;
   onOpen?: () => void;
   onExport?: () => void;
 }
 
-export function TopBar({ onOpen, onExport }: TopBarProps = {}) {
+export function TopBar({ embed = false, onOpen, onExport }: TopBarProps = {}) {
   const ui = useUiState();
   const dispatch = useUiDispatch();
   const { downloadWorkspace, loadFromFile } = useWorkspace();
@@ -40,6 +42,7 @@ export function TopBar({ onOpen, onExport }: TopBarProps = {}) {
   const hasTraces = imageExport ? allTraces.length > 0 : visibleTraces.length > 0;
   const openExport = onExport ?? imageExport?.openDialog;
   useShortcut('export', () => {
+    if (embed) return; // no Export button in the landing frame: take the key, do nothing
     if (!exportButton.current || exportButton.current.disabled) return false;
     if (openExport) openExport();
     else setExportMenu(exportButton.current);
@@ -56,11 +59,15 @@ export function TopBar({ onOpen, onExport }: TopBarProps = {}) {
   // so a wrapped second line of groups does not move them. The divider before the groups stretches with the bar
   // (by layout, not by measuring), so it spans both lines when the groups wrap, with the same inset above and
   // below that centres a 20 px divider on one line. (Clear workspace… lives in the Files ⋯ menu.)
+  const brandStyle = { display: 'inline-flex', alignItems: 'center', gap: '0.4em', whiteSpace: 'nowrap', fontSize: 'var(--font-title)', fontWeight: 'var(--fw-semibold)', marginRight: 8, color: 'inherit', textDecoration: 'none' } as const;
+  const brand = <><BrandMark /><span>Mergen <span style={{ color: 'var(--accent)' }}>Scope</span></span></>;
   const cluster = { display: 'flex', alignItems: 'center', alignSelf: 'flex-start', gap: 4, height: 'var(--top-row-height)', flex: 'none' } as const;
   return <div style={{ minHeight: 'var(--top-row-height)', display: 'flex', alignItems: 'stretch', gap: 4, padding: '0 8px', background: 'var(--panel)', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
     <style>{'@media (max-width: 1279px) { .topbar-action-label { display: none; } } .ui-btn.topbar-panel-toggle { height: var(--control-height); min-height: 0; gap: 5px; }'}</style>
     <div style={cluster}>
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4em', whiteSpace: 'nowrap', fontSize: 'var(--font-title)', fontWeight: 'var(--fw-semibold)', marginRight: 8 }}><BrandMark /><span>Mergen <span style={{ color: 'var(--accent)' }}>Scope</span></span></span>
+    {embed ? <a href="/" target="_top" data-testid="topbar-brand-link" style={brandStyle}>{brand}</a> : <span style={brandStyle}>{brand}</span>}
+    {/* Embed mode keeps the brand and the tool groups only: the panels and file actions do nothing in the landing frame. */}
+    {!embed && <>
     <Btn variant="chip" tone="left" active={ui.showSidebar} className="topbar-panel-toggle" title="Toggle left panel" onClick={() => toggle('showSidebar', ui.showSidebar)}>{panelIcon('M3 4h18v16H3zM9 4v16')}Left</Btn>
     <span aria-hidden="true" style={{ height: 20, borderLeft: '1px solid var(--border)', margin: '0 4px' }} />
     <input data-testid="topbar-workspace-input" type="file" ref={fileInputRef} style={{ display: 'none' }} accept=".json" onChange={e => { if (e.target.files?.[0]) loadFromFile(e.target.files[0]); e.target.value = ''; }} />
@@ -69,11 +76,12 @@ export function TopBar({ onOpen, onExport }: TopBarProps = {}) {
     <Btn ref={exportButton} title={hasTraces || onExport ? `Export… (${shortcutText('export')})` : 'Load a trace to export'} aria-label="Export" aria-haspopup={openExport ? 'dialog' : 'menu'} aria-expanded={openExport ? undefined : exportMenu !== null} active={exportMenu !== null} disabled={!onExport && !hasTraces}
       onClick={event => { if (openExport) openExport(); else setExportMenu(exportMenu ? null : event.currentTarget); }}>{icon(<><path d="M12 3v12m-4-4 4 4 4-4"/><path d="M4 17v4h16v-4"/></>)}<span className="topbar-action-label">Export…</span></Btn>
     {exportMenu && <PopoverAt label="Export" at={exportMenu} onClose={() => setExportMenu(null)}><ExportMenu onClose={() => setExportMenu(null)} onExportCsv={exportVisibleCsv} csvReason={visibleTraces.length ? null : 'Load a trace to export'} /></PopoverAt>}
+    </>}
     </div>
     <span data-testid="topbar-groups-divider" aria-hidden="true" style={{ alignSelf: 'stretch', flex: 'none', width: 0, borderLeft: '1px solid var(--border)', margin: 'calc((var(--top-row-height) - 20px) / 2) 4px' }} />
     <ToolGroups />
-    <div style={{ ...cluster, marginLeft: 'auto' }}>
+    {!embed && <div style={{ ...cluster, marginLeft: 'auto' }}>
       <Btn variant="chip" tone="analysis" active={ui.showRightPanel} className="topbar-panel-toggle" onClick={() => toggle('showRightPanel', ui.showRightPanel)}>{panelIcon('M3 4h18v16H3zM15 4v16')}Analysis</Btn>
-    </div>
+    </div>}
   </div>;
 }
