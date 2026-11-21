@@ -1,6 +1,10 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { expect, it, vi } from 'vitest';
 import { Menu } from '../../src/components/left-panel/Menu';
+import { initialWorkspaceEngine, workspaceEngineReducer } from '../../src/stores/aggregate-workspace-store';
+import { defaultPaneState, paneReducer } from '../../src/stores/pane-store';
+import { makeComplexDisplayTrace } from '../../src/types/display';
+import { makeTestTrace } from './helpers';
 
 it('keeps duplicate pane titles distinct when their stable IDs reorder', () => {
   const one = vi.fn();
@@ -26,9 +30,7 @@ it('keeps duplicate pane titles distinct when their stable IDs reorder', () => {
   } finally { errors.mockRestore(); }
 });
 
-it('allocates from current state for queued creations and after undo', async () => {
-  const { initialWorkspaceEngine, workspaceEngineReducer } = await import('../../src/stores/aggregate-workspace-store');
-  const { makeTestTrace } = await import('./helpers');
+it('allocates from current state for queued creations and after undo', () => {
   const trace = makeTestTrace();
   const initial = initialWorkspaceEngine();
   let engine = { ...initial, present: { ...initial.present, traces: { ...initial.present.traces, derivedTraces: [trace] }, panes: { ...initial.present.panes, tracePaneMap: { [trace.name]: ['pane-1'] } } } };
@@ -48,9 +50,7 @@ it('allocates from current state for queued creations and after undo', async () 
   expect(workspaceEngineReducer(initial, stale).present).toBe(initial.present);
 });
 
-it('falls back from Smith to a compatible chart for a new pane', async () => {
-  const { defaultPaneState, paneReducer } = await import('../../src/stores/pane-store');
-  const { makeTestTrace } = await import('./helpers');
+it('falls back from Smith to a compatible chart for a new pane', () => {
   const trace = makeTestTrace();
   const state = { ...defaultPaneState, panes: defaultPaneState.panes.map(pane => ({ ...pane, renderMode: 'smith' as const })) };
   const next = paneReducer(state, { type: 'CREATE_PANE_WITH_TRACE', limit: 4, payload: { trace, allTraces: [trace] } });
@@ -58,9 +58,7 @@ it('falls back from Smith to a compatible chart for a new pane', async () => {
   expect(next.tracePaneMap[trace.name]).toEqual(['pane-2']);
 });
 
-it('permits eight panes only with the experimental limit and stops at eight', async () => {
-  const { defaultPaneState, paneReducer } = await import('../../src/stores/pane-store');
-  const { makeTestTrace } = await import('./helpers');
+it('permits eight panes only with the experimental limit and stops at eight', () => {
   const trace = makeTestTrace();
   const action = { type: 'CREATE_PANE_WITH_TRACE' as const, limit: 8 as const, payload: { trace, allTraces: [trace] } };
   let state = defaultPaneState;
@@ -72,10 +70,7 @@ it('permits eight panes only with the experimental limit and stops at eight', as
   expect(paneReducer(state, action)).toBe(state);
 });
 
-it('preserves Smith for a compatible reflection trace in a new pane', async () => {
-  const { defaultPaneState, paneReducer } = await import('../../src/stores/pane-store');
-  const { makeComplexDisplayTrace } = await import('../../src/types/display');
-  const { makeTestTrace } = await import('./helpers');
+it('preserves Smith for a compatible reflection trace in a new pane', () => {
   const trace = makeTestTrace();
   const display = makeComplexDisplayTrace(trace.id, 'dataset', 'network', { sourceType: 'network-parameter', parameterFamily: 'S', basis: 'native', row: 0, col: 0, component: 'complex' }, [], { xUnit: 'Hz', semantics: 'network-parameter' });
   const state = { ...defaultPaneState, panes: defaultPaneState.panes.map(pane => ({ ...pane, renderMode: 'smith' as const })) };
