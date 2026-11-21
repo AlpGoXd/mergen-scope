@@ -87,13 +87,13 @@ export interface PaneTableOptions {
   readonly visible: TableVisibleRange;
 }
 export interface PaneActions {
-  /** Image actions; null when the pane has nothing to draw (no traces, or a Table pane). */
+  /** Image actions; null when the pane has no traces. */
   readonly onCopyImage: (() => void) | null;
   readonly onDownloadImage: (() => void) | null;
   readonly onDownloadSvg: (() => void) | null;
-  /** Null for panes LaTeX cannot draw yet (Smith). */
+  /** Null when the pane has no traces, and for Table panes (they export as an image or CSV). */
   readonly onCopyLatex: (() => void) | null;
-  /** "Export…": the full dialog later; for now the image Options popover. */
+  /** "Export…": the export dialog for this pane. */
   readonly onExportOptions: (() => void) | null;
   /** CSV of the pane's traces; null when the pane has nothing to export. */
   readonly onExportData: (() => void) | null;
@@ -235,7 +235,7 @@ export function PaneSettingsPopover({
                 ['Export…', 'Export… (Ctrl+Shift+E)', actions.onExportOptions],
               ] as const).map(([label, title, run]) => run
                 ? <Btn key={label} small title={title} onClick={() => { close(); run(); }}>{label}</Btn>
-                : <Tooltip key={label} text="This pane has nothing to export"><Btn small disabled>{label}</Btn></Tooltip>)}
+                : <Tooltip key={label} text={label === 'Copy as LaTeX' && actions.onCopyImage ? 'Table panes export as an image or CSV' : 'This pane has nothing to export'}><Btn small disabled>{label}</Btn></Tooltip>)}
               <span className="pset-actions__gap" />
               {actions.onClose
                 ? <Btn small className="pset-close" onClick={() => { close(); actions.onClose?.(); }}>Close pane</Btn>
