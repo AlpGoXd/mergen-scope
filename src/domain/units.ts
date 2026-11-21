@@ -378,7 +378,7 @@ export function isDbRatioUnit(unit: string | null | undefined): boolean {
 /** Whether the unit is a logarithmic level (dB with a reference). */
 export function isLogLevelUnit(unit: string | null | undefined): boolean {
   const u = normalizeUnitName(unit);
-  return ["dbm", "dbw", "dbuv", "db\u00b5v", "db\u03bcv", "dbmv"].includes(u);
+  return ["dbm", "dbw", "dbv", "dbuv", "db\u00b5v", "db\u03bcv", "dbmv"].includes(u);
 }
 
 /** Whether the unit uses a logarithmic scale (dB-based). */
