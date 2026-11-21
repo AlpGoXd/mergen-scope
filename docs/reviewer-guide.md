@@ -38,7 +38,7 @@ In *S11 Match | Smith*, use the **Range** bar under the chart: drag either handl
 
 ### 6. FFT (1 min)
 
-In the Traces list, click *waveform_sinc_test.csv signal_1khz*. In the Analysis panel, click **+ Add analysis**, choose **FFT**, then **Create trace**. Try another window, Averages or Scale; the created "FFT · signal_1kHz" trace follows the card. It goes into the first pane with a frequency axis, *S21 Gain*, whose GHz range hides a kHz spectrum. To see it, untick the three *cascaded chain.s2p* traces in the Traces list and double-click *S21 Gain* to fit it.
+In the Traces list, click *waveform_sinc_test.csv signal_1khz*. In the Analysis panel, click **+ Add analysis**, choose **FFT**, then **Create trace**. Try another window, Averages or Scale; the created "FFT · signal_1kHz" trace follows the card. The spectrum appears straight away. The demo already has four panes, so it joins *S21 Gain*, the nearest frequency pane, and that pane zooms to 0–50 kHz. Double-click *S21 Gain* to see the whole sweep again.
 
 ### 7. Export as image, SVG and LaTeX (1 min)
 

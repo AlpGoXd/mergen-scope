@@ -23,6 +23,7 @@ Beta 2 is for outside reviewers. It adds no new analysis tools; it finishes expo
 ### Analysis
 
 - There are no new tools in this beta. FFT, the waveform measurements and the other tools from beta 1 work as before.
+- Create trace on an FFT card puts the spectrum where you can see it. It goes into a frequency pane whose visible range overlaps it, or else into a new pane. When four panes are already open, it joins the nearest frequency pane, and that pane zooms to the spectrum.
 - Analysis cards now use the same text sizes as the rest of the app at every Size setting.
 
 ### Export
@@ -33,6 +34,7 @@ Beta 2 is for outside reviewers. It adds no new analysis tools; it finishes expo
 - TikZ exports a ready-to-paste PGFPlots figure, with Preview and Code tabs. Several chart panes become one groupplots figure. Traces are thinned to 2,000 points by default; choose All to keep every point. The data can stay inline or go in .dat files in a ZIP.
 - You can include marker tags, a marker table, reference lines, the grid and the date. Axis titles are filled in from the units and can be edited per pane. Each pane gets its own legend.
 - CSV covers all panes by default, with full data or the visible X range, visible or all traces, and optional markers.
+- In every export, a legend name too wide for its pane wraps onto a second line, and a Y title taller than its plot shows only its unit. The TikZ preview grows the way the LaTeX figure does, instead of squeezing the plots.
 - Copy image (Ctrl+Shift+C) and Download image (Ctrl+Shift+S) work on the target pane without opening the dialog.
 
 ### Import
@@ -43,6 +45,7 @@ Beta 2 is for outside reviewers. It adds no new analysis tools; it finishes expo
 ### App
 
 - The footer shows what a click does now, the target pane, the active trace, and the mouse position in axis units. Mouse hints follow the pane type, and four quiet buttons sit at the right: Local only, Feedback, Settings and Help.
+- Questions now appear in the app's own centred dialog, and each says what will be lost: opening a file that is already open (Replace or Add as a new file), replacing the workspace, and removing a file, trace or pane that has markers. Esc cancels.
 - **Feedback** in the footer opens a GitHub issue form or GitHub Discussions in a new tab. There is also a form for people without a GitHub account. Nothing is attached automatically, never your files.
 - App settings (Ctrl+, or the footer gear) is a centred panel with Theme (Light, Dark, System), Size (Compact, Comfortable, Large), the colour-blind palette, trace symbols, the export theme and the experimental 8-pane option.
 - Help (Shift+/ or the footer ?) lists every keyboard shortcut and mouse gesture that works. Help and About both show the version, 1.0.0-beta.2.
@@ -54,22 +57,21 @@ Beta 2 is for outside reviewers. It adds no new analysis tools; it finishes expo
 
 ### Opening files
 
-- Opening a file whose name is already open asks in a browser prompt (type "replace" or "copy"). Replacing the workspace and removing a file or pane that has markers also use plain browser dialogs. They will become in-app dialogs.
 - Replace file… and changing a CSV's column settings after it is open are not available yet. Close the file and open it again.
 - There is no progress bar while a large file is read.
 
 ### Panes and charts
 
 - Polar and Spectrogram are planned chart types. They appear greyed out, labelled "later" or "needs data".
-- When markers sit close together in a narrow pane, their tags can overlap. Labels of close vertical lines can overlap too.
-- The FFT trace goes into the first pane with a frequency axis, even when that pane spans GHz, so it can be squeezed against 0 Hz. Hide the other traces in that pane and double-click to fit. A pane zoomed to a range with no samples says "No visible traces in this pane", even when a trace is ticked.
+- When markers sit close together in a narrow pane, their tags can overlap (the demo is laid out so they don't). Labels of close vertical lines can overlap too.
+- With four panes open, the FFT trace joins the nearest frequency pane and zooms it to the spectrum, so that pane's other traces may be out of view. Double-click the pane to fit everything. A pane zoomed to a range with no samples says "No visible traces in this pane", even when a trace is ticked.
 - Markers have no right-click menu yet. Use + Marker ▾ for a delta, Search › Peak to move a marker to the peak, and Delete or × to remove one.
 - Ctrl+scroll does not zoom X. Right-drag zooms an X range instead (see Help).
 - Four panes is the default limit. Up to eight is an experimental setting.
 
 ### Smith
 
-- In a small Smith pane the start and end frequency labels can overlap the grid labels.
+- In a small Smith pane the start and end frequency labels can overlap the grid labels (not in the demo).
 - Smith zoom resets when the pane is redrawn (for example after reopening a workspace).
 - Z11 and Y11 cannot be shown on a Smith chart yet.
 
