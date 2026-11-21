@@ -1,7 +1,7 @@
 // Captures the landing page images from the real app, so they cannot go stale:
 //   landing-assets/img/app-embed-light.webp, app-embed-dark.webp  (app.html?demo=1&embed=1, 1440×900 @2x)
-//   landing-assets/img/export-pane1.svg                            (Export dialog › This pane › SVG › Save SVG, pane 1)
-//   landing-assets/img/export-pane1.tex                            (Export dialog › This pane › TikZ › Save .tex, pane 1)
+//   landing-assets/img/export-pane1.svg                            (Pane 1 settings › Download SVG)
+//   landing-assets/img/export-pane1.tex                            (Pane 1 settings › Copy as LaTeX)
 // Run with `npm run capture:landing`. It starts its own dev server unless CAPTURE_BASE points at one.
 import { spawn } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -57,27 +57,9 @@ async function toWebp(page, png, quality) {
   return Buffer.from(dataUrl.slice(dataUrl.indexOf(',') + 1), 'base64');
 }
 
-/** The Export dialog for pane 1 alone, set to `format` (its button label: 'SVG', 'TikZ'), with the app's default options. */
-async function openExportDialog(page, format) {
-  // Pane 1 becomes the target pane by a click on its header; Export… then opens the dialog.
-  await page.getByTestId('chart-pane-header-pane-1').click({ position: { x: 8, y: 8 } });
-  await page.getByRole('button', { name: 'Export', exact: true }).click();
-  const dialog = page.getByRole('dialog', { name: /^Export/ });
-  await dialog.waitFor();
-  await dialog.getByRole('button', { name: 'This pane', exact: true }).click();
-  await dialog.getByRole('button', { name: format, exact: true }).click();
-  const heading = await dialog.getByRole('heading').first().innerText();
-  if (!heading.includes('S21 Gain')) throw new Error(`Export dialog is for "${heading}", not pane 1`);
-  return dialog;
-}
-
-async function saveFrom(page, dialog, button) {
-  const download = page.waitForEvent('download');
-  await dialog.getByRole('button', { name: button, exact: true }).click();
-  const text = await readFile(await (await download).path(), 'utf8');
-  await page.keyboard.press('Escape');
-  await dialog.waitFor({ state: 'hidden' });
-  return text;
+async function openPaneSettings(page) {
+  await page.getByTestId('chart-pane-header-pane-1').getByTitle('Pane settings').click();
+  return page.locator('.ui-popover').filter({ has: page.getByRole('button', { name: 'Download SVG', exact: true }) });
 }
 
 try {
@@ -99,18 +81,33 @@ try {
     await context.close();
   }
 
-  const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, acceptDownloads: true });
-  await context.addInitScript(() => { try { localStorage.setItem('mergen-theme-preference', 'light'); } catch { /* ignore */ } });
+  const context = await browser.newContext({
+    viewport: { width: 1440, height: 900 },
+    acceptDownloads: true,
+    permissions: ['clipboard-read', 'clipboard-write'],
+  });
+  await context.addInitScript(() => {
+    localStorage.setItem('mergen-theme-preference', 'light');
+    localStorage.setItem('mergen-export-image-options', JSON.stringify({ size: 'ieee-1', dpi: 600, theme: 'print' }));
+  });
   const page = await context.newPage();
   await openDemo(page, 'demo=1');
 
-  const svg = await saveFrom(page, await openExportDialog(page, 'SVG'), 'Save SVG');
-  if (!svg.includes('<svg')) throw new Error('Save SVG did not produce an SVG file');
+  const settings = await openPaneSettings(page);
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    settings.getByRole('button', { name: 'Download SVG', exact: true }).click(),
+  ]);
+  const svg = await readFile(await download.path(), 'utf8');
+  if (!svg.includes('<svg')) throw new Error('Download SVG did not produce an SVG file');
   writeFileSync(resolve(outDir, 'export-pane1.svg'), svg, 'utf8');
   console.log('wrote export-pane1.svg');
 
-  const tex = await saveFrom(page, await openExportDialog(page, 'TikZ'), 'Save .tex');
-  if (!tex.includes('\\begin{tikzpicture}')) throw new Error('Save .tex did not produce a TikZ figure');
+  if (!(await settings.isVisible())) await openPaneSettings(page);
+  await settings.getByRole('button', { name: 'Copy as LaTeX', exact: true }).click();
+  await page.locator('.ui-toast').filter({ hasText: 'copied as LaTeX' }).waitFor();
+  const tex = await page.evaluate(() => navigator.clipboard.readText());
+  if (!tex.includes('\\begin{tikzpicture}')) throw new Error('Copy as LaTeX did not produce a TikZ figure');
   writeFileSync(resolve(outDir, 'export-pane1.tex'), tex.replace(/\r\n/g, '\n'), 'utf8');
   console.log('wrote export-pane1.tex');
 

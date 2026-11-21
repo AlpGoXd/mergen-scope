@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 
 const ORIGIN = 'http://127.0.0.1:4173';
@@ -56,4 +57,18 @@ test('the theme switch reloads the frame in the new theme', async ({ page }) => 
   expect(await page.evaluate(() => localStorage.getItem('mergen-theme-preference'))).toBe('dark');
   await expect(page.locator('[data-live-frame]')).toHaveClass(/is-loaded/);
   await expect(page.frameLocator('[data-live-frame] iframe').getByTestId('app-root')).toHaveClass(/theme-dark/);
+});
+
+test('the landing uses content-versioned URLs for its cacheable assets', async ({ page }) => {
+  await page.goto('/');
+  const assets = await page.locator(
+    'link[href^="landing-assets/landing.css"], script[src^="landing-assets/landing.js"], img[src^="landing-assets/img/"], [data-tex]',
+  ).evaluateAll(nodes => nodes.map(node => node.getAttribute('src') ?? node.getAttribute('href') ?? node.getAttribute('data-tex')!));
+  expect(assets).toHaveLength(6);
+  for (const asset of assets) {
+    const url = new URL(asset, ORIGIN);
+    const contents = readFileSync(new URL(`../../dist${url.pathname}`, import.meta.url));
+    const revision = createHash('sha256').update(contents).digest('hex').slice(0, 12);
+    expect(url.searchParams.get('v'), url.pathname).toBe(revision);
+  }
 });

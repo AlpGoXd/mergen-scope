@@ -2,6 +2,7 @@ import { build, defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import { viteSingleFile } from "vite-plugin-singlefile";
 import { resolve } from "path";
+import { createHash } from "node:crypto";
 import { copyFileSync, cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 
 /**
@@ -89,7 +90,15 @@ function copyRuntimeAssets(): Plugin {
           const dest = resolve(outputDir, file);
           if (file === "index.html") {
             const { version } = JSON.parse(readFileSync(resolve(__dirname, "package.json"), "utf8")) as { version: string };
-            const html = readFileSync(src, "utf8");
+            // Landing assets retain a long cache lifetime. A release must use
+            // the stylesheet, script and examples that belong to its HTML.
+            const html = readFileSync(src, "utf8").replace(
+              /"(landing-assets\/(?:landing\.(?:css|js)|img\/[\w.-]+))"/g,
+              (_match, asset: string) => {
+                const revision = createHash("sha256").update(readFileSync(resolve(__dirname, asset))).digest("hex").slice(0, 12);
+                return `"${asset}?v=${revision}"`;
+              },
+            );
             // Every <span data-version> (hero and footer) shows the package version.
             const versionSpan = /(<span\b[^>]*\bdata-version\b[^>]*>)[^<]*(<\/span>)/g;
             if (versionSpan.test(html)) {

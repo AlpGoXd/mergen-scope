@@ -1,27 +1,23 @@
 % Mergen Scope: S21 Gain | 3 dB BW, 2026-11-21
 % Preamble: \usepackage{pgfplots} \pgfplotsset{compat=1.18}
-\definecolor{msTraceApaneB}{RGB}{65,88,189}
-\definecolor{msTraceBpaneB}{RGB}{166,47,95}
-\definecolor{msTraceCpaneB}{RGB}{168,53,57}
+\definecolor{msTraceA}{RGB}{86,113,216}
+\definecolor{msTraceB}{RGB}{194,73,118}
+\definecolor{msTraceC}{RGB}{154,40,46}
 \begin{figure}[t]
   \centering
   \begin{tikzpicture}
     \begin{axis}[
-      width=\columnwidth, height=0.675595\columnwidth,
+      width=\columnwidth, height=0.62\columnwidth,
       xmin=0.329601, xmax=2.98368, ymin=-112.648, ymax=65.562,
-      xlabel={Frequency (GHz)}, ylabel={Magnitude (dB)},
-      xtick={0.5,1,1.5,2,2.5,3},
-      xticklabels={0.5,1.0,1.5,2.0,2.5,3.0},
-      ytick={-100,-50,0,50},
-      yticklabels={-100,-50,0,50},
+      xlabel={Frequency (GHz)}, ylabel={Amplitude (dB)},
       grid=major, grid style={gray!30, line width=0.4pt}, axis line style={black},
-      tick label style={font=\fontsize{8}{10}\selectfont}, label style={font=\fontsize{8}{10}\selectfont},
+      tick label style={font=\footnotesize}, label style={font=\footnotesize},
       scaled ticks=false, tick align=inside, clip=true,
       every axis plot/.append style={line width=0.75pt, mark size=2.5pt},
       legend style={at={(0.5,0)}, yshift=-32pt, anchor=north, draw=none, font=\scriptsize, cells={anchor=west}},
       legend columns=1, legend cell align=left,
     ]
-      \addplot[color=msTraceApaneB, solid, mark=o, mark repeat=8, mark phase=1, mark options={solid}] coordinates {
+      \addplot[color=msTraceA, solid, mark=o, mark repeat=8, mark phase=1, mark options={solid}] coordinates {
         (0.34001,-0.766116) (0.38251,-1.35402) (0.425009,-2.29322) (0.467509,-2.49317) (0.510009,-2.57385) (0.552509,-2.90733)
         (0.595009,-3.44022) (0.637509,-4.0938) (0.680009,-5.05504) (0.722509,-6.31101) (0.765009,-7.6406) (0.807509,-8.98438)
         (0.850009,-10.4874) (0.892509,-12.028) (0.935009,-13.0969) (0.977509,-13.6477) (1.02001,-13.8043) (1.06251,-13.3745)
@@ -34,8 +30,8 @@
         (2.63501,-11.7242) (2.67751,-10.9704) (2.72001,-11.4815) (2.76251,-10.9873) (2.80501,-10.8039) (2.84751,-10.3334)
         (2.89001,-9.96881) (2.93251,-10.106) (2.97501,-10.2035)
       };
-      \addlegendentry{S11 $\cdot$ dB}
-      \addplot[color=msTraceBpaneB, solid, mark=square, mark repeat=8, mark phase=4, mark options={solid}] coordinates {
+      \addlegendentry{cascaded chain.s2p S11 magnitude-db}
+      \addplot[color=msTraceB, solid, mark=square, mark repeat=8, mark phase=4, mark options={solid}] coordinates {
         (0.34001,-66.2566) (0.38251,-64.6291) (0.425009,-55.0443) (0.467509,-53.3069) (0.510009,-59.8691) (0.552509,-57.5749)
         (0.595009,-62.7512) (0.637509,-58.048) (0.680009,-55.2905) (0.722509,-58.8888) (0.765009,-58.1608) (0.807509,-55.6395)
         (0.850009,-58.2892) (0.892509,-81.7975) (0.935009,-47.3759) (0.977509,-34.7188) (1.02001,-23.1235) (1.06251,-11.9827)
@@ -48,8 +44,8 @@
         (2.63501,-42.6012) (2.67751,3.43309) (2.72001,12.0818) (2.76251,23.9485) (2.80501,18.5592) (2.84751,20.5759)
         (2.89001,25.8356) (2.93251,26.4948) (2.97501,24.2094)
       };
-      \addlegendentry{S21 $\cdot$ dB}
-      \addplot[color=msTraceCpaneB, solid, mark=o, mark repeat=8, mark phase=6, mark options={solid}] coordinates {
+      \addlegendentry{cascaded chain.s2p S21 magnitude-db}
+      \addplot[color=msTraceC, solid, mark=o, mark repeat=8, mark phase=6, mark options={solid}] coordinates {
         (0.34001,-62.332) (0.38251,-61.6087) (0.425009,-60.9252) (0.467509,-60.0732) (0.510009,-59.8147) (0.552509,-59.0746)
         (0.595009,-58.1094) (0.637509,-57.533) (0.680009,-59.9651) (0.722509,-59.4259) (0.765009,-57.1395) (0.807509,-54.0076)
         (0.850009,-49.3923) (0.892509,-44.0569) (0.935009,-37.8264) (0.977509,-29.9957) (1.02001,-21.171) (1.06251,-12.4621)
@@ -62,14 +58,12 @@
         (2.63501,-23.522) (2.67751,-15.9997) (2.72001,-8.58336) (2.76251,-1.44993) (2.80501,5.78538) (2.84751,14.4955)
         (2.89001,20.5593) (2.93251,22.5384) (2.97501,23.8698)
       };
-      \addlegendentry{smoothed $\cdot$ MA 11}
+      \addlegendentry{cascaded chain.s2p S21 magnitude-db $\cdot$ smoothed $\cdot$ MA 11}
       \draw[gray, dashed, line width=0.5pt] (axis cs:0.329601,37.1584) -- (axis cs:2.98368,37.1584) node[pos=0.02, anchor=south west, font=\scriptsize, text=black] {H1};
-      \node[font=\scriptsize,inner sep=0pt,outer sep=1pt] (msTagpane-1-1) at ([xshift=0pt,yshift=10.125pt]axis cs:1.27501,40.1584) {M1 1.275 GHz};
-      \draw[black!45,line width=0.45pt] (axis cs:1.27501,40.1584) -- (msTagpane-1-1);
-      \node[circle, fill=msTraceBpaneB, draw=black, inner sep=1.2pt] at (axis cs:1.27501,40.1584) {};
-      \node[font=\scriptsize,inner sep=0pt,outer sep=1pt] (msTagpane-1-2) at ([xshift=0pt,yshift=10.125pt]axis cs:1.82751,5.63623) {DM2 1.828 GHz};
-      \draw[black!45,line width=0.45pt] (axis cs:1.82751,5.63623) -- (msTagpane-1-2);
-      \node[circle, fill=msTraceBpaneB, draw=black, inner sep=1.2pt] at (axis cs:1.82751,5.63623) {};
+      \node[circle, fill=msTraceB, draw=black, inner sep=1.2pt, pin={[font=\scriptsize, pin distance=7pt, pin edge={black, thin}]90:{M1 1.275 GHz}}] at (axis cs:1.27501,40.1584) {};
+      \node[circle, fill=msTraceB, draw=black, inner sep=1.2pt, pin={[font=\scriptsize, pin distance=7pt, pin edge={black, thin}]90:{DM2 1.828 GHz}}] at (axis cs:1.82751,5.63623) {};
     \end{axis}
   \end{tikzpicture}
+  \caption{S21 Gain \textbar{} 3 dB BW.}
+  \label{fig:s21-gain-3-db-bw}
 \end{figure}
