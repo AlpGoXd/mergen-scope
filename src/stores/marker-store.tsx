@@ -64,7 +64,7 @@ export function markerReducer(state: MarkerState, action: MarkerAction): MarkerS
       let current = state;
       for (let index = current.markers.length - 1; index >= 0; index--) {
         const marker = current.markers[index];
-        if (marker?.label && roles.has(marker.label)) current = markerReducer(current, { type: 'REMOVE_MARKER', payload: index });
+        if (marker?.label && marker.trace === trace.name && roles.has(marker.label)) current = markerReducer(current, { type: 'REMOVE_MARKER', payload: index });
       }
       for (const item of items) {
         if (!Number.isFinite(item.freq)) continue;
@@ -76,7 +76,7 @@ export function markerReducer(state: MarkerState, action: MarkerAction): MarkerS
       const { idx, label } = action.payload;
       const target = state.markers[idx];
       if (!target || target.type === 'delta') return state;
-      return { ...state, markers: state.markers.map((marker, index) => index === idx ? { ...marker, label } : (label && marker.label === label ? { ...marker, label: null } : marker)) };
+      return { ...state, markers: state.markers.map((marker, index) => index === idx ? { ...marker, label } : (label && marker.label === label && marker.trace === target.trace ? { ...marker, label: null } : marker)) };
     }
     case 'PLACE_MARKER': {
       const { targetFreq, trace, markerType = 'normal', label = null, refId = null, magneticSnap } = action.payload;
