@@ -6,19 +6,22 @@
 
 ## Folder, branches and worktrees
 
-- Work happens in **one folder**: `gits/mergen-scope`. There is no `gits/mergen-scope-beta-2` and no `beta-2` branch any more.
+- Normally work happens in **one folder**: `gits/mergen-scope`. There is no `gits/mergen-scope-beta-2` and no `beta-2` branch any more.
+- **Parallel mode** (only when the user asks for it): each writer owns exactly one folder. `gits/mergen-scope` belongs to the user's agent; Claude and its Codex jobs work in `gits/_worktrees/claude-dev`. Never edit, switch branches in, or run git commands that write in a folder you don't own. In parallel mode only Claude merges into `dev`.
 - `main` is the released line. Never commit on it, never touch it.
 - `dev` is the integration branch. Task branches are made from `dev` and named `type/kebab-slug` (`feat/`, `fix/`, `chore/`, `codex/`).
-- **When you are given a task, your branch is already checked out** in `gits/mergen-scope`. Work and commit there. Check with `git branch --show-current`; if you are on `dev` or `main` instead, stop and report.
+- **When you are given a task, your branch is already checked out** in the folder you were started in. Work and commit there. Check with `git branch --show-current` before you start and before you commit. If it is not the branch your task names, or it changes while you work, or files you didn't touch show up in `git status` or the index, **stop at once and report**. Don't work around it.
+- **Writer lock:** the folder may hold `$(git rev-parse --git-dir)/mergen-writer.lock`. While it exists, the pre-commit hook refuses commits on any other branch and commits with files outside your allowed paths. A refusal means something is wrong: stop and report. Never delete the lock and never bypass the hook (`--no-verify`).
 - **Do not create worktrees, copies of the repo, or git bundles.** Not under `gits/_worktrees/`, not in a temp folder, not "for verification". If you think you need an isolated copy, stop and say why.
+- **Ports:** e2e reuses a dev server that is already running on its port. In `gits/_worktrees/claude-dev`, always set `PW_PORT=5183` for Playwright so you never test another folder's server. The default 5173 belongs to `gits/mergen-scope`.
 - Never merge, never push, never deploy. The coordinator (Claude) reviews your branch and merges it into `dev`.
 - Never delete a branch, never rewrite history: no `git reset --hard`, rebase, `git clean`, force-push or `--force` anything. Never delete or edit `.git` metadata.
 - The working tree may contain uncommitted changes that are not yours (for example `README.md`, `docs/plan.md`, `package-lock.json`). Never stage, revert or edit them. Stage only the files you changed, by explicit path (no `git add -A`, no `git add .`).
 
 ## Dependencies
 
-- There is **one** install: `gits/mergen-scope/node_modules`. Use it as is.
-- There is **no** shared install in `gits/`. An old `gits/node_modules` from an earlier policy may still exist. Node falls back to it from any folder under `gits/` without its own `node_modules`, which gives the wrong packages. That is one more reason not to work outside `gits/mergen-scope`.
+- Each folder has its own install (`gits/mergen-scope/node_modules`, and in parallel mode `gits/_worktrees/claude-dev/node_modules`). Use the one in your folder as is.
+- There is **no** shared install in `gits/` (the old `gits/node_modules` was deleted on 2026-11-22). If one reappears, don't use it: Node falls back to it from any folder without its own `node_modules`, which gives the wrong packages.
 - Never run `npm install`, `npm ci` or `npm update`, and never change `package.json` or `package-lock.json`, unless the task explicitly says so. If something is missing from `node_modules`, stop and report it.
 - No new dependencies without the user's OK.
 

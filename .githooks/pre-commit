@@ -1,2 +1,41 @@
 #!/bin/sh
+# Mergen Scope pre-commit hook. Self-contained on purpose: it runs in every worktree, whatever branch is checked out.
+
+# 1. Writer lock. While an agent job owns a folder (a worktree or the main checkout), that folder's git dir holds
+#    a lock file (never tracked): <git-dir>/mergen-writer.lock with three lines:
+#      owner=<who holds it, e.g. codex:chartpane-plot-coords>
+#      branch=<the only branch commits in this folder may land on>
+#      paths=<space-separated files, or directory prefixes ending in "/", the job may commit>
+#    Commits on another branch, or with staged files outside the paths, are refused.
+#    A stale lock is removed with: rm "$(git rev-parse --git-dir)/mergen-writer.lock"
+lock="$(git rev-parse --git-dir)/mergen-writer.lock"
+if [ -f "$lock" ]; then
+  owner=$(sed -n 's/^owner=//p' "$lock")
+  branch=$(sed -n 's/^branch=//p' "$lock")
+  paths=$(sed -n 's/^paths=//p' "$lock")
+  current=$(git branch --show-current)
+  if [ "$current" != "$branch" ]; then
+    echo "writer lock ($owner): commits here must be on '$branch', but '$current' is checked out. Commit refused." >&2
+    echo "Someone else may be writing in this folder. Stop and report; don't switch branches yourself." >&2
+    exit 1
+  fi
+  bad=""
+  for file in $(git diff --cached --name-only); do
+    ok=no
+    for allowed in $paths; do
+      case "$allowed" in
+        */) case "$file" in "$allowed"*) ok=yes ;; esac ;;
+        *) [ "$file" = "$allowed" ] && ok=yes ;;
+      esac
+    done
+    [ "$ok" = yes ] || bad="$bad $file"
+  done
+  if [ -n "$bad" ]; then
+    echo "writer lock ($owner): these staged files are outside the job's allowed paths:$bad" >&2
+    echo "Unstage them (git restore --staged <file>) only if they are yours; if they are not, stop and report." >&2
+    exit 1
+  fi
+fi
+
+# 2. Staged-file guard: no AI and tool leftovers in commits.
 exec sh scripts/check-forbidden-paths.sh --staged
