@@ -183,18 +183,17 @@ export function parseTabularFile(
   const series: DataPoint[][] = config.yCols.map(() => []);
   for (let i = firstDataRow; i < lines.length; i++) {
     const row = lines[i]!.split(config.delimiter);
-    if (row.length <= config.xCol) continue;
-    const xCell = row[config.xCol]!;
-    if (!isNumber(xCell)) continue;
+    const xCell = row[config.xCol];
+    if (xCell === undefined || !isNumber(xCell)) continue;
     const xVal = Number(xCell) * (config.xMult || 1);
     if (!Number.isFinite(xVal)) continue;
 
-    for (let tIdx = 0; tIdx < config.yCols.length; tIdx++) {
-      const yCell = row[config.yCols[tIdx]!];
-      if (yCell === undefined || !isNumber(yCell)) continue;
+    config.yCols.forEach((yCol, tIdx) => {
+      const yCell = row[yCol];
+      if (yCell === undefined || !isNumber(yCell)) return;
       const yVal = Number(yCell) * (config.yMult || 1);
-      if (Number.isFinite(yVal)) series[tIdx]!.push({ freq: xVal, amp: yVal });
-    }
+      if (Number.isFinite(yVal)) series[tIdx]?.push({ freq: xVal, amp: yVal });
+    });
   }
 
   for (let yIdx = 0; yIdx < config.yCols.length; yIdx++) {
@@ -209,7 +208,7 @@ export function parseTabularFile(
         x: xUnit,
         y: pickedYUnit !== undefined ? storedYUnit(pickedYUnit) : inferUnit(String(name), "y"),
       },
-      data: series[yIdx]!,
+      data: series[yIdx] ?? [],
     });
   }
 

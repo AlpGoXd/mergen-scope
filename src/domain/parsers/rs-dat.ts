@@ -45,12 +45,12 @@ export function parseRSDat(text: string, fileName: string): ParsedFile {
   const lines = text.split(/\r?\n/);
   const meta: Record<string, MetadataEntry> = {};
   const traces: RawTrace[] = [];
-  let cur: { trace: RawTrace; data: DataPoint[] } | null = null;
-  const blocks: { trace: RawTrace; data: DataPoint[] }[] = [];
+  // Rows are kept by shape: "pairs" are frequency;amplitude, "singles" are amplitude only.
+  // A block with any pairs is a two-column block, so its single-value rows are rows with a missing cell (e.g. "2;").
+  let cur: { trace: RawTrace; pairs: DataPoint[]; singles: DataPoint[] } | null = null;
+  const blocks: { trace: RawTrace; pairs: DataPoint[]; singles: DataPoint[] }[] = [];
   let inData = false;
   let hadTraceDecl = false;
-  // Values per row (1 = amplitude only, 2 = frequency and amplitude): the first good row of a block sets it.
-  let rowShape: 1 | 2 | null = null;
 
   for (const rawLine of lines) {
     const trimmed = rawLine.trim();
@@ -62,12 +62,9 @@ export function parseRSDat(text: string, fileName: string): ParsedFile {
       if (cells.length > 0 && cells.every(isNumberLike)) {
         // A blank cell before the last value, or a non-finite number, is a bad row: skip it, the block goes on.
         if (!cells.every(isNumber)) continue;
-        const shape = cells.length >= 2 ? 2 : 1;
-        rowShape ??= shape;
-        // A row of the other shape is a row with a missing cell (for example "2;"), not an amplitude at frequency 0.
-        if (shape !== rowShape) continue;
         // One value is an amplitude only; its frequency is filled in later from Start/Stop.
-        cur.data.push(shape === 2 ? { freq: Number(cells[0]), amp: Number(cells[1]) } : { freq: 0, amp: Number(cells[0]) });
+        if (cells.length >= 2) cur.pairs.push({ freq: Number(cells[0]), amp: Number(cells[1]) });
+        else cur.singles.push({ freq: 0, amp: Number(cells[0]) });
         continue;
       }
       inData = false;
@@ -76,8 +73,7 @@ export function parseRSDat(text: string, fileName: string): ParsedFile {
     if (/^Trace$/i.test(parts[0] ?? "") && parts[1] && /^\d+$/.test(parts[1])) {
       hadTraceDecl = true;
       const trace = makeTrace(prefix, fileName, `Tr${parts[1]}`, _fc);
-      cur = { trace, data: [] };
-      rowShape = null;
+      cur = { trace, pairs: [], singles: [] };
       blocks.push(cur);
       traces.push(trace);
       continue;
@@ -94,9 +90,8 @@ export function parseRSDat(text: string, fileName: string): ParsedFile {
       inData = true;
       if (!cur) {
         const trace = makeTrace(prefix, fileName, `Tr${traces.length + 1}`, _fc);
-        cur = { trace, data: [] };
-      rowShape = null;
-      blocks.push(cur);
+        cur = { trace, pairs: [], singles: [] };
+        blocks.push(cur);
         traces.push(trace);
       }
       continue;
@@ -127,7 +122,7 @@ export function parseRSDat(text: string, fileName: string): ParsedFile {
   // Copy each block's data to its own trace (multi-trace files have one block per "Trace;N")
   const withData: RawTrace[] = traces.map((tr) => {
     const block = blocks.find((item) => item.trace === tr);
-    return block ? { ...tr, data: block.data } : tr;
+    return block ? { ...tr, data: block.pairs.length > 0 ? block.pairs : block.singles } : tr;
   });
 
   const sf = (meta["Start"] && typeof meta["Start"] === "object" && "value" in meta["Start"]) ? meta["Start"].value : 0;

@@ -105,6 +105,12 @@ describe("R&S DAT parser: hostile input", () => {
     expect(parsed.traces[0]?.data).toEqual(P([1, 10], [2, 20], [3, 30]));
   });
 
+  it("a truncated first row does not turn a two-column block into an amplitude-only one", () => {
+    resetParserFileCounter();
+    const parsed = parseRSDat(dat("2;", "100;-30", "200;-31", "300;-32"), "bad.dat");
+    expect(parsed.traces[0]?.data).toEqual(P([100, -30], [200, -31], [300, -32]));
+  });
+
   it("amplitude-only rows still get their frequencies from Start and Stop", () => {
     resetParserFileCounter();
     const parsed = parseRSDat(["Start;100;Hz", "Stop;300;Hz", "Trace;1", "Values;", "-10", "-20", "-30"].join("\n"), "amp.dat");
