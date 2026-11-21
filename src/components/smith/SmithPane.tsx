@@ -565,11 +565,11 @@ export function SmithPane({
                   {readout.includes('vswr') && <span className="smith-field" data-field="vswr"><span className="smith-key">VSWR</span>{formatVswr(stripValues.values.vswr)}</span>}
                 </>
               ) : (
-                <span className="smith-field smith-key">outside the measured range</span>
+                <span className="smith-field smith-key smith-hint">outside the measured range</span>
               )}
             </div>
           ) : (
-            <div className="smith-fields"><span className="smith-field smith-key">{traces.length > 0 ? 'Point at a trace to read Z, Γ and VSWR' : SMITH_NO_VALUE}</span></div>
+            <div className="smith-fields"><span className="smith-field smith-key smith-hint">{traces.length > 0 ? 'Point at a trace to read Z, Γ and VSWR' : SMITH_NO_VALUE}</span></div>
           )}
         </div>
       )}

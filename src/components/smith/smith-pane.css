@@ -77,6 +77,8 @@
 }
 .smith-field { display: inline-flex; align-items: center; height: var(--lh-caption); white-space: nowrap; }
 .smith-field.smith-key { margin-right: 0; }
+/* A sentence instead of fields: it shrinks with an ellipsis rather than being cut mid-word. */
+.smith-field.smith-hint { display: block; flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .smith-field[data-field="marker"] > span { margin-right: 0.6ch; }
 .smith-field[data-field="marker"] > .smith-key { margin-right: 0; }
 .smith-step {
