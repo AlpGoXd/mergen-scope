@@ -4,7 +4,7 @@ import { APP_VERSION } from './shortcuts';
 import './help-sheet.css';
 import { useCenteredDialog } from '../../hooks/use-centered-dialog';
 
-/** Feedback destinations shared by the footer menu and Help sheet. */
+/** Feedback destinations shared by the footer menu, the Help sheet and About. */
 export function FeedbackLinks({ menu = false }: { menu?: boolean }) {
   const role = menu ? 'menuitem' : undefined;
   return <><a role={role} href="https://github.com/AlpGoXd/mergen-scope/issues/new/choose" target="_blank" rel="noopener noreferrer">Report a problem ↗</a><a role={role} href="https://github.com/AlpGoXd/mergen-scope/discussions" target="_blank" rel="noopener noreferrer">Suggest an idea ↗</a><a role={role} href="https://tally.so/r/jeoN9x" target="_blank" rel="noopener noreferrer">Feedback without a GitHub account ↗</a></>;
@@ -52,7 +52,7 @@ export function HelpSheet({ onClose, onAbout, focus = 'top' }: { onClose: () => 
   </dialog>;
 }
 
-/** About: name, version, licence, GitHub link and the privacy sentence. */
+/** About: name, version, licence, GitHub link, the feedback links and the privacy sentence. */
 export function AboutPanel({ onClose }: { onClose: () => void }) {
   const dialog = useCenteredDialog();
   return <dialog ref={dialog} className="ui-dialog about-panel" role="dialog" aria-modal="true" aria-label="About Mergen Scope" data-testid="about-panel" onCancel={event => { event.preventDefault(); onClose(); }}>
@@ -61,6 +61,7 @@ export function AboutPanel({ onClose }: { onClose: () => void }) {
       <p className="t-label">Mergen Scope <span className="t-readout">{APP_VERSION}</span></p>
       <p className="t-label">Licence: Apache-2.0</p>
       <p className="t-label"><a href="https://github.com/AlpGoXd/mergen-scope" target="_blank" rel="noopener noreferrer">GitHub ↗</a></p>
+      <p className="t-label about-panel__links"><FeedbackLinks /></p>
       <p className="t-caption">{PRIVACY}</p>
     </div>
   </dialog>;

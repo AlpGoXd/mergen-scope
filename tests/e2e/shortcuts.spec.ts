@@ -3,6 +3,7 @@ import type { Page } from '@playwright/test';
 import { resolve } from 'node:path';
 import { SHORTCUTS } from '../../src/domain/shortcuts';
 import type { KeyStroke, ShortcutId } from '../../src/domain/shortcuts';
+import { APP_VERSION } from '../../src/components/help/shortcuts';
 
 const plot = (page: Page) => page.getByTestId('chart-plot-pane-1');
 const footer = (page: Page) => page.locator('footer.footer-bar');
@@ -232,7 +233,7 @@ test('Help lists every registry shortcut and the mouse hints; App settings opens
   for (const shortcut of SHORTCUTS) await expect(keyboard.locator(`[data-shortcut="${shortcut.id}"]`)).toContainText(shortcut.label);
   await expect(sheet.locator('dl[aria-label="Keyboard"] .kbd').first()).toBeVisible();
   await expect(sheet.locator('dl[aria-label="Mouse"]')).toContainText('Right-drag');
-  for (const text of ['About', 'Report a problem ↗', 'Suggest an idea ↗', 'Your files never leave this browser.']) await expect(sheet.locator('footer')).toContainText(text);
+  for (const text of [`Mergen Scope ${APP_VERSION}`, 'About', 'Report a problem ↗', 'Suggest an idea ↗', 'Your files never leave this browser.']) await expect(sheet.locator('footer')).toContainText(text);
   await expect(sheet).not.toContainText('M / S / L / P');
   await page.keyboard.press('Escape');
 
@@ -253,8 +254,9 @@ test('Help lists every registry shortcut and the mouse hints; App settings opens
   await settings.getByRole('button', { name: /About/ }).click();
   const about = page.getByTestId('about-panel');
   await expect(about).toBeVisible();
-  for (const text of ['Mergen Scope', 'Apache-2.0', 'GitHub', 'Your files never leave this browser.']) await expect(about).toContainText(text);
-  await expect(about.getByRole('link', { name: /GitHub/ })).toHaveAttribute('href', 'https://github.com/AlpGoXd/mergen-scope');
+  for (const text of ['Mergen Scope', APP_VERSION, 'Apache-2.0', 'GitHub', 'Your files never leave this browser.']) await expect(about).toContainText(text);
+  await expect(about.getByRole('link', { name: 'GitHub ↗', exact: true })).toHaveAttribute('href', 'https://github.com/AlpGoXd/mergen-scope');
+  await expect(about.getByRole('link', { name: 'Report a problem ↗' })).toHaveAttribute('target', '_blank');
 });
 
 test('the pane settings button shows sliders; the gear is only on App settings', async ({ page }) => {
