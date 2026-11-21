@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { answerAppDialog } from './workspace-helpers';
 
 import { acceptImport } from './import-helpers';
 import { resolve } from 'node:path';
@@ -247,15 +248,11 @@ test('cancelling an empty-pane close preserves an unplaceable reference line', a
   if (!path) throw new Error('Workspace download unavailable');
   const workspace: { snapshot: { refLines: { id: number; type: string; value: number; paneIds: string[]; axisUnit: string; label: string }[] } } = JSON.parse(readFileSync(path, 'utf8'));
   workspace.snapshot.refLines.push({ id: 99, type: 'v', value: 1, paneIds: ['pane-2'], axisUnit: JSON.stringify(['Hz', 'Hz']), label: 'V99' });
-  page.once('dialog', dialog => dialog.accept());
   await page.getByTestId('topbar-workspace-input').setInputFiles({ name: 'workspace.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(workspace)) });
+  await answerAppDialog(page, 'Replace');
   await expect(page.getByTestId('ref-line-row-V99')).toBeVisible();
-  const confirmation = page.waitForEvent('dialog');
-  const click = page.getByTestId('chart-pane-header-pane-2').getByRole('button', { name: 'Close Pane 2' }).click();
-  const dialog = await confirmation;
-  expect(dialog.message()).toContain('V99 -> not in a pane');
-  await dialog.dismiss();
-  await click;
+  await page.getByTestId('chart-pane-header-pane-2').getByRole('button', { name: 'Close Pane 2' }).click();
+  expect(await answerAppDialog(page, 'Cancel')).toContain('V99 -> not in a pane');
   await expect(page.getByTestId('chart-pane-pane-2')).toBeVisible();
   await expect(page.getByTestId('ref-line-row-V99')).toBeVisible();
 });

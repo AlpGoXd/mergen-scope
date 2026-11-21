@@ -9,7 +9,8 @@ function selectTraces(selection: Extract<OpenData['result'], { ok: true }>['sele
   return { traces: selection.ports === 1 ? [selection.s11] : [selection.s21 as OpenTrace, selection.s11], matrixOpen: true };
 }
 
-function copyName(name: string, used: ReadonlySet<string>): string {
+/** "name (2)", or the next free number: the name a second copy of an open file gets. */
+export function copyName(name: string, used: ReadonlySet<string>): string {
   let n = 2;
   while (used.has(`${name} (${n})`)) n++;
   return `${name} (${n})`;

@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 
 import { acceptImport } from './import-helpers';
-import { clearWorkspace } from './workspace-helpers';
+import { answerAppDialog, answerAppDialogIfShown, clearWorkspace } from './workspace-helpers';
 import type { Locator, Page } from '@playwright/test';
 import { resolve } from 'path';
 import { linkX } from './x-link-helpers';
@@ -140,7 +140,7 @@ test('sizes persist by layout and through workspace save and reopen', async ({ p
   const download = page.waitForEvent('download'); await page.getByTitle('Save Workspace JSON').click();
   const path = await (await download).path(); if (!path) throw new Error('Workspace download missing');
   await clearWorkspace(page);
-  page.once('dialog', dialog => dialog.accept()); await page.getByTestId('topbar-workspace-input').setInputFiles(path);
+  await page.getByTestId('topbar-workspace-input').setInputFiles(path); await answerAppDialogIfShown(page, 'Replace');
   await expect(layoutButton(page)).toContainText('Columns'); await expect(pane(page, 2)).toBeVisible();
   await expect.poll(async () => Math.abs((await box(pane(page, 1))).width - columnWidth)).toBeLessThan(3);
   await selectLayout(page, 'Rows'); await expect.poll(async () => Math.abs((await box(pane(page, 1))).height - rowHeight)).toBeLessThan(3);
@@ -161,7 +161,7 @@ test('a resized four-pane grid survives saving and reopening', async ({ page }) 
   const download = page.waitForEvent('download'); await page.getByTitle('Save Workspace JSON').click();
   const path = await (await download).path(); if (!path) throw new Error('Workspace download missing');
   await clearWorkspace(page);
-  page.once('dialog', dialog => dialog.accept()); await page.getByTestId('topbar-workspace-input').setInputFiles(path);
+  await page.getByTestId('topbar-workspace-input').setInputFiles(path); await answerAppDialogIfShown(page, 'Replace');
   await expect(layoutButton(page)).toContainText('2 × 2'); await expect(pane(page, 4)).toBeVisible();
   await expect.poll(async () => Math.abs((await box(pane(page, 1))).width - resized)).toBeLessThan(3);
 });
@@ -175,7 +175,7 @@ test('inserting after the target renumbers badges and grid falls back on removal
   await expect(page.getByTestId('chart-pane-header-pane-2').locator('.ph-title')).toHaveText('Pane 3');
   await expect(trace).toContainText('P3');
   await page.getByRole('button', { name: '+ Pane', exact: true }).click(); await selectLayout(page, '2 × 2');
-  await page.getByRole('button', { name: '- Pane', exact: true }).click();
+  await page.getByRole('button', { name: '− Pane', exact: true }).click();
   await expect(layoutButton(page)).toContainText('Rows'); await expect(pane(page, 2)).toHaveCount(0);
 });
 
@@ -197,7 +197,7 @@ test('closing the last pane moves a trace to the nearest compatible pane', async
   await page.getByRole('menu', { name: 'Show in' }).getByRole('menuitemcheckbox', { name: /Pane 1/ }).click();
   await page.keyboard.press('Escape');
   await expect(trace).toContainText('P2'); await expect(trace).not.toContainText('P1');
-  await page.getByRole('button', { name: '- Pane', exact: true }).click();
+  await page.getByRole('button', { name: '− Pane', exact: true }).click();
   await expect(pane(page, 2)).toHaveCount(0); await expect(trace).toContainText('P1');
 });
 
@@ -205,7 +205,7 @@ test('closing an incompatible pane leaves its trace unplaced', async ({ page }) 
   await loadTrace(page); await addPanes(page, 2);
   await pane(page, 2).evaluate(target => { const transfer = new DataTransfer(); transfer.items.add(new File(['Time (s),CH1 (V)\n0,1\n1,2\n'], 'time.csv', { type: 'text/csv' })); for (const type of ['dragenter', 'dragover', 'drop']) target.dispatchEvent(new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer: transfer })); }); await acceptImport(page);
   const trace = page.locator('[data-testid^="trace-row-"]').filter({ hasText: 'time.csv' }).first(); await expect(trace).toContainText('P2');
-  page.once('dialog', dialog => dialog.accept()); await page.getByRole('button', { name: '- Pane', exact: true }).click();
+  await page.getByRole('button', { name: '− Pane', exact: true }).click(); await answerAppDialog(page, 'Remove pane');
   await expect(pane(page, 2)).toHaveCount(0); await expect(trace.getByTitle('Show in panes')).toContainText('—');
 });
 

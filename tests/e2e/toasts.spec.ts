@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { answerAppDialogIfShown } from './workspace-helpers';
 import type { Page } from '@playwright/test';
 import { resolve } from 'path';
 
@@ -61,8 +62,8 @@ test('deleting raises one toast at bottom centre that replaces the last one and 
 
 test('closing a file raises a toast, and a toast closes by itself after 5 seconds', async ({ page }) => {
   await loaded(page);
-  page.once('dialog', dialog => dialog.accept());
   await page.locator('.lp-file').first().getByRole('button', { name: /Remove|Close|×/ }).first().click();
+  await answerAppDialogIfShown(page, 'Remove file');
   await expect(page.locator('.ui-toast')).toContainText(/Closed|Removed/);
   await expect(page.locator('.ui-toast')).toHaveCount(0, { timeout: 8000 });
 });

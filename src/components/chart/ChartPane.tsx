@@ -51,6 +51,9 @@ import { OverlaysLayer } from './OverlaysLayer';
 import { SymbolsLayer } from './SymbolsLayer';
 import { useTraceSymbols } from '../../hooks/use-trace-symbols';
 import type { ToastKind } from '../../stores/toast-store';
+import { useOptionalToast } from '../../stores/toast-store';
+import { useAsk } from '../../stores/dialog-store';
+import { closePaneText } from '../../domain/confirm-text';
 import type { PlotView } from './LinesLayer';
 import { EdgeTag, lineContextEntries, lineShowInEntries } from '../lines/Lines';
 import { Menu as KitMenu } from '../left-panel/Menu';
@@ -116,6 +119,8 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
   const imageExport = usePaneImageExport();
   const overlays = useAnalysisOverlays(paneId);
   const aggregate = useOptionalAggregateWorkspace();
+  const ask = useAsk();
+  const toast = useOptionalToast();
   const historyDispatch = aggregate?.historyDispatch;
   const revision = aggregate?.state.revision;
   const { panes, activePaneId, tracePaneMap, paneActiveTraceMap, paneXZooms, paneYZooms } = usePaneState();
@@ -955,19 +960,21 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
   }, [exportOnPlot, plotView, axes, appearance, exportXTitle, exportYTitle, exportXUnit, xAxisLabelText, yAxisLabelText, xTickValues, exportYTicks]);
 
   // Close pane (Pane settings and the empty-pane header): traces and lines move by the closing-pane rule.
-  const closePane = () => {
+  const closePane = async () => {
     if (!aggregate) return;
     const state = aggregate.state;
     const result = planWorkspacePaneRemoval(state, paneId);
-    if (!result.ok) { window.alert(result.reason); return; }
+    if (!result.ok) { toast?.show({ message: result.reason, kind: 'error' }); return; }
     const { moved, unplaced } = result.plan;
     const lines = planLastPaneLines(state, paneId, result.plan.memberships);
     if (unplaced.length || lines.length) {
       const details = [...moved.map(move => `${move.traceName} -> ${paneName(panes, move.to)}`), ...unplaced.map(name => `${name} -> not in a pane`), ...lines.map(move => `${move.line.label || `Line ${move.line.id}`} -> ${move.to ? paneName(panes, move.to) : 'not in a pane'}`)];
-      if (!window.confirm(`Close ${paneName(panes, paneId)}? Traces will remain available.\n\n${details.join('\n')}`)) return;
+      const hiddenMarkers = state.markers.markers.filter(marker => unplaced.includes(marker.trace)).length;
+      if (await ask(closePaneText(paneName(panes, paneId), details, unplaced.length, hiddenMarkers)) !== 'confirm') return;
     }
+    const latest = aggregate.state;
     const destinations = [...new Set(moved.map(move => paneName(panes, move.to)))];
-    aggregate.historyDispatch({ type: 'change', command: { slice: 'remove-pane', targetPaneId: paneId, expectedRevision: state.revision, confirmed: unplaced.length > 0 || lines.length > 0, limit }, ...(moved.length ? { toastMessage: `${moved.length} trace${moved.length === 1 ? '' : 's'} moved to ${destinations.join(', ')}`, toastKind: 'moved' as const } : {}) });
+    aggregate.historyDispatch({ type: 'change', command: { slice: 'remove-pane', targetPaneId: paneId, expectedRevision: latest.revision, confirmed: unplaced.length > 0 || lines.length > 0, limit }, ...(moved.length ? { toastMessage: `${moved.length} trace${moved.length === 1 ? '' : 's'} moved to ${destinations.join(', ')}`, toastKind: 'moved' as const } : {}) });
   };
 
   const resolveTraceColor = useMemo(() => {

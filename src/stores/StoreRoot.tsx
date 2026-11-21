@@ -4,7 +4,8 @@ import { AggregateWorkspaceProvider } from './aggregate-workspace-store';
 import { SharedHoverProvider } from './shared-hover-store';
 import { ShortcutProvider } from './shortcut-store';
 import { PointerReadoutProvider } from './pointer-readout-store';
+import { DialogProvider } from './dialog-store';
 
 export function StoreRoot({ children }: { children: React.ReactNode }) {
-  return <ToastProvider><ShortcutProvider><SharedHoverProvider><PointerReadoutProvider><AggregateWorkspaceProvider>{children}</AggregateWorkspaceProvider></PointerReadoutProvider></SharedHoverProvider></ShortcutProvider></ToastProvider>;
+  return <ToastProvider><DialogProvider><ShortcutProvider><SharedHoverProvider><PointerReadoutProvider><AggregateWorkspaceProvider>{children}</AggregateWorkspaceProvider></PointerReadoutProvider></SharedHoverProvider></ShortcutProvider></DialogProvider></ToastProvider>;
 }

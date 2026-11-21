@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { answerAppDialog } from './workspace-helpers';
 
 import { acceptImport } from './import-helpers';
 import { readFileSync } from 'node:fs';
@@ -89,8 +90,8 @@ test('a long saved pane title leaves header controls visible at 330px', async ({
   const pane = workspace.snapshot.panes[0];
   if (!pane) throw new Error('Workspace has no pane');
   pane.title = 'X'.repeat(60);
-  page.once('dialog', dialog => dialog.accept());
   await page.getByTestId('topbar-workspace-input').setInputFiles({ name: 'workspace.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(workspace)) });
+  await answerAppDialog(page, 'Replace');
   const header = page.getByTestId('chart-pane-header-pane-1');
   await expect(header.locator('.ph-title')).toHaveAttribute('title', pane.title);
   await page.addStyleTag({ content: '[data-testid="chart-pane-header-pane-1"] { width: 330px; box-sizing: border-box; }' });

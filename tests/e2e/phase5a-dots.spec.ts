@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 
 import { acceptImport } from './import-helpers';
-import { clearWorkspace } from './workspace-helpers';
+import { answerAppDialogIfShown, clearWorkspace } from './workspace-helpers';
 
 for (const theme of ['light', 'dark'] as const) {
   test(`sample dots are independent, undoable and survive save and reload (${theme})`, async ({ page }) => {
@@ -36,8 +36,8 @@ for (const theme of ['light', 'dark'] as const) {
     const path = await (await download).path();
     expect(path).toBeTruthy();
     await clearWorkspace(page);
-    page.once('dialog', dialog => dialog.accept());
     await page.getByTestId('topbar-workspace-input').setInputFiles(path!);
+    await answerAppDialogIfShown(page, 'Replace');
     await expect(dots1).toHaveCount(3);
     await expect(dots2).toHaveCount(0);
     await pane1.getByTitle('Pane settings').click();

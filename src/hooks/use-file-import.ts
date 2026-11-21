@@ -6,7 +6,11 @@ import type { WorkspaceSnapshotV5 } from '../types/workspace-v5';
 import { syncParserFileCounter } from '../domain/parsers/rs-dat';
 import { syncTraceIdCounter } from '../domain/trace-model';
 import { useAggregateWorkspace } from '../stores/aggregate-workspace-store';
-import type { OpenDataCommand } from '../stores/aggregate-workspace-store';
+import type { OpenDataCommand, WorkspaceState } from '../stores/aggregate-workspace-store';
+import { useAsk } from '../stores/dialog-store';
+import { replaceWorkspaceText, sameNameText } from '../domain/confirm-text';
+import type { WorkspaceCounts } from '../domain/confirm-text';
+import { copyName } from '../domain/open-files-plan';
 import { usePaneLimit } from '../stores/pane-store';
 import type { OpenChoice } from '../types/open-files-plan';
 
@@ -14,9 +18,16 @@ export const DATA_FILE_ACCEPT = ['.csv', '.tsv', '.txt', '.dat', ...Array.from({
 let issuedImportId = 0;
 function nextImportId(): string { issuedImportId += 1; return `import-${Date.now()}-${issuedImportId}`; }
 
+/** What opening a workspace would close; null when nothing is open (no question needed). */
+export function workspaceCounts(state: WorkspaceState): WorkspaceCounts | null {
+  const counts = { files: state.files.files.length, createdTraces: state.traces.derivedTraces.length, markers: state.markers.markers.length, lines: state.lines.refLines.length, panes: state.panes.panes.length };
+  return counts.files || counts.createdTraces || counts.markers || counts.lines || counts.panes > 1 ? counts : null;
+}
+
 /** Read and parse first; the aggregate reducer plans against the latest workspace. */
 export function useFileImport() {
   const workspace=useAggregateWorkspace();
+  const ask=useAsk();
   const stateRef=useRef(workspace.state); stateRef.current=workspace.state;
   const {limit}=usePaneLimit();
   const limitRef=useRef(limit); limitRef.current=limit;
@@ -59,9 +70,9 @@ export function useFileImport() {
     const loaded=workspaces[0];
     let workspaceInput: {snapshot:WorkspaceSnapshotV5;legacy:boolean;choice?:'replace'|'cancel'} | undefined;
     if (loaded?.kind==='workspace') {
-      const current=stateRef.current;
-      const hasWork=current.files.files.length>0 || current.traces.derivedTraces.length>0 || current.markers.markers.length>0 || current.lines.refLines.length>0 || current.panes.panes.length>1;
-      if (hasWork && !window.confirm('Replace the current workspace?')) return;
+      const counts=workspaceCounts(stateRef.current);
+      const hasWork=counts!==null;
+      if (counts && await ask(replaceWorkspaceText(counts, Array.from(files).find(file=>/\.json$/i.test(file.name))?.name))!=='confirm') return;
       workspaceInput={snapshot:loaded.snapshot,legacy:loaded.legacy,choice:hasWork ? 'replace' : undefined};
       const traces=[...loaded.snapshot.files.flatMap(file=>file.traces),...loaded.snapshot.derivedTraces];
       syncTraceIdCounter(traces);
@@ -73,15 +84,13 @@ export function useFileImport() {
     for (const input of inputs) {
       let choice:OpenChoice | undefined;
       if(names.has(input.name)) {
-        const answer=window.prompt(`${input.name} is already open. Type replace or copy, or cancel opening.`, 'copy');
-        if(answer === null) return;
-        const normalized=answer.trim().toLowerCase();
-        if(normalized !== 'replace' && normalized !== 'copy') return;
-        choice=normalized;
+        const answer=await ask(sameNameText(input.name, copyName(input.name, names)));
+        if(answer === 'cancel') return;
+        choice=answer === 'confirm' ? 'replace' : 'copy';
       }
       const existing=(workspaceInput?.snapshot.files ?? stateRef.current.files.files).find(file=>file.fileName===input.name);
       chosen.push({...input,choice,expectedFileId:choice==='replace' && existing ? String(existing.id) : undefined}); names.add(input.name);
     }
     workspace.historyDispatch({type:'change',toastMessage:`Opened ${chosen.length} file${chosen.length === 1 ? '' : 's'}`,toastKind:'opened',command:{slice:'open-data',inputs:chosen,targetPaneId,drop,limit:limitRef.current,workspace:workspaceInput}});
-  },[workspace.historyDispatch,workspace.dispatch]);
+  },[workspace.historyDispatch,workspace.dispatch,ask]);
 }

@@ -13,6 +13,9 @@ import { Btn } from '../shared/Btn';
 import { MarkerSplitButton } from './MarkerSplitButton';
 import { planLastPaneLines, planLastPaneRemoval, useOptionalAggregateWorkspace } from '../../stores/aggregate-workspace-store';
 import { LayoutMenu } from '../chart/LayoutMenu';
+import { useAsk } from '../../stores/dialog-store';
+import { useOptionalToast } from '../../stores/toast-store';
+import { closePaneText } from '../../domain/confirm-text';
 import './tool-zones.css';
 
 type ZoneTone = 'marker' | 'search' | 'lines' | 'pane';
@@ -58,6 +61,8 @@ export function ToolGroups() {
 
   const { allTraces, vis } = useTraceState();
   const aggregate = useOptionalAggregateWorkspace();
+  const ask = useAsk();
+  const toast = useOptionalToast();
   const { markers, selectedMkrIdx } = useMarkerState();
   const { panes, activePaneId, tracePaneMap } = usePaneState();
   const { refMode } = useRefLineState();
@@ -120,18 +125,19 @@ export function ToolGroups() {
   };
 
   const canSearch = !!activeTr?.data.length;
-  const removeLastPane = () => {
+  const removeLastPane = async () => {
     if (panes.length <= 1) return;
     const removed = panes[panes.length - 1];
     if (!removed) return;
     if (!aggregate) return;
     const result = planLastPaneRemoval(aggregate.state, removed.id);
-    if (!result.ok) { window.alert(result.reason); return; }
+    if (!result.ok) { toast?.show({ message: result.reason, kind: 'error' }); return; }
     const { moved, unplaced } = result.plan;
     const linePlan = planLastPaneLines(aggregate.state, removed.id, result.plan.memberships);
     if (unplaced.length || linePlan.length) {
       const lines = [...moved.map(move => `${move.traceName} -> ${paneName(panes, move.to)}`), ...unplaced.map(name => `${name} -> not in a pane`), ...linePlan.map(move => `${move.line.label || `Line ${move.line.id}`} -> ${move.to ? paneName(panes, move.to) : 'not in a pane'}`)];
-      if (!window.confirm(`Remove the last pane? Traces will remain available.\n\n${lines.join('\n')}`)) return;
+      const hiddenMarkers = aggregate.state.markers.markers.filter(marker => unplaced.includes(marker.trace)).length;
+      if (await ask(closePaneText(paneName(panes, removed.id), lines, unplaced.length, hiddenMarkers, true)) !== 'confirm') return;
     }
     {
       const destinations = [...new Set(moved.map(move => paneName(panes, move.to)))];
@@ -175,7 +181,7 @@ export function ToolGroups() {
     <ToolZone tone="pane" label="Pane" open={showPaneTools} onToggle={() => toggle('showPaneTools', showPaneTools)}>
       {aggregate && <LayoutMenu paneCount={panes.length} limit={limit} className="zone-tool" />}
       <Btn small className="zone-tool" disabled={panes.length >= limit || !aggregate} title={panes.length >= limit ? `Maximum ${limit} panes` : 'Add a pane'} onClick={() => { const targetPaneId = activePaneId ?? panes[0]?.id; if (targetPaneId) aggregate?.dispatch({ slice: 'layout', action: { type: 'ADD_PANE_AFTER', targetPaneId, limit } }); }}>+ Pane</Btn>
-      <Btn small className="zone-tool" disabled={panes.length <= 1 || !aggregate} title={panes.length <= 1 ? "At least one pane must remain" : !aggregate ? "Pane removal requires workspace history" : "Remove the last pane"} onClick={removeLastPane}>- Pane</Btn>
+      <Btn small className="zone-tool" disabled={panes.length <= 1 || !aggregate} title={panes.length <= 1 ? "At least one pane must remain" : !aggregate ? "Pane removal requires workspace history" : "Remove the last pane"} onClick={removeLastPane}>− Pane</Btn>
       <Btn small className="zone-tool" title="Fit all panes" onClick={() => paneDispatch({ type: 'CLEAR_ALL_ZOOMS' })}>Fit all</Btn>
     </ToolZone>
   </div>;

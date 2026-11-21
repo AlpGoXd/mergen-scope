@@ -266,7 +266,9 @@ table {
 dialog.ui-dialog { position: fixed; inset: 0; margin: auto; box-sizing: border-box; }
 dialog.ui-dialog:not([open]) { display: none; }
 dialog.ui-dialog::backdrop { background: var(--dialog-scrim); }
-.ui-dialog h2 { font-size: var(--font-title); font-weight: var(--fw-semibold); }.ui-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.ui-dialog h2 { font-size: var(--font-title); font-weight: var(--fw-semibold); }
+/* App confirmation dialogs (stores/dialog-store.tsx): a sentence, then an optional list. */
+.app-dialog__body { display: grid; gap: var(--space-2); } .app-dialog__details { padding-left: 1.2em; max-height: 40vh; overflow: auto; color: var(--text-muted); }.ui-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .ui-toast-host { position: fixed; z-index: 200; bottom: calc(var(--footer-height) + 8px); left: 50%; transform: translateX(-50%); display: grid; gap: 8px; }
 .ui-toast { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: var(--radius-card); background: oklch(.20 .016 255); color: oklch(.93 .01 255); border: 1px solid oklch(.42 .016 255); animation: ui-toast-in 150ms ease-out; }
 .ui-toast .ui-btn { background: transparent; color: inherit; border-color: oklch(.50 .016 255); }.ui-toast-close { display: inline-flex; background: transparent; color: inherit; border: 0; cursor: pointer; }

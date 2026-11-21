@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { answerAppDialog } from './workspace-helpers';
 
 import { acceptImport } from './import-helpers';
 
@@ -8,7 +9,7 @@ for (const theme of ['light', 'dark'] as const) {
   test(`remove last pane and undo in ${theme}`, async ({ page }) => {
     await page.emulateMedia({ colorScheme: theme });
     await page.goto('/app.html');
-    const remove = page.getByRole('button', { name: '- Pane', exact: true });
+    const remove = page.getByRole('button', { name: '− Pane', exact: true });
     const add = page.getByRole('button', { name: '+ Pane', exact: true });
     await expect(remove).toBeDisabled();
     await expect(remove).toHaveAttribute('title', 'At least one pane must remain');
@@ -30,7 +31,7 @@ test('experimental limit supports eight panes', async ({ page }) => {
   const add = page.getByRole('button', { name: '+ Pane', exact: true });
   for (let i = 0; i < 7; i++) await add.click();
   await expect(add).toBeDisabled();
-  await page.getByRole('button', { name: '- Pane', exact: true }).click();
+  await page.getByRole('button', { name: '− Pane', exact: true }).click();
   await expect(add).toBeEnabled();
 });
 
@@ -55,13 +56,11 @@ test('incompatible removal confirms and keeps a paneless line out of the remaini
   await expect(line).toBeVisible();
   const pane1=page.getByTestId('chart-plot-pane-1');
   const before=await pane1.locator('.recharts-reference-line').count();
-  page.once('dialog',dialog => dialog.dismiss());
-  await page.getByRole('button',{name:'- Pane',exact:true}).click();
+  await page.getByRole('button',{name:'− Pane',exact:true}).click();
+  await answerAppDialog(page, 'Cancel');
   await expect(pane2).toBeVisible();
-  let confirmation='';
-  page.once('dialog',dialog => { confirmation=dialog.message(); return dialog.accept(); });
-  await page.getByRole('button',{name:'- Pane',exact:true}).click();
-  expect(confirmation).toContain('not in a pane');
+  await page.getByRole('button',{name:'− Pane',exact:true}).click();
+  expect(await answerAppDialog(page, 'Remove pane')).toContain('not in a pane');
   await expect(pane2).toHaveCount(0);
   await expect(line).toContainText('Not in a pane');
   await expect(pane1.locator('.recharts-reference-line')).toHaveCount(before);

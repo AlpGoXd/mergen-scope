@@ -2,6 +2,10 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useFileDispatch, useFileState } from '../../stores/file-store';
 import type { WizardEntry } from '../../stores/file-store';
 import { useOptionalAggregateWorkspace } from '../../stores/aggregate-workspace-store';
+import { useAsk } from '../../stores/dialog-store';
+import { replaceWorkspaceText, sameNameText } from '../../domain/confirm-text';
+import { copyName } from '../../domain/open-files-plan';
+import { workspaceCounts } from '../../hooks/use-file-import';
 import { useTraceState } from '../../stores/trace-store';
 import { useMarkerState } from '../../stores/marker-store';
 import type { OpenChoice } from '../../types/open-files-plan';
@@ -57,6 +61,9 @@ interface WizardDialogProps {
 function WizardDialog({ entry, position, total, others, queue, priorFile }: WizardDialogProps) {
   const fileDispatch = useFileDispatch();
   const aggregate = useOptionalAggregateWorkspace();
+  const ask = useAsk();
+  // True while an app dialog asks about this batch: the wizard's own Enter / Esc wait.
+  const asking = useRef(false);
   const { allKnownTraces } = useTraceState();
   const { markers } = useMarkerState();
   const [config, setConfig] = useState<WizardConfig>(() => configFor(entry));
@@ -107,30 +114,32 @@ function WizardDialog({ entry, position, total, others, queue, priorFile }: Wiza
     });
   };
 
-  const resolveDecisions = (batchId: string, resolving: readonly WizardEntry[]) => {
+  const resolveDecisions = async (batchId: string, resolving: readonly WizardEntry[]) => {
     const batch = resolving.find(item => item.pendingBatch?.id === batchId)?.pendingBatch;
     const decisions: Record<string, { choice: OpenChoice; expectedFileId?: string }> = {};
     let workspaceChoice: 'replace' | undefined;
     if (!batch || !aggregate) return { ok: true as const, decisions, workspaceChoice };
     const current = aggregate.state;
     if (batch.workspace) {
-      const work = current.files.files.length > 0 || current.traces.derivedTraces.length > 0 || current.markers.markers.length > 0 || current.lines.refLines.length > 0 || current.panes.panes.length > 1;
-      if (work) { if (!window.confirm('Replace the current workspace with the opened workspace?')) return { ok: false as const }; workspaceChoice = 'replace'; }
+      const counts = workspaceCounts(current);
+      if (counts) { if (await ask(replaceWorkspaceText(counts)) !== 'confirm') return { ok: false as const }; workspaceChoice = 'replace'; }
     }
     const opened = batch.workspace?.snapshot.files ?? current.files.files;
+    const names = new Set(opened.map(file => file.fileName));
     for (const input of batch.inputs) {
       const existing = opened.find(file => file.fileName === input.name);
       if (!existing || input.choice === 'copy' || (input.choice === 'replace' && input.expectedFileId === String(existing.id))) continue;
-      const answer = window.prompt(`${input.name} is already open. Type replace or copy, or cancel opening.`, 'copy');
-      const choice = answer?.trim().toLowerCase();
-      if (choice !== 'replace' && choice !== 'copy') return { ok: false as const };
+      const answer = await ask(sameNameText(input.name, copyName(input.name, names)));
+      if (answer === 'cancel') return { ok: false as const };
+      const choice: OpenChoice = answer === 'confirm' ? 'replace' : 'copy';
+      if (choice === 'copy') names.add(copyName(input.name, names));
       decisions[input.id] = { choice, expectedFileId: choice === 'replace' ? String(existing.id) : undefined };
     }
     return { ok: true as const, decisions, workspaceChoice };
   };
 
-  const confirm = () => {
-    if (blocker) return;
+  const confirm = async () => {
+    if (blocker || asking.current) return;
     const resolving = [entry, ...(applyToOthers ? others : [])];
     const configs = new Map(resolving.map(item => [item.id, item === entry ? config : { ...config, headers: wizardLayout(item.rawText, config).headers }]));
     // A batch opens once all its files are resolved; ask its open questions with the last one.
@@ -140,7 +149,8 @@ function WizardDialog({ entry, position, total, others, queue, priorFile }: Wiza
       if (!batchId || finalFor.has(batchId)) continue;
       const left = queue.filter(other => other.pendingBatch?.id === batchId && !resolving.includes(other));
       if (left.length) continue;
-      const answer = resolveDecisions(batchId, resolving);
+      asking.current = true;
+      const answer = await resolveDecisions(batchId, resolving).finally(() => { asking.current = false; });
       if (!answer.ok) return;
       finalFor.set(batchId, { decisions: answer.decisions, workspaceChoice: answer.workspaceChoice });
     }
@@ -159,9 +169,9 @@ function WizardDialog({ entry, position, total, others, queue, priorFile }: Wiza
   useEffect(() => {
     dialogRef.current?.focus();
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.defaultPrevented || event.isComposing) return;
+      if (event.defaultPrevented || event.isComposing || asking.current) return;
       if (event.key === 'Escape') { event.preventDefault(); cancelRef.current(); }
-      else if (event.key === 'Enter' && !enterIsTaken(event.target)) { event.preventDefault(); confirmRef.current(); }
+      else if (event.key === 'Enter' && !enterIsTaken(event.target)) { event.preventDefault(); void confirmRef.current(); }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
@@ -236,7 +246,7 @@ function WizardDialog({ entry, position, total, others, queue, priorFile }: Wiza
           {blocker && <span className="iw-blocker t-caption" data-testid="import-wizard-blocker">{blocker}</span>}
           {!editing && total > 1 && <Btn onClick={skipFile}>Skip file</Btn>}
           <Btn onClick={cancel} title="Esc">Cancel</Btn>
-          <Btn variant="solid" onClick={confirm} disabled={!!blocker} title="Enter" data-testid="import-wizard-confirm">{mainLabel}</Btn>
+          <Btn variant="solid" onClick={() => void confirm()} disabled={!!blocker} title="Enter" data-testid="import-wizard-confirm">{mainLabel}</Btn>
         </footer>
       </div>
     </div>

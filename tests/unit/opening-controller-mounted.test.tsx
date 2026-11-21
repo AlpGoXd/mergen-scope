@@ -1,5 +1,5 @@
 ﻿import React from 'react';
-import { act, renderHook, screen, fireEvent } from '@testing-library/react';
+import { act, renderHook, screen, fireEvent, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from '../../src/App';
 import { StoreRoot } from '../../src/stores/StoreRoot';
@@ -90,7 +90,6 @@ describe('mounted opening controller', () => {
   });
 
   it('preserves replacement identity and workspace state through undo and redo', async () => {
-    vi.spyOn(window,'prompt').mockReturnValue('replace');
     const {result}=renderHook(harness,{wrapper});
     const first=delayedFile('same.csv'); let opening!:Promise<void>;
     act(() => {opening=result.current.open([first.file]);});
@@ -104,7 +103,10 @@ describe('mounted opening controller', () => {
     act(()=>result.current.traceDispatch({type:'SET_VISIBILITY',name:trace!.name,visible:false}));
     const beforeMembership=result.current.panes.tracePaneMap[trace!.name]; const markerId=result.current.markers.markers[0]!.id;
     const second=delayedFile('same.csv'); act(()=>{opening=result.current.open([second.file]);});
-    await act(async()=>{second.resolve(changedCsv); await opening;}); acceptWizards(result);
+    // The app's own dialog asks; Replace is its solid button.
+    await act(async()=>{second.resolve(changedCsv);});
+    expect(await screen.findByRole('dialog',{name:'same.csv is already open.'})).toBeTruthy();
+    await act(async()=>{fireEvent.click(screen.getByRole('button',{name:'Replace'})); await opening;}); acceptWizards(result);
     expect(result.current.traces.allKnownTraces[0]?.id).toBe(trace!.id);
     expect(result.current.panes.tracePaneMap[trace!.name]).toEqual(beforeMembership);
     expect(result.current.markers.markers[0]?.id).toBe(markerId);
@@ -127,13 +129,14 @@ describe('mounted opening controller', () => {
     expect(result.current.files.wizardQueue).toHaveLength(1);
     const trace=makeTestTrace({id:'other',name:'other'});
     act(()=>result.current.file({type:'ADD_PARSED_FILE',payload:{id:'other-file',fileName:'same.csv',text:'other',parsed:{format:'rs-dat',meta:{},traces:[trace]}}}));
-    const prompt=vi.spyOn(window,'prompt').mockReturnValue('copy');
     fireEvent.click(screen.getByRole('button',{name:'Add 1 trace'}));
-    expect(prompt).toHaveBeenCalledOnce();
+    const dialog=await screen.findByRole('dialog',{name:'same.csv is already open.'});
+    expect(dialog.textContent).toContain('same.csv (2)');
+    await act(async()=>{fireEvent.click(screen.getByRole('button',{name:'Add as a new file'}));});
     expect(result.current.files.files.map(file=>file.fileName)).toEqual(['same.csv','same.csv (2)']);
   });
 
-  it('rechecks workspace replacement at the final wizard confirmation', () => {
+  it('rechecks workspace replacement at the final wizard confirmation', async () => {
     const appWrapper = ({children}:{children:React.ReactNode}) => <StoreRoot><App />{children}</StoreRoot>;
     const {result}=renderHook(harness,{wrapper:appWrapper});
     const empty=snapshotFromWorkspace(initialWorkspaceEngine().present); if(!empty) throw Error('snapshot');
@@ -141,9 +144,11 @@ describe('mounted opening controller', () => {
     act(()=>result.current.workspace.historyDispatch({type:'change',command:{slice:'open-data',workspace:{snapshot:empty,legacy:false,choice:'replace'},inputs:[{id:'pending',name:'pending.csv',text:'x,y\n0,1\n1,2',parsed:wizard}],limit:4}}));
     const trace=makeTestTrace({id:'intervening',name:'intervening'});
     act(()=>result.current.file({type:'ADD_PARSED_FILE',payload:{id:'intervening-file',fileName:'intervening.dat',text:'other',parsed:{format:'rs-dat',meta:{},traces:[trace]}}}));
-    const confirm=vi.spyOn(window,'confirm').mockReturnValue(false);
     fireEvent.click(screen.getByRole('button',{name:'Add 1 trace'}));
-    expect(confirm).toHaveBeenCalledOnce();
+    const dialog=await screen.findByRole('dialog',{name:'Replace the current workspace?'});
+    expect(dialog.textContent).toContain('closes the open file and its traces');
+    await act(async()=>{fireEvent.keyDown(within(dialog).getByRole('button',{name:'Cancel'}),{key:'Escape'});});
+    expect(screen.queryByRole('dialog',{name:'Replace the current workspace?'})).toBeNull();
     expect(result.current.files.wizardQueue).toHaveLength(1);
     expect(result.current.files.files.map(file=>file.fileName)).toEqual(['intervening.dat']);
   });

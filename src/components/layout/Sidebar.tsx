@@ -7,6 +7,8 @@ import { Popover } from '../shared/Controls';
 import { Menu as KitMenu } from '../left-panel/Menu';
 import type { MenuEntry } from '../left-panel/Menu';
 import type { ToastKind } from '../../stores/toast-store';
+import { useAsk } from '../../stores/dialog-store';
+import { removeFileText, removeTraceText } from '../../domain/confirm-text';
 import { useTraceColors } from '../../hooks/use-trace-colors';
 import { planMatrixAdd } from '../../domain/matrix-add';
 import type { MatrixTrace } from '../../domain/matrix-add';
@@ -65,6 +67,7 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
   const paneDispatch = usePaneDispatch();
   const { limit } = usePaneLimit();
   const aggregate = useOptionalAggregateWorkspace();
+  const ask = useAsk();
   const markerDispatch = useMarkerDispatch();
   const refLineDispatch = useRefLineDispatch();
   const traceDispatch = useTraceDispatch();
@@ -251,9 +254,11 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
                   onColumns={!file.touchstoneNetwork && file.format === 'tabular' && (file.displayTraces?.length ?? 0) > 1 ? () => setExpandedByFileId(prev => ({ ...prev, [fileId]: { ...prev[fileId], columns: !prev[fileId]?.columns } })) : undefined}
                   onPlot={!file.touchstoneNetwork && file.displayTraces?.length === 1 && hiddenViewCount ? () => fileDispatch({ type: 'SHOW_ALL_DISPLAY_TRACES', payload: { fileId } }) : undefined}
                   multiTrace={(file.displayTraces?.length ?? file.traces.length) > 1}
-                  onRemove={() => {
+                  onRemove={async () => {
                     const names = new Set([...file.traces.map(trace => trace.name), ...(file.displayTraces ?? []).map(display => display.compat?.legacyTraceName ?? display.id)]);
-                    if (((file.displayTraces?.length ?? file.traces.length) > 1 || markers.some(marker => names.has(marker.trace))) && !window.confirm(`Remove ${file.fileName} and its traces?`)) return;
+                    const traceCount = file.displayTraces?.length ?? file.traces.length;
+                    const markerCount = markers.filter(marker => names.has(marker.trace)).length;
+                    if ((traceCount > 1 || markerCount > 0) && await ask(removeFileText(file.fileName, traceCount, markerCount)) !== 'confirm') return;
                     const action = {type:'REMOVE_FILE' as const,payload:{fileId}};
                     if (aggregate) aggregate.historyDispatch({type:'change',toastMessage:`Closed ${file.fileName}`,toastKind:'close',command:{slice:'files',action}});
                     else fileDispatch(action);
@@ -430,7 +435,7 @@ export function Sidebar({ width = 280, onOpenFiles, onDropFiles, onLoadDemo, onR
                       if (aggregate) aggregate.historyDispatch({ type: 'change', command: { slice: 'files', action } }); else fileDispatch(action);
                     }
                   }}
-                  onRemove={() => { if (markers.some(marker => marker.trace === trace.name) && !window.confirm(`Remove ${trace.dn} and its markers?`)) return; removeTrace(trace); }}
+                  onRemove={async () => { const markerCount = markers.filter(marker => marker.trace === trace.name).length; if (markerCount > 0 && await ask(removeTraceText(trace.dn, markerCount)) !== 'confirm') return; removeTrace(trace); }}
                   onToggle={() => toggleVisibility(trace.name)}
                   onColorChange={(color) => {
                     const next = { ...traceColors, [trace.name]: color };
