@@ -11,6 +11,7 @@ import { buildScalarDisplayTraceFromSeriesDataset, buildSeriesDatasetFromTrace }
 import { incrementFileCounter } from "./rs-dat.ts";
 import { normalizeTraceData } from "./helpers.ts";
 import { baseXUnit, storedYUnit } from "../import-units.ts";
+import { isNumber } from "./tabular-detect.ts";
 
 // ---------------------------------------------------------------------------
 // Wizard preview summary
@@ -177,36 +178,38 @@ export function parseTabularFile(
   const xUnit = config.xUnit !== undefined ? baseXUnit(config.domain) : inferUnit(xHeader, "x") ?? baseXUnit(config.domain);
   const pickedYUnit = config.yUnit;
 
+  // skipRows comes from user input (wizard): only whole, non-negative row counts are valid indices.
+  // A cell is a number only if it is non-empty and finite; a blank X skips the row, a blank Y skips that trace's point.
+  const series: DataPoint[][] = config.yCols.map(() => []);
+  for (let i = firstDataRow; i < lines.length; i++) {
+    const row = lines[i]!.split(config.delimiter);
+    const xCell = row[config.xCol];
+    if (xCell === undefined || !isNumber(xCell)) continue;
+    const xVal = Number(xCell) * (config.xMult || 1);
+    if (!Number.isFinite(xVal)) continue;
+
+    config.yCols.forEach((yCol, tIdx) => {
+      const yCell = row[yCol];
+      if (yCell === undefined || !isNumber(yCell)) return;
+      const yVal = Number(yCell) * (config.yMult || 1);
+      if (Number.isFinite(yVal)) series[tIdx]?.push({ freq: xVal, amp: yVal });
+    });
+  }
+
   for (let yIdx = 0; yIdx < config.yCols.length; yIdx++) {
     const yColIdx = config.yCols[yIdx]!;
     const name = sourceHeaders?.[yColIdx] ?? config.headers?.[yColIdx] ?? `CH${yIdx + 1}`;
-    const trace = makeTrace(`${fileName} `, fileName, String(name), incrementFileCounter());
-    (trace as { domain: TraceDomain }).domain = config.domain;
-    (trace as { family: "spectrum" | "waveform" }).family = datasetFamily;
-    (trace as { dn: string }).dn = `${fileName} ${name.toLowerCase()}`;
-    (trace as { units: { x: string | null; y: string | null } }).units = {
-      x: xUnit,
-      y: pickedYUnit !== undefined ? storedYUnit(pickedYUnit) : inferUnit(String(name), "y"),
-    };
-    traces.push(trace);
-  }
-
-  // skipRows comes from user input (wizard): only whole, non-negative row counts are valid indices.
-  for (let i = firstDataRow; i < lines.length; i++) {
-    const row = lines[i]!.split(config.delimiter);
-    if (row.length <= config.xCol) continue;
-    const xVal = Number(row[config.xCol]) * (config.xMult || 1);
-    if (isNaN(xVal)) continue;
-
-      for (let tIdx = 0; tIdx < config.yCols.length; tIdx++) {
-        const yCol = config.yCols[tIdx]!;
-      if (row.length > yCol && row[yCol]?.trim() !== "") {
-        const yVal = Number(row[yCol]) * (config.yMult || 1);
-        if (!isNaN(yVal)) {
-          (traces[tIdx]! as unknown as { data: DataPoint[] }).data.push({ freq: xVal, amp: yVal });
-        }
-      }
-    }
+    traces.push({
+      ...makeTrace(`${fileName} `, fileName, String(name), incrementFileCounter()),
+      domain: config.domain,
+      family: datasetFamily,
+      dn: `${fileName} ${name.toLowerCase()}`,
+      units: {
+        x: xUnit,
+        y: pickedYUnit !== undefined ? storedYUnit(pickedYUnit) : inferUnit(String(name), "y"),
+      },
+      data: series[yIdx] ?? [],
+    });
   }
 
   const surviving = traces

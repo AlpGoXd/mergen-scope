@@ -1,5 +1,7 @@
 import { expect, it } from 'vitest';
-import { initialWorkspaceEngine, workspaceEngineReducer, workspaceReducer, planLastPaneLines, planLastPaneRemoval, planWorkspacePaneRemoval } from '../../src/stores/aggregate-workspace-store';
+import { initialWorkspaceEngine, workspaceEngineReducer, workspaceReducer, planLastPaneLines, planLastPaneRemoval, planWorkspacePaneRemoval, snapshotFromWorkspace, workspaceFromSnapshot } from '../../src/stores/aggregate-workspace-store';
+import { migrateWorkspaceV5 } from '../../src/domain/workspace-migrate-v5';
+import { refLineReducer, defaultRefLineState } from '../../src/stores/ref-line-store';
 import { makeTestTrace } from './helpers';
 import { encodeXAxisUnit } from '../../src/types/ref-line';
 
@@ -70,9 +72,7 @@ it('requires confirmation for an incompatible trace and preserves its file and m
   expect(next.markers.markers).toHaveLength(1);
 });
 
-it('moves compatible lines, preserves incompatible lines paneless, and round trips them', async () => {
-  const { snapshotFromWorkspace, workspaceFromSnapshot } = await import('../../src/stores/aggregate-workspace-store');
-  const { migrateWorkspaceV5 } = await import('../../src/domain/workspace-migrate-v5');
+it('moves compatible lines, preserves incompatible lines paneless, and round trips them', () => {
   const freq = makeTestTrace({name:'freq',id:'freq',units:{x:'Hz',y:'dB'}});
   const time = makeTestTrace({name:'time',id:'time',domain:'time',family:'waveform',units:{x:'s',y:'V'}});
   let engine = initialWorkspaceEngine();
@@ -104,7 +104,7 @@ it('moves a compatible pane line while preserving its identity', () => {
   expect(next.lines.refLines).toEqual([{id:71,type:'h',value:1,paneIds:['pane-1'],label:'H1',axisUnit:'dB'}]);
 });
 
-it('retains linked member IDs when a compatible pane is removed', async () => {
+it('retains linked member IDs when a compatible pane is removed', () => {
   const trace=makeTestTrace({name:'same',id:'same',units:{x:'Hz',y:'dB'}});
   let state=initialWorkspaceEngine().present;
   state=workspaceReducer(state,{slice:'files',action:{type:'ADD_PARSED_FILE',payload:{id:'f',fileName:'one.dat',text:'source',parsed:{format:'rs-dat',meta:{},traces:[trace]}}}});
@@ -116,8 +116,6 @@ it('retains linked member IDs when a compatible pane is removed', async () => {
   const next=workspaceReducer(state,{slice:'remove-last-pane',targetPaneId:'pane-2',expectedRevision:state.revision,confirmed:true,limit:4});
   expect(next.lines.refLines.map(line=>line.id).sort()).toEqual(ids);
   expect(next.lines.refLines[0]?.paneIds).toEqual(['pane-1']);
-  const { snapshotFromWorkspace, workspaceFromSnapshot } = await import('../../src/stores/aggregate-workspace-store');
-  const { migrateWorkspaceV5 } = await import('../../src/domain/workspace-migrate-v5');
   const snapshot = snapshotFromWorkspace(next);
   const parsed = migrateWorkspaceV5(JSON.parse(JSON.stringify(snapshot)));
   expect(parsed).not.toBeNull();
@@ -128,8 +126,7 @@ it('retains linked member IDs when a compatible pane is removed', async () => {
   expect(changed.lines.refLines[0]?.paneIds).toEqual(['pane-1']);
 });
 
-it('reserves unplaced labels and updates only the selected line', async () => {
-  const { refLineReducer, defaultRefLineState } = await import('../../src/stores/ref-line-store');
+it('reserves unplaced labels and updates only the selected line', () => {
   let state = refLineReducer(defaultRefLineState,{type:'ADD_LINE',payload:{id:1,type:'v',value:1,paneIds:[],axisUnit:'Hz:Hz',label:'V1'}});
   state = refLineReducer(state,{type:'ADD_LINE',payload:{id:2,type:'v',value:1,paneIds:['pane-1'],label:'V2'}});
   state = refLineReducer(state,{type:'ADD_LINE',payload:{id:3,type:'v',value:2,paneIds:['pane-1'],label:'V1'}});
