@@ -22,7 +22,7 @@ import type { ExportDocumentOptions, ExportFormat, ExportGeometry } from '../../
 import { exportTraceName, groupExportLegends } from '../../../domain/export-plot';
 import { splitByBand } from '../../../domain/smith/band';
 import { gammaAtFrequency } from '../../../domain/smith/hit';
-import { PAPER_LINE_PT, PAPER_MARK_RADIUS_PT, PAPER_TAG_PT, exportFileName, exportGeometry, exportPhysicalSize, layoutLegend, ptToCssPx } from '../../../domain/export-image';
+import { PAPER_LINE_PT, PAPER_MARK_RADIUS_PT, PAPER_TAG_PT, exportFileName, exportGeometry, exportPhysicalSize, layoutLegend, ptToCssPx, wrapLegendLabel } from '../../../domain/export-image';
 import type { ExportImageOptions } from '../../../domain/export-image';
 import { defaultPaneSettings } from '../../../types/pane';
 import { readAppPreferences } from '../../settings/app-preferences';
@@ -270,9 +270,15 @@ function ExportStage({ job, onDone }: { job: Job; onDone: (id: number) => void }
     const traces = job.document && (!job.document.include.legend || job.document.legend === 'off') ? []
       : groupExportLegends([{ id: job.paneId, traces: paneTraces }]).get(job.paneId) ?? [];
     const labels = traces.map(trace => job.document ? exportTraceName(trace, job.document.names === 'short') : trace.dn || trace.name);
-    const widths = labels.map(label => LEGEND_SAMPLE_WIDTH + LEGEND_SAMPLE_GAP + Math.ceil(textWidth(label, `${fontPx}px ${fontFamily}`)));
+    const measure = (text: string) => textWidth(text, `${fontPx}px ${fontFamily}`);
+    const padding = Math.round(fontPx * 0.5);
+    // A name wider than the pane wraps onto more lines instead of being cut at the pane's edge.
+    const lines = labels.map(label => wrapLegendLabel(label, geometry.cssWidth - 2 * padding - LEGEND_SAMPLE_WIDTH - LEGEND_SAMPLE_GAP, measure));
+    const widths = lines.map(parts => LEGEND_SAMPLE_WIDTH + LEGEND_SAMPLE_GAP + Math.ceil(Math.max(...parts.map(measure))));
     const rowHeight = Math.round(fontPx * 1.6);
-    return { labels, traces, rowHeight, ...layoutLegend(widths, geometry.cssWidth, { itemGap: Math.round(fontPx * 1.5), rowHeight, padding: Math.round(fontPx * 0.5) }) };
+    const lineHeight = Math.round(fontPx * 1.2);
+    const layout = layoutLegend(widths, geometry.cssWidth, { itemGap: Math.round(fontPx * 1.5), rowHeight, padding }, lines.map(parts => Math.ceil((rowHeight + (parts.length - 1) * lineHeight) / rowHeight)));
+    return { labels, lines, lineHeight, traces, rowHeight, ...layout };
   }, [job.document, job.paneId, paneTraces, fontPx, fontFamily, geometry.cssWidth]);
   const bodyHeight = Math.max(40, geometry.cssHeight - legend.height);
   const plotInfo = useRef<ExportPlotInfo | null>(null);
@@ -280,8 +286,8 @@ function ExportStage({ job, onDone }: { job: Job; onDone: (id: number) => void }
   const smithTraces = useRef<readonly SmithPaneTrace[] | null>(null);
   const onSmith = useCallback((items: readonly SmithPaneTrace[]) => { smithTraces.current = items; }, []);
   const tikzStyle = !!job.document && job.mode === 'latex';
-  const view = useMemo<ExportView>(() => ({ width: geometry.cssWidth, height: bodyHeight, colorTheme, print: theme === 'print', paper: geometry.paper, paperTone, tikzStyle, markScale, tagPx, onPlot, onSmith, appearance: job.document }),
-    [geometry.cssWidth, bodyHeight, colorTheme, theme, geometry.paper, paperTone, tikzStyle, markScale, tagPx, onPlot, onSmith, job.document]);
+  const view = useMemo<ExportView>(() => ({ width: geometry.cssWidth, height: bodyHeight, colorTheme, print: theme === 'print', paper: geometry.paper, paperTone, tikzStyle, markScale, tagPx, labelPx: fontPx, onPlot, onSmith, appearance: job.document }),
+    [geometry.cssWidth, bodyHeight, colorTheme, theme, geometry.paper, paperTone, tikzStyle, markScale, tagPx, fontPx, onPlot, onSmith, job.document]);
   const hostRef = useRef<HTMLDivElement>(null);
   const started = useRef(false);
   // The export reads the stores as they were when it started.
@@ -356,7 +362,7 @@ function ExportStage({ job, onDone }: { job: Job; onDone: (id: number) => void }
           return <g key={trace.id} transform={`translate(${at.x} ${at.y})`} data-export-legend-item={trace.name}>
             <line x1={0} y1={mid} x2={LEGEND_SAMPLE_WIDTH} y2={mid} stroke={traceColor} strokeWidth={lineWidth(trace.id)} />
             {kind && <g transform={`translate(${LEGEND_SAMPLE_WIDTH / 2} ${mid}) scale(${markScale})`}><TraceSymbol kind={kind} color={traceColor} /></g>}
-            <text x={LEGEND_SAMPLE_WIDTH + LEGEND_SAMPLE_GAP} y={mid} dominantBaseline="central" fill="var(--text)" fontSize={fontPx} fontFamily="var(--font-sans)">{legend.labels[index]}</text>
+            <text x={LEGEND_SAMPLE_WIDTH + LEGEND_SAMPLE_GAP} y={mid} dominantBaseline="central" fill="var(--text)" fontSize={fontPx} fontFamily="var(--font-sans)">{(legend.lines[index] ?? [legend.labels[index]]).map((line, n) => <tspan key={n} x={LEGEND_SAMPLE_WIDTH + LEGEND_SAMPLE_GAP} dy={n === 0 ? 0 : legend.lineHeight}>{line}</tspan>)}</text>
           </g>;
         })}
       </svg>}

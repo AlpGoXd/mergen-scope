@@ -58,6 +58,19 @@ export interface ExportBox { x: number; y: number; width: number; height: number
 export interface ExportGeometry { cssWidth: number; cssHeight: number; pixelWidth: number; pixelHeight: number; paper: boolean }
 export const PAPER_HEIGHT_MM = { 'ieee-1': 60, 'ieee-2': 100 } as const;
 
+/**
+ * The TikZ preview sheet. LaTeX keeps each axis at its own height (`panelHeight` × width per row) and puts tick
+ * labels, axis titles and legends outside it, so the real figure grows; the preview grows the same way (about
+ * nine text lines per row) instead of squeezing the plots, so no title or legend name is cut off.
+ */
+export function latexPreviewGeometry<G extends ExportGeometry & { fileWidth: string; fileHeight: string }>(geometry: G, rows: number, panelHeight: number, textPx: number): G {
+  const needed = Math.round(Math.max(1, rows) * (panelHeight * geometry.cssWidth + 9 * textPx));
+  if (needed <= geometry.cssHeight) return geometry;
+  const ratio = needed / geometry.cssHeight;
+  const fileHeight = geometry.paper ? `${Number((parseFloat(geometry.fileHeight) * ratio).toFixed(1))}mm` : `${needed}px`;
+  return { ...geometry, cssHeight: needed, pixelHeight: Math.round(geometry.pixelHeight * ratio), fileHeight };
+}
+
 export function documentGeometry(options: ExportDocumentOptions, bounds: ExportBox): ExportGeometry & { fileWidth: string; fileHeight: string } {
   const { preset, dpi, scale } = options;
   if (preset === 'ieee-1' || preset === 'ieee-2') {

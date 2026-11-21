@@ -68,7 +68,7 @@ import { PaneHeader, SamplesIcon } from './PaneHeader';
 import { XLinkChip } from './XLinkChip';
 import { fittedXBounds, linkedPeers } from '../../domain/x-link';
 import { usePaneImageExport } from './export/export-context';
-import { autoExportAxes, exportAxisTitle, exportTick } from '../../domain/export-plot';
+import { autoExportAxes, exportAxisTitle, exportTick, fitAxisTitle } from '../../domain/export-plot';
 import type { ExportView } from './export/export-context';
 import { ExportFrame } from './export/ExportFrame';
 import { PAPER_LINE_PT, ptToCssPx } from '../../domain/export-image';
@@ -1301,7 +1301,7 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
                   width={yAxisWidth}
                   tickFormatter={value => appearance && axes ? exportTick(axes.y, Number(value)) : formatYTick(value)}
 
-                  label={appearance && !exportYTitle ? undefined : { value: appearance ? exportYTitle : fittedYLabel, angle: -90, position: 'insideLeft', offset: 10, style: { fontSize: 'var(--font-label)', fill: 'var(--muted)', textAnchor: 'middle' } }}
+                  label={appearance && !exportYTitle ? undefined : { value: appearance ? fitAxisTitle(exportYTitle, labelRoom, (exportView?.labelPx ?? 12) * (exportView?.paper ? 0.5 : 0.58)) : fittedYLabel, angle: -90, position: 'insideLeft', offset: 10, style: { fontSize: 'var(--font-label)', fill: 'var(--muted)', textAnchor: 'middle' } }}
                 />
                 <Tooltip isAnimationActive={false} cursor={false} content={() => null} />
                 {paneTraces.map((trace) => (

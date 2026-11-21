@@ -20,6 +20,8 @@ export interface ExportView {
   readonly markScale: number;
   /** Marker tag text size in CSS px (11 on screen). */
   readonly tagPx: number;
+  /** Axis title text size in CSS px: a Y title that is taller than the plot falls back to its unit. */
+  readonly labelPx?: number;
   /** Chart panes report what they drew: ranges and axis labels (Copy as LaTeX uses them). */
   readonly onPlot?: (info: ExportPlotInfo) => void;
   readonly onSmith?: (traces: readonly SmithPaneTrace[]) => void;

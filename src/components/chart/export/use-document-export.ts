@@ -10,7 +10,8 @@ import { linkedPeers } from '../../../domain/x-link';
 import { paneTypeOfMode } from '../../../domain/pane-type-registry';
 import { paneName } from '../../../domain/line-view';
 import { exportGroupLayout, exportTraceName } from '../../../domain/export-plot';
-import { documentCsv, documentGeometry } from '../../../domain/export-document';
+import { documentCsv, documentGeometry, latexPreviewGeometry } from '../../../domain/export-document';
+import { ptToCssPx } from '../../../domain/export-image';
 import type { ExportBox, ExportDocumentOptions, ExportFormat, ExportGeometry } from '../../../domain/export-document';
 import type { ExportImageOptions } from '../../../domain/export-image';
 import { exportZip } from '../../../domain/export-zip';
@@ -89,7 +90,11 @@ export function useDocumentExport(renderPane: RenderExportPane) {
       const theme = paper || pdf ? 'print' : resolveExportTheme(options.theme ?? readAppPreferences().exportTheme, appTheme);
       const image: ExportImageOptions = { size: options.preset === 'ieee-1' || options.preset === 'ieee-2' ? options.preset : 'pane', dpi: options.dpi, theme: theme === 'print' ? 'print' : options.theme };
       const bounds = boundingBox(entries.map(entry => entry.box));
-      const geometry = documentGeometry(options, bounds);
+      const base = documentGeometry(options, bounds);
+      const mapping = exportGroupLayout(layoutPreset, entries.length);
+      // LaTeX sizes come from the chosen paper size; only the preview sheet grows to fit titles and legends.
+      const panelFor = (index: number) => mapping.separateMain && index === 0 ? 0.58 : Math.max(0.27, Math.min(0.57, base.cssHeight / base.cssWidth / mapping.rows));
+      const geometry = latex ? latexPreviewGeometry(base, entries.length > 1 ? mapping.rows : 1, entries.length > 1 ? panelFor(1) : base.cssHeight / base.cssWidth, ptToCssPx(options.paperText)) : base;
 
       const title = (options.figureTitle ?? !paper) ? options.title.trim() || (selected.length === 1 ? paneName(panes, selected[0]!.id) : 'Mergen Scope') : '';
       const date = options.include.date ? new Intl.DateTimeFormat('sv-SE').format(now) : '';
@@ -103,7 +108,6 @@ export function useDocumentExport(renderPane: RenderExportPane) {
       const documents: (LatexDocument | null)[] = [];
       let markerOverflow = false;
       const group = latex && entries.length > 1;
-      const mapping = exportGroupLayout(layoutPreset, entries.length);
       const settings = { ...appearance, include: { ...appearance.include, title: !!title }, title, latex: group ? { ...appearance.latex, wrap: 'picture' as const } : appearance.latex };
       for (const [index, entry] of entries.entries()) {
         checkAbort(signal);
@@ -113,11 +117,11 @@ export function useDocumentExport(renderPane: RenderExportPane) {
           width: Math.max(1, Math.round(entry.box.width * geometry.cssWidth / bounds.width)), height: Math.max(1, Math.round(entry.box.height * layout.plotHeight / bounds.height)),
         };
         const columnWidth = mapping.separateMain ? 0.44 : (0.95 - (mapping.columns - 1) * 0.1) / mapping.columns;
-        const panelHeight = mapping.separateMain && index === 0 ? 0.58 : Math.max(0.27, Math.min(0.57, geometry.cssHeight / geometry.cssWidth / mapping.rows));
+        const panelHeight = panelFor(index);
         const drawing = entry.traces.length && (!latex || entry.type === 'chart') ? await renderPane(
           entry.pane.id, image, latex ? 'latex' : 'svg', settings,
           { ...geometry, cssWidth: box.width, cssHeight: box.height, pixelWidth: box.width, pixelHeight: box.height },
-          pdf, group ? { width: columnWidth, height: panelHeight } : latex ? { width: 1, height: geometry.cssHeight / geometry.cssWidth } : undefined,
+          pdf, group ? { width: columnWidth, height: panelHeight } : latex ? { width: 1, height: base.cssHeight / base.cssWidth } : undefined,
         ) : null;
         drawings.push({ box, svg: drawing?.fileSvg ?? null });
         if (drawing?.axes) axes[entry.pane.id] = drawing.axes;

@@ -39,6 +39,16 @@ export function engineeringExportAxis(quantity: string, unit: string, range: rea
   return { title: quantity + offsetLabel + suffix, annotation, offset, factor, digits };
 }
 
+/**
+ * A Y title that fits the plot height in an export image: the whole title, else only its trailing "(unit)",
+ * else nothing (the same fallback the screen uses). `charPx` is the average character width.
+ */
+export function fitAxisTitle(title: string, roomPx: number, charPx: number): string {
+  if (title.length * charPx <= roomPx) return title;
+  const unit = title.match(/\([^()]+\)\s*$/u)?.[0]?.trim() ?? '';
+  return unit && unit.length * charPx <= roomPx ? unit : '';
+}
+
 export function exportAxisTitle(axis: ExportAxis, mode: 'auto' | 'edit' | 'off', custom?: string): string {
   if (mode === 'off') return axis.offset || axis.factor !== 1 ? axis.annotation : '';
   const title = custom?.trim();

@@ -63,14 +63,45 @@ export function parseExportOptions(raw: unknown): ExportImageOptions {
   return { size, dpi, theme };
 }
 
-export function layoutLegend(widths: readonly number[], maxWidth: number, opts: { itemGap: number; rowHeight: number; padding: number }) {
+/**
+ * Legend items left to right, wrapping to a new row when one does not fit. `lines[i]` is how many text lines
+ * item i has (a wrapped name, see wrapLegendLabel); a row is as tall as its tallest item.
+ */
+export function layoutLegend(widths: readonly number[], maxWidth: number, opts: { itemGap: number; rowHeight: number; padding: number }, lines: readonly number[] = []) {
   if (widths.length === 0) return { items: [], height: 0 };
   const items: { x: number; y: number }[] = [];
-  let x = opts.padding, row = 0;
-  for (const width of widths) {
-    if (x > opts.padding && x + width > maxWidth - opts.padding) { row += 1; x = opts.padding; }
-    items.push({ x, y: opts.padding + row * opts.rowHeight });
+  let x = opts.padding, y = opts.padding, rowLines = 1;
+  widths.forEach((width, index) => {
+    const itemLines = Math.max(1, lines[index] ?? 1);
+    if (x > opts.padding && x + width > maxWidth - opts.padding) { y += rowLines * opts.rowHeight; x = opts.padding; rowLines = 1; }
+    items.push({ x, y });
+    rowLines = Math.max(rowLines, itemLines);
     x += width + opts.itemGap;
+  });
+  return { items, height: y + rowLines * opts.rowHeight + opts.padding };
+}
+
+/**
+ * Break a legend name into lines no wider than `maxPx`, so it is never cut off: at spaces first, then after
+ * "_", "-", "." or "/", and as a last resort inside a word. `measure` gives a string's width in px.
+ */
+export function wrapLegendLabel(label: string, maxPx: number, measure: (text: string) => number): string[] {
+  if (maxPx <= 0 || measure(label) <= maxPx) return [label];
+  const pieces = label.split(/(?<=\s)|(?<=[_\-./])/u).filter(Boolean);
+  const lines: string[] = [];
+  let line = '';
+  const push = (text: string) => { if (text.trim()) lines.push(text.trimEnd()); };
+  for (const piece of pieces) {
+    if (measure(line + piece) <= maxPx) { line += piece; continue; }
+    push(line); line = '';
+    let rest = piece;
+    while (measure(rest) > maxPx && rest.length > 1) {
+      let cut = rest.length - 1;
+      while (cut > 1 && measure(rest.slice(0, cut)) > maxPx) cut -= 1;
+      push(rest.slice(0, cut)); rest = rest.slice(cut);
+    }
+    line = rest.trimStart();
   }
-  return { items, height: (row + 1) * opts.rowHeight + 2 * opts.padding };
+  push(line);
+  return lines.length ? lines : [label];
 }
