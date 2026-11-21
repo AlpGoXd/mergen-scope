@@ -65,8 +65,9 @@
 /* ---------- Chart type popover content (inside .ui-popover), also used as the first section of Pane settings ---------- */
 .pts { display: flex; flex-direction: column; gap: 6px; }
 .ptm { display: flex; flex-direction: column; gap: 8px; padding: 10px; width: 360px; max-width: calc(100vw - 16px); box-sizing: border-box; }
-.ptm-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
-.ptm-cell { display: flex; min-width: 0; }
+/* Wrapping rows, not a fixed 3-column grid: every tile is as wide as its name needs ("Spectrogram" is never cut). */
+.ptm-grid { display: flex; flex-wrap: wrap; gap: 6px; }
+.ptm-cell { display: flex; flex: 1 1 auto; min-width: max-content; }
 .ptm-cell > .ui-tooltip-anchor { display: flex; flex: 1; min-width: 0; }
 .ptm-cell > .ui-tooltip-anchor > .ptm-tile { flex: 1; }
 .ptm-tile {
