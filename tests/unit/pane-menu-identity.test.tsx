@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { fireEvent, render, screen } from '@testing-library/react';
 import { expect, it, vi } from 'vitest';
 import { Menu } from '../../src/components/left-panel/Menu';

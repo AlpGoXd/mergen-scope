@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { render, screen, fireEvent } from '@testing-library/react';
 import { expect, it, vi } from 'vitest';
 import { MarkerItem } from '../../src/components/sidebar/LiveMarkerItem';

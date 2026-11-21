@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildPanes } from '../../src/domain/pane-math';
 import { buildSnapshot } from '../../src/domain/workspace-serialize';
