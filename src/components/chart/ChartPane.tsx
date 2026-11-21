@@ -1382,15 +1382,16 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
                                   x={pillX} y={pillY}
                                   width={pillW} height={pillH}
                                   rx={4} ry={4}
-                                  fill="rgba(255,255,255,0.88)"
-                                  stroke="rgba(0,0,0,0.13)"
+                                  fill="var(--tipBg)"
+                                  fillOpacity={0.9}
+                                  stroke="var(--tipBd)"
                                   strokeWidth={1}
                                 />}
                                 <line
                                   data-paper-marker-leader={paperTag ? '' : undefined}
                                   x1={roundedCx} y1={pillY + pillH}
                                   x2={roundedCx} y2={roundedCy + (paperTag && tagBelow ? 7 : -7) * glyphScale}
-                                  stroke="rgba(0,0,0,0.25)" strokeWidth={1}
+                                  stroke="var(--muted)" strokeOpacity={0.6} strokeWidth={1}
                                 />
                                 <text
                                   data-paper-marker-label={paperTag ? '' : undefined}
@@ -1400,7 +1401,7 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
                                   textAnchor="middle"
                                   fontSize={tagPx}
                                   fontFamily="var(--font-mono, monospace)"
-                                  fill="#111"
+                                  fill="var(--text)"
                                   style={{ userSelect: 'none' }}
                                 >
                                   {labelText}
