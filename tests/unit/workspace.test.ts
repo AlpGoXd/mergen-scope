@@ -24,6 +24,17 @@ it('new panes copy outside choice but reset the Smith range', () => {
 });
 
 describe("workspace serialization", () => {
+  it.each([
+    ['legacy grid disabled', { showGrid: false }, undefined, false],
+    ['explicit major grid enabled', { showGrid: false }, { gridMajor: true }, true],
+    ['grid defaults', {}, undefined, true],
+  ])('restores %s via the v4 loader', (_label, legacy, settings, expected) => {
+    const snapshot = { version: 4, files: [], panes: [{ id: 'pane-1', ...legacy, settings }] };
+    const restored = restoreSnapshot(JSON.stringify(snapshot));
+    expect(restored?.panes[0]?.settings.gridMajor).toBe(expected);
+    expect(restored?.panes[0]).not.toHaveProperty('showGrid');
+  });
+
   it("round-trips a minimal static workspace snapshot", () => {
     const trace = makeTestTrace();
     const panes = buildPanes(1).map(pane => ({ ...pane, settings: { ...pane.settings, smith: { ...pane.settings.smith, range: { startHz: 2, stopHz: 5 }, outside: 'faint' as const } } }));
