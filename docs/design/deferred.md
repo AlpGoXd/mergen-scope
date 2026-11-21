@@ -52,12 +52,12 @@ The historical Phase 7A screenshots and side-by-side comparisons were removed du
 
 ## Phase 7B footer and app settings follow-up
 
-The historical Phase 7B comparison and screenshots were removed during the documentation cleanup. Screenshots were captured at 1440 Ã— 900 on the 7B worktree before integration; they do not establish integrated behavior.
+The historical Phase 7B comparison and screenshots were removed during the documentation cleanup. Screenshots were captured at 1440 × 900 on the 7B worktree before integration; they do not establish integrated behavior.
 
 | Remaining work | Target phase | Status and evidence |
 | --- | --- | --- |
 | Verify live preference integration and persistence for size, palette, trace symbols and export theme. | 7E | Size and palette have consumers; export-theme consumer and complete end-to-end persistence verification remain open. |
-| Supply target pane type, free cursor coordinates in axis units (Smith Z and Î“), exact armed sentence and active trace/file short name to the footer; verify responsive hiding and context-sensitive hints. | 7E | Partial footer implementation; empty-state captures only. No integrated nonempty, armed or Smith state evidence yet. |
+| Supply target pane type, free cursor coordinates in axis units (Smith Z and Γ), exact armed sentence and active trace/file short name to the footer; verify responsive hiding and context-sensitive hints. | 7E | Partial footer implementation; empty-state captures only. No integrated nonempty, armed or Smith state evidence yet. |
 | Capture and compare the feedback menu and nonempty, armed and Smith footer states in light and dark against 41-F1. Verify the two issue links contain only the intended template, app version and browser/OS. | 7E | Deferred; help and empty footer are captured, but these states and privacy behavior lack dedicated evidence. |
 | Refine settings label/control alignment, switch and icon shapes and spacing against 44-S1; verify token colors against reference values. Verify help keycap treatment and footer link wording against 41-F1. | 7E | Palette swatches and themed controls are present; reference color measurements and remaining visual differences are documented in the comparison. |
 | Verify keyboard guards, sheet focus and Escape behavior, preference reset, and the experimental switch including an existing workspace with more than four panes. | 7E | Deferred; existing suite does not specifically cover these behaviors. |
