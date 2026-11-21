@@ -1,4 +1,5 @@
 import type { Marker } from '../types/marker';
+import type { Pane } from '../types/pane';
 import type { Trace, RawTrace, DerivedTrace } from '../types/trace.ts';
 import type { TouchstoneNetwork, TouchstoneParameterType } from '../types/touchstone.ts';
 import type {
@@ -484,7 +485,12 @@ export function migrateWorkspaceSnapshot(raw: unknown): WorkspaceSnapshot {
   const derivedTraces = rawDerivedTraces.length > 0 ? rawDerivedTraces : synthesizeDerivedTraces(displayTraces, datasets);
 
   const paneMode = Math.max(1, Math.min(4, input?.paneMode ?? 1));
-  const panes = normalizePanes(input?.panes, paneMode);
+  const sourcePanes = asArray<Pane>(input?.panes).map(pane => {
+    if (!pane || typeof pane !== 'object' || pane.settings?.gridMajor !== undefined ||
+        !('showGrid' in pane) || typeof pane.showGrid !== 'boolean') return pane;
+    return { ...pane, settings: { ...pane.settings, gridMajor: pane.showGrid } };
+  });
+  const panes = normalizePanes(sourcePanes, paneMode);
   const vis = input?.vis ? { ...input.vis } : {};
   const paneRenderModes = input?.paneRenderModes ? { ...input.paneRenderModes } : {};
   const activePaneId = input?.activePaneId || 'pane-1';

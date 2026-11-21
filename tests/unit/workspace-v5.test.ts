@@ -156,6 +156,26 @@ type LegacyGoldenSnapshot = {
   ui: { showDots: boolean; theme?: string };
 };
 describe('v5 migration boundary', () => {
+  it.each([
+    ['legacy grid disabled', { showGrid: false }, {}, false],
+    ['explicit major grid enabled', { showGrid: false }, { gridMajor: true }, true],
+    ['grid defaults', {}, {}, true],
+  ])('loads %s in v4 and v5 snapshots', (_label, legacy, gridSettings, expected) => {
+    const v4 = fixture('workspace-v4-eight-pane-extension');
+    const v5 = migrateWorkspaceV5(v4);
+    const pane = v5?.panes.at(-1);
+    if (!v4 || typeof v4 !== 'object' || !v5 || !pane) throw new Error('Expected a pane in the migrated fixture');
+    const { gridMajor: _gridMajor, ...settings } = pane.settings;
+    const oldPane = { ...pane, ...legacy, settings: { ...settings, ...gridSettings } };
+    const panes = v5.panes.map(candidate => candidate.id === pane.id ? oldPane : candidate);
+
+    for (const snapshot of [v4, v5]) {
+      const loaded = migrateWorkspaceV5({ ...snapshot, panes })?.panes.find(candidate => candidate.id === pane.id);
+      expect(loaded?.settings.gridMajor).toBe(expected);
+      expect(loaded).not.toHaveProperty('showGrid');
+    }
+  });
+
   it('preserves files, legacy traces, pane configuration, memberships and markers from a real v4 export', () => {
     const raw = fixture('workspace-v4-live-legacy') as LegacyEnvelope;
     const source = raw.snapshot;

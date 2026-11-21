@@ -390,11 +390,13 @@ function migrateWorkspaceV5Body(raw: unknown): WorkspaceSnapshotV5 | null {
     const refLines = migrateLines(body.refLines, paneOrder);
     const panes = Array.isArray(body.panes) ? withTableRange(body.panes).map(pane => {
       if (!object(pane) || !object(pane.settings) || !object(pane.settings.smith)) return pane;
+      const { showGrid, ...savedPane } = pane;
+      const gridMajor = pane.settings.gridMajor === undefined ? showGrid !== false : pane.settings.gridMajor;
       const smith = pane.settings.smith;
       const labels = smith.labels === true || smith.labels === undefined ? 'normalised' : smith.labels === false ? 'off' : smith.labels;
       const inverted = pane.renderMode === 'smith-inverted';
       const readout = inverted && Array.isArray(smith.readout) ? ['y', ...smith.readout.filter(field => field !== 'y')] : smith.readout;
-      return { ...pane, renderMode: inverted ? 'smith' : pane.renderMode, settings: { ...pane.settings, smith: { ...smith, range: smith.range === undefined ? null : smith.range, outside: smith.outside === undefined ? 'hidden' : smith.outside, labels, ...(inverted ? { grid: 'y', readout } : {}) } } };
+      return { ...savedPane, renderMode: inverted ? 'smith' : pane.renderMode, settings: { ...pane.settings, gridMajor, smith: { ...smith, range: smith.range === undefined ? null : smith.range, outside: smith.outside === undefined ? 'hidden' : smith.outside, labels, ...(inverted ? { grid: 'y', readout } : {}) } } };
     }) : body.panes;
     if (!refLines || !validCurrent({ ...body, layout, panes, refLines })) return null;
     const snapshot = { ...body, layout, panes, refLines } as unknown as WorkspaceSnapshotV5;
@@ -464,7 +466,7 @@ function migrateWorkspaceV5Body(raw: unknown): WorkspaceSnapshotV5 | null {
         typed: typeof p.typed === 'boolean' ? p.typed : p.renderMode === 'smith' || p.renderMode === 'smith-inverted' || p.renderMode === 'table',
         xLinkGroup: typeof p.xLinkGroup === 'string' ? p.xLinkGroup : null,
         settings: {
-          gridMajor: bool('gridMajor'), gridMinor: bool('gridMinor'),
+          gridMajor: s.gridMajor === undefined ? p.showGrid !== false : bool('gridMajor'), gridMinor: bool('gridMinor'),
           gridMajorThickness: bounded('gridMajorThickness', 0.5, 5), gridMinorThickness: bounded('gridMinorThickness', 0.5, 5),
           gridMajorOpacity: bounded('gridMajorOpacity', 0, 1), gridMinorOpacity: bounded('gridMinorOpacity', 0, 1),
           gridDashStyle: typeof s.gridDashStyle === 'string' ? s.gridDashStyle : defaults.gridDashStyle,
