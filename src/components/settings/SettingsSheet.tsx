@@ -2,7 +2,7 @@
 import './settings-sheet.css';
 import { useThemePreference, useUiDispatch } from '../../stores/ui-store';
 import { usePaneLimit } from '../../stores/pane-store';
-import { useCenteredDialog } from '../../hooks/use-centered-dialog';
+import { useSheetFocus } from '../../hooks/use-sheet-focus';
 import { applyAppSize } from './app-size';
 import { appPreferencesKey, defaultAppPreferences, readAppPreferences } from './app-preferences';
 import type { AppPreferences } from './app-preferences';
@@ -10,14 +10,14 @@ export { defaultAppPreferences, readAppPreferences } from './app-preferences';
 export type { AppPreferences } from './app-preferences';
 /** App settings. Keyboard shortcuts › and About › hand over to the footer's Help sheet and About panel. */
 export function SettingsSheet({ onClose, onShowShortcuts, onAbout, onPreferencesChange }: { onClose: () => void; onShowShortcuts?: () => void; onAbout?: () => void; onPreferencesChange?: (preferences: AppPreferences) => void }) {
-  const dialog = useCenteredDialog();
+  const dialog = useSheetFocus();
   const [prefs, setPrefs] = useState(readAppPreferences);
   const { preference, setPreference } = useThemePreference();
   const { limit, setExperimental } = usePaneLimit();
   const uiDispatch = useUiDispatch();
   const update = (next: AppPreferences) => { setPrefs(next); applyAppSize(next.size); try { localStorage.setItem(appPreferencesKey, JSON.stringify(next)); } catch { /* storage unavailable */ } if (next.palette !== prefs.palette) uiDispatch({ type: 'SET', payload: { key: 'huePalette', value: next.palette } }); window.dispatchEvent(new Event('mergen-preferences')); onPreferencesChange?.(next); };
   const choice = <T extends string>(label: string, value: T, options: readonly (readonly [T, string])[], set: (value: T) => void) => <div className="settings-row"><span className="t-label">{label}</span><div className="settings-segments" role="group" aria-label={label}>{options.map(([id, name]) => <button type="button" key={id} aria-pressed={id === value} onClick={() => set(id)}>{name}</button>)}</div></div>;
-  return <dialog ref={dialog} className="ui-dialog app-settings" role="dialog" aria-modal="true" aria-label="App settings" onCancel={event => { event.preventDefault(); onClose(); }}>
+  return <div ref={dialog} className="app-settings" role="dialog" aria-label="App settings" tabIndex={-1}>
     <header className="settings-header"><div><strong>App settings</strong><div className="t-caption">All panes &#183; saved in this browser</div></div><button className="settings-close" type="button" onClick={onClose} aria-label="Close settings">&times;</button></header>
     <div className="settings-body">
       <>
@@ -38,5 +38,5 @@ export function SettingsSheet({ onClose, onShowShortcuts, onAbout, onPreferences
         <p className="settings-hint t-caption">Grid, markers, lines and Smith options are set per pane, with the sliders button in each pane header.</p>
       </>
     </div><footer className="settings-footer"><button type="button" onClick={() => { update(defaultAppPreferences); setPreference('system'); setExperimental(false); }}>Reset all to defaults</button></footer>
-  </dialog>;
+  </div>;
 }

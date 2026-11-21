@@ -135,7 +135,7 @@ const checks: Record<ShortcutId, (page: Page, press: () => Promise<void>) => Pro
     await expect(armed(page)).toBeVisible();
     await press();
     await expect(armed(page)).toHaveCount(0);
-    // The native modal closes Escape independently of the workspace shortcut registry.
+    // The open Help sheet gets Escape before the workspace does.
     await page.keyboard.press('Shift+Slash');
     await expect(page.getByTestId('help-sheet')).toBeVisible();
     await page.keyboard.press('Escape');
@@ -218,24 +218,32 @@ test('retired keys do nothing: M / S / L / P, [ and ], F', async ({ page }) => {
 
 test('Help lists every registry shortcut and the mouse hints; App settings opens it at Keyboard and opens About', async ({ page }) => {
   await openS21(page);
-  await page.getByRole('button', { name: 'Help', exact: true }).click();
+  const helpButton = page.getByRole('button', { name: 'Help', exact: true });
+  await helpButton.click();
   const sheet = page.getByTestId('help-sheet');
   await expect(sheet).toBeVisible();
   const box = await sheet.boundingBox();
   const viewport = page.viewportSize();
-  if (!box || !viewport) throw new Error('no box');
-  expect(box.width).toBeLessThanOrEqual(521);
-  expect(box.width).toBeGreaterThan(400);
+  const anchor = (await helpButton.boundingBox())!;
+  if (!box || !viewport) throw new Error('Help sheet has no layout box');
+  expect(box.width).toBeCloseTo(520, 0);
   expect(box.height).toBeLessThanOrEqual(viewport.height * 0.7 + 1);
-  expect(box.x + box.width / 2).toBeCloseTo(viewport.width / 2, 0);
-  expect(box.y + box.height / 2).toBeCloseTo(viewport.height / 2, 0);
+  expect(box.x + box.width).toBeCloseTo(anchor.x + anchor.width, 0);
+  const gap = anchor.y - (box.y + box.height);
+  expect(gap).toBeGreaterThan(0);
+  expect(gap).toBeLessThan(12);
+  await expect(sheet).not.toHaveAttribute('aria-modal', 'true');
+  const helpBody = sheet.locator('.help-sheet__body');
+  expect(await helpBody.evaluate(body => body.scrollHeight)).toBeGreaterThan(await helpBody.evaluate(body => body.clientHeight));
   const keyboard = sheet.getByRole('list', { name: 'Keyboard' }).or(sheet.locator('dl[aria-label="Keyboard"]'));
   for (const shortcut of SHORTCUTS) await expect(keyboard.locator(`[data-shortcut="${shortcut.id}"]`)).toContainText(shortcut.label);
   await expect(sheet.locator('dl[aria-label="Keyboard"] .kbd').first()).toBeVisible();
   await expect(sheet.locator('dl[aria-label="Mouse"]')).toContainText('Right-drag');
   for (const text of [`Mergen Scope ${APP_VERSION}`, 'About', 'Report a problem ↗', 'Suggest an idea ↗', 'Your files never leave this browser.']) await expect(sheet.locator('footer')).toContainText(text);
   await expect(sheet).not.toContainText('M / S / L / P');
-  await page.keyboard.press('Escape');
+  await sheet.getByRole('button', { name: 'Close help' }).click();
+  await expect(sheet).toHaveCount(0);
+  await expect(helpButton).toBeFocused();
 
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
   const settings = page.getByRole('dialog', { name: 'App settings' });

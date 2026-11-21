@@ -1,6 +1,6 @@
-﻿.app-settings { position: fixed; right: 0; top: var(--top-row-height); bottom: var(--footer-height); width: min(360px, 100vw); z-index: 100; display: flex; flex-direction: column; background: var(--panel); color: var(--text); border: 1px solid var(--border); box-shadow: 0 8px 24px #0003; white-space: normal; }
+﻿.app-settings { position: absolute; inset: 0 0 0 auto; width: min(360px, 100%); z-index: 100; display: flex; flex-direction: column; background: var(--panel); color: var(--text); border: 1px solid var(--border); box-shadow: 0 8px 24px #0003; white-space: normal; animation: settings-slide-in 120ms ease-out; }
+@keyframes settings-slide-in { from { transform: translateX(100%); } }
 .app-settings button { font: inherit; cursor: pointer; }
-.app-settings.ui-dialog { width: min(360px, calc(100vw - 64px)); height: fit-content; max-height: calc(100dvh - 64px); padding: 0; gap: 0; }
 .app-settings a { color: var(--accent); }
 .settings-header { display: flex; justify-content: space-between; align-items: flex-start; padding: 10px 12px; border-bottom: 1px solid var(--border); }
 .settings-header .t-caption, .settings-caption, .settings-hint { color: var(--text-muted); }
@@ -11,11 +11,11 @@
 .settings-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 30px; }
 .settings-row .t-label { font-size: var(--font-label); line-height: var(--lh-label); }
 .settings-segments { display: flex; flex-shrink: 0; }
-.footer-bar .settings-segments button { height: 22px; padding: 0 7px; color: var(--text); background: var(--raised); border: 1px solid var(--border); font-size: var(--font-caption); }
-.footer-bar .settings-segments button:first-child { border-radius: 4px 0 0 4px; }
-.footer-bar .settings-segments button:last-child { border-radius: 0 4px 4px 0; }
-.footer-bar .settings-segments button + button { margin-left: -1px; }
-.footer-bar .settings-segments button[aria-pressed="true"] { position: relative; background: color-mix(in oklch, var(--accent) 17%, var(--panel)); border-color: var(--accent); }
+.settings-segments button { height: 22px; padding: 0 7px; color: var(--text); background: var(--raised); border: 1px solid var(--border); font-size: var(--font-caption); }
+.settings-segments button:first-child { border-radius: 4px 0 0 4px; }
+.settings-segments button:last-child { border-radius: 0 4px 4px 0; }
+.settings-segments button + button { margin-left: -1px; }
+.settings-segments button[aria-pressed="true"] { position: relative; background: color-mix(in oklch, var(--accent) 17%, var(--panel)); border-color: var(--accent); }
 .settings-palette { align-items: flex-start; padding: 4px 0; }
 .settings-radio { display: flex; align-items: center; gap: 5px; min-height: 24px; font-size: var(--font-caption); cursor: pointer; }
 .settings-radio input { margin: 0; accent-color: var(--accent); }
