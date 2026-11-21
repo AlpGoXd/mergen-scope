@@ -41,13 +41,13 @@ npm with a committed `package-lock.json`. Ask before adding a dependency, and ne
 ## Git
 
 - `main` is the released line and the only branch that deploys. Don't commit on it.
-- The next version is collected on an integration branch, currently `beta-2` (folder `gits/mergen-scope-beta-2`). Features are built on their own branch and merged into it.
+- Day-to-day work happens on the long-lived integration branch `dev`, in the single folder `gits/mergen-scope`. It is always branched from `main`; after a release, bring it back up to date with `git merge main`. Small changes are committed straight on `dev`; larger features get their own branch and are merged into it.
 - Branch names are `type/kebab-slug`: `feat/` for features, `fix/` for bug fixes, `chore/` for housekeeping, `codex/` for Codex jobs.
-- **Adding a feature:** branch from the integration branch (`git switch -c feat/<slug> beta-2`), commit there, then merge it back with `git merge --no-ff feat/<slug>` and delete it with `git branch -d feat/<slug>`. Run typecheck, unit and e2e on the integration branch after each merge.
-- **Releasing:** bump the version in `package.json`, merge the integration branch into `main`, tag `v<version>` (for example `v1.0.0-beta.2`). The user pushes.
-- **Agent worktrees:** one per agent task, in `gits/_worktrees/<slug>`, created from the integration branch and removed after the merge. Never run two writers in the same folder.
-- **No duplicate `node_modules`:** `gits/node_modules` is one shared install that every folder under `gits/` finds by itself, so a worktree needs no install, copy or junction. Never run `npm install` or `npm ci` in a worktree. If a task changes `package-lock.json`, stop and tell the user, who refreshes the shared install.
-- **Never `git push`** (blocked by a deny rule in `.claude/settings.local.json`). Commit only when the user asks; the user pushes. Worktree branches never need pushing: merge them locally.
+- **Adding a feature:** branch from `dev` (`git switch -c feat/<slug> dev`), commit there, then merge it back with `git merge --no-ff feat/<slug>` and delete it with `git branch -d feat/<slug>`. Run typecheck, unit and e2e on `dev` after each merge.
+- **Releasing:** bump the version in `package.json`, merge `dev` into `main`, tag `v<version>` (for example `v1.0.0-beta.3`). The user pushes.
+- **One folder, no worktrees.** Do not create worktrees or extra copies of the repo under `gits/`. Switch branches in `gits/mergen-scope` instead, and keep the working tree clean before switching. Only one writer (Claude or a Codex job) edits the tree at a time. Create a worktree only if the user explicitly asks for parallel work, and remove it after the merge.
+- **No duplicate `node_modules`:** install once, in `gits/mergen-scope`. If a task changes `package-lock.json`, say so in the report.
+- **Never `git push`** (blocked by a deny rule in `.claude/settings.local.json`). Commit only when the user asks; the user pushes. Task branches never need pushing: merge them locally.
 - Commit style: short imperative subject, optional scope prefix (`refactor(ts): …`, `design-sync: …`).
 - `dist/` is build output and is not tracked (it is in `.gitignore`; CI and Cloudflare Pages build it from source). Never force-add it.
 
@@ -90,8 +90,8 @@ node "$CODEX" adversarial-review --model gpt-6.1-terra --scope working-tree "foc
 # Investigation, read-only (default sandbox)
 node "$CODEX" task --fresh --model gpt-6.1-terra --effort high "<prompt>"
 
-# Implementation, can write files: only in an isolated worktree
-node "$CODEX" task --fresh --write --cwd <worktree-path> --model gpt-6-luna "<prompt>"
+# Implementation, can write files: on a codex/<slug> branch in the main folder, while Claude does not edit
+node "$CODEX" task --fresh --write --model gpt-6-luna "<prompt>"
 ```
 
 For long runs use the Bash tool's `run_in_background` and wait for the notification instead of polling. `node "$CODEX" status` / `result <job-id>` read job state. The `codex:codex-rescue` agent is an alternative for tasks: put `--model …` in its prompt, since it otherwise leaves the model unset and **defaults to `--write` in the current tree**.
@@ -101,18 +101,18 @@ For long runs use the Bash tool's `run_in_background` and wait for the notificat
 Delegate when it clearly helps:
 - **Second-opinion review** of a non-trivial diff before telling the user it's done (terra, `review` or `adversarial-review`). Especially for `ChartPane.tsx`, parsers, workspace migration, analysis math.
 - **Stuck bug:** after one solid attempt fails, have Codex investigate independently (terra, read-only) and compare root causes.
-- **Independent tests:** Codex writes tests from the spec/types, not from Claude's implementation (luna, worktree).
-- **Parallel work:** a large task with separable parts (e.g. a new analysis card in `domain/analysis/` + its card component), one part per agent, each in its own worktree.
+- **Independent tests:** Codex writes tests from the spec/types, not from Claude's implementation (luna, on a `codex/<slug>` branch).
+- **Large tasks with separable parts** (e.g. a new analysis card in `domain/analysis/` + its card component): run the parts one after another on a branch each. Parallel agents need worktrees, which only the user can approve (see Git).
 - **Alternative design** for an architectural choice (terra, read-only, no writes).
 
 Don't delegate trivial edits, one-file fixes Claude can verify in a minute, or anything needing the conversation's context that's costly to explain.
 
 ### Rules
 
-- **One writer per file.** Never let Claude and Codex (or two Codex jobs) edit the same files at the same time. Write-capable Codex runs go in a git worktree (`git worktree add ../_worktrees/codex-<task> -b codex/<task> beta-2`), passed via `--cwd`. Read-only runs may use the main tree.
+- **One writer per file.** Never let Claude and Codex (or two Codex jobs) edit the same files at the same time. Write-capable Codex runs happen in the main folder on their own branch (`git switch -c codex/<task> dev`, tree clean first), and Claude does not edit until the job finishes; then merge the branch into `dev` and delete it. Read-only runs may use the tree at any time.
 - Give Codex a self-contained prompt: goal, files involved, constraints from this file, and the verification command to run.
 - Treat Codex output as a proposal. Claude reads the diff, rejects what doesn't fit, merges the rest, then runs the verification commands above itself. Codex reporting "tests pass" is not enough.
-- Tell the user which model did what and what was accepted or rejected. Remove worktrees/branches once merged or abandoned.
+- Tell the user which model did what and what was accepted or rejected. Delete task branches once merged or abandoned.
 
 ## Design documentation
 
