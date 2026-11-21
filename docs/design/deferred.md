@@ -84,7 +84,7 @@ The historical Phase 7B comparison and screenshots were removed during the docum
 | Remaining work | Target phase | Status and evidence |
 | --- | --- | --- |
 | Expose actual parsing progress in the file-import state and render the specified percentage and 2 px accent bar on the file row while parsing. | Phase 7D / 7E | Deferred: the current file record has no progress field, so this state cannot be displayed or captured faithfully. |
-| Wire the error row Fix action to the shared wizard or replacement pipeline, then verify recovery end to end. | Phase 7D / 7E | Partial: the error row is tinted and exposes its reason; Fix is disabled when the parent does not supply the relevant callback. |
+| Wire the error row Fix action to the shared wizard or replacement pipeline, then verify recovery end to end. | Phase 7D / 7E | Partial: the error row is tinted and exposes its reason; Fix is hidden (beta-2) until the parent supplies the relevant callback. |
 | Verify matrix tooltip behavior against the current add/show contract. | Phase 7E; verify in Phase 8 | The picker lists the current view and existing placements and describes add/show; the older add/remove wording needs reconciliation. |
 | Finish the greater-than-eight-port picker: compare its row/column selectors, removable plotted chips and full-grid popover against board 23-C04, and complete cross-view chips plus popover focus and dismissal. | Phase 7E; visual audit in Phase 8 | Partial: the list picker and grid exist; the visual treatment and cross-view/focus behavior remain incomplete. |
 
@@ -94,7 +94,7 @@ Light and dark populated network, CSV and error captures and comparisons are in 
 
 | Remaining work | Target phase | Status |
 | --- | --- | --- |
-| Wire Replace and Rename to their real workflows and verify their data preservation and undo behavior. | Phase 7D / 7E | Disabled with explanations; no placeholder behavior. |
+| Wire Replace to its real workflow and verify data preservation and undo behavior. | Phase 7D / 7E | Replace file… is hidden (beta-2) until it is wired; file Rename is done (inline rename). |
 | Compare menu and card proportions in both themes against complete dark closeups; adjust as needed. | Phase 8 | Card and menu evidence remains in file-card evidence. The dark Matrix comparison is complete in Matrix 2x evidence. |
 
 
@@ -212,7 +212,7 @@ Evidence and the difference list: analysis-evidence. Open:
 - **X linking (11 Nov), left out:** the "panes start unlinked" decision text is not yet written into `design-decisions-2026-11-10.md`. Previous zoom (Backspace) is per pane; in a link group it restores the target pane's X step and the group follows.
 - **Chart mouse (13 Nov):** Ctrl+scroll X zoom, Ctrl+left-drag pan and double-click fit are in the decisions but not implemented on cartesian panes (right-drag zooms when fitted and pans when zoomed; middle-click fits). Help lists only what works.
 - **Swap and drop hints (11 Nov):** a file-drop refusal is swallowed when the target pane is removed before the asynchronous file read finishes (fall back to the workspace-level banner Notice; test it); an "automatic title" flag in the saved pane shape, so a custom title such as "Pane 42" is not renumbered by a layout change or swap; keyboard alternative for swapping panes.
-- **Trace colour input:** `<input type="color">` in the Traces list rows gets an `oklch(...)` value, which browsers reject (console warning, picker starts black): convert to `#rrggbb` for the input only (a small pure helper in `src/domain/`).
+- **Trace colour input:** done for beta-2: `cssColorToHex` in `src/domain/color-hue.ts` gives the input a `#rrggbb` value.
 - **Vector PDF from a standalone file:** Paper PDF uses standard fonts and lazy same-site modules. PDF is available through the local or hosted web app. A browser opening only `dist/app.html` as a file can still export PNG, SVG, TikZ and CSV. App-look PDF with IBM Plex is deferred.
 - **Smith in the TikZ dialog:** the groupplots export omits Smith panes and reports the omission in the preview. Smith remains available for image export and the pane's standalone Copy as LaTeX action.
 
