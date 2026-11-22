@@ -11,6 +11,7 @@ import { useAsk } from '../stores/dialog-store';
 import { replaceWorkspaceText, sameNameText } from '../domain/confirm-text';
 import type { WorkspaceCounts } from '../domain/confirm-text';
 import { copyName } from '../domain/open-files-plan';
+import { classifyFileSize, formatFileSize, REFUSE_BYTES } from '../domain/file-size-policy';
 import { usePaneLimit } from '../stores/pane-store';
 import type { OpenChoice } from '../types/open-files-plan';
 
@@ -32,7 +33,29 @@ export function useFileImport() {
   const {limit}=usePaneLimit();
   const limitRef=useRef(limit); limitRef.current=limit;
   return useCallback(async (files: FileList | readonly File[], targetPaneId?:string, workspaceRoute = false, drop = false):Promise<void> => {
-    const read = await Promise.all(Array.from(files).map(async file => {
+    // File inputs are cleared and drag data can become inaccessible once the event ends.
+    const batch = Array.from(files);
+    const accepted: File[] = [];
+    for (const file of batch) {
+      const bytes = file.size;
+      const classification = classifyFileSize(bytes);
+      if (classification === 'refuse') {
+        workspace.dispatch({ slice: 'files', action: { type: 'REPORT_IMPORT_ERROR', payload: {
+          fileName: file.name,
+          message: `File size is ${formatFileSize(bytes)}. Files over ${formatFileSize(REFUSE_BYTES)} can't be opened in the browser.`,
+        } } });
+        continue;
+      }
+      if (classification === 'warn' && await ask({
+        title: 'Open large file?',
+        message: `${file.name} is ${formatFileSize(bytes)}. Large files can make the app slow. Open it anyway?`,
+        confirmLabel: 'Open anyway',
+      }) !== 'confirm') continue;
+      accepted.push(file);
+    }
+    if (!accepted.length) return;
+
+    const read = await Promise.all(accepted.map(async file => {
       const id=nextImportId();
       try {
         const text=await file.text();
@@ -72,7 +95,7 @@ export function useFileImport() {
     if (loaded?.kind==='workspace') {
       const counts=workspaceCounts(stateRef.current);
       const hasWork=counts!==null;
-      if (counts && await ask(replaceWorkspaceText(counts, Array.from(files).find(file=>/\.json$/i.test(file.name))?.name))!=='confirm') return;
+      if (counts && await ask(replaceWorkspaceText(counts, accepted.find(file=>/\.json$/i.test(file.name))?.name))!=='confirm') return;
       workspaceInput={snapshot:loaded.snapshot,legacy:loaded.legacy,choice:hasWork ? 'replace' : undefined};
       const traces=[...loaded.snapshot.files.flatMap(file=>file.traces),...loaded.snapshot.derivedTraces];
       syncTraceIdCounter(traces);

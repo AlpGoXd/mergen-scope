@@ -43,9 +43,9 @@ export const isClosedSymbol = (kind: TraceSymbol): boolean => kind !== 'plus' &&
  * Points every `spacing` px of arc length along a polyline in screen pixels, starting half a
  * spacing in so symbols don't sit on the plot edge. Skips non-finite points (gaps).
  */
-export function symbolPositions(points: readonly Pt[], spacing = 90): Pt[] {
+export function symbolPositions(points: readonly Pt[], spacing = 90, limit = Infinity): Pt[] {
   const out: Pt[] = [];
-  if (spacing <= 0) return out;
+  if (spacing <= 0 || limit <= 0) return out;
   let next = spacing / 2, travelled = 0;
   let prev: Pt | undefined;
   for (const p of points) {
@@ -55,6 +55,7 @@ export function symbolPositions(points: readonly Pt[], spacing = 90): Pt[] {
       while (seg > 0 && travelled + seg >= next) {
         const t = (next - travelled) / seg;
         out.push({ x: prev.x + t * (p.x - prev.x), y: prev.y + t * (p.y - prev.y) });
+        if (out.length >= limit) return out;
         next += spacing;
       }
       travelled += seg;

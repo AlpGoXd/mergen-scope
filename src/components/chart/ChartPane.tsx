@@ -52,11 +52,12 @@ import { getResolvedInterpolationStrategy } from '../../domain/interpolation';
 import { placeMarker } from '../../domain/markers';
 import { computeVerticalIntersections, computeHorizontalIntersections, nextLineLabel } from '../../domain/ref-lines';
 import { makeNiceTicks, NICE_TICK_COUNT } from '../../domain/trace-math';
+import { sampleDotsVisible, visibleSampleCount } from '../../domain/dots-and-symbols';
 import { allocateTraceColors, traceWidth } from '../../domain/trace-palette';
 import { Btn } from '../shared/Btn';
 import { LinesLayer, CrossingsLayer } from './LinesLayer';
 import { OverlaysLayer } from './OverlaysLayer';
-import { SymbolsLayer } from './SymbolsLayer';
+import { MeasuredSampleDot, SymbolsLayer } from './SymbolsLayer';
 import { useTraceSymbols } from '../../hooks/use-trace-symbols';
 import type { ToastKind } from '../../stores/toast-store';
 import { useOptionalToast } from '../../stores/toast-store';
@@ -1186,7 +1187,10 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
                 />
                 <Tooltip isAnimationActive={false} cursor={false} content={() => null} />
                 {paneTraces.map((trace) => (
-                  <Line key={trace.name} type="linear" dataKey={trace.name} name={trace.dn || trace.name} stroke={resolveTraceColor(trace.name)} dot={settings.showSampleDots && traceSymbol(trace.id) === null ? { r: 2, fill: resolveTraceColor(trace.name), stroke: resolveTraceColor(trace.name) } : false} activeDot={false} isAnimationActive={false} connectNulls strokeWidth={exportView?.paper ? ptToCssPx(appearance?.paperLine ?? PAPER_LINE_PT) : colorAssignments.get(trace.id) ? traceWidth(colorAssignments.get(trace.id) as NonNullable<ReturnType<typeof colorAssignments.get>>) : 1.5} />
+                  <Line key={trace.name} type="linear" dataKey={trace.name} name={trace.dn || trace.name} stroke={resolveTraceColor(trace.name)}
+                    dot={settings.showSampleDots && traceSymbol(trace.id) === null && plotView
+                      && sampleDotsVisible(visibleSampleCount(trace.data, plotView.x), plotView.plot.width)
+                      ? <MeasuredSampleDot data={trace.data} /> : false} activeDot={false} isAnimationActive={false} connectNulls strokeWidth={exportView?.paper ? ptToCssPx(appearance?.paperLine ?? PAPER_LINE_PT) : colorAssignments.get(trace.id) ? traceWidth(colorAssignments.get(trace.id) as NonNullable<ReturnType<typeof colorAssignments.get>>) : 1.5} />
                 ))}
                 {!isExport && hoverFreq != null && Number.isFinite(hoverFreq) && <ReferenceLine x={hoverFreq} stroke="color-mix(in srgb, var(--accent) 60%, white)" strokeDasharray="4 4" strokeWidth={1} />}
                 {!isExport && hoverFreq == null && ghostX != null && Number.isFinite(ghostX) && <ReferenceLine className="x-ghost-crosshair" x={ghostX} stroke="color-mix(in srgb, var(--accent) 60%, white)" strokeDasharray="4 4" strokeWidth={1} />}
@@ -1408,7 +1412,11 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
           scale={paneTraces.length > 0 && !isSmith && !TableRenderer ? `X ${xDiv} · Y ${yDiv}` : null}
           link={traceNamesInPane.length > 0 ? iconOnly => <XLinkChip paneId={paneId} iconOnly={iconOnly} /> : null}
           samples={TableRenderer ? null : iconOnly => (
-            <Btn variant={settings.showSampleDots ? 'armed' : 'neutral'} tone="pane" small className={`ph-samples${iconOnly ? ' is-icon' : ''}`} aria-label="Samples" aria-pressed={settings.showSampleDots} title="Show the measured sample points" data-testid="samples-toggle"
+            <Btn variant={settings.showSampleDots ? 'armed' : 'neutral'} tone="pane" small className={`ph-samples${iconOnly ? ' is-icon' : ''}`} aria-label="Samples" aria-pressed={settings.showSampleDots}
+              title={settings.showSampleDots && !isSmith && plotView && plotView.plot.width > 0 && paneTraces.some(trace => {
+                const points = visibleSampleCount(trace.data, plotView.x);
+                return points > 0 && !sampleDotsVisible(points, plotView.plot.width);
+              }) ? 'Zoom in to see the sample points' : 'Show the measured sample points'} data-testid="samples-toggle"
               onClick={e => { e.stopPropagation(); paneDispatch({ type: 'SET_PANE_SETTINGS', payload: { paneId, patch: { showSampleDots: !settings.showSampleDots } } }); }}>
               {iconOnly ? <SamplesIcon /> : 'Samples'}
             </Btn>

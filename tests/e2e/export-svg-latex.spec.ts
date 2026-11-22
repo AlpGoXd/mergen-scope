@@ -100,6 +100,17 @@ test('This pane uses the active pane and the dialog shows its custom name', asyn
 test('paper sizes scale symbols, dots, marker glyphs and tags with the 8 pt text; pane size keeps screen sizes', async ({ page }) => {
   await openS21(page);
   await placeMarker(page);
+  // The one-column plot is too narrow for dots at full range. Zoom around the marker.
+  const plot = page.getByTestId('chart-plot-pane-1');
+  const box = await plot.boundingBox();
+  if (!box) throw new Error('Chart plot has no box');
+  const lines = plot.getByTestId('lines-layer');
+  const fullRange = await lines.getAttribute('data-x-domain');
+  await page.mouse.move(box.x + 240, box.y + 120);
+  await page.mouse.down({ button: 'right' });
+  await page.mouse.move(box.x + 350, box.y + 120, { steps: 8 });
+  await page.mouse.up({ button: 'right' });
+  await expect(lines).not.toHaveAttribute('data-x-domain', fullRange ?? '');
   await page.getByTestId('chart-pane-pane-1').getByTestId('samples-toggle').click();
   const measure = async () => page.evaluate(markup => {
     const doc = new DOMParser().parseFromString(markup, 'image/svg+xml');
