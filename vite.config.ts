@@ -3,7 +3,7 @@ import react from "@vitejs/plugin-react";
 import { viteSingleFile } from "vite-plugin-singlefile";
 import { resolve } from "path";
 import { createHash } from "node:crypto";
-import { copyFileSync, cpSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "fs";
+import { copyFileSync, cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 
 /**
  * Build the on-demand PDF modules separately. Rollup must never make one of them
@@ -58,24 +58,13 @@ function lazyPaperPdf(): Plugin {
   };
 }
 
-// Version cacheable landing assets against their contents on every static page.
+// Version the landing page's cacheable assets against their contents.
 function versionLandingAssets(html: string): string {
-  return html.replace(/"(\/?landing-assets\/(?:landing\.(?:css|js)|guide\.css|img\/[\w.-]+))"/g,
+  return html.replace(/"(landing-assets\/(?:landing\.(?:css|js)|img\/[\w.-]+))"/g,
     (_match, asset: string) => {
-      const revision = createHash("sha256").update(readFileSync(resolve(__dirname, asset.replace(/^\//, "")))).digest("hex").slice(0, 12);
+      const revision = createHash("sha256").update(readFileSync(resolve(__dirname, asset))).digest("hex").slice(0, 12);
       return `"${asset}?v=${revision}"`;
     });
-}
-
-function copyGuidePages(source: string, destination: string): void {
-  mkdirSync(destination, { recursive: true });
-  for (const entry of readdirSync(source, { withFileTypes: true })) {
-    const src = resolve(source, entry.name);
-    const dest = resolve(destination, entry.name);
-    if (entry.isDirectory()) copyGuidePages(src, dest);
-    else if (entry.name.endsWith(".html")) writeFileSync(dest, versionLandingAssets(readFileSync(src, "utf8")), "utf8");
-    else copyFileSync(src, dest);
-  }
 }
 
 // Copies the static pages and runtime assets into dist/ after the build.
@@ -131,8 +120,6 @@ function copyRuntimeAssets(): Plugin {
           }
         }
       }
-      const guide = resolve(__dirname, "guide");
-      if (existsSync(guide)) copyGuidePages(guide, resolve(outputDir, "guide"));
       for (const dir of staticDirs) {
         const src = resolve(__dirname, dir);
         if (existsSync(src)) {

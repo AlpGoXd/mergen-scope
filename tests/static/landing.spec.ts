@@ -95,36 +95,9 @@ test('serves llms.txt', async ({ request }) => {
   expect(await response.text()).toMatch(/^# Mergen Scope(?:\r?\n|$)/);
 });
 
-const guidePaths = [
-  '/guide/', '/guide/open-oscilloscope-csv/', '/guide/touchstone-s2p-smith-chart/',
-  '/guide/rs-spectrum-analyzer-dat/', '/guide/trace-math/', '/guide/analysis-tools/',
-];
-
-test('guide pages have metadata, structured data and versioned styles', async ({ page }) => {
-  for (const path of guidePaths) {
-    const response = await page.goto(path);
-    expect(response?.status(), path).toBe(200);
-    await expect(page.locator('h1')).toHaveCount(1);
-    expect(await page.title(), path).toBeTruthy();
-    expect(await page.locator('meta[name="description"]').getAttribute('content'), path).toBeTruthy();
-    await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', `https://mergenscope.com${path}`);
-    const blocks = await page.locator('script[type="application/ld+json"]').allTextContents();
-    expect(blocks.map(block => (JSON.parse(block) as { '@type': string })['@type'])).toEqual(['TechArticle', 'BreadcrumbList']);
-    const assets = await page.locator('link[rel="stylesheet"]').evaluateAll(nodes => nodes.map(node => node.getAttribute('href') ?? ''));
-    expect(assets).toHaveLength(2);
-    for (const asset of assets) {
-      const url = new URL(asset, ORIGIN);
-      const contents = readFileSync(new URL(`../../dist${url.pathname}`, import.meta.url));
-      expect(url.searchParams.get('v'), url.pathname).toBe(createHash('sha256').update(contents).digest('hex').slice(0, 12));
-    }
-    await page.setViewportSize({ width: 390, height: 844 });
-    expect(await page.evaluate(() => document.documentElement.scrollWidth), path).toBeLessThanOrEqual(390);
-  }
-});
-
-test('internal landing and guide links resolve', async ({ page, request }) => {
+test('internal landing links resolve', async ({ page, request }) => {
   const links = new Set<string>();
-  for (const path of ['/', ...guidePaths]) {
+  for (const path of ['/']) {
     await page.goto(path);
     const urls = await page.locator('a[href]').evaluateAll(nodes => nodes.map(node => (node as HTMLAnchorElement).href));
     for (const href of urls) {

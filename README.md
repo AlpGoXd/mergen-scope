@@ -8,7 +8,7 @@
 
 **A browser workspace for spectrum analyzer, scope and S-parameter files. Your files stay in your browser.**
 
-[**Try the demo**](https://mergenscope.com/app.html?demo=1) · [**Open the app**](https://mergenscope.com/app.html) · [User guide](https://mergenscope.com/guide/) · [Sample files](test%20files/) · [Feedback](https://github.com/AlpGoXd/mergen-scope/discussions)
+[**Try the demo**](https://mergenscope.com/app.html?demo=1) · [**Open the app**](https://mergenscope.com/app.html) · [User guide](docs/guide/README.md) · [Sample files](test%20files/) · [Feedback](https://github.com/AlpGoXd/mergen-scope/discussions)
 
 ![Mergen Scope workspace with a four-pane layout showing gain, Smith chart, waveforms, and two-tone IP3 analysis](docs/images/mergen-scope-workspace.png)
 
@@ -99,7 +99,7 @@ React 19, TypeScript 6 (strict), Vite 7 and Recharts 2. Tests use Vitest, Testin
 ```text
 index.html                  Static landing page
 app.html                    Application entry page
-guide/                      Static user guide pages (the source for mergenscope.com/guide/)
+docs/guide/                 User guide (Markdown, read it on GitHub)
 llms.txt                    Plain-text summary for AI crawlers
 src/
   App.tsx                   Application shell and panel wiring
