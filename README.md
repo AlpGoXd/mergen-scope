@@ -33,14 +33,18 @@ R&S `.dat` is the primary tested instrument path. Generic tables may need manual
 
 ## Features
 
+One rule runs through the app: when something can't be done, it says why, instead of failing silently or producing a wrong number.
+
 ### Four pane types
 
-- **Chart:** traces against frequency or time on linear or logarithmic axes. Right-drag to zoom, Ctrl+drag to pan, scroll to zoom the Y axis, double-click to fit. X axes can be linked across panes, and the measured sample dots appear once you zoom in far enough to tell them apart.
+- **Chart:** traces against frequency or time on linear or logarithmic axes. Right-drag to zoom, Ctrl+drag to pan, scroll to zoom the Y axis, double-click to fit. The measured sample dots appear once you zoom in far enough to tell them apart.
 - **Smith chart:** reflections (S11, S22, ...) as impedance or admittance, with a frequency range bar and Z, Γ and VSWR readouts under the pointer.
 - **Polar:** magnitude against angle, for example an antenna gain cut.
 - **Table:** every sample of a pane's traces as rows.
 
 Up to four panes (an experimental eight-pane layout too). Drag traces onto panes, and reorder traces and analysis cards by dragging.
+
+**Linked X axes:** link panes from the link chip in a pane's header. Zooming one moves every linked pane, fitting shows the X range of the whole group, and a pane with an incompatible unit (time against frequency) is greyed out with the reason.
 
 ### Unit-aware trace math
 
@@ -60,6 +64,7 @@ Up to four panes (an experimental eight-pane layout too). Drag traces onto panes
 
 - Normal and delta markers, peak and minimum search, next peak in either direction, and tone roles for IP3. Markers interpolate between samples and snap to sparse ones.
 - Vertical and horizontal reference lines that list their intersections with traces. Dragging a marker or a line is one undo step.
+- **Interpolation per trace:** choose how values between samples are read (auto, exact, linear, cubic, nearest, previous, next or sinc, where the sampling allows it) from the trace row. Markers and the pointer readouts use it, and **Apply to all traces from this file** sets a whole file in one undo step.
 
 ### Analysis
 
@@ -69,6 +74,8 @@ Up to four panes (an experimental eight-pane layout too). Drag traces onto panes
 - **Antennas:** an antenna far-field card for beamwidth, peak bearing, front-to-back ratio and secondary lobes on a gain cut.
 - **Trace tools:** offset/scale, smoothing (moving average, median, Savitzky-Golay), peak table, range statistics, bandwidth, ripple and threshold or line crossings.
 
+Measure cards draw their result on the chart while they are open, for example the bandwidth band, and the card's eye button shows or hides it. They never place markers on their own.
+
 A typical chain: `Time capture -> Resample if needed -> FFT -> Harmonics / Peak Table / Channel power`.
 
 Each tool states when it cannot use the selected data. FFT needs evenly spaced time samples, Channel power needs density units such as `dBm/Hz`, and the network cards need a two-port. SNR, SINAD, ENOB and THD+N need the window and noise-bandwidth information that only the app's own FFT spectra carry, so they are not reported for ordinary analyzer traces. Every tool is described in [Analysis tools](docs/guide/analysis-tools.md).
@@ -77,6 +84,10 @@ Each tool states when it cannot use the selected data. FFT needs evenly spaced t
 
 - PNG, SVG, PDF and LaTeX (pgfplots/TikZ) figures, plus CSV data. Paper sizes match the text size of a paper, for example one IEEE column at 300 dpi.
 - Copy an image or the LaTeX code straight to the clipboard.
+
+### Runs anywhere
+
+The build is a single self-contained `app.html` plus static files: no server, no CDN, nothing to install. A copy opened straight from disk works offline, demo included; only PDF export needs a web server.
 
 ### Look and workspace
 
