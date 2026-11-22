@@ -1,27 +1,13 @@
 import React, { useMemo, useState, useRef, useEffect, useContext } from 'react';
-import {
-  ResponsiveContainer,
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ReferenceLine,
-  ReferenceDot,
-  ReferenceArea,
-  Customized,
-} from 'recharts';
+import type { LineChart } from 'recharts';
 import { planLastPaneLines, planWorkspacePaneRemoval, useOptionalAggregateWorkspace } from '../../stores/aggregate-workspace-store';
 import { usePaneState, usePaneDispatch, usePaneLimit } from '../../stores/pane-store';
 import { useMarkerState, useMarkerDispatch } from '../../stores/marker-store';
 import { useRefLineState, useRefLineDispatch } from '../../stores/ref-line-store';
 import { useUiState, useUiDispatch } from '../../stores/ui-store';
 import { useTraceState } from '../../stores/trace-store';
-import { useSharedHoverPublisher, useSharedHoverValue } from '../../stores/shared-hover-store';
+import { useChartHover } from '../../hooks/use-chart-hover';
 import { useLegendDodge } from '../../hooks/use-legend-dodge';
-import { usePointerReadoutPublisher } from '../../stores/pointer-readout-store';
-import { formatPointerXY } from '../../domain/footer-state';
 import { dragReducer, idleDragState } from '../../domain/chart/drag-state';
 import {
   computeMarkerHitTolerance as markerHitToleranceForPlot,
@@ -38,83 +24,56 @@ import { useTraceColors } from '../../hooks/use-trace-colors';
 import { useFileImport } from '../../hooks/use-file-import';
 import { deriveAxisInfo } from '../../domain/units';
 import { defaultTraceForPane } from '../../domain/default-trace';
-import { canRenderInPane, checkPaneAssignment, planEmptyPaneType, planPaneTypeChange, traceXGroup } from '../../domain/pane-placement';
+import { canRenderInPane, checkPaneAssignment, planEmptyPaneType, planPaneTypeChange } from '../../domain/pane-placement';
 import { paneDisplayState } from '../../domain/pane-display-state';
 import { createPaneTypeRegistry, paneTypeOfMode } from '../../domain/pane-type-registry';
 import type { PaneTypeDefinition } from '../../types/registry-contract';
-import { PaneTypeChip } from '../panes/PaneTypeChip';
-import { PaneTypeMenu } from '../panes/PaneTypeMenu';
 import type { TypeChangePlan } from '../panes/PaneTypeMenu';
 import type { PickerTileId } from '../panes/PaneTypePicker';
 import { paneTypeCompatibilityNote, summarizePaneTypeChange } from '../../domain/pane-type-change-summary';
-import { formatAdaptiveXAxisTickLabels, formatAdaptiveXAxisValue, formatPerDivision, formatScalarWithUnit, makeYAxisTickFormatter } from '../../domain/format';
-import { getResolvedInterpolationStrategy } from '../../domain/interpolation';
+import { formatPerDivision, makeYAxisTickFormatter } from '../../domain/format';
 import { placeMarker } from '../../domain/markers';
-import { computeVerticalIntersections, computeHorizontalIntersections, nextLineLabel } from '../../domain/ref-lines';
+import { nextLineLabel } from '../../domain/ref-lines';
 import { makeNiceTicks, NICE_TICK_COUNT } from '../../domain/trace-math';
 import { sampleDotsVisible, visibleSampleCount } from '../../domain/dots-and-symbols';
-import { allocateTraceColors, traceWidth } from '../../domain/trace-palette';
+import { allocateTraceColors } from '../../domain/trace-palette';
 import { Btn } from '../shared/Btn';
-import { LinesLayer, CrossingsLayer } from './LinesLayer';
-import { OverlaysLayer } from './OverlaysLayer';
-import { MeasuredSampleDot, SymbolsLayer } from './SymbolsLayer';
+import { ChartHoverLegend } from './ChartHoverLegend';
+import { ChartReferenceEdgeTags } from './ChartReferenceEdgeTags';
+import { ChartPanePlot } from './ChartPanePlot';
+import type { ChartMouseEvent } from './ChartPanePlot';
+import { useChartPaneAxes } from './use-chart-pane-axes';
 import { useTraceSymbols } from '../../hooks/use-trace-symbols';
 import type { ToastKind } from '../../stores/toast-store';
 import { useOptionalToast } from '../../stores/toast-store';
 import { useAsk } from '../../stores/dialog-store';
 import { closePaneText } from '../../domain/confirm-text';
 import type { PlotView } from './LinesLayer';
-import { EdgeTag, lineContextEntries, lineShowInEntries } from '../lines/Lines';
+import { lineContextEntries, lineShowInEntries } from '../lines/Lines';
 import { Menu as KitMenu } from '../left-panel/Menu';
 import { PopoverAt } from '../shared/Controls';
 import { LineCrossingsContext } from '../analysis/line-crossings-context';
 import { lineShowInChoices, linePaneAxisUnit, paneName } from '../../domain/line-view';
-import { formatCrossingValue, } from '../../domain/analysis/crossing-rows';
 import { EmptyChartPane, panePickerTiles } from './EmptyChartPane';
 import { rendererFor } from './pane-renderers';
 import { PaneSettingsPopover } from './PaneSettingsPopover';
 import { PaneHeader, SamplesIcon } from './PaneHeader';
+import { PaneChartTypeControl } from './PaneChartTypeControl';
 import { XLinkChip } from './XLinkChip';
 import { fittedXBounds, linkedPeers } from '../../domain/x-link';
 import { usePaneImageExport } from './export/export-context';
-import { autoExportAxes, exportAxisTitle, exportTick, exportTraceName, fitAxisTitle } from '../../domain/export-plot';
+import { exportTraceName } from '../../domain/export-plot';
 import type { ExportView } from './export/export-context';
-import { ExportFrame } from './export/ExportFrame';
-import { PAPER_LINE_PT, ptToCssPx } from '../../domain/export-image';
 import { defaultPaneSettings } from '../../types/pane';
 import { usePaneDrag } from './use-pane-drag';
 import { PaneDragOverlay } from './PaneDragOverlay';
 import { refusalGuidance, traceAlreadyInPane } from '../../domain/pane-drop-hints';
-
-/** Non-color glyph shape per marker type (normal = circle, delta = diamond, peak = triangle). */
-function markerGlyphPolygonPoints(type: 'normal' | 'delta' | 'peak', cx: number, cy: number, r: number): string | null {
-  if (type === 'delta') {
-    return `${cx},${cy - r} ${cx + r},${cy} ${cx},${cy + r} ${cx - r},${cy}`;
-  }
-  if (type === 'peak') {
-    const h = r * 1.15;
-    return `${cx},${cy - h} ${cx + r},${cy + h * 0.6} ${cx - r},${cy + h * 0.6}`;
-  }
-  return null;
-}
 
 export interface ChartPaneProps {
   paneId: string;
   hideXTicks?: boolean;
   /** Image export: render only the plot at a fixed size, with no chrome, interaction or shared side effects. */
   exportView?: ExportView;
-}
-
-interface ChartMouseEvent {
-  readonly activeLabel?: number | string;
-  readonly activePayload?: ReadonlyArray<{ readonly value?: number }>;
-  readonly xValue?: number;
-  readonly chartX?: number;
-  readonly chartY?: number;
-  readonly nativeEvent?: { readonly clientX?: number; readonly clientY?: number };
-  readonly offset?: { readonly left?: number; readonly width?: number };
-  readonly xAxisMap?: Record<string, unknown>;
-  readonly yAxisMap?: Record<string, unknown>;
 }
 
 const CHART_MARGIN_RIGHT = 20;
@@ -145,11 +104,6 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
   const { limit } = usePaneLimit();
   const importFiles = useFileImport();
   const { allTraces, allKnownTraces, allDisplayTraces, vis } = useTraceState();
-  const publishHover = useSharedHoverPublisher();
-  // The export copy shares the pane id: it must never clear the real pane's hover.
-  useEffect(() => isExport ? undefined : () => publishHover(null, paneId), [publishHover, paneId, isExport]);
-  const publishReadout = usePointerReadoutPublisher();
-  useEffect(() => isExport ? undefined : () => publishReadout(null, paneId), [publishReadout, paneId, isExport]);
   const tableView = useTableView(paneId);
   const colorAssignments = useMemo(() => allocateTraceColors(allKnownTraces, new Map(Object.entries(traceHueSlots))), [allKnownTraces, traceHueSlots]);
   const { colors } = useTheme();
@@ -253,9 +207,6 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
   const { paneTraces, mergedData, plotData } = usePaneData(traceNamesInPane, xRange);
   const shownCount = TableRenderer ? tableView.traces.length : paneTraces.length;
   const currentYZoom = paneYZooms[paneId] ?? null;
-  // The crosshair shows in every pane with the same X unit, linked or not; publish and read the normalized unit.
-  const paneXUnit = paneTraces[0] ? traceXGroup(paneTraces[0]) : null;
-  const ghostX = useSharedHoverValue(paneId, isSmith ? null : paneXUnit);
   // A fitted linked pane shows the data range of its whole group, so every pane of the group shows the same X range.
   const linkedFit = useMemo(() => {
     const peers = linkedPeers(panes, paneId);
@@ -370,7 +321,6 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
   const panStartClientX = panDrag?.startClientX ?? null;
   const draggingMarkerIdx = 'marker' in pointerDrag ? pointerDrag.marker ?? null : null;
   const draggingRefLineId = 'line' in pointerDrag ? pointerDrag.line ?? null : null;
-  const [hoverFreq, setHoverFreq] = React.useState<number | null>(null);
   const chartAreaRef = React.useRef<HTMLDivElement | null>(null);
   const [plotHeight, setPlotHeight] = useState(0);
   const [paneDragOver, setPaneDragOver] = useState(false);
@@ -726,14 +676,7 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
     if (e?.yAxisMap) yAxisMapRef.current = e.yAxisMap;
     const freq = resolveEventFreq(e, true);
     if (freq == null || !Number.isFinite(freq)) return;
-    setHoverFreq(freq);
-    if (paneXUnit) publishHover({ paneId, xUnit: paneXUnit, value: freq }, paneId);
-    // The footer's mouse position: X and Y under the pointer in axis units.
-    const amp = resolveEventAmp(e);
-    if (amp != null && Number.isFinite(amp)) {
-      const x = formatAdaptiveXAxisValue(freq, visibleXSpan, { domain: activePaneTrace?.domain ?? 'frequency', unit: activePaneTrace?.units.x ?? (activePaneTrace?.domain === 'time' ? 's' : 'Hz') });
-      publishReadout(formatPointerXY(x, formatScalarWithUnit(amp, activePaneTrace?.units.y ?? null, { digits: 2 })), paneId);
-    }
+    updateHover(freq, () => resolveEventAmp(e));
 
     if (draggingMarkerIdx !== null) {
       const marker = markers[draggingMarkerIdx];
@@ -759,9 +702,7 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
   };
 
   const handleMouseLeave = () => {
-    setHoverFreq(null);
-    publishHover(null, paneId);
-    publishReadout(null, paneId);
+    clearHover();
     lastPointerClientXRef.current = null;
     lastPointerClientYRef.current = null;
     legendDodge.onPointerLeave();
@@ -845,66 +786,12 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
     if (armed) markerDispatch({ type: 'ARM', payload: null });
   };
 
-  const xAxisLabelText = useMemo(() => {
-    if (!activePaneTrace) return axisInfo.xLabel;
-    const xUnit = activePaneTrace.units.x ? String(activePaneTrace.units.x) : (activePaneTrace.domain === 'time' ? 's' : 'Hz');
-    return activePaneTrace.domain === 'time' ? `Time (${xUnit})` : `Frequency (${xUnit})`;
-  }, [activePaneTrace, axisInfo.xLabel]);
-
-  const yAxisLabelText = useMemo(() => {
-    if (!activePaneTrace) return axisInfo.yLabel;
-    const yUnit = activePaneTrace.units.y ? String(activePaneTrace.units.y) : '';
-    const source = activePaneTrace.kind === 'raw' ? activePaneTrace.networkSource : undefined;
-    if (source?.view === 'Phase') return `Phase (${yUnit || 'deg'})`;
-    if (source?.family === 'S' && source?.view === 'dB') return `Magnitude (${yUnit || 'dB'})`;
-    if (source?.view === 'Real') return `Real (${yUnit || 'linear'})`;
-    if (source?.view === 'Imag') return `Imag (${yUnit || 'linear'})`;
-    if (yUnit) return `Amplitude (${yUnit})`;
-    if (activePaneTrace.kind === 'derived') return 'Amplitude (–)';
-    return axisInfo.yLabel || 'Amplitude';
-  }, [activePaneTrace, axisInfo.yLabel]);
-
-  // Export render: report the drawn ranges and axis titles (Copy as LaTeX builds its axis from them).
-  const exportOnPlot = exportView?.onPlot;
-  const exportXUnit = activePaneTrace ? (activePaneTrace.units.x ? String(activePaneTrace.units.x) : activePaneTrace.domain === 'time' ? 's' : 'Hz') : null;
-
-  const shortYLabel = yAxisLabelText.match(/\([^()]+\)\s*$/)?.[0] ?? yAxisLabelText.split(/\s+/)[0] ?? '';
-  // The export render knows its size up front; waiting for the resize observer would capture the plot without its Y title.
+  // Fixed-size exports need their axis labels before the resize observer runs.
   const labelRoom = exportView ? Math.max(0, exportView.height - CHART_MARGIN_TOP - xAxisHeight - 10) : plotHeight;
-  const fittedYLabel = yAxisLabelText.length * 7 <= labelRoom ? yAxisLabelText
-    : shortYLabel.length * 7 <= labelRoom ? shortYLabel : '';
-
-  const xTickValues = useMemo(() => makeNiceTicks(xDomain, NICE_TICK_COUNT), [xDomain]);
-  const yTickValues = useMemo(() => {
-    if (Array.isArray(yDomain) && yDomain[0] !== 'auto') {
-      return makeNiceTicks({ min: yDomain[0] as number, max: yDomain[1] as number }, NICE_TICK_COUNT);
-    }
-    return undefined;
-  }, [yDomain]);
-  const xTickLabelMap = useMemo(() => {
-    const ticks = xTickValues ?? [];
-    const labels = formatAdaptiveXAxisTickLabels(ticks, visibleXSpan, {
-      domain: activePaneTrace?.domain ?? 'frequency',
-      unit: activePaneTrace?.units.x ?? (activePaneTrace?.domain === 'time' ? 's' : 'Hz'),
-    });
-    return new Map(ticks.map((tick, index) => [tick, labels[index] ?? '--']));
-  }, [activePaneTrace?.domain, activePaneTrace?.units.x, visibleXSpan, xTickValues]);
-  const exportYTicks = useMemo(() => isExport && plotView?.y ? makeNiceTicks({ min: plotView.y[0], max: plotView.y[1] }, NICE_TICK_COUNT) : undefined, [isExport, plotView?.y]);
-  const axes = useMemo(() => {
-    if (!isExport || !plotView?.x || !plotView.y) return null;
-    return autoExportAxes(paneTraces[0], plotView.x, plotView.y, xTickValues, exportYTicks, new Set(paneTraces.map(trace => trace.units.y)).size > 1);
-  }, [isExport, plotView, paneTraces, xTickValues, exportYTicks]);
-  const editedTitles = appearance?.axisTitles === 'edit' ? appearance.paneTitles[paneId] : undefined;
-  const exportXTitle = axes ? exportAxisTitle(axes.x, appearance?.axisTitles ?? 'auto', editedTitles?.x) : xAxisLabelText;
-  const exportYTitle = axes ? exportAxisTitle(axes.y, appearance?.axisTitles ?? 'auto', editedTitles?.y) : yAxisLabelText;
-  useEffect(() => {
-    if (!exportOnPlot || !plotView || !axes) return;
-    const legacy = !appearance;
-    exportOnPlot({
-      x: plotView.x, y: plotView.y, xLabel: legacy ? xAxisLabelText : exportXTitle, xUnit: exportXUnit,
-      yLabel: legacy ? yAxisLabelText : exportYTitle, autoX: axes.x, autoY: axes.y, xTicks: xTickValues, yTicks: exportYTicks,
-    });
-  }, [exportOnPlot, plotView, axes, appearance, exportXTitle, exportYTitle, exportXUnit, xAxisLabelText, yAxisLabelText, xTickValues, exportYTicks]);
+  const { xAxis, yAxis } = useChartPaneAxes({
+    paneId, paneTraces, activePaneTrace, axisInfo, xDomain, yDomain, visibleXSpan, plotView,
+    labelRoom, yAxisWidth, formatYTick, hideXTicks, exportView,
+  });
 
   // Close pane (Pane settings and the empty-pane header): traces and lines move by the closing-pane rule.
   const closePane = async () => {
@@ -932,19 +819,9 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
     };
   }, [allTraces, resolveColor]);
 
-  const hoverRows = useMemo(() => {
-    if (hoverFreq == null || !Number.isFinite(hoverFreq)) return [];
-    return paneTraces.map((trace) => {
-      const placement = placeMarker(trace, hoverFreq);
-      const strategy = getResolvedInterpolationStrategy(trace.family, trace.interpolation, trace.isUniform ?? false);
-      return {
-        trace,
-        placement,
-        color: resolveTraceColor(trace.name),
-        resolutionLabel: strategy === 'snap' || !placement.interpolated ? 'snap' : 'interp',
-      };
-    });
-  }, [hoverFreq, paneTraces, resolveTraceColor]);
+  const { hoverFreq, hoverRows, crosshairX, ghostCrosshairX, updateHover, clearHover } = useChartHover({
+    paneId, paneTraces, activeTrace: activePaneTrace, visibleXSpan, resolveTraceColor, isExport, isSmith,
+  });
 
   // The hover legend steps aside for the cursor and the hover dots (see domain/chart/legend-placement.ts).
   const paneTraceNames = useMemo(() => paneTraces.map(trace => trace.name), [paneTraces]);
@@ -1142,240 +1019,52 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
     zoomDragActive,
   ]);
 
-  // The plot itself; the image export renders it alone at a fixed size.
-  const lineChart = hasChart ? (
-              <LineChart ref={lineChartRef} data={plotData} margin={{ top: 10, right: 20, left: 0, bottom: 10 }} {...(exportView ? { width: exportView.width, height: exportView.height } : { onMouseDown: (state: ChartMouseEvent | undefined) => handleMouseDown(state, (state?.nativeEvent as { button?: number } | undefined)?.button ?? lastPointerButtonRef.current ?? 0), onMouseMove: handleMouseMove, onMouseLeave: handleMouseLeave, onMouseUp: handleMouseUp })}>
-                {settings.gridMajor && (
-                  <CartesianGrid
-                    stroke="var(--grid)"
-                    strokeOpacity={settings.gridMajorOpacity}
-                    strokeWidth={settings.gridMajorThickness}
-                    strokeDasharray={settings.gridDashStyle === 'solid' ? undefined : settings.gridDashStyle}
-                    horizontal
-                    vertical
-                  />
-                )}
-                <XAxis
-                  dataKey="fs"
-                  type="number"
-                  domain={xDomain ? [xDomain.min, xDomain.max] : ['dataMin', 'dataMax']}
-                  allowDataOverflow={!!xDomain}
-                  ticks={xTickValues}
-                  {...(hideXTicks ? { tick: false, height: 0 } : {})}
-                  stroke="var(--muted)"
-                  fontSize={'var(--font-label)'}
-                  tickSize={exportView?.tikzStyle ? -4 : undefined}
-                  tickMargin={exportView?.tikzStyle ? 12 : undefined}
-                  tickFormatter={(value) => appearance && axes ? exportTick(axes.x, Number(value)) : xTickLabelMap.get(Number(value)) ?? formatAdaptiveXAxisValue(Number(value), visibleXSpan, {
-                    domain: activePaneTrace?.domain ?? 'frequency',
-                    unit: activePaneTrace?.units.x ?? (activePaneTrace?.domain === 'time' ? 's' : 'Hz'),
-                  })}
-                  label={hideXTicks || (appearance && !exportXTitle) ? undefined : { value: appearance ? exportXTitle : xAxisLabelText, position: 'insideBottom', offset: -5, style: { fontSize: 'var(--font-label)', fill: 'var(--muted)', textAnchor: 'middle' } }}
-                />
-                <YAxis
-                  domain={yDomain}
-                  allowDataOverflow={Array.isArray(yDomain) && yDomain[0] !== 'auto'}
-                  ticks={appearance ? exportYTicks ?? yTickValues : yTickValues}
-                  stroke="var(--muted)"
-                  tickSize={exportView?.tikzStyle ? -4 : undefined}
-                  tickMargin={exportView?.tikzStyle ? 12 : undefined}
-                  fontSize={'var(--font-label)'}
-                  width={yAxisWidth}
-                  tickFormatter={value => appearance && axes ? exportTick(axes.y, Number(value)) : formatYTick(value)}
-
-                  label={appearance && !exportYTitle ? undefined : { value: appearance ? fitAxisTitle(exportYTitle, labelRoom, (exportView?.labelPx ?? 12) * (exportView?.paper ? 0.5 : 0.58)) : fittedYLabel, angle: -90, position: 'insideLeft', offset: 10, style: { fontSize: 'var(--font-label)', fill: 'var(--muted)', textAnchor: 'middle' } }}
-                />
-                <Tooltip isAnimationActive={false} cursor={false} content={() => null} />
-                {paneTraces.map((trace) => (
-                  <Line key={trace.name} className={trace.kind === 'derived' ? 'trace-created' : 'trace-source'} type="linear" dataKey={trace.name} name={trace.dn || trace.name} stroke={resolveTraceColor(trace.name)}
-                    dot={settings.showSampleDots && traceSymbol(trace.id) === null && plotView
-                      && sampleDotsVisible(visibleSampleCount(trace.data, plotView.x), plotView.plot.width)
-                      ? <MeasuredSampleDot data={trace.data} /> : false} activeDot={false} isAnimationActive={false} connectNulls strokeWidth={exportView?.paper ? ptToCssPx(appearance?.paperLine ?? PAPER_LINE_PT) : colorAssignments.get(trace.id) ? traceWidth(colorAssignments.get(trace.id) as NonNullable<ReturnType<typeof colorAssignments.get>>) : 1.5} />
-                ))}
-                {!isExport && hoverFreq != null && Number.isFinite(hoverFreq) && <ReferenceLine x={hoverFreq} stroke="color-mix(in oklch, var(--accent) 60%, var(--plot))" strokeDasharray="4 4" strokeWidth={1} />}
-                {!isExport && hoverFreq == null && ghostX != null && Number.isFinite(ghostX) && <ReferenceLine className="x-ghost-crosshair" x={ghostX} stroke="color-mix(in oklch, var(--accent) 60%, var(--plot))" strokeDasharray="4 4" strokeWidth={1} />}
-                {settings.showMarkers && paneMarkers.map(({ marker, index }) => {
-                  const color = resolveTraceColor(marker.trace || '');
-                  const isSelected = !isExport && index === selectedMkrIdx;
-                  const labelPrefix = marker.type === 'delta' ? `DM${index + 1}` : `M${index + 1}`;
-                  const labelText = `${labelPrefix} ${formatAdaptiveXAxisValue(marker.freq, visibleXSpan, {
-                    domain: activePaneTrace?.domain ?? 'frequency',
-                    unit: activePaneTrace?.units.x ?? (activePaneTrace?.domain === 'time' ? 's' : 'Hz'),
-                  })}${marker.interpolated ? ' (interp)' : ''}`;
-                  return (
-                    <ReferenceDot
-                      key={`m-${index}`}
-                      x={marker.freq}
-                      y={marker.amp}
-                      r={7}
-                      isFront
-                      shape={(dotProps: { readonly cx?: number; readonly cy?: number }) => {
-                        const cx = Number(dotProps.cx);
-                        const cy = Number(dotProps.cy);
-                        if (!Number.isFinite(cx) || !Number.isFinite(cy)) return <g />;
-                        const roundedCx = Math.round(cx);
-                        const roundedCy = Math.round(cy);
-                        // Compute label y-offset: above by default, nudge down if near top
-                        // Screen: 11 px mono tags and today's glyph. Paper exports scale both with the 8 pt text.
-                        const tagPx = exportView?.tagPx ?? 11;
-                        const tagScale = tagPx / 11;
-                        const glyphScale = exportView?.markScale ?? 1;
-                        const paperTag = !!appearance && !!exportView?.paper;
-                        const stagger = paperTag && index % 2 === 1 ? tagPx : 0;
-                        const tagBelow = roundedCy < (30 + stagger) * tagScale;
-                        const labelYOffset = tagBelow ? 18 * tagScale + stagger : -14 * tagScale - stagger;
-                        // Paper tags are serif: narrower glyphs and a box that hugs the 7.5 pt text.
-                        const charWidth = exportView?.paper ? tagPx * 0.46 : 6.5 * tagScale;
-                        const pillPadX = exportView?.paper ? tagPx * 0.35 : 5 * tagScale;
-                        const pillPadY = exportView?.paper ? tagPx * 0.15 : 3 * tagScale;
-                        const textWidth = labelText.length * charWidth;
-                        const pillW = textWidth + pillPadX * 2;
-                        const pillH = (exportView?.paper ? tagPx * 1.2 : 13 * tagScale) + pillPadY * 2;
-                        const pillX = roundedCx - pillW / 2;
-                        const pillY = roundedCy + labelYOffset - pillH + pillPadY;
-                        return (
-                          <g>
-                            {/* Selection ring */}
-                            {isSelected && (
-                              <circle
-                                cx={roundedCx} cy={roundedCy} r={9}
-                                fill="none"
-                                stroke={color} strokeWidth={2}
-                                strokeDasharray="3 2"
-                                vectorEffect="non-scaling-stroke"
-                                opacity={0.85}
-                              />
-                            )}
-                            {/* Bullseye glyph: colored fill → white ring → black outline.
-                                Shape encodes marker type (circle/diamond/triangle) as a non-color cue. */}
-                            {(() => {
-                              const fillPts = markerGlyphPolygonPoints(marker.type, roundedCx, roundedCy, 5 * glyphScale);
-                              const outlinePts = markerGlyphPolygonPoints(marker.type, roundedCx, roundedCy, 6.5 * glyphScale);
-                              const Fill = fillPts
-                                ? <polygon points={fillPts} fill={color} stroke="white" strokeWidth={1.5 * glyphScale} strokeLinejoin="round" paintOrder="stroke" shapeRendering="geometricPrecision" />
-                                : <circle cx={roundedCx} cy={roundedCy} r={5 * glyphScale} fill={color} stroke="white" strokeWidth={1.5 * glyphScale} vectorEffect="non-scaling-stroke" paintOrder="stroke" shapeRendering="geometricPrecision" />;
-                              const Outline = outlinePts
-                                ? <polygon points={outlinePts} fill="none" stroke="#222" strokeWidth={glyphScale} strokeLinejoin="round" shapeRendering="geometricPrecision" />
-                                : <circle cx={roundedCx} cy={roundedCy} r={6.5 * glyphScale} fill="none" stroke="#222" strokeWidth={glyphScale} vectorEffect="non-scaling-stroke" shapeRendering="geometricPrecision" />;
-                              return <>{Fill}{Outline}</>;
-                            })()}
-                            {/* Label pill (gated by showMarkerLabels) */}
-                            {settings.showMarkerLabels && (
-                              <>
-                                {!paperTag && <rect
-                                  x={pillX} y={pillY}
-                                  width={pillW} height={pillH}
-                                  rx={4} ry={4}
-                                  fill="var(--tipBg)"
-                                  fillOpacity={0.9}
-                                  stroke="var(--tipBd)"
-                                  strokeWidth={1}
-                                />}
-                                <line
-                                  data-paper-marker-leader={paperTag ? '' : undefined}
-                                  x1={roundedCx} y1={pillY + pillH}
-                                  x2={roundedCx} y2={roundedCy + (paperTag && tagBelow ? 7 : -7) * glyphScale}
-                                  stroke="var(--muted)" strokeOpacity={0.6} strokeWidth={1}
-                                />
-                                <text
-                                  data-paper-marker-label={paperTag ? '' : undefined}
-                                  data-anchor-x={paperTag ? roundedCx : undefined}
-                                  data-anchor-y={paperTag ? roundedCy : undefined}
-                                  x={roundedCx} y={pillY + pillH - pillPadY - 1}
-                                  textAnchor="middle"
-                                  fontSize={tagPx}
-                                  fontFamily="var(--font-mono, monospace)"
-                                  fill="var(--text)"
-                                  style={{ userSelect: 'none' }}
-                                >
-                                  {labelText}
-                                </text>
-                              </>
-                            )}
-                          </g>
-                        );
-                      }}
-                    />
-                  );
-                })}
-                <Customized component={<LinesLayer lines={settings.showReferenceLines ? paneRefLines : []} litId={isExport ? null : hoveredRefLineId ?? selectedRefLineId} selectedId={isExport ? null : selectedRefLineId}
-                  onView={handlePlotView}
-                  onHover={(id) => refLineDispatch({ type: 'SET_HOVERED', payload: id })}
-                  onContextMenu={(line, event) => { event.preventDefault(); markerDispatch({ type: 'SET_SELECTED_IDX', payload: -1 }); refLineDispatch({ type: 'SET_SELECTED', payload: line.id }); setLineMenu({ lineId: line.id, at: { x: event.clientX, y: event.clientY }, mode: 'main' }); }}
-                  onLabelClick={(line) => { markerDispatch({ type: 'SET_SELECTED_IDX', payload: -1 }); refLineDispatch({ type: 'SET_SELECTED', payload: line.id }); }} />} />
-                <Customized component={<OverlaysLayer overlays={overlays} />} />
-                <Customized component={<SymbolsLayer traces={paneTraces} showDots={settings.showSampleDots} symbolSetting={isExport ? 'always' : undefined} markScale={exportView?.markScale} colorTheme={exportView?.colorTheme} paperTone={exportView?.paperTone} />} />
-                {/* ΔX between V-line delta pairs */}
-                {settings.showReferenceLines && vDeltaPairs.map(([a, b]) => {
-                  const lo = Math.min(a.value, b.value);
-                  const hi = Math.max(a.value, b.value);
-                  const delta = hi - lo;
-                  const deltaText = `ΔX = ${formatAdaptiveXAxisValue(delta, delta, { domain: axisInfo.axisDomain, unit: axisInfo.axisDomain === 'time' ? 's' : 'Hz' })}`;
-                  const dColor = colors?.refV ?? '#d48a2b';
-                  return (
-                    <ReferenceArea key={`vd-${a.id}-${b.id}`} x1={lo} x2={hi} fill={dColor} fillOpacity={0.06} strokeOpacity={0}
-                      label={(props: { viewBox?: { x: number; y: number; width: number; height: number } }) => {
-                        const vb = props.viewBox;
-                        if (!vb || vb.width < 20) return <></>;
-                        const cx = vb.x + vb.width / 2;
-                        const ty = vb.y + 13;
-                        const tw = deltaText.length * 6.3;
-                        return (
-                          <g>
-                            <rect x={cx - tw / 2 - 4} y={ty - 11} width={tw + 8} height={14} rx={3}
-                              fill="var(--card)" fillOpacity={0.88} />
-                            <text x={cx} y={ty} textAnchor="middle" fill={dColor}
-                              fontSize={10} fontFamily="var(--font-mono, monospace)">
-                              {deltaText}
-                            </text>
-                          </g>
-                        );
-                      }} />
-                  );
-                })}
-                {/* ΔY between H-line delta pairs */}
-                {settings.showReferenceLines && hDeltaPairs.map(([a, b]) => {
-                  const lo = Math.min(a.value, b.value);
-                  const hi = Math.max(a.value, b.value);
-                  const delta = hi - lo;
-                  const deltaText = `ΔY = ${formatScalarWithUnit(delta, axisInfo.yUnit, { digits: 3 })}`;
-                  const dColor = colors?.refH ?? '#2b9ab7';
-                  return (
-                    <ReferenceArea key={`hd-${a.id}-${b.id}`} y1={lo} y2={hi} fill={dColor} fillOpacity={0.06} strokeOpacity={0}
-                      label={(props: { viewBox?: { x: number; y: number; width: number; height: number } }) => {
-                        const vb = props.viewBox;
-                        if (!vb || vb.height < 14) return <></>;
-                        const rx = vb.x + vb.width - 4;
-                        const cy = vb.y + vb.height / 2;
-                        const tw = deltaText.length * 6.3;
-                        return (
-                          <g>
-                            <rect x={rx - tw - 4} y={cy - 10} width={tw + 8} height={14} rx={3}
-                              fill="var(--card)" fillOpacity={0.88} />
-                            <text x={rx - 2} y={cy} textAnchor="end" fill={dColor}
-                              fontSize={10} fontFamily="var(--font-mono, monospace)">
-                              {deltaText}
-                            </text>
-                          </g>
-                        );
-                      }} />
-                  );
-                })}
-                {settings.showReferenceLines && (
-                  <Customized component={<CrossingsLayer points={paneRefLines.flatMap((line) => {
-                    const intersections = line.type === 'v'
-                      ? computeVerticalIntersections(line.value, paneTraces, paneId)
-                      : computeHorizontalIntersections(line.value, paneTraces, paneId);
-                    return intersections.map((ix, i) => ({ key: `rl-${line.id}-ix-${i}`, x: ix.freq, y: ix.amp, color: resolveTraceColor(ix.traceName) }));
-                  })} />} />
-                )}
-                {dragStart !== null && dragCurrent !== null && <ReferenceLine x={dragStart} stroke="var(--accent)" strokeWidth={1} />}
-                {dragStart !== null && dragCurrent !== null && <ReferenceLine x={dragCurrent} stroke="var(--accent)" strokeWidth={1} />}
-                <ReferenceLine y={0} stroke="var(--dim)" strokeWidth={0.5} />
-                {exportView?.print && <Customized component={<ExportFrame />} />}
-              </LineChart>
+  const chartPlot = hasChart ? (
+    <ChartPanePlot
+      paneId={paneId} plotData={plotData} plotView={plotView} lineChartRef={lineChartRef}
+      mouseEvents={{
+        onMouseDown: state => handleMouseDown(
+          state, (state?.nativeEvent as { button?: number } | undefined)?.button ?? lastPointerButtonRef.current ?? 0,
+        ),
+        onMouseMove: handleMouseMove,
+        onMouseLeave: handleMouseLeave,
+        onMouseUp: handleMouseUp,
+      }}
+      settings={settings} exportView={exportView} axisInfo={axisInfo} xAxis={xAxis} yAxis={yAxis}
+      paneTraces={paneTraces} activePaneTrace={activePaneTrace} visibleXSpan={visibleXSpan}
+      resolveTraceColor={resolveTraceColor} traceSymbol={traceSymbol} colorAssignments={colorAssignments}
+      crosshairX={crosshairX} ghostCrosshairX={ghostCrosshairX} paneMarkers={paneMarkers} selectedMkrIdx={selectedMkrIdx}
+      linesLayer={{
+        lines: settings.showReferenceLines ? paneRefLines : [],
+        litId: isExport ? null : hoveredRefLineId ?? selectedRefLineId,
+        selectedId: isExport ? null : selectedRefLineId,
+        onView: handlePlotView,
+        onHover: id => refLineDispatch({ type: 'SET_HOVERED', payload: id }),
+        onContextMenu: (line, event) => {
+          event.preventDefault();
+          markerDispatch({ type: 'SET_SELECTED_IDX', payload: -1 });
+          refLineDispatch({ type: 'SET_SELECTED', payload: line.id });
+          setLineMenu({ lineId: line.id, at: { x: event.clientX, y: event.clientY }, mode: 'main' });
+        },
+        onLabelClick: line => {
+          markerDispatch({ type: 'SET_SELECTED_IDX', payload: -1 });
+          refLineDispatch({ type: 'SET_SELECTED', payload: line.id });
+        },
+      }}
+      overlays={overlays} paneRefLines={paneRefLines} vDeltaPairs={vDeltaPairs} hDeltaPairs={hDeltaPairs}
+      colors={colors} dragStart={dragStart} dragCurrent={dragCurrent}
+    />
   ) : null;
-  const chartPlot = !lineChart ? null : exportView ? lineChart : <ResponsiveContainer width="100%" height="100%">{lineChart}</ResponsiveContainer>;
+
+  const choosePaneType = (id: PickerTileId) => selectPaneType(paneTypes[id]);
+  const confirmPaneType = () => { if (pendingType) selectPaneType(paneTypes[pendingType.to], true); };
+  const typeNote = () => {
+    const id = hoveredType ?? focusedType;
+    if (!id) return undefined;
+    const members = allKnownTraces.filter(trace => traceNamesInPane.includes(trace.name));
+    const accepted = members.filter(trace => paneTypes[id].appliesTo(trace).allowed).map(trace => trace.dn || trace.name);
+    return paneTypeCompatibilityNote(paneName(panes, paneId), paneTypes[id].title, members.length, accepted);
+  };
 
   if (exportView) {
     return (
@@ -1422,21 +1111,29 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
               {iconOnly ? <SamplesIcon /> : 'Samples'}
             </Btn>
           )}
-          chip={fit => <>
-            <PaneTypeChip ref={typeButtonRef} icon={paneTypes[currentType].iconKey} label={currentType === 'eye' ? 'Eye · CH1' : paneTypes[currentType].title} open={!!typeAnchor} fit={fit} onClick={() => { setTypeChange(null); returnToTileRef.current = null; setSettingsAnchor(null); setHoveredType(null); setFocusedType(null); typeTriggerRef.current = typeAnchor ? null : typeButtonRef.current; setTypeAnchor(typeAnchor ? null : typeButtonRef.current); }} />
-            {typeAnchor && <PopoverAt label="Chart type" at={typeAnchor} onClose={() => { setTypeChange(null); returnToTileRef.current = null; setHoveredType(null); setFocusedType(null); setTypeAnchor(null); typeTriggerRef.current?.focus({ preventScroll: true }); typeTriggerRef.current = null; }}>
-              <div ref={typeMenuRef} onMouseOver={event => setHoveredType(tileFromTarget(event.target))} onMouseOut={event => setHoveredType(tileFromTarget(event.relatedTarget))} onFocus={event => setFocusedType(tileFromTarget(event.target))} onBlur={event => setFocusedType(tileFromTarget(event.relatedTarget))}>
-                <PaneTypeMenu paneName={paneName(panes, paneId)} current={currentType} tiles={panePickerTiles(Object.values(paneTypes))} pending={pendingType ?? undefined} lockedNote={currentType === 'eye' ? 'This pane belongs to the Eye diagram card on CH1.' : undefined}
-                  note={(() => { const id = hoveredType ?? focusedType; if (!id) return undefined; const members = allKnownTraces.filter(trace => traceNamesInPane.includes(trace.name)); const accepted = members.filter(trace => paneTypes[id].appliesTo(trace).allowed).map(trace => trace.dn || trace.name); return paneTypeCompatibilityNote(paneName(panes, paneId), paneTypes[id].title, members.length, accepted); })()}
-                  onChoose={id => selectPaneType(paneTypes[id])}
-                  onConfirm={() => { if (pendingType) selectPaneType(paneTypes[pendingType.to], true); }}
-                  onCancel={cancelTypeChange} />
-              </div>
-            </PopoverAt>}
-          </>}>
+          chip={fit => (
+            <PaneChartTypeControl
+              fit={fit} icon={paneTypes[currentType].iconKey} label={currentType === 'eye' ? 'Eye · CH1' : paneTypes[currentType].title}
+              anchor={typeAnchor} buttonRef={typeButtonRef} menuRef={typeMenuRef} getNote={typeNote}
+              onToggle={() => { setTypeChange(null); returnToTileRef.current = null; setSettingsAnchor(null); setHoveredType(null); setFocusedType(null); typeTriggerRef.current = typeAnchor ? null : typeButtonRef.current; setTypeAnchor(typeAnchor ? null : typeButtonRef.current); }}
+              onClose={() => { setTypeChange(null); returnToTileRef.current = null; setHoveredType(null); setFocusedType(null); setTypeAnchor(null); typeTriggerRef.current?.focus({ preventScroll: true }); typeTriggerRef.current = null; }}
+              onTileHover={target => setHoveredType(tileFromTarget(target))}
+              onTileFocus={target => setFocusedType(tileFromTarget(target))}
+              menu={{
+                paneName: paneName(panes, paneId),
+                current: currentType,
+                tiles: panePickerTiles(Object.values(paneTypes)),
+                pending: pendingType ?? undefined,
+                lockedNote: currentType === 'eye' ? 'This pane belongs to the Eye diagram card on CH1.' : undefined,
+                onChoose: choosePaneType,
+                onConfirm: confirmPaneType,
+                onCancel: cancelTypeChange,
+              }}
+            />
+          )}>
           <PaneSettingsPopover paneId={paneId} settings={settings} sections={paneTypes[currentType].settings} paneName={paneName(panes, paneId)} current={currentType} tiles={panePickerTiles(Object.values(paneTypes))} pending={pendingType} anchor={settingsAnchor} contentRef={settingsMenuRef}
             onAnchorChange={anchor => { setTypeChange(null); returnToTileRef.current = null; setTypeAnchor(null); setSettingsAnchor(anchor); if (anchor) typeTriggerRef.current = anchor; else { typeTriggerRef.current?.focus({ preventScroll: true }); typeTriggerRef.current = null; } }}
-            onChoose={id => selectPaneType(paneTypes[id])} onConfirm={() => { if (pendingType) selectPaneType(paneTypes[pendingType.to], true); }} onCancel={cancelTypeChange}
+            onChoose={choosePaneType} onConfirm={confirmPaneType} onCancel={cancelTypeChange}
             table={TableRenderer ? { settings: tableView.settings, visible: tableView.visible } : null}
             axes={!isSmith && !TableRenderer && paneTraces.length > 0 ? {
               x: xDiv, y: yDiv,
@@ -1469,42 +1166,27 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
         ) : (
           <div data-testid={`chart-plot-${paneId}`} data-line-labels={settings.showLineLabels ? 'on' : 'off'} ref={chartAreaRef} onWheel={handleWheel} onMouseDownCapture={(e) => { lastPointerClientXRef.current = e.clientX; lastPointerClientYRef.current = e.clientY; lastPointerButtonRef.current = e.button; lastCtrlPanRef.current = e.button === 0 && e.ctrlKey; }} onDoubleClick={handleDoubleClick} onMouseMoveCapture={(e) => { lastPointerClientXRef.current = e.clientX; lastPointerClientYRef.current = e.clientY; legendDodge.onPointerMove(e.clientX, e.clientY, hoverRows.map(row => ({ x: row.placement.freq, y: row.placement.amp }))); }} onMouseDown={handleContainerMouseDown} style={{ height: '100%', background: 'var(--plot)', cursor: draggingRefLineId !== null ? 'grabbing' : hoveredRefLineId !== null ? (refLines.find(l => l.id === hoveredRefLineId)?.type === 'h' ? 'ns-resize' : 'ew-resize') : undefined }}>
             {chartPlot}
-            {settings.showReferenceLines && plotView && paneRefLines.flatMap((line) => {
-              const range = line.type === 'v' ? plotView.x : plotView.y;
-              if (!range || (line.value >= range[0] && line.value <= range[1])) return [];
-              const side = line.type === 'v' ? (line.value > range[1] ? 'right' : 'left') : (line.value > range[1] ? 'top' : 'bottom');
-              const offset = line.type === 'v' ? plotView.plot.top + plotView.plot.height / 2 : plotView.plot.left + plotView.plot.width / 2;
-              const unit = line.type === 'v' ? (activePaneTrace?.units.x ?? (activePaneTrace?.domain === 'time' ? 's' : 'Hz')) : axisInfo.yUnit;
-              const value = formatCrossingValue(line.value, unit, Math.abs(line.value) > 0 ? 10 ** (Math.floor(Math.log10(Math.abs(line.value))) - 5) : 0);
-              const reveal = () => {
-                if (line.type === 'v') {
-                  const zoom = centerXDomain(line.value, visibleXSpan, paneDataBounds);
-                  paneDispatch({ type: 'SET_PANE_ZOOM', payload: { paneId, zoom } });
-                } else {
-                  const zoom = centerYDomain(line.value, range[0], range[1]);
-                  paneDispatch({ type: 'SET_PANE_Y_ZOOM', payload: { paneId, zoom } });
-                }
-              };
-              return [<EdgeTag key={`edge-${line.id}`} side={side} offset={offset} label={line.label ?? (line.type === 'v' ? 'V' : 'H')} value={value}
-                lit={(hoveredRefLineId ?? selectedRefLineId) === line.id} onReveal={reveal}
-                onHover={(hovering) => refLineDispatch({ type: 'SET_HOVERED', payload: hovering ? line.id : null })} />];
-            })}
-
-            {hoverFreq != null && hoverRows.length > 0 && (
-              <div ref={legendDodge.legendRef} data-testid={`hover-legend-${paneId}`} data-corner={legendDodge.corner} style={{ position: 'absolute', top: '12px', ...(legendDodge.corner === 'top-left' ? { left: '12px' } : { right: '12px' }), ...legendDodge.style, minWidth: '220px', maxWidth: '320px', padding: '10px 12px', borderRadius: '12px', border: '1px solid var(--border-strong)', background: 'var(--raised)', boxShadow: '0 10px 28px rgba(0,0,0,0.18)', display: 'grid', gap: '6px', pointerEvents: 'none' }}>
-                <div style={{ fontSize: 'var(--font-label)', fontWeight: 'var(--fw-semibold)', color: 'var(--text)' }}>
-                  {formatAdaptiveXAxisValue(hoverFreq, visibleXSpan, { domain: activePaneTrace?.domain ?? 'frequency', unit: activePaneTrace?.units.x ?? (activePaneTrace?.domain === 'time' ? 's' : 'Hz') })}
-                </div>
-                {hoverRows.map(({ trace, placement, color, resolutionLabel }) => (
-                  <div key={trace.name} style={{ display: 'grid', gridTemplateColumns: 'auto minmax(0, 1fr) auto auto', gap: '8px', alignItems: 'center' }}>
-                    <span style={{ width: '9px', height: '9px', borderRadius: '999px', background: color, boxShadow: '0 0 0 1px #333333' }} />
-                    <span title={trace.dn || trace.name} style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 'var(--font-label)', color: 'var(--text)' }}>{trace.dn || trace.name}</span>
-                    <span style={{ fontSize: 'var(--font-label)', color: 'var(--text)', whiteSpace: 'nowrap' }}>{formatScalarWithUnit(placement.amp, trace.units.y ?? null, { digits: 2 })}</span>
-                    <span style={{ fontSize: 'var(--font-caption)', color: 'var(--dim)', whiteSpace: 'nowrap' }}>{resolutionLabel}</span>
-                  </div>
-                ))}
-              </div>
+            {settings.showReferenceLines && plotView && (
+              <ChartReferenceEdgeTags
+                paneRefLines={paneRefLines} plotView={plotView} activePaneTrace={activePaneTrace}
+                yUnit={axisInfo.yUnit} litId={hoveredRefLineId ?? selectedRefLineId}
+                onReveal={(line, range) => {
+                  if (line.type === 'v') {
+                    const zoom = centerXDomain(line.value, visibleXSpan, paneDataBounds);
+                    paneDispatch({ type: 'SET_PANE_ZOOM', payload: { paneId, zoom } });
+                  } else {
+                    const zoom = centerYDomain(line.value, range[0], range[1]);
+                    paneDispatch({ type: 'SET_PANE_Y_ZOOM', payload: { paneId, zoom } });
+                  }
+                }}
+                onHover={id => refLineDispatch({ type: 'SET_HOVERED', payload: id })}
+              />
             )}
+            <ChartHoverLegend
+              paneId={paneId} hoverFreq={hoverFreq} hoverRows={hoverRows} visibleXSpan={visibleXSpan}
+              activePaneTrace={activePaneTrace} legendRef={legendDodge.legendRef}
+              corner={legendDodge.corner} style={legendDodge.style}
+            />
           </div>
         )}
       </div>
