@@ -60,8 +60,8 @@ function getSelectedCell(context: TouchstoneContext, sample: TouchstoneSample): 
 }
 
 function minPoint(points: readonly ScalarPoint[]): ScalarPoint | null {
-  if (points.length === 0) return null;
-  let min = points[0]!;
+  let min = points[0];
+  if (min === undefined) return null;
   for (const p of points) {
     if (p.value < min.value) min = p;
   }
@@ -69,8 +69,8 @@ function minPoint(points: readonly ScalarPoint[]): ScalarPoint | null {
 }
 
 function maxPoint(points: readonly ScalarPoint[]): ScalarPoint | null {
-  if (points.length === 0) return null;
-  let max = points[0]!;
+  let max = points[0];
+  if (max === undefined) return null;
   for (const p of points) {
     if (p.value > max.value) max = p;
   }
@@ -90,12 +90,14 @@ function toMagnitudeDb(magnitude: number): number {
 }
 
 function unwrapPhaseRad(phases: readonly number[]): number[] {
-  if (phases.length === 0) return [];
-  const out: number[] = [phases[0]!];
+  const first = phases[0];
+  if (first === undefined) return [];
+  const out: number[] = [first];
   let offset = 0;
   for (let i = 1; i < phases.length; i++) {
-    const prev = phases[i - 1]!;
-    const curr = phases[i]!;
+    const prev = phases[i - 1];
+    const curr = phases[i];
+    if (prev === undefined || curr === undefined) return [];
     const delta = curr - prev;
     if (delta > Math.PI) offset -= 2 * Math.PI;
     if (delta < -Math.PI) offset += 2 * Math.PI;
@@ -155,15 +157,17 @@ export function computeGroupDelay(context: TouchstoneContext | null): GroupDelay
   const unwrapped = unwrapPhaseRad(phase);
   const points: ScalarPoint[] = [];
   for (let i = 1; i < freq.length - 1; i++) {
-    const fPrev = freq[i - 1]!;
-    const fNext = freq[i + 1]!;
-    const pPrev = unwrapped[i - 1]!;
-    const pNext = unwrapped[i + 1]!;
+    const fPrev = freq[i - 1];
+    const fNext = freq[i + 1];
+    const pPrev = unwrapped[i - 1];
+    const pNext = unwrapped[i + 1];
+    const centerFreq = freq[i];
+    if (fPrev === undefined || fNext === undefined || pPrev === undefined || pNext === undefined || centerFreq === undefined) continue;
     const df = fNext - fPrev;
     if (!Number.isFinite(df) || df === 0) continue;
     const dphiDf = (pNext - pPrev) / df;
     const tau = -dphiDf / (2 * Math.PI);
-    points.push({ freq: freq[i]!, value: tau });
+    points.push({ freq: centerFreq, value: tau });
   }
 
   const min = minPoint(points);

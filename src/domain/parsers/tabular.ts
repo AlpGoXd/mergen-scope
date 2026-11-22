@@ -6,6 +6,7 @@
 
 import type { DataPoint, RawTrace, TraceDomain } from "../../types/trace.ts";
 import type { ParsedFile, WizardConfig } from "../../types/file.ts";
+import type { ScalarDisplayTrace } from "../../types/display.ts";
 import { makeTrace } from "../trace-model.ts";
 import { buildScalarDisplayTraceFromSeriesDataset, buildSeriesDatasetFromTrace } from "../dataset-builders.ts";
 import { incrementFileCounter } from "./rs-dat.ts";
@@ -107,7 +108,9 @@ export function parseTabularFile(
 
     let skipRows = lines.length;
     for (let i = 0; i < Math.min(50, lines.length); i++) {
-      const parts = splitRow(lines[i]!, bestDelimiter);
+      const line = lines[i];
+      if (line === undefined) continue;
+      const parts = splitRow(line, bestDelimiter);
       if (isNumericRow(parts)) { skipRows = i; break; }
     }
 
@@ -125,8 +128,7 @@ export function parseTabularFile(
     let domain: TraceDomain = isDat ? "frequency" : "time";
     let confidence = isDat ? 0.8 : 0.5;
 
-    for (let idx = 0; idx < heuristicHeaders.length; idx++) {
-      const h = heuristicHeaders[idx]!;
+    for (const [idx, h] of heuristicHeaders.entries()) {
       const isFrequencyXHeader = h.indexOf("freq") !== -1 || h === "hz" || h === "f" || h.startsWith("frequency ");
       const isTimeXHeader = h.indexOf("time") !== -1 || h === "s" || h === "t" || h.startsWith("time ");
       if (!hasExplicitXCol && isFrequencyXHeader) { domain = "frequency"; xCol = idx; hasExplicitXCol = true; confidence += 0.25; }
@@ -171,7 +173,7 @@ export function parseTabularFile(
   const headerRow = firstDataRow > 0 ? lines[firstDataRow - 1]?.split(config.delimiter).map(cell => cell.trim()) : undefined;
   const physicalHeaders = headerRow?.some(cell => cell !== '' && !Number.isFinite(Number(cell))) ? headerRow : undefined;
   if (physicalHeaders) sourceHeaders = physicalHeaders;
-  const traces: RawTrace[] = [];
+  const traces: { trace: RawTrace; column: number }[] = [];
   const datasetFamily = config.domain === 'time' ? 'waveform' : 'spectrum';
   const xHeader = sourceHeaders?.[config.xCol] ?? config.headers?.[config.xCol] ?? "";
   // A wizard-picked unit means xMult already converts to the base unit.
@@ -182,7 +184,9 @@ export function parseTabularFile(
   // A cell is a number only if it is non-empty and finite; a blank X skips the row, a blank Y skips that trace's point.
   const series: DataPoint[][] = config.yCols.map(() => []);
   for (let i = firstDataRow; i < lines.length; i++) {
-    const row = lines[i]!.split(config.delimiter);
+    const line = lines[i];
+    if (line === undefined) continue;
+    const row = line.split(config.delimiter);
     const xCell = row[config.xCol];
     if (xCell === undefined || !isNumber(xCell)) continue;
     const xVal = Number(xCell) * (config.xMult || 1);
@@ -196,10 +200,10 @@ export function parseTabularFile(
     });
   }
 
-  for (let yIdx = 0; yIdx < config.yCols.length; yIdx++) {
-    const yColIdx = config.yCols[yIdx]!;
+  for (const [yIdx, yColIdx] of config.yCols.entries()) {
+    if (yColIdx === undefined) continue;
     const name = sourceHeaders?.[yColIdx] ?? config.headers?.[yColIdx] ?? `CH${yIdx + 1}`;
-    traces.push({
+    const trace: RawTrace = {
       ...makeTrace(`${fileName} `, fileName, String(name), incrementFileCounter()),
       domain: config.domain,
       family: datasetFamily,
@@ -209,21 +213,27 @@ export function parseTabularFile(
         y: pickedYUnit !== undefined ? storedYUnit(pickedYUnit) : inferUnit(String(name), "y"),
       },
       data: series[yIdx] ?? [],
-    });
+    };
+    traces.push({ trace, column: yColIdx });
   }
 
   const surviving = traces
-    .map((trace, index) => ({ trace: { ...trace, data: normalizeTraceData(trace.data) } as RawTrace, index }))
+    .map(({ trace, column }) => ({ trace: { ...trace, data: normalizeTraceData(trace.data) }, column }))
     .filter(({trace}) => trace.data.length > 1);
   const filtered = surviving.map(({trace}) => trace);
-  const columnIdentities = surviving.map(({index}) => {
-    const column = config.yCols[index] as number;
+  const columnIdentities = surviving.map(({ column }) => {
     const header = sourceHeaders?.[column];
     return header ? {index: column, header} : {index: column};
   });
 
   const datasets = filtered.map((trace) => buildSeriesDatasetFromTrace(trace, datasetFamily));
-  const displayTraces = datasets.map((dataset, index) => buildScalarDisplayTraceFromSeriesDataset(dataset, dataset.series[0]!, filtered[index]!));
+  const displayTraces: ScalarDisplayTrace[] = [];
+  for (const [index, trace] of filtered.entries()) {
+    const dataset = datasets[index];
+    const firstSeries = dataset?.series[0];
+    if (!dataset || !firstSeries) continue;
+    displayTraces.push(buildScalarDisplayTraceFromSeriesDataset(dataset, firstSeries, trace));
+  }
 
   return {
     format: "tabular",

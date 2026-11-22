@@ -20,7 +20,11 @@ function medianOf(values: readonly number[]): number | null {
   if (!values.length) return null;
   const sorted = values.slice().sort((a, b) => a - b);
   const mid = Math.floor(sorted.length / 2);
-  return sorted.length % 2 ? sorted[mid]! : (sorted[mid - 1]! + sorted[mid]!) / 2;
+  const center = sorted[mid];
+  if (center === undefined) return null;
+  if (sorted.length % 2) return center;
+  const left = sorted[mid - 1];
+  return left === undefined ? null : (left + center) / 2;
 }
 
 // ---------------------------------------------------------------------------
@@ -42,13 +46,15 @@ export function computeRangeStats(
   data: readonly DataPoint[],
 ): RangeStats | null {
   const points = finiteData(data);
-  if (!points.length) return null;
+  const first = points[0];
+  const last = points[points.length - 1];
+  if (!first || !last) return null;
 
   const amps = points.map((p) => p.amp);
   const sum = amps.reduce((acc, v) => acc + v, 0);
 
-  const minPoint = points.reduce((best, p) => p.amp < best.amp ? p : best, points[0]!);
-  const maxPoint = points.reduce((best, p) => p.amp > best.amp ? p : best, points[0]!);
+  const minPoint = points.reduce((best, p) => p.amp < best.amp ? p : best, first);
+  const maxPoint = points.reduce((best, p) => p.amp > best.amp ? p : best, first);
 
   return {
     count: points.length,
@@ -56,7 +62,7 @@ export function computeRangeStats(
     max: maxPoint,
     average: sum / points.length,
     median: medianOf(amps),
-    spanHz: points.length > 1 ? points[points.length - 1]!.freq - points[0]!.freq : 0,
+    spanHz: points.length > 1 ? last.freq - first.freq : 0,
   };
 }
 
@@ -84,7 +90,8 @@ export function buildPeakSpurTable(
   options?: PeakTableOptions,
 ): PeakTableRow[] {
   const points = finiteData(data);
-  if (!points.length) return [];
+  const first = points[0];
+  if (!first) return [];
 
   const opts = options ?? {};
   const limit = Math.max(1, Math.min(50, Math.round(Number(opts.limit) || 10)));
@@ -97,9 +104,10 @@ export function buildPeakSpurTable(
     peaks = points.slice();
   } else {
     for (let i = 1; i < points.length - 1; i++) {
-      const prev = points[i - 1]!;
-      const cur = points[i]!;
-      const next = points[i + 1]!;
+      const prev = points[i - 1];
+      const cur = points[i];
+      const next = points[i + 1];
+      if (!prev || !cur || !next) continue;
       if (cur.amp >= prev.amp && cur.amp >= next.amp && (cur.amp > prev.amp || cur.amp > next.amp)) {
         peaks.push(cur);
       }
@@ -107,7 +115,7 @@ export function buildPeakSpurTable(
   }
 
   if (!peaks.length) {
-    const best = points.reduce((b, p) => p.amp > b.amp ? p : b, points[0]!);
+    const best = points.reduce((b, p) => p.amp > b.amp ? p : b, first);
     peaks = [best];
   }
 
