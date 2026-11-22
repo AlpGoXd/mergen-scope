@@ -1,6 +1,6 @@
 {
   "name": "mergen-scope",
-  "version": "1.0.0-beta.2",
+  "version": "1.0.0-beta.3",
   "description": "Browser-based RF signal analysis tool",
   "type": "module",
   "scripts": {
@@ -21,7 +21,16 @@
     "type": "git",
     "url": "git+https://github.com/AlpGoXd/mergen-scope.git"
   },
-  "keywords": ["oscilloscope", "spectrum-analyzer", "touchstone", "s-parameters", "smith-chart", "vna", "waveform-viewer", "rf"],
+  "keywords": [
+    "oscilloscope",
+    "spectrum-analyzer",
+    "touchstone",
+    "s-parameters",
+    "smith-chart",
+    "vna",
+    "waveform-viewer",
+    "rf"
+  ],
   "author": "",
   "license": "Apache-2.0",
   "bugs": {
