@@ -3,6 +3,7 @@ import type { Trace } from '../types/trace';
 import type { DisplayTrace } from '../types/display';
 import type { PaneTypeDefinition, PaneTypeId } from '../types/registry-contract';
 import { paneTypeOfMode, typeForTrace } from './pane-type-registry';
+import { polarCapability, polarKind } from './polar';
 
 export type PaneMemberships = Readonly<Record<string, readonly string[]>>;
 export interface PlacementTrace { readonly trace: Trace; readonly paneIds: readonly string[]; readonly displayTrace?: DisplayTrace }
@@ -42,6 +43,7 @@ export function smithParameterCapability(family: string, row: number, col: numbe
 /** Smith requires an explicitly complex diagonal S network projection. */
 export function canRenderInPane(entry: PlacementTrace, pane: PlacementPane): PlacementResult {
   if (pane.renderMode === 'cartesian' || pane.renderMode === 'table') return { allowed: true };
+  if (pane.renderMode === 'polar') return polarCapability(entry.trace);
   const display = entry.displayTrace;
   if (!display || (display.id !== entry.trace.id && entry.trace.parameters?.['displayTraceId'] !== display.id) || (display.compat?.legacyTraceName !== undefined && display.compat.legacyTraceName !== entry.trace.name) || (entry.trace.parameters?.['datasetId'] !== undefined && entry.trace.parameters['datasetId'] !== display.datasetId) || display.source.sourceType !== 'network-parameter') return { allowed: false, reason: 'Smith shows reflections (S11, S22 …)' };
   const source = display.source;
@@ -68,6 +70,11 @@ export function canPlaceMembership(entry: PlacementTrace, paneId: string, panes:
   if (!capability.allowed) return capability;
   const members = entries.filter(other => other.trace.name !== entry.trace.name && other.paneIds.includes(pane.id));
   if (!members.length) return { allowed: true };
+  if (pane.renderMode === 'polar') {
+    const kind = polarKind(entry.trace);
+    return members.every(member => polarKind(member.trace) === kind) ? { allowed: true }
+      : { allowed: false, reason: 'Polar panes show one kind of trace at a time' };
+  }
   const group = traceXGroup(entry.trace);
   const groups = members.map(other => traceXGroup(other.trace));
   if (group === null || groups.some(value => value === null || value !== group)) { const other = members.find(member => member.trace.domain !== entry.trace.domain); return { allowed: false, reason: other ? `Cannot assign a ${entry.trace.domain}-domain trace to a pane containing ${other.trace.domain}-domain traces.` : 'The trace and pane must have the same known X unit.' }; }
@@ -89,7 +96,13 @@ export interface PaneTypeChangePlan {
 export function planPaneTypeChange(panes: readonly PlacementPane[], traces: readonly PlacementTrace[], paneId: string, mode: PlacementPane['renderMode']): {ok:true;plan:PaneTypeChangePlan} | {ok:false;reason:string} {
   const target = panes.find(pane => pane.id === paneId);
   if (!target) return {ok:false,reason:'The target pane no longer exists.'};
-  const affected = traces.filter(entry => entry.paneIds.includes(paneId) && !canRenderInPane(entry,{...target,renderMode:mode}).allowed);
+  const members = traces.filter(entry => entry.paneIds.includes(paneId));
+  const canRender = (entry: PlacementTrace) => canRenderInPane(entry, { ...target, renderMode: mode }).allowed;
+  const groupOf = mode === 'polar' ? polarKind : traceXGroup;
+  const keepGroup = mode === 'polar' || target.renderMode === 'polar';
+  const first = keepGroup ? members.find(canRender) : undefined;
+  const group = first && groupOf(first.trace);
+  const affected = members.filter(entry => !canRender(entry) || (keepGroup && groupOf(entry.trace) !== group));
   const names = new Set(affected.map(entry => entry.trace.name));
   const memberships = normalizeMemberships(panes,traces);
   if (affected.length === 0) return {ok:true,plan:{paneId,mode,memberships,moved:[],unplaced:[],requiresConfirmation:false}};

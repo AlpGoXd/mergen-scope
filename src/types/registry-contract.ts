@@ -20,7 +20,7 @@ export interface DataKindDefinition {
 }
 
 export type PaneTypeId = 'chart' | 'table' | 'smith' | 'polar' | 'eye' | 'spectrogram';
-export type PaneSettingsSection = 'display' | 'grid' | 'smith' | 'table';
+export type PaneSettingsSection = 'display' | 'grid' | 'smith' | 'table' | 'polar';
 
 export interface PaneTypeDefinition {
   readonly id: PaneTypeId;

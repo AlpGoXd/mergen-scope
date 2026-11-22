@@ -71,7 +71,7 @@ export function shortcutText(id: ShortcutId): string {
 }
 
 /** Where the footer shows mouse hints: by the target pane's type, while a tool is armed, or with no file open. */
-export type MouseContext = 'chart' | 'smith' | 'table' | 'armed' | 'empty';
+export type MouseContext = 'chart' | 'smith' | 'polar' | 'table' | 'armed' | 'empty';
 
 export interface FooterHint {
   /** The action word, in text colour. */
@@ -93,10 +93,10 @@ export interface MouseHint {
  */
 export const MOUSE_HINTS: readonly MouseHint[] = [
   { keys: [['Right-drag']], label: 'Zoom an X range; pan when zoomed in', footer: { chart: { action: 'Right-drag', effect: 'X zoom' } } },
-  { keys: [['Scroll']], label: 'Y scale (Smith: zoom)', footer: { chart: { action: 'Scroll', effect: 'Y scale' }, smith: { action: 'Scroll', effect: 'zoom' } } },
+  { keys: [['Scroll']], label: 'Y scale (Smith: zoom)', footer: { chart: { action: 'Scroll', effect: 'Y scale' }, smith: { action: 'Scroll', effect: 'zoom' }, polar: { action: 'Scroll', effect: 'radius zoom' } } },
   { keys: [['Shift', 'Scroll']], label: 'Y offset' },
   { keys: [['Ctrl', 'drag']], label: 'Pan the view (Smith: middle-drag also pans)', footer: { chart: { action: 'Ctrl+drag', effect: 'pan' }, smith: { action: 'Ctrl+drag', effect: 'pan' } } },
-  { keys: [['Double-click']], label: 'Fit the pane', footer: { chart: { action: 'Double-click', effect: 'fit' }, smith: { action: 'Double-click', effect: 'fit' } } },
+  { keys: [['Double-click']], label: 'Fit the pane', footer: { chart: { action: 'Double-click', effect: 'fit' }, smith: { action: 'Double-click', effect: 'fit' }, polar: { action: 'Double-click', effect: 'fit' } } },
   { keys: [['Click']], label: 'Place the armed marker or line', footer: { armed: { action: 'Click', effect: 'place' } } },
   { keys: [['Click a marker tag']], label: 'Select the marker' },
   { keys: [['Click a pane']], label: 'Make it the target pane', footer: { table: { action: 'Click pane', effect: 'target' } } },

@@ -10,7 +10,7 @@ export interface OpenFile {
   readonly name: string;
   readonly members: readonly OpenMember[];
 }
-export interface OpenPane { readonly id: string; readonly renderMode?: 'cartesian' | 'smith' | 'smith-inverted' | 'table' }
+export interface OpenPane { readonly id: string; readonly renderMode?: import('./pane').PaneRenderMode }
 export interface OpenState {
   /** Includes user-created panes, markers and other work even when no files are open. */
   readonly hasWork: boolean;

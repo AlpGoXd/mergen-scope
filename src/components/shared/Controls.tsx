@@ -142,10 +142,15 @@ function tabbables(root: ParentNode): HTMLElement[] {
     return true;
   });
 }
-function placePopup(anchor: HTMLElement, popup: HTMLElement) {
+function placePopup(anchor: HTMLElement, popup: HTMLElement, keepAnchorVisible = false) {
   const a = anchor.getBoundingClientRect();
   popup.style.maxWidth = `${Math.max(0, window.innerWidth - 8)}px`; popup.style.maxHeight = `${Math.max(0, window.innerHeight - 8)}px`; const p = popup.getBoundingClientRect();
   popup.style.left = `${Math.max(4, Math.min(a.left, window.innerWidth - p.width - 4))}px`;
+  if (!keepAnchorVisible) {
+    const y = a.bottom + p.height + 4 <= window.innerHeight ? a.bottom + 4 : a.top - p.height - 4;
+    popup.style.top = `${Math.max(4, Math.min(y, window.innerHeight - p.height - 4))}px`;
+    return;
+  }
   const below = Math.max(0, window.innerHeight - a.bottom - 8);
   const above = Math.max(0, a.top - 8);
   const openBelow = p.height <= below || (p.height > above && below >= above);
@@ -312,18 +317,19 @@ export function Popover({ label, children }: { label: string; children: React.Re
  * Controlled popup at an anchor element or a pointer position (context menus, badge menus).
  * Same surface, positioning and dismissal as Popover: outside press, Escape, resize and scroll close it.
  */
-export function PopoverAt({ label, at, onClose, onEscape, children }: {
+export function PopoverAt({ label, at, onClose, onEscape, keepAnchorVisible, children }: {
   label: string;
   at: HTMLElement | { x: number; y: number };
   onClose: () => void;
   onEscape?: () => void;
+  keepAnchorVisible?: boolean;
   children: React.ReactNode
 }) {
   const popup = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const el = popup.current; if (!el) return;
     el.style.maxWidth = `${Math.max(0, window.innerWidth - 8)}px`; el.style.maxHeight = `${Math.max(0, window.innerHeight - 8)}px`;
-    if (at instanceof HTMLElement) { placePopup(at, el); }
+    if (at instanceof HTMLElement) { placePopup(at, el, keepAnchorVisible); }
     else {
       const p = el.getBoundingClientRect();
       el.style.left = `${Math.max(4, Math.min(at.x, window.innerWidth - p.width - 4))}px`;
@@ -347,7 +353,7 @@ export function PopoverAt({ label, at, onClose, onEscape, children }: {
       window.removeEventListener('resize', move);
       window.removeEventListener('scroll', move, true);
     };
-  }, [onClose, onEscape, at]);
+  }, [onClose, onEscape, at, keepAnchorVisible]);
   return createPortal(<div ref={popup} className="ui-popover" role="presentation" aria-label={label} onClick={event => event.stopPropagation()}>{children}</div>, document.body);
 }
 export function MessageBar({ status, children }: { status: 'danger' | 'warning' | 'success' | 'info'; children: React.ReactNode }) {

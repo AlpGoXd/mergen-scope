@@ -83,7 +83,8 @@ export function FooterBar({ workspaceRef }: { workspaceRef: RefObject<HTMLDivEle
   const activeTrace = activeTraceName ? allTraces.find(t => t.name === activeTraceName) : undefined;
   const traceLabel = activeTraceName ? (activeTrace?.dn ?? activeTraceName) : 'none';
   const sentence = hasFile ? footerSentence({ armed, refMode, markers, refLines }) : { text: 'No file open', tone: null };
-  const paneKind = targetPane?.renderMode === 'table' ? 'table' : targetPane?.renderMode === 'smith' || targetPane?.renderMode === 'smith-inverted' ? 'smith' : 'chart';
+  const mode = targetPane?.renderMode;
+  const paneKind = mode === 'polar' || mode === 'table' ? mode : mode === 'smith' || mode === 'smith-inverted' ? 'smith' : 'chart';
   const context: MouseContext = !hasFile ? 'empty' : sentence.tone ? 'armed' : paneKind;
   const hints = footerHints(context);
 

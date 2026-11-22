@@ -9,7 +9,7 @@
 // ---------------------------------------------------------------------------
 
 /** How a chart pane renders its traces. */
-export type PaneRenderMode = "cartesian" | "smith" | "smith-inverted" | "table";
+export type PaneRenderMode = "cartesian" | "smith" | "smith-inverted" | "table" | "polar";
 export type AxisScale = 'linear' | 'log';
 
 export interface ChartAxesSettings {
@@ -19,6 +19,16 @@ export interface ChartAxesSettings {
 }
 
 export const DEFAULT_CHART_AXES: ChartAxesSettings = { x: 'linear', y: 'linear', phase: 'wrapped' };
+
+export interface PolarSettings {
+  readonly radius: 'linear' | 'db';
+  readonly zero: 'right' | 'top';
+  readonly direction: 'ccw' | 'cw';
+  readonly manual: { readonly linearMax: number; readonly dbTop: number; readonly dbRange: number } | null;
+  readonly range: { readonly startHz: number; readonly stopHz: number } | null;
+}
+
+export const DEFAULT_POLAR_SETTINGS: PolarSettings = { radius: 'linear', zero: 'right', direction: 'ccw', manual: null, range: null };
 export interface SmithSettings {
   readonly range?: { readonly startHz: number; readonly stopHz: number } | null;
   readonly outside?: 'hidden' | 'faint';
@@ -45,6 +55,7 @@ export function defaultTableSettings(): TableSettings {
 /** Per-pane display and grid settings. */
 export interface PaneSettings {
   axes?: ChartAxesSettings;
+  polar?: PolarSettings;
   smith: SmithSettings;
   /** Only read by Table panes; missing means the defaults. */
   table?: TableSettings;

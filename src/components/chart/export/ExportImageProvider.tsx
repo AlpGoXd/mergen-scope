@@ -32,6 +32,7 @@ import { rememberedExportTheme } from './export-theme-storage';
 import { TraceSymbol } from '../../shared/TraceSymbol';
 import { ChartPane } from '../ChartPane';
 import { SmithPaneContainer } from '../../smith/SmithPaneContainer';
+import { PolarPane } from '../../panes/PolarPane';
 import type { SmithPaneTrace } from '../../smith/SmithPane';
 import { PaneImageExportContext } from './export-context';
 import type { ExportNotice, ExportPlotInfo, ExportView, PaneImageExport } from './export-context';
@@ -70,7 +71,7 @@ type JobMode = 'png' | 'svg' | 'latex';
 interface Job {
   readonly id: number;
   readonly paneId: string;
-  readonly kind: 'chart' | 'smith' | 'table';
+  readonly kind: 'chart' | 'smith' | 'table' | 'polar';
   readonly mode: JobMode;
   readonly options: ExportImageOptions;
   readonly geometry: ExportGeometry;
@@ -115,7 +116,7 @@ export function ExportImageProvider({ children, shortcutsOff = false }: { childr
     const pane = state.panes.find(item => item.id === paneId);
     if (!pane) return 'The pane no longer exists';
     const type = paneTypeOfMode(pane.renderMode);
-    if (type !== 'chart' && type !== 'smith' && type !== 'table') return 'This pane type cannot be exported yet';
+    if (format === 'latex' && type === 'polar') return 'Not available for Polar panes yet';
     if (format === 'latex' && type === 'table') return 'Choose CSV or an image for a Table pane';
     const shown = state.allTraces.some(trace => (state.tracePaneMap[trace.name] ?? []).includes(paneId) && state.vis[trace.name] !== false);
     return shown ? null : `${paneName(state.panes, paneId)} has no traces to export`;
@@ -127,7 +128,7 @@ export function ExportImageProvider({ children, shortcutsOff = false }: { childr
       const reason = unavailable(paneId, mode === 'latex' ? 'latex' : 'image');
       const pane = state.panes.find(item => item.id === paneId);
       const kind = pane && paneTypeOfMode(pane.renderMode);
-      if (reason || (kind !== 'chart' && kind !== 'smith' && kind !== 'table')) { reject(new Error(reason ?? 'The pane no longer exists')); return; }
+      if (reason || (kind !== 'chart' && kind !== 'smith' && kind !== 'table' && kind !== 'polar')) { reject(new Error(reason ?? 'The pane no longer exists')); return; }
       const element = document.querySelector(`[data-testid="chart-pane-${CSS.escape(paneId)}"]`);
       const box = element?.getBoundingClientRect() ?? { width: 800, height: 500 };
       // LaTeX takes its ranges and labels from a print render; its look is set in the .tex itself.
@@ -309,7 +310,7 @@ function ExportStage({ job, onDone }: { job: Job; onDone: (id: number) => void }
       for (let frame = 0; frame < 90 && !chart; frame += 1) {
         await nextFrame();
         const host = hostRef.current;
-        const selector = { chart: '[data-export-chart] svg.recharts-surface', smith: 'svg.smith-svg', table: 'svg[data-export-table]' }[job.kind];
+        const selector = { chart: '[data-export-chart] svg.recharts-surface', smith: 'svg.smith-svg', table: 'svg[data-export-table]', polar: 'svg.polar-svg' }[job.kind];
         const candidate = host?.querySelector<SVGSVGElement>(selector) ?? null;
         const box = candidate?.getBoundingClientRect();
         const drawn = job.kind !== 'chart' || ((host?.querySelectorAll('[data-export-chart] .recharts-line').length ?? 0) >= traceCount && (job.mode !== 'latex' || plotInfo.current !== null));
@@ -354,6 +355,7 @@ function ExportStage({ job, onDone }: { job: Job; onDone: (id: number) => void }
       <div style={{ position: 'relative', width: geometry.cssWidth, height: bodyHeight, flex: 'none' }}>
         {job.kind === 'chart' && <ChartPane paneId={job.paneId} exportView={view} />}
         {job.kind === 'smith' && <SmithPaneContainer paneId={job.paneId} exportView={view} />}
+        {job.kind === 'polar' && <PolarPane paneId={job.paneId} exportView={view} />}
         {job.kind === 'table' && <ExportTableSvg paneId={job.paneId} view={view} fontPx={fontPx} />}
       </div>
       {legend.height > 0 && <svg data-export-legend={job.paneId} width={geometry.cssWidth} height={legend.height} viewBox={`0 0 ${geometry.cssWidth} ${legend.height}`} style={{ display: 'block', flex: 'none' }}>

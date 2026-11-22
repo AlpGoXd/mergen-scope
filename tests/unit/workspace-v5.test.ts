@@ -23,6 +23,19 @@ it('accepts optional trace math alignment choices and rejects unknown choices', 
 });
 
 const fixture = (name: string): unknown => JSON.parse(readFileSync(`tests/fixtures/phase3-preservation/${name}.json`, 'utf8'));
+it('preserves Polar pane settings through the live save path and rejects invalid rings', () => {
+  let state = initialWorkspaceState();
+  state = workspaceReducer(state, { slice: 'panes', limit: 4, action: { type: 'SET_RENDER_MODE', payload: { paneId: 'pane-1', mode: 'polar' } } });
+  const polar = { radius: 'db', zero: 'top', direction: 'cw', manual: { linearMax: 2, dbTop: -10, dbRange: 60 },
+    range: { startHz: 1e6, stopHz: 2e6 } } as const;
+  state = workspaceReducer(state, { slice: 'panes', limit: 4, action: { type: 'SET_PANE_SETTINGS', payload: { paneId: 'pane-1', patch: { polar } } } });
+  const saved = snapshotFromWorkspace(state);
+  if (!saved) throw new Error('snapshot');
+  expect(migrateWorkspaceV5(JSON.parse(JSON.stringify(saved)))?.panes[0]).toMatchObject({ renderMode: 'polar', settings: { polar } });
+  expect(migrateWorkspaceV5({ ...saved, panes: saved.panes.map(pane => ({ ...pane,
+    settings: { ...pane.settings, polar: { ...polar, manual: { ...polar.manual, dbRange: 0 } } },
+  })) })).toBeNull();
+});
 it('defaults old chart axes and round-trips the saved scales and phase mode', () => {
   const base = migrateWorkspaceV5(fixture('workspace-v4-eight-pane-extension'));
   expect(base?.panes[0]?.settings.axes).toEqual({ x: 'linear', y: 'linear', phase: 'wrapped' });

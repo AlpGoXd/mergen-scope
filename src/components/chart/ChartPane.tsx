@@ -121,6 +121,8 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
   }, [paneAssignmentWarning, paneId, uiDispatch]);
   const isActive = activePaneId === paneId;
   const isSmith = pane.renderMode === 'smith' || pane.renderMode === 'smith-inverted';
+  const isPolar = pane.renderMode === 'polar';
+  const isRadial = isSmith || isPolar;
   const appearance = exportView?.appearance;
   const settings = {
     ...defaultPaneSettings(), ...pane.settings,
@@ -148,7 +150,7 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
   const paneRootRef = useRef<HTMLDivElement>(null);
   const paneTypes = createPaneTypeRegistry({ smithCapability: trace => canRenderInPane({ trace, paneIds: [], displayTrace: allDisplayTraces.find(display => display.id === trace.id || display.id === trace.parameters?.['displayTraceId']) }, { ...pane, renderMode: 'smith' }) });
   const currentType = paneTypeOfMode(pane.renderMode);
-  const SmithRenderer = currentType === 'smith' ? rendererFor(currentType) : null;
+  const RadialRenderer = isRadial ? rendererFor(currentType) : null;
   const TableRenderer = currentType === 'table' ? rendererFor(currentType) : null;
   const tileFromTarget = (target: EventTarget | null): PickerTileId | null => {
     if (!(target instanceof Element)) return null;
@@ -166,7 +168,8 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
     const entries = allKnownTraces.map(trace => ({ trace, paneIds: tracePaneMap[trace.name] ?? [], displayTrace: allDisplayTraces.find(display => display.id === trace.id || display.id === trace.parameters?.['displayTraceId']) }));
     const plan = planPaneTypeChange(panes, entries, paneId, mode);
     if (!plan.ok) return;
-    const leaving = entries.filter(entry => entry.paneIds.includes(paneId) && !canRenderInPane(entry, { ...pane, renderMode: mode }).allowed).map(entry => ({ name: entry.trace.name, displayName: entry.trace.dn || entry.trace.name }));
+    const leaving = entries.filter(entry => entry.paneIds.includes(paneId) && !plan.plan.memberships[entry.trace.name]?.includes(paneId))
+      .map(entry => ({ name: entry.trace.name, displayName: entry.trace.dn || entry.trace.name }));
     if (confirmed && revision !== typeChange?.revision && !leaving.length) { cancelTypeChange(); return; }
     if (leaving.length && (!confirmed || revision !== typeChange?.revision)) {
       const summary = summarizePaneTypeChange(plan.plan, leaving, id => paneName(panes, id));
@@ -347,7 +350,7 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
   const chartAreaRef = React.useRef<HTMLDivElement | null>(null);
   const [plotHeight, setPlotHeight] = useState(0);
   const [paneDragOver, setPaneDragOver] = useState(false);
-  const hasChart = !isSmith && traceNamesInPane.length > 0 && mergedData.length > 0;
+  const hasChart = !isRadial && traceNamesInPane.length > 0 && mergedData.length > 0;
   useEffect(() => {
     const el = chartAreaRef.current;
     if (!el) return;
@@ -843,7 +846,7 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
   }, [allTraces, resolveColor]);
 
   const { hoverFreq, hoverRows, crosshairX, ghostCrosshairX, updateHover, clearHover } = useChartHover({
-    paneId, paneTraces, activeTrace: activePaneTrace, visibleXSpan, resolveTraceColor, isExport, isSmith,
+    paneId, paneTraces, activeTrace: activePaneTrace, visibleXSpan, resolveTraceColor, isExport, isSmith: isRadial,
   });
 
   // The hover legend steps aside for the cursor and the hover dots (see domain/chart/legend-placement.ts).
@@ -1036,7 +1039,7 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
     xScale, yScale, configuredAxes.phase,
   ]);
 
-  const axes: PaneAxes | null = !isSmith && !TableRenderer && paneTraces.length > 0 ? {
+  const axes: PaneAxes | null = !isRadial && !TableRenderer && paneTraces.length > 0 ? {
     x: xScale === 'log' ? 'Log' : xDiv, y: yScale === 'log' ? 'Log' : yDiv,
     values: configuredAxes, xReason, yReason, hasPhase: paneTraces.some(isPhase),
     suggestLog: suggestLog(paneDataBounds) && !xReason && xScale !== 'log',
@@ -1133,7 +1136,7 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
           link={traceNamesInPane.length > 0 ? iconOnly => <XLinkChip paneId={paneId} iconOnly={iconOnly} /> : null}
           samples={TableRenderer ? null : iconOnly => (
             <Btn variant={settings.showSampleDots ? 'armed' : 'neutral'} tone="pane" small className={`ph-samples${iconOnly ? ' is-icon' : ''}`} aria-label="Samples" aria-pressed={settings.showSampleDots}
-              title={settings.showSampleDots && !isSmith && plotView && plotView.plot.width > 0 && paneTraces.some(trace => {
+              title={settings.showSampleDots && !isRadial && plotView && plotView.plot.width > 0 && paneTraces.some(trace => {
                 const points = visibleSampleCount(trace.data, plotView.x);
                 return points > 0 && !sampleDotsVisible(points, plotView.plot.width);
               }) ? 'Zoom in to see the sample points' : 'Show the measured sample points'} data-testid="samples-toggle"
@@ -1166,12 +1169,14 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
             onChoose={choosePaneType} onConfirm={confirmPaneType} onCancel={cancelTypeChange}
             table={TableRenderer ? { settings: tableView.settings, visible: tableView.visible } : null}
             axes={axes}
-            onFit={isSmith && paneTraces.length > 0 ? () => setSmithFitRequest(value => value + 1) : null}
+            onFit={isRadial && paneTraces.length > 0 ? (isPolar
+              ? () => paneDispatch({ type: 'SET_PANE_Y_ZOOM', payload: { paneId, zoom: null } })
+              : () => setSmithFitRequest(value => value + 1)) : null}
             actions={{
               onCopyImage: imageExport && paneTraces.length > 0 ? () => imageExport.copyImage(paneId) : null,
               onDownloadImage: imageExport && paneTraces.length > 0 ? () => imageExport.downloadImage(paneId) : null,
               onDownloadSvg: imageExport && paneTraces.length > 0 ? () => imageExport.downloadSvg(paneId) : null,
-              onCopyLatex: imageExport && !TableRenderer && paneTraces.length > 0 ? () => imageExport.copyLatex(paneId) : null,
+              onCopyLatex: imageExport && !TableRenderer && !isPolar && paneTraces.length > 0 ? () => imageExport.copyLatex(paneId) : null,
               onExportOptions: imageExport && traceNamesInPane.length > 0 ? () => imageExport.openDialog(paneId) : null,
               onExportData: imageExport && traceNamesInPane.length > 0 ? () => imageExport.openDialog(paneId, 'csv') : null,
               onClose: panes.length > 1 ? closePane : null,
@@ -1183,8 +1188,8 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
       <div onClick={() => { if (traceNamesInPane.length === 0 && !isActive) paneDispatch({ type: 'SET_ACTIVE_PANE', payload: paneId }); }} style={{ flex: 1, position: 'relative', minHeight: 0, overflow: 'hidden', containerType: 'size' }}>
         {TableRenderer && displayState !== 'picker' ? (
           <TableRenderer paneId={paneId} />
-        ) : SmithRenderer && traceNamesInPane.length > 0 ? (
-          <SmithRenderer paneId={paneId} fitRequest={smithFitRequest} />
+        ) : RadialRenderer && traceNamesInPane.length > 0 ? (
+          <RadialRenderer paneId={paneId} fitRequest={smithFitRequest} />
         ) : traceNamesInPane.length === 0 ? (
           <EmptyChartPane mode={allTraces.length > 0 ? 'traces' : 'files'} paneId={paneId} compact={panes.length > 2} types={Object.values(paneTypes)} currentType={currentType} displayState={displayState} onSelectType={selectPaneType} />
         ) : mergedData.length === 0 ? (
