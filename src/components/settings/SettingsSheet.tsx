@@ -1,7 +1,9 @@
 ﻿import { useState } from 'react';
 import type { KeyboardEvent, ReactNode } from 'react';
 import './settings-sheet.css';
-import { COLOUR_BLIND_PALETTE } from '../../domain/trace-colors';
+import { COLOUR_BLIND_PALETTE, displayTraceColor } from '../../domain/trace-colors';
+import { SOURCE_HUES } from '../../domain/trace-palette';
+import { useAppHighContrast } from '../../hooks/use-app-high-contrast';
 import { useTheme } from '../../hooks/use-theme';
 import { useSheetFocus } from '../../hooks/use-sheet-focus';
 import { usePaneLimit } from '../../stores/pane-store';
@@ -55,6 +57,7 @@ function PaletteCards({ value, onChange }: {
   onChange: (palette: AppPreferences['palette']) => void;
 }) {
   const { theme } = useTheme();
+  const high = useAppHighContrast();
   const move = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
     if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return;
     event.preventDefault();
@@ -77,8 +80,10 @@ function PaletteCards({ value, onChange }: {
           <span className="t-card-title" id={`ss-palette-${id}`}>{name}</span>
           <span className="ss-caption t-caption" id={`ss-palette-caption-${id}`}>{caption}</span>
           <span className="ss-swatches" aria-hidden="true">
-            {COLOUR_BLIND_PALETTE[theme].map(([source], index) => (
-              <span className="ss-swatch" key={source} style={{ background: id === 'colour-blind' ? source : `var(--tr${index})` }} />
+            {SOURCE_HUES.map((hue, index) => (
+              <span className="ss-swatch" key={hue} style={{ background: high
+                ? displayTraceColor({ palette: 'source', hue, index, round: 0 }, theme, id, true)
+                : id === 'colour-blind' ? COLOUR_BLIND_PALETTE[theme][index]?.[0] : `var(--tr${index})` }} />
             ))}
           </span>
         </button>
@@ -136,7 +141,7 @@ export function SettingsSheet({ onClose, onShowShortcuts, onAbout, onPreferences
           <SegmentRow label="Theme" value={preference} options={[['light', 'Light'], ['dark', 'Dark'], ['system', 'System']]} onChange={setPreference} />
           <SegmentRow label="Size" value={prefs.size} options={[['compact', 'Compact'], ['comfortable', 'Comfortable'], ['large', 'Large']]}
             onChange={size => update({ ...prefs, size })} caption="Compact 24 px controls, 26 px rows · Comfortable 28 / 30 · Large 32 / 34" />
-          <SegmentRow label="Neutral colour" value={prefs.neutral} options={appNeutrals.map(neutral => [neutral, neutral.charAt(0).toUpperCase() + neutral.slice(1)])} wrap
+          <SegmentRow label="Neutral tint" value={prefs.neutral} options={appNeutrals.map(neutral => [neutral, neutral.charAt(0).toUpperCase() + neutral.slice(1)])} wrap
             onChange={neutral => update({ ...prefs, neutral })} caption="Changes the greys of the whole app, not the trace or tool colours." />
           <SegmentRow label="Contrast" value={prefs.contrast} options={[['normal', 'Normal'], ['high', 'High']]}
             onChange={contrast => update({ ...prefs, contrast })} />

@@ -14,7 +14,7 @@
 .ev-rest:hover:not(:disabled) { background: var(--raised); border-color: var(--border-strong); text-decoration-color: transparent; }
 .ev-rest:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .ev-rest:disabled { color: var(--text-muted); text-decoration: none; cursor: default; }
-.ev-input { background: var(--bg); border-color: var(--border-strong); outline: none; }
+.ev-input { background: var(--raised); border-color: var(--border-strong); outline: none; }
 /* One focus ring only: the global input outline is replaced by the 2 px accent edge. */
 .ev .ev-input:focus, .ev .ev-input:focus-visible { outline: none; border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 .ev .ev-input[aria-invalid="true"] { border-color: var(--danger-line); box-shadow: 0 0 0 1px var(--danger-line); }

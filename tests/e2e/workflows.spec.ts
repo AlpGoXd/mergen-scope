@@ -199,7 +199,12 @@ test("four empty panes fit without covering each other's headers", async ({ page
     await expect(header.getByText("Empty", { exact: true })).toBeVisible();
     await expect(header.getByRole("button", { name: `Close ${name}` })).toBeVisible();
     await header.getByText(name, { exact: true }).click({ timeout: 5000 });
-    await expect(header).toHaveCSS('border-left-color', /^(?!rgba\(0, 0, 0, 0\)).+/);
+    await expect(header).toHaveCSS('border-left-width', '0px');
+    await expect(header.getByText(name, { exact: true })).toHaveCSS('font-weight', '700');
+    const frame = page.getByTestId(`chart-pane-${paneId}`).locator('..');
+    await expect(frame).toHaveCSS('box-shadow', 'none');
+    await expect(frame).toHaveCSS('border-top-width', '2px');
+    await expect(header).toHaveCSS('background-color', 'oklch(0.92 0.035 255)');
   }
 });
 

@@ -49,7 +49,7 @@ test('"+ Marker ▾" is one flat split button: main part, divider, ▾ part', as
   await expect.poll(() => split.evaluate(el => getComputedStyle(el).borderTopColor)).not.toBe('rgba(0, 0, 0, 0)');
   await more(page).click();
   await expect(more(page)).toHaveAttribute('aria-expanded', 'true');
-  await expect.poll(() => more(page).evaluate(el => getComputedStyle(el).backgroundColor)).toBe(await colourOf(page, 'backgroundColor', 'var(--slate-fill)'));
+  await expect.poll(() => more(page).evaluate(el => getComputedStyle(el).backgroundColor)).toBe(await colourOf(page, 'backgroundColor', 'var(--on-fill)'));
 });
 
 test('the ▾ menu with no markers: Marker, a "Delta from…" heading and a disabled Selected row that says why', async ({ page }) => {

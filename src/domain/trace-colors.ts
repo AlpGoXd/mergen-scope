@@ -1,6 +1,6 @@
 import type { Trace } from '../types/trace';
 
-import { allocateTraceColors, symbolFor, traceColor } from './trace-palette';
+import { allocateTraceColors, clampChroma, oklchToLinearSrgb, symbolFor, traceColor } from './trace-palette';
 import type { PaletteTrace, SymbolSetting, TraceColorAssignment, Theme } from './trace-palette';
 
 type Palette = 'standard' | 'colour-blind';
@@ -66,7 +66,65 @@ export function allocateColourBlindCreated(traces: readonly PaletteTrace[], prev
   return assignments;
 }
 
-export function displayTraceColor(assignment: ColourBlindAssignment, theme: Theme, palette: Palette): string {
+const HIGH_SOURCE_CHROMA = {
+  light: [0.220, 0.194, 0.098, 0.086, 0.220, 0.136, 0.140, 0.090],
+  dark: [0.088, 0.108, 0.166, 0.148, 0.132, 0.108, 0.180, 0.120],
+} as const;
+
+function parseOklch(value: string): [number, number, number] {
+  const [lightness = 0, chroma = 0, hue = 0] = value.slice(6, -1).split(' ').map(Number);
+  return [lightness, chroma, hue];
+}
+
+/** Conservative luminance bounds for the lightest/darkest high-contrast plot across all tints. */
+const PLOT_LUMINANCE = { light: 0.96, dark: 0.002 } as const;
+
+function accessibleCreatedColour(lightness: number, chroma: number, hue: number, theme: Theme): string {
+  const fits = (l: number) => {
+    const [r, g, b] = oklchToLinearSrgb(l, clampChroma(l, chroma, hue), hue);
+    const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    const plot = PLOT_LUMINANCE[theme];
+    return (Math.max(plot, luminance) + 0.05) / (Math.min(plot, luminance) + 0.05) >= 4.5;
+  };
+  // Some prescribed parent-relative steps need a small lightness correction to meet 4.5:1.
+  if (!fits(lightness)) {
+    let passing = theme === 'light' ? 0.30 : 0.90;
+    let failing = lightness;
+    for (let i = 0; i < 18; i++) {
+      const middle = (passing + failing) / 2;
+      if (fits(middle)) passing = middle;
+      else failing = middle;
+    }
+    lightness = passing;
+  }
+  return `oklch(${lightness} ${clampChroma(lightness, chroma, hue)} ${hue})`;
+}
+
+function highContrastTraceColor(assignment: ColourBlindAssignment, theme: Theme, palette: Palette): string {
+  if (palette === 'standard') {
+    if (assignment.palette === 'source') {
+      const chroma = HIGH_SOURCE_CHROMA[theme][assignment.index] ?? 0;
+      const lightness = theme === 'light' ? 0.480 : 0.820;
+      return `oklch(${lightness} ${chroma} ${assignment.hue})`;
+    }
+    const [normalLightness, chroma, hue] = parseOklch(traceColor(assignment, theme));
+    const parentShift = theme === 'light' ? -0.10 : 0.07;
+    return accessibleCreatedColour(normalLightness + parentShift, chroma, hue, theme);
+  }
+
+  const pair = COLOUR_BLIND_PALETTE[theme][assignment.cbIndex ?? assignment.index];
+  if (!pair) return highContrastTraceColor(assignment, theme, 'standard');
+  const [sourceLightness, sourceChroma, hue] = parseOklch(pair[0]);
+  const lightness = theme === 'light' ? Math.max(0.30, Math.min(0.52, sourceLightness - 0.06))
+    : Math.max(0.72, Math.min(0.92, sourceLightness + 0.05));
+  if (assignment.palette === 'source') return `oklch(${lightness} ${clampChroma(lightness, sourceChroma * 1.15, hue)} ${hue})`;
+
+  const [createdLightness, createdChroma] = parseOklch(pair[1]);
+  return accessibleCreatedColour(lightness + createdLightness - sourceLightness, createdChroma * 1.15, hue, theme);
+}
+
+export function displayTraceColor(assignment: ColourBlindAssignment, theme: Theme, palette: Palette, highContrast = false): string {
+  if (highContrast) return highContrastTraceColor(assignment, theme, palette);
   if (palette === 'standard') return traceColor(assignment, theme);
   const pair = COLOUR_BLIND_PALETTE[theme][assignment.cbIndex ?? assignment.index];
   return pair?.[assignment.palette === 'created' ? 1 : 0] ?? traceColor(assignment, theme);
@@ -81,10 +139,10 @@ export function traceDisplaySymbol(assignment: TraceColorAssignment, setting: Sy
   return symbolFor(assignment, force ? 'always' : setting);
 }
 
-export function makeTraceColorResolver(traces: readonly Trace[], overrides: Readonly<Record<string, string>>, theme: Theme, slots: Readonly<Record<string, TraceColorAssignment>>, palette: 'standard' | 'colour-blind') {
+export function makeTraceColorResolver(traces: readonly Trace[], overrides: Readonly<Record<string, string>>, theme: Theme, slots: Readonly<Record<string, TraceColorAssignment>>, palette: Palette, highContrast = false) {
   const assignments = allocateColourBlindCreated(traces, new Map(Object.entries(slots)));
   return (trace: Trace): string => {
     const assignment = assignments.get(trace.id);
-    return overrides[trace.name] || (assignment ? displayTraceColor(assignment, theme, palette) : 'var(--accent)');
+    return overrides[trace.name] || (assignment ? displayTraceColor(assignment, theme, palette, highContrast) : 'var(--accent)');
   };
 }

@@ -1,19 +1,16 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { appNeutrals } from '../../src/components/settings/app-preferences';
+import { displayTraceColor } from '../../src/domain/trace-colors';
+import { CREATED_HUES, SOURCE_HUES } from '../../src/domain/trace-palette';
 
 const css = readFileSync(new URL('../../src/appearance-colours.css', import.meta.url), 'utf8');
 const spec = readFileSync(new URL('../../docs/design/colour-values.md', import.meta.url), 'utf8');
-const names = { bg: 'bg', panel: 'panel', raised: 'raised', border: 'border', strong: 'border-strong', text: 'text', muted: 'text-muted' } as const;
-type Name = keyof typeof names;
-
-function tokens(rule: string, last = false): Record<string, string> {
-  const marker = `${rule} {`;
-  const lines = css.split('\n');
-  const start = last ? lines.lastIndexOf(marker) : lines.indexOf(marker);
-  if (start < 0) throw new Error(`Missing CSS rule ${rule}`);
-  const body = lines.slice(start + 1).join('\n').split('}')[0] ?? '';
-  return Object.fromEntries(Array.from(body.matchAll(/(--[\w-]+):\s*([^;]+);/g), match => [match[1], match[2]]));
+function tokens(rule: string): Record<string, string> {
+  const bodies = Array.from(css.matchAll(/^([^\n]+) \{([^}]+)\}/gm))
+    .filter(match => match[1] === rule);
+  if (!bodies.length) throw new Error(`Missing CSS rule ${rule}`);
+  return Object.fromEntries(bodies.flatMap(rule => Array.from((rule[2] ?? '').matchAll(/(--[\w-]+):\s*([^;]+);/g), match => [match[1], match[2]])));
 }
 
 function computedToken(name: string, palette: Record<string, string>): string {
@@ -21,7 +18,7 @@ function computedToken(name: string, palette: Record<string, string>): string {
   if (value === undefined) throw new Error(`Missing CSS token ${name}`);
   return value
     .replace(/var\((--[\w-]+)\)/g, (_, token: string) => computedToken(token, palette))
-    .replace(/calc\(([\d.]+)\s*\/\s*2\)/g, (_, chroma: string) => String(Number(chroma) / 2));
+    .replace(/calc\(([\d.]+)\s*\*\s*([\d.]+)\)/g, (_, chroma: string, scale: string) => String(Number(chroma) * Number(scale)));
 }
 
 function tuple(colour: string): [number, number, number] {
@@ -50,34 +47,64 @@ function contrastRatio(a: number, b: number): number {
   return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
 }
 
+const greyTokens = ['bg', 'panel', 'raised', 'border', 'border-strong', 'text', 'text-muted'] as const;
+const selectionTokens = ['accent', 'on-fill', 'on-ink', 'on-line'] as const;
+
+it('includes Ember as the eighth tint', () => {
+  expect(appNeutrals).toHaveLength(8);
+  expect(appNeutrals.at(-1)).toBe('ember');
+});
+
 describe.each(['light', 'dark'] as const)('%s appearance', theme => {
   describe.each(['normal', 'high'] as const)('%s contrast', contrast => {
-    it.each(appNeutrals)('%s matches the decided colours and contrast thresholds', tint => {
+    it.each(appNeutrals)('%s defines each exact colour and meets the contrast thresholds', tint => {
       const dark = theme === 'dark' ? '.theme-dark' : '';
-      const base = tokens(`:root${dark}, .export-tokens${dark}`);
-      const variant = tint === 'slate' ? {} : tokens(`:root${dark}[data-neutral="${tint}"]`);
-      const high = contrast === 'high' ? tokens(`:root${dark}[data-contrast="high"]`) : {};
-      const palette = { ...base, ...variant, ...tokens(':root, .export-tokens', true), ...high };
+      const base = { ...tokens(':root'), ...(dark ? tokens(':root.theme-dark') : {}) };
+      const variant = tint === 'slate' ? {} : tokens(`:root[data-neutral="${tint}"]`);
+      const high = contrast === 'high' ? {
+        ...tokens(':root[data-contrast="high"]'),
+        ...tokens(`:root${dark}${tint === 'slate' ? '' : `[data-neutral="${tint}"]`}[data-contrast="high"]`),
+      } : {};
+      const palette = { ...base, ...variant, ...high };
       const title = tint.charAt(0).toUpperCase() + tint.slice(1);
-      const rows = spec.split(`\n${title}:\n`)[1]?.split('\n').slice(0, 7).join('\n') ?? '';
-      const values = {} as Record<Name, number>;
-      for (const [label, token] of Object.entries(names) as [Name, string][]) {
-        const match = new RegExp(`--${label}: light (oklch\\([^)]+\\)) \\| dark (oklch\\([^)]+\\))`).exec(rows);
+      const heading = contrast === 'high' ? 'High' : 'Normal';
+      const section = spec.split(`## ${heading} contrast\n`)[1]?.split('\n## ')[0] ?? '';
+      const rows = section.split(new RegExp(`\\n${title}(?: \\(hue \\d+\\))?:\\n`))[1]?.split('\n\n')[0] ?? '';
+      const required = contrast === 'high' ? greyTokens : [...greyTokens, 'plot', ...selectionTokens];
+      for (const token of required) {
+        const match = new RegExp(`--${token}: (oklch\\([^)]+\\)) \\| (oklch\\([^)]+\\))`).exec(rows);
         const exact = match?.[theme === 'light' ? 1 : 2];
         if (!exact) throw new Error(`Missing tint value ${tint} ${token}`);
-        const expected = tuple(exact);
-        if (contrast === 'high') {
-          const lightness = new RegExp(`--${label}: light L ([\\d.]+) \\| dark L ([\\d.]+)`).exec(spec);
-          expected[0] = Number(lightness?.[theme === 'light' ? 1 : 2]);
-          expected[1] /= 2;
-        }
-        const actual = tuple(computedToken(`--${token}`, palette));
-        expect(actual, token).toEqual(expected);
-        values[label] = luminance(actual);
+        expect(tuple(computedToken(`--${token}`, palette)), token).toEqual(tuple(exact));
       }
-      expect(contrastRatio(values.text, values.bg)).toBeGreaterThanOrEqual(4.5);
-      expect(contrastRatio(values.muted, values.panel)).toBeGreaterThanOrEqual(4.5);
-      if (contrast === 'high') expect(contrastRatio(values.border, values.bg)).toBeGreaterThanOrEqual(3);
+      const luminanceOf = (token: string) => luminance(tuple(computedToken(`--${token}`, palette)));
+      expect(contrastRatio(luminanceOf('text'), luminanceOf('bg'))).toBeGreaterThanOrEqual(4.5);
+      expect(contrastRatio(luminanceOf('text-muted'), luminanceOf('panel'))).toBeGreaterThanOrEqual(4.5);
+      if (contrast === 'high') {
+        expect(contrastRatio(luminanceOf('border'), luminanceOf('bg'))).toBeGreaterThanOrEqual(3);
+        expect(computedToken('--plot', palette)).toBe(computedToken('--bg', palette));
+        expect(computedToken('--accent', palette)).toBe(computedToken('--text', palette));
+      }
     });
   });
+});
+
+it.each(['light', 'dark'] as const)('every sharpened trace has at least 4.5:1 contrast on every %s plot', theme => {
+  const dark = theme === 'dark' ? '.theme-dark' : '';
+  for (const tint of appNeutrals) {
+    const variant = tint === 'slate' ? '' : `[data-neutral="${tint}"]`;
+    const plot = tokens(`:root${dark}${variant}[data-contrast="high"]`)['--bg'];
+    if (!plot) throw new Error(`Missing plot for ${tint}`);
+    const background = luminance(tuple(plot));
+    for (const [index, hue] of SOURCE_HUES.entries()) {
+      for (const palette of ['standard', 'colour-blind'] as const) {
+        const source = displayTraceColor({ palette: 'source', index, hue, round: 0 }, theme, palette, true);
+        expect(contrastRatio(luminance(tuple(source)), background), `${tint} ${palette} ${source}`).toBeGreaterThanOrEqual(4.5);
+        for (const createdHue of CREATED_HUES) {
+          const created = displayTraceColor({ palette: 'created', index, cbIndex: index, hue: createdHue, round: 0 }, theme, palette, true);
+          expect(contrastRatio(luminance(tuple(created)), background), `${tint} ${palette} ${created}`).toBeGreaterThanOrEqual(4.5);
+        }
+      }
+    }
+  }
 });

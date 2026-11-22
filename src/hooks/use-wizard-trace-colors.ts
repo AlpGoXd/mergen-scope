@@ -3,6 +3,7 @@ import { allocateColourBlindCreated, displayTraceColor } from '../domain/trace-c
 import type { PaletteTrace } from '../domain/trace-palette';
 import { useTraceState } from '../stores/trace-store';
 import { useUiState } from '../stores/ui-store';
+import { useAppHighContrast } from './use-app-high-contrast';
 import { useTheme } from './use-theme';
 
 /**
@@ -13,6 +14,7 @@ export function useWizardTraceColors(keep: readonly (string | null)[], remove: r
   const { allKnownTraces } = useTraceState();
   const { traceColors, traceHueSlots, huePalette } = useUiState();
   const { theme } = useTheme();
+  const highContrast = useAppHighContrast();
   const keepKey = keep.join('\u0000');
   const removeKey = remove.join('\u0000');
   return useMemo(() => {
@@ -25,8 +27,8 @@ export function useWizardTraceColors(keep: readonly (string | null)[], remove: r
       const override = trace ? traceColors[trace.name] : undefined;
       if (override) return override;
       const assignment = assignments.get(id ?? `wizard-new-${index}`);
-      return assignment ? displayTraceColor(assignment, theme, huePalette) : 'var(--accent)';
+      return assignment ? displayTraceColor(assignment, theme, huePalette, highContrast) : 'var(--accent)';
     });
     // keep/remove are compared by content (keepKey/removeKey), not by array identity.
-  }, [keepKey, removeKey, allKnownTraces, traceColors, traceHueSlots, huePalette, theme]);
+  }, [keepKey, removeKey, allKnownTraces, traceColors, traceHueSlots, huePalette, theme, highContrast]);
 }

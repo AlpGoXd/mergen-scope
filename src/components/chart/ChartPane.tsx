@@ -1308,8 +1308,8 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
                 {paneTraces.map((trace) => (
                   <Line key={trace.name} className={trace.kind === 'derived' ? 'trace-created' : 'trace-source'} type="linear" dataKey={trace.name} name={trace.dn || trace.name} stroke={resolveTraceColor(trace.name)} dot={settings.showSampleDots && traceSymbol(trace.id) === null ? { r: 2, fill: resolveTraceColor(trace.name), stroke: resolveTraceColor(trace.name) } : false} activeDot={false} isAnimationActive={false} connectNulls strokeWidth={exportView?.paper ? ptToCssPx(appearance?.paperLine ?? PAPER_LINE_PT) : colorAssignments.get(trace.id) ? traceWidth(colorAssignments.get(trace.id) as NonNullable<ReturnType<typeof colorAssignments.get>>) : 1.5} />
                 ))}
-                {!isExport && hoverFreq != null && Number.isFinite(hoverFreq) && <ReferenceLine x={hoverFreq} stroke="color-mix(in srgb, var(--accent) 60%, white)" strokeDasharray="4 4" strokeWidth={1} />}
-                {!isExport && hoverFreq == null && ghostX != null && Number.isFinite(ghostX) && <ReferenceLine className="x-ghost-crosshair" x={ghostX} stroke="color-mix(in srgb, var(--accent) 60%, white)" strokeDasharray="4 4" strokeWidth={1} />}
+                {!isExport && hoverFreq != null && Number.isFinite(hoverFreq) && <ReferenceLine x={hoverFreq} stroke="color-mix(in oklch, var(--accent) 60%, var(--plot))" strokeDasharray="4 4" strokeWidth={1} />}
+                {!isExport && hoverFreq == null && ghostX != null && Number.isFinite(ghostX) && <ReferenceLine className="x-ghost-crosshair" x={ghostX} stroke="color-mix(in oklch, var(--accent) 60%, var(--plot))" strokeDasharray="4 4" strokeWidth={1} />}
                 {settings.showMarkers && paneMarkers.map(({ marker, index }) => {
                   const color = resolveTraceColor(marker.trace || '');
                   const isSelected = !isExport && index === selectedMkrIdx;
@@ -1505,9 +1505,10 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
     <div
       ref={paneRootRef}
       data-testid={`chart-pane-${paneId}`}
+      data-pane-target={isActive ? '' : undefined}
       onMouseDownCapture={() => { if (!isActive) paneDispatch({ type: 'SET_ACTIVE_PANE', payload: paneId }); }}
       onContextMenu={handlePaneContextMenu}
-      style={{ position: 'relative', flex: 1, display: 'flex', flexDirection: 'column', minHeight: '120px', background: 'var(--bg)', userSelect: 'none', outline: paneDragOver ? '2px solid var(--accent)' : undefined, outlineOffset: '-2px' }}
+      style={{ position: 'relative', flex: 1, display: 'flex', flexDirection: 'column', minHeight: '120px', background: 'var(--plot)', userSelect: 'none', outline: paneDragOver ? '2px solid var(--accent)' : undefined, outlineOffset: '-2px' }}
       onDragEnter={handlePaneDragOver}
       onDragOver={handlePaneDragOver}
       onDragLeave={(e) => { if (!(e.relatedTarget instanceof Node) || !e.currentTarget.contains(e.relatedTarget)) { setPaneDragOver(false); drag.leave(); } }}
@@ -1578,7 +1579,7 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
         ) : mergedData.length === 0 ? (
           <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--dim)', fontSize: 'var(--font-title)' }}>No visible traces in this pane.</div>
         ) : (
-          <div data-testid={`chart-plot-${paneId}`} data-line-labels={settings.showLineLabels ? 'on' : 'off'} ref={chartAreaRef} onWheel={handleWheel} onMouseDownCapture={(e) => { lastPointerClientXRef.current = e.clientX; lastPointerClientYRef.current = e.clientY; lastPointerButtonRef.current = e.button; lastCtrlPanRef.current = e.button === 0 && e.ctrlKey; }} onDoubleClick={handleDoubleClick} onMouseMoveCapture={(e) => { lastPointerClientXRef.current = e.clientX; lastPointerClientYRef.current = e.clientY; legendDodge.onPointerMove(e.clientX, e.clientY, hoverRows.map(row => ({ x: row.placement.freq, y: row.placement.amp }))); }} onMouseDown={handleContainerMouseDown} style={{ height: '100%', cursor: draggingRefLineId !== null ? 'grabbing' : hoveredRefLineId !== null ? (refLines.find(l => l.id === hoveredRefLineId)?.type === 'h' ? 'ns-resize' : 'ew-resize') : undefined }}>
+          <div data-testid={`chart-plot-${paneId}`} data-line-labels={settings.showLineLabels ? 'on' : 'off'} ref={chartAreaRef} onWheel={handleWheel} onMouseDownCapture={(e) => { lastPointerClientXRef.current = e.clientX; lastPointerClientYRef.current = e.clientY; lastPointerButtonRef.current = e.button; lastCtrlPanRef.current = e.button === 0 && e.ctrlKey; }} onDoubleClick={handleDoubleClick} onMouseMoveCapture={(e) => { lastPointerClientXRef.current = e.clientX; lastPointerClientYRef.current = e.clientY; legendDodge.onPointerMove(e.clientX, e.clientY, hoverRows.map(row => ({ x: row.placement.freq, y: row.placement.amp }))); }} onMouseDown={handleContainerMouseDown} style={{ height: '100%', background: 'var(--plot)', cursor: draggingRefLineId !== null ? 'grabbing' : hoveredRefLineId !== null ? (refLines.find(l => l.id === hoveredRefLineId)?.type === 'h' ? 'ns-resize' : 'ew-resize') : undefined }}>
             {chartPlot}
             {settings.showReferenceLines && plotView && paneRefLines.flatMap((line) => {
               const range = line.type === 'v' ? plotView.x : plotView.y;
@@ -1606,7 +1607,7 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
             })}
 
             {hoverFreq != null && hoverRows.length > 0 && (
-              <div ref={legendDodge.legendRef} data-testid={`hover-legend-${paneId}`} data-corner={legendDodge.corner} style={{ position: 'absolute', top: '12px', ...(legendDodge.corner === 'top-left' ? { left: '12px' } : { right: '12px' }), ...legendDodge.style, minWidth: '220px', maxWidth: '320px', padding: '10px 12px', borderRadius: '12px', border: '1px solid color-mix(in srgb, var(--tipBd) 88%, white)', background: 'color-mix(in srgb, var(--tipBg) 82%, transparent)', boxShadow: '0 10px 28px rgba(0,0,0,0.18)', display: 'grid', gap: '6px', pointerEvents: 'none' }}>
+              <div ref={legendDodge.legendRef} data-testid={`hover-legend-${paneId}`} data-corner={legendDodge.corner} style={{ position: 'absolute', top: '12px', ...(legendDodge.corner === 'top-left' ? { left: '12px' } : { right: '12px' }), ...legendDodge.style, minWidth: '220px', maxWidth: '320px', padding: '10px 12px', borderRadius: '12px', border: '1px solid var(--border-strong)', background: 'var(--raised)', boxShadow: '0 10px 28px rgba(0,0,0,0.18)', display: 'grid', gap: '6px', pointerEvents: 'none' }}>
                 <div style={{ fontSize: 'var(--font-label)', fontWeight: 'var(--fw-semibold)', color: 'var(--text)' }}>
                   {formatAdaptiveXAxisValue(hoverFreq, visibleXSpan, { domain: activePaneTrace?.domain ?? 'frequency', unit: activePaneTrace?.units.x ?? (activePaneTrace?.domain === 'time' ? 's' : 'Hz') })}
                 </div>

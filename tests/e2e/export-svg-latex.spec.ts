@@ -156,7 +156,7 @@ test('Print and Dark exports use the same trace colours as the app, whatever the
 
   await setAppTheme('Dark');
   const dark = await screenStrokes(page);
-  const darkBackground = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--bg').trim());
+  const darkBackground = 'oklch(0.170 0.016 255)';
   expect(dark).not.toEqual(light);
   const darkFromDarkApp = await exportWith('dark');
   expect(await svgStrokes(page, darkFromDarkApp)).toEqual(dark);

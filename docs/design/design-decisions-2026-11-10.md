@@ -144,7 +144,7 @@ This file is the written design source of truth. Newer decisions in the sections
 
 ## Additional shared requirements
 
-- Target pane: new items and pane actions target the selected pane; clicking a pane selects it, with a tinted header and 3 px pane-colour edge. Disabled actions explain the reason; incompatible drops show their reason before release.
+- Target pane: new items and pane actions target the selected pane; clicking a pane selects it, with a tinted header, an accent top edge and a bold pane name. Disabled actions explain the reason; incompatible drops show their reason before release.
 - Prefer Undo; confirm when user-created work would be lost. Toasts appear bottom centre for five seconds, pause on hover, and errors persist until dismissed.
 - Menus and panels use 120 ms motion; toast entry uses 150 ms. Charts do not animate; respect reduced motion. Use line icons rather than emoji and semantic OKLCH colours rather than component hex values.
 - The footer's Local only promise means files are read in the browser, never uploaded; no cookies, bundled fonts, and no network calls except same-site demo files. Feedback opens a GitHub link and does not itself send workspace data.
@@ -268,13 +268,13 @@ One screen: settings on the left (delimiter `, ; Tab`, skip rows, domain Frequen
 - **CSV:** visible X range or full data, all traces in the pane or visible only, include markers. Replaces today's "Export Visible CSV".
 
 ### 5.9 App settings (S1)
-Footer gear (or Ctrl+,) opens a side sheet over the right panel (120 ms); charts stay visible and update live; Esc or × closes. Title "App settings · all panes, saved in this browser". Sections: **Appearance** (Theme Light · Dark · System; Size Compact · Comfortable · Large (default Comfortable); Neutral colour Slate · Stone · Zinc · Ocean · Moss · Purple · Pink (default Slate); Contrast Normal · High) · **Colours** (Palette Standard · Colour-blind safe uses Palette A; **Trace symbols** Off · When colours repeat (default) · Always) · **Experimental** ("Allow more than 4 panes (up to 8)", off, not recommended) · Keyboard shortcuts › · About › (version, licence Apache-2.0, GitHub link, the two feedback links) · Reset all to defaults. Ends with a hint that grid, markers, lines and Smith options are per pane (sliders icon). Saved in `localStorage`, never in workspace files.
+Footer gear (or Ctrl+,) opens a side sheet over the right panel (120 ms); charts stay visible and update live; Esc or × closes. Title "App settings · all panes, saved in this browser". Sections: **Appearance** (Theme Light · Dark · System; Size Compact · Comfortable · Large (default Comfortable); Neutral tint Slate · Stone · Zinc · Ocean · Moss · Purple · Pink · Ember (default Slate); Contrast Normal · High) · **Colours** (Palette Standard · Colour-blind safe uses Palette A; **Trace symbols** Off · When colours repeat (default) · Always) · **Experimental** ("Allow more than 4 panes (up to 8)", off, not recommended) · Keyboard shortcuts › · About › (version, licence Apache-2.0, GitHub link, the two feedback links) · Reset all to defaults. Ends with a hint that grid, markers, lines and Smith options are per pane (sliders icon). Saved in `localStorage`, never in workspace files.
 
 ### 5.10 Colours (22 Nov)
 
-[Colour values](./colour-values.md) records the decided OKLCH values. Appearance offers Slate, Stone, Zinc, Ocean, Moss, Purple and Pink in two rows of four and three equal-width controls. Each tint changes the background, panel, raised surface, border, strong border, text and muted text. Accent, selection, tool and trace colours are independent of tint.
+[Colour values](./colour-values.md) records the decided OKLCH values. Appearance offers Slate, Stone, Zinc, Ocean, Moss, Purple, Pink and Ember in two rows of four equal-width controls. The tint supplies the surface, plot, border, text, accent and selection tokens. Toolbar zones and trace colours have their own palettes.
 
-Contrast offers Normal and High. High keeps the active tint hue, halves each token's chroma and uses the high-contrast lightness values. Zinc stays achromatic. High contrast uses 1.5 px borders and outlines, an additional 2 px accent outline for selected controls, 3 px focus rings, underlined links, 2 px source lines, 2.5 px created lines and a full-strength chart grid. Reset restores Slate, Normal and Standard.
+Contrast offers Normal and High. High uses the separate high-contrast table, with text and background colours for small selected controls and the target header, with a 1.5 px text-coloured pane border. It uses 3 px focus rings, underlined links, clear matrix states, 2 px source lines, 2.5 px created lines and a full-strength chart grid. Reset restores Slate, Normal and Standard.
 
 Colour-blind safe uses Palette A in the listed light and dark order. Sources take the next free slot. Created traces use the corresponding created colour of their parent source, have a 2 px line in normal contrast and always have an outline-only symbol from the existing set. The Trace symbols preference still applies to source traces and to all traces in Standard mode.
 

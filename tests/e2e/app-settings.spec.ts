@@ -11,22 +11,23 @@ test('settings and local-only disclosure remain usable', async ({ page }) => {
   await expect(page.getByRole('dialog', { name: 'App settings' })).toBeVisible();
 });
 
-test('settings uses full-width segments with equal buttons and the Slate selection fill', async ({ page }) => {
+test('settings uses full-width segments with equal buttons and the tint selection fill', async ({ page }) => {
   await page.goto('/app.html');
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
   const sheet = page.getByRole('dialog', { name: 'App settings' });
-  for (const name of ['Theme', 'Size', 'Neutral colour', 'Trace symbols', 'Contrast']) {
+  for (const name of ['Theme', 'Size', 'Neutral tint', 'Trace symbols', 'Contrast']) {
     const group = sheet.getByRole('group', { name, exact: true });
     const state = await group.evaluate(row => {
       const buttons = Array.from(row.querySelectorAll('button'));
       const probe = document.createElement('span');
-      probe.style.backgroundColor = 'var(--slate-fill)';
+      probe.style.backgroundColor = 'var(--on-fill)';
       document.body.append(probe);
       const expectedFill = getComputedStyle(probe).backgroundColor;
       probe.remove();
       const selected = row.querySelector('[aria-pressed="true"]');
       if (!selected || !row.parentElement) throw new Error('Incomplete settings segment');
       return {
+        overflow: buttons.some(button => button.scrollWidth > button.clientWidth || getComputedStyle(button).textOverflow === 'ellipsis'),
         expectedFill,
         selectedFill: getComputedStyle(selected).backgroundColor,
         widths: buttons.map(button => button.getBoundingClientRect().width),
@@ -37,10 +38,11 @@ test('settings uses full-width segments with equal buttons and the Slate selecti
       };
     });
     expect(Math.max(...state.widths) - Math.min(...state.widths)).toBeLessThanOrEqual(1);
+    expect(state.overflow).toBe(false);
     expect(state.groupWidth).toBeCloseTo(state.controlWidth, 0);
     expect(state.buttonSpan).toBeCloseTo(state.controlWidth, 0);
     expect(state.selectedFill).toBe(state.expectedFill);
-    if (name === 'Neutral colour') expect(state.rows).toEqual([4, 3]);
+    if (name === 'Neutral tint') expect(state.rows).toEqual([4, 4]);
   }
 });
 
@@ -52,22 +54,22 @@ test('neutral colour and palette persist, and Reset restores all defaults', asyn
   const root = page.locator('html');
   const tokens = () => root.evaluate(el => {
     const css = getComputedStyle(el);
-    return ['--neutral-h', '--neutral-bg-c', '--bg', '--tr0', '--marker-fill'].map(token => css.getPropertyValue(token).trim());
+    return ['--neutral-h', '--neutral-chroma-scale', '--bg', '--tr0', '--marker-fill'].map(token => css.getPropertyValue(token).trim());
   });
 
   await settings.click();
   const slate = await tokens();
-  await segment('Neutral colour', 'Stone').click();
+  await segment('Neutral tint', 'Stone').click();
   const stone = await tokens();
-  expect(stone.slice(0, 2)).toEqual(['70', '0.005']);
+  expect(stone.slice(0, 2)).toEqual(['70', '1']);
   expect(stone[2]).not.toBe(slate[2]);
   expect(stone.slice(3)).toEqual(slate.slice(3));
   await page.reload();
   expect(await tokens()).toEqual(stone);
 
   await settings.click();
-  await expect(segment('Neutral colour', 'Stone')).toHaveAttribute('aria-pressed', 'true');
-  await segment('Neutral colour', 'Zinc').click();
+  await expect(segment('Neutral tint', 'Stone')).toHaveAttribute('aria-pressed', 'true');
+  await segment('Neutral tint', 'Zinc').click();
   const zinc = await tokens();
   expect(zinc[1]).toBe('0');
   expect(zinc[2]).not.toBe(stone[2]);
@@ -101,12 +103,12 @@ test('neutral colour and palette persist, and Reset restores all defaults', asyn
   await limitSwitch.click();
   await expect(limitSwitch).toHaveAttribute('aria-checked', 'true');
   await sheet.getByRole('button', { name: 'Reset all to defaults' }).click();
-  for (const [group, option] of [['Neutral colour', 'Slate'], ['Size', 'Comfortable'], ['Theme', 'System'], ['Trace symbols', 'Repeat'], ['Contrast', 'Normal']] as const) {
+  for (const [group, option] of [['Neutral tint', 'Slate'], ['Size', 'Comfortable'], ['Theme', 'System'], ['Trace symbols', 'Repeat'], ['Contrast', 'Normal']] as const) {
     await expect(segment(group, option)).toHaveAttribute('aria-pressed', 'true');
   }
   await expect(standard).toHaveAttribute('aria-checked', 'true');
   await expect(limitSwitch).toHaveAttribute('aria-checked', 'false');
-  expect((await tokens()).slice(0, 2)).toEqual(['255', '0.006']);
+  expect((await tokens()).slice(0, 2)).toEqual(['255', '1']);
 });
 
 test('App settings slides over the right panel and updates the visible chart live', async ({ page }) => {
@@ -165,21 +167,62 @@ test('Pink and High persist while Palette A changes the trace colours', async ({
 
   await settings.click();
   await sheet.getByRole('button', { name: 'Pink', exact: true }).click();
-  await expect(app).toHaveCSS('background-color', 'oklch(0.978 0.012 355)');
+  await expect(app).toHaveCSS('background-color', 'oklch(0.985 0.006 355)');
   await expect(curve).toHaveCSS('stroke', standard);
+  await expect(plot).toHaveCSS('background-color', 'oklch(0.996 0.003 355)');
   await sheet.getByRole('button', { name: 'High', exact: true }).click();
   await expect(app).toHaveCSS('background-color', 'oklch(0.99 0.006 355)');
-  await expect(curve).toHaveCSS('stroke', standard);
+  await expect(curve).toHaveCSS('stroke', 'oklch(0.48 0.22 270)');
   await expect(curve).toHaveCSS('stroke-width', '2px');
   await expect(plot.locator('.recharts-cartesian-grid line').first()).toHaveCSS('stroke-opacity', '1');
   await sheet.getByRole('radio', { name: 'Colour-blind safe' }).click();
-  await expect(curve).toHaveCSS('stroke', 'oklch(0.655 0.16 244)');
+  await expect(curve).toHaveCSS('stroke', /^oklch\(0\.52 [\d.]+ 244\)$/);
   await page.reload();
   await loadChart();
   await expect(app).toHaveCSS('background-color', 'oklch(0.99 0.006 355)');
-  await expect(curve).toHaveCSS('stroke', 'oklch(0.655 0.16 244)');
+  await expect(curve).toHaveCSS('stroke', /^oklch\(0\.52 [\d.]+ 244\)$/);
   await settings.click();
   await expect(sheet.getByRole('button', { name: 'Pink', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await expect(sheet.getByRole('button', { name: 'High', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await expect(sheet.getByRole('radio', { name: 'Colour-blind safe' })).toHaveAttribute('aria-checked', 'true');
+  const ember = sheet.getByRole('button', { name: 'Ember', exact: true });
+  await ember.click();
+  await expect(app).toHaveCSS('background-color', 'oklch(0.99 0.006 25)');
+  await expect(ember).toHaveCSS('background-color', 'oklch(0.12 0.011 25)');
+  await expect(ember).toHaveCSS('color', 'oklch(0.99 0.006 25)');
+  await expect(ember).toHaveCSS('font-weight', '700');
+  await expect(page.locator('html')).toHaveCSS('accent-color', 'oklch(0.12 0.011 25)');
+  await expect(page.locator('.topbar-brand-scope')).toHaveCSS('color', 'oklch(0.12 0.011 25)');
+  await expect(page.locator('.topbar-brand-scope')).toHaveCSS('font-weight', '800');
+  await expect(page.locator('.topbar-brand-wave')).toHaveCSS('stroke-width', '2.2px');
+  await sheet.getByRole('button', { name: 'Normal', exact: true }).click();
+  await expect(page.locator('.topbar-brand-scope')).toHaveCSS('color', 'oklch(0.5 0.13 25)');
+  await expect(ember).toHaveCSS('background-color', 'oklch(0.92 0.035 25)');
+  await expect(page.locator('.topbar-brand-wave')).toHaveCSS('stroke', 'oklch(0.58 0.16 45)');
+  await expect(page.locator('.topbar-brand-mark path').last()).toHaveCSS('fill', 'oklch(0.58 0.108 225)');
 });
+
+for (const theme of ['light', 'dark'] as const) {
+  test(`High contrast keeps selected palette cards and tool labels readable in ${theme}`, async ({ page }) => {
+    await page.addInitScript(value => localStorage.setItem('mergen-theme-preference', value), theme);
+    await page.goto('/app.html');
+    await page.getByRole('button', { name: 'Settings', exact: true }).click();
+    const sheet = page.getByRole('dialog', { name: 'App settings' });
+    await sheet.getByRole('button', { name: 'High', exact: true }).click();
+    const surface = theme === 'light' ? 'oklch(1 0.001 255)' : 'oklch(0.18 0.008 255)';
+    const ink = theme === 'light' ? 'oklch(0.12 0.007 255)' : 'oklch(0.98 0.008 255)';
+    const card = sheet.getByRole('radio', { name: 'Standard', exact: true });
+    await expect(card).toHaveCSS('background-color', surface);
+    await expect(card).toHaveCSS('border-top-color', ink);
+    await expect(card.getByText('Standard', { exact: true })).toHaveCSS('color', ink);
+    await expect(page.locator('.topbar-brand-wave')).toHaveCSS('stroke', ink);
+    await sheet.getByRole('button', { name: 'Large', exact: true }).click();
+    const size = sheet.getByRole('group', { name: 'Size', exact: true });
+    await expect(size.getByRole('button', { name: 'Comfortable', exact: true })).toHaveCSS('text-overflow', 'clip');
+    await sheet.getByRole('button', { name: 'Close settings' }).click();
+
+    const markers = page.getByRole('button', { name: 'Markers', exact: true });
+    if (await markers.getAttribute('aria-pressed') !== 'true') await markers.click();
+    await expect(markers).toHaveCSS('background-color', /^oklch\((?:0\.87|0\.32) [\d.]+ 20\)$/);
+  });
+}

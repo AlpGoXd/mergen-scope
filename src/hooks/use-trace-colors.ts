@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { makeTraceColorResolver } from '../domain/trace-colors';
 import { useTraceState } from '../stores/trace-store';
 import { useUiState } from '../stores/ui-store';
+import { useAppHighContrast } from './use-app-high-contrast';
 import { useTheme } from './use-theme';
 import type { Theme } from '../domain/trace-palette';
 
@@ -11,11 +12,12 @@ export function useTraceColors(themeOverride?: Theme, paper = false) {
   const { traceColors, traceHueSlots, huePalette } = useUiState();
   const { theme: appTheme } = useTheme();
   const theme = themeOverride ?? appTheme;
+  const highContrast = useAppHighContrast() && themeOverride === undefined;
   return useMemo(() => {
-    const resolve = makeTraceColorResolver(allKnownTraces, traceColors, theme, traceHueSlots, huePalette);
+    const resolve = makeTraceColorResolver(allKnownTraces, traceColors, theme, traceHueSlots, huePalette, highContrast);
     return (trace: Parameters<typeof resolve>[0]) => {
       const color = resolve(trace);
       return paper && huePalette === 'standard' ? `oklch(from ${color} 0.50 c h)` : color;
     };
-  }, [allKnownTraces, theme, traceColors, traceHueSlots, huePalette, paper]);
+  }, [allKnownTraces, theme, traceColors, traceHueSlots, huePalette, paper, highContrast]);
 }

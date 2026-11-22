@@ -2,7 +2,7 @@ import { DEFAULT_APP_SIZE, normalizeAppSize } from './app-size';
 import type { AppSize } from './app-size';
 import type { SymbolSetting } from '../../domain/trace-palette';
 
-export const appNeutrals = ['slate', 'stone', 'zinc', 'ocean', 'moss', 'purple', 'pink'] as const;
+export const appNeutrals = ['slate', 'stone', 'zinc', 'ocean', 'moss', 'purple', 'pink', 'ember'] as const;
 type AppNeutral = (typeof appNeutrals)[number];
 
 export type AppPreferences = {
