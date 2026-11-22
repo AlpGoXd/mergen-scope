@@ -136,8 +136,8 @@ test('Escape restores the marker, clears selection, and discards the drag undo s
   await expect(row).toHaveCount(0);
 });
 
-for (const kind of ['V', 'H'] as const) {
-  test(`one Ctrl+Z restores a dragged ${kind}-line`, async ({ page }) => {
+for (const [kind, yScale] of [['V', 'auto'], ['H', 'auto'], ['H', 'zoomed']] as const) {
+  test(`one Ctrl+Z restores a dragged ${kind}-line with ${yScale} Y`, async ({ page }) => {
     await armTool(page, 'Lines', `${kind}-Line`);
     const fitted = await plotView(page);
     const place = pointAt(fitted.box, 0.4, 0.5);
@@ -149,25 +149,16 @@ for (const kind of ['V', 'H'] as const) {
     const before = await row.getAttribute('data-value');
     if (before === null) throw new Error('Reference line has no sidebar value');
 
-    if (kind === 'H') {
-      // characterizes current behavior: a fitted Y axis has zero H-line hit tolerance.
+    if (yScale === 'zoomed') {
       const start = await centerOf(line);
-      const end = pointAt(fitted.box, 0.5, 0.7);
-      await page.mouse.move(start.x, start.y);
-      await expect(readout(page)).toHaveText(/\d/);
-      const atLine = await readout(page).innerText();
-      await page.mouse.down();
-      await page.mouse.move(end.x, end.y, { steps: 6 });
-      await expect(readout(page)).not.toHaveText(atLine);
-      await page.mouse.up();
-      await expect(row).toHaveAttribute('data-value', before);
       await page.mouse.move(start.x, start.y);
       await page.mouse.wheel(0, 120);
       await expect(linesLayer(page)).not.toHaveAttribute('data-y-domain', fitted.y.join(','));
     }
 
     const view = await plotView(page);
-    const start = await centerOf(line);
+    const center = await centerOf(line);
+    const start = kind === 'H' ? { ...center, y: center.y + 4 } : center;
     const middle = kind === 'V' ? { ...start, x: pointAt(view.box, 0.55, 0.5).x } : { ...start, y: pointAt(view.box, 0.5, 0.6).y };
     const end = kind === 'V' ? { ...start, x: pointAt(view.box, 0.7, 0.5).x } : { ...start, y: pointAt(view.box, 0.5, 0.75).y };
     await page.mouse.move(start.x, start.y);
@@ -252,13 +243,23 @@ test('wheel zoom anchors Y at the cursor and Shift+wheel pans Y without changing
   const fitted = await plotView(page);
   const firstCursor = pointAt(fitted.box, 0.5, 0.65);
   const fittedAnchor = fitted.y[1] - (firstCursor.y - fitted.box.y) / fitted.box.height * span(fitted.y);
-  // characterizes current behavior: the first wheel anchors on the drawn scale but zooms the 5%-padded data range.
-  const paddedMin = -46;
-  const paddedMax = 86;
+  const readoutVolts = (text: string) => Number(text.match(/([−-]?\d+\.\d{2}) V$/)?.[1]?.replace('−', '-'));
   await page.mouse.move(firstCursor.x, firstCursor.y);
+  await expect(readout(page)).toHaveText(/\d+\.\d{2} V$/);
+  const beforeWheel = await readout(page).innerText();
   await page.mouse.wheel(0, -120);
-  await expectDomain(page, 'y', [fittedAnchor + (paddedMin - fittedAnchor) / 1.08, fittedAnchor + (paddedMax - fittedAnchor) / 1.08]);
+  await expectDomain(page, 'y', [
+    fittedAnchor + (fitted.y[0] - fittedAnchor) / 1.08,
+    fittedAnchor + (fitted.y[1] - fittedAnchor) / 1.08,
+  ]);
   await expectDomain(page, 'x', fitted.x);
+
+  const firstZoom = await plotView(page);
+  await page.mouse.move(firstCursor.x, firstCursor.y + 12);
+  await expect(readout(page)).not.toHaveText(beforeWheel);
+  await page.mouse.move(firstCursor.x, firstCursor.y);
+  await expect.poll(async () => Math.abs(readoutVolts(await readout(page).innerText()) - readoutVolts(beforeWheel)))
+    .toBeLessThanOrEqual(span(firstZoom.y) / firstZoom.box.height);
 
   await zoomX(page, 0.25, 0.75);
   await expectDomain(page, 'y', [2.68, 7.32]);
@@ -285,4 +286,16 @@ test('wheel zoom anchors Y at the cursor and Shift+wheel pans Y without changing
   await expectDomain(page, 'y', before.y);
   await expectDomain(page, 'x', before.x);
   await page.keyboard.up('Shift');
+});
+
+test('the first Shift+wheel pans the fitted Y domain without changing X', async ({ page }) => {
+  const fitted = await plotView(page);
+  const cursor = pointAt(fitted.box, 0.5, 0.5);
+  const shift = 0.15 * span(fitted.y);
+  await page.mouse.move(cursor.x, cursor.y);
+  await page.keyboard.down('Shift');
+  await page.mouse.wheel(0, 120);
+  await page.keyboard.up('Shift');
+  await expectDomain(page, 'y', [fitted.y[0] + shift, fitted.y[1] + shift]);
+  await expectDomain(page, 'x', fitted.x);
 });

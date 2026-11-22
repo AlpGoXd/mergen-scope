@@ -8,6 +8,7 @@ import {
   panXDomain,
   panYDomain,
   pixelToAxisValue,
+  refLineYTolerance,
   zoomYDomain,
 } from '../../src/domain/chart/plot-coords';
 
@@ -130,6 +131,26 @@ describe('Y domains', () => {
     expect(zoomYDomain(domain, 1, null)).toEqual({ min: -4, max: 104 });
     expect(zoomYDomain({ min: 0, max: 1e-10 }, -1, null)).toBeNull();
     expect(zoomYDomain({ min: 0, max: Infinity }, 1, null)).toBeNull();
+  });
+});
+
+describe('horizontal reference line hit tolerance', () => {
+  it('maps eight vertical pixels to the visible Y range', () => {
+    expect(refLineYTolerance({ min: -80, max: 20 }, 200)).toBe(4);
+  });
+
+  it.each([0, -100, Infinity, NaN])('returns zero for plot height %s', (height) => {
+    expect(refLineYTolerance({ min: -80, max: 20 }, height)).toBe(0);
+  });
+
+  it.each([
+    { min: -Infinity, max: 20 },
+    { min: -80, max: NaN },
+    { min: -Number.MAX_VALUE, max: Number.MAX_VALUE },
+    { min: 20, max: 20 },
+    { min: 20, max: -80 },
+  ])('returns zero for an invalid Y range %o', (domain) => {
+    expect(refLineYTolerance(domain, 200)).toBe(0);
   });
 });
 

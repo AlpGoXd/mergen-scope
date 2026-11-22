@@ -28,7 +28,7 @@ import {
   findMarkerHit,
   pickPlacementTraceIndex,
 } from '../../domain/chart/marker-placement';
-import { centerXDomain, centerYDomain, dragZoomXDomain, paddedYDomain, panXDomain, panYDomain, pixelToAxisValue, zoomYDomain } from '../../domain/chart/plot-coords';
+import { centerXDomain, centerYDomain, dragZoomXDomain, paddedYDomain, panXDomain, panYDomain, pixelToAxisValue, refLineYTolerance, zoomYDomain } from '../../domain/chart/plot-coords';
 import { useTheme } from '../../hooks/use-theme';
 import { usePaneData } from '../../hooks/use-pane-data';
 import { useTableView } from '../../hooks/use-table-view';
@@ -512,17 +512,6 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
     return pixelToAxisValue(clientX - rect.left, yAxisWidth, plotWidth, domainLeft, domainRight);
   };
 
-  const computeRefLineYTolerance = React.useCallback((): number => {
-    const chartEl = chartAreaRef.current;
-    const plotHeight = chartEl ? chartEl.getBoundingClientRect().height - CHART_MARGIN_TOP - xAxisHeight : 0;
-    if (plotHeight <= 0) return 0;
-    if (Array.isArray(yDomain) && yDomain[0] !== 'auto') {
-      const span = (yDomain[1] as number) - (yDomain[0] as number);
-      return (span / plotHeight) * 8;
-    }
-    return 0;
-  }, [yDomain, xAxisHeight]);
-
   const computeMarkerHitTolerance = React.useCallback((): number => {
     const chartEl = chartAreaRef.current;
     const plotWidth = chartEl
@@ -544,6 +533,7 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
 
   // The line layer reports the plot rectangle and the real scale domains: they feed the edge tags here and the rows' "off view" text.
   const [plotView, setPlotView] = useState<PlotView | null>(null);
+  const drawnYDomain = plotView?.y ? { min: plotView.y[0], max: plotView.y[1] } : null;
   const handlePlotView = React.useCallback((view: PlotView) => {
     setPlotView(prev => prev && prev.x?.[0] === view.x?.[0] && prev.x?.[1] === view.x?.[1] && prev.y?.[0] === view.y?.[0] && prev.y?.[1] === view.y?.[1]
       && prev.plot.left === view.plot.left && prev.plot.top === view.plot.top && prev.plot.width === view.plot.width && prev.plot.height === view.plot.height ? prev : view);
@@ -551,11 +541,20 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
   }, [refLineDispatch, paneId, isExport]);
   useEffect(() => isExport ? undefined : () => refLineDispatch({ type: 'SET_PANE_VIEW', payload: { paneId, view: null } }), [refLineDispatch, paneId, isExport]);
 
+  const computeRefLineYTolerance = (): number => {
+    const chartEl = chartAreaRef.current;
+    if (!chartEl) return 0;
+    const geometry = plotGeometry();
+    const domain = (geometry && drawnYDomain) ?? resolveBaseYDomain();
+    const height = geometry?.plot.height ?? chartEl.getBoundingClientRect().height - CHART_MARGIN_TOP - xAxisHeight;
+    return domain ? refLineYTolerance(domain, height) : 0;
+  };
+
   const resolveClientAmp = (clientY: number, overshootFraction = 0): number | null => {
     const chartEl = chartAreaRef.current;
     if (!chartEl) return null;
     const geometry = plotGeometry();
-    const baseDomain = geometry && plotView?.y ? { min: plotView.y[0], max: plotView.y[1] } : resolveBaseYDomain();
+    const baseDomain = (geometry && drawnYDomain) ?? resolveBaseYDomain();
     if (!baseDomain) return null;
     const range = overshootFraction > 0 ? paddedYDomain(baseDomain.min, baseDomain.max, overshootFraction, 0) : baseDomain;
     if (!range) return null;
@@ -790,7 +789,7 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
   const handleWheel = (e: React.WheelEvent<HTMLDivElement>) => {
     e.preventDefault();
     const direction: -1 | 1 = e.deltaY > 0 ? 1 : -1; // +1 = out, -1 = in
-    const baseDomain = resolveBaseYDomain();
+    const baseDomain = yZoom ?? (plotGeometry() && drawnYDomain) ?? resolveBaseYDomain();
     if (!baseDomain || !(baseDomain.max > baseDomain.min)) return;
     const zoom = e.shiftKey
       ? panYDomain(baseDomain, direction)
