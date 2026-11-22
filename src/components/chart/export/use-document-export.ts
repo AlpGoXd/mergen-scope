@@ -19,7 +19,7 @@ import { latexMarkerTable, latexPaneLayout } from '../../../domain/export-latex'
 import type { LatexDocument } from '../../../domain/export-latex';
 import type { ExportedPane } from './ExportImageProvider';
 import { exportThemeClass, exportTokens, resolveExportTheme } from './export-theme';
-import { readAppPreferences } from '../../settings/app-preferences';
+import { rememberedExportTheme } from './export-theme-storage';
 import { svgToPng } from './export-png';
 import type { ExportPlotInfo } from './export-context';
 
@@ -87,7 +87,7 @@ export function useDocumentExport(renderPane: RenderExportPane) {
       const paper = options.preset === 'ieee-1' || options.preset === 'ieee-2';
       const latex = format === 'latex';
       const appearance = pdf || latex ? { ...options, paperFont: 'serif' as const } : options;
-      const theme = paper || pdf ? 'print' : resolveExportTheme(options.theme ?? readAppPreferences().exportTheme, appTheme);
+      const theme = paper || pdf ? 'print' : resolveExportTheme(options.theme ?? rememberedExportTheme(), appTheme);
       const image: ExportImageOptions = { size: options.preset === 'ieee-1' || options.preset === 'ieee-2' ? options.preset : 'pane', dpi: options.dpi, theme: theme === 'print' ? 'print' : options.theme };
       const bounds = boundingBox(entries.map(entry => entry.box));
       const base = documentGeometry(options, bounds);

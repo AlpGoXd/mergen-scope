@@ -6,11 +6,13 @@ import './index.css';
 import './text-roles.css';
 import './components/panes/pane-types.css';
 import { applyAppSize } from './components/settings/app-size';
-import { applyAppNeutral, readAppPreferences } from './components/settings/app-preferences';
+import { readExportDocumentPreferences } from './components/chart/export/export-theme-storage';
+import { applyAppAppearance, readAppPreferences } from './components/settings/app-preferences';
 
+readExportDocumentPreferences(); // Migrate the old theme before any App settings writes.
 const preferences = readAppPreferences();
 applyAppSize(preferences.size);
-applyAppNeutral(preferences.neutral);
+applyAppAppearance(preferences);
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

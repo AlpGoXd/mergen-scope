@@ -52,14 +52,14 @@ This file is the written design source of truth. Newer decisions in the sections
   - Order, starting at the parent's hue: one step forward, one step back, then onward forward, skipping created hues already on screen.
   - Example, parent 90°: ƒ1 112.5°, ƒ2 67.5°, ƒ3 157.5°, ƒ4 202.5°…
   - A created trace sits indented under its first source in the Traces list, with ƒ.
-  - **In colour-blind mode** created traces use the colour-blind set in the created tone, 2 px, ordered from the parent's colour in the colour-blind order (+1, −1, then forward, skipping colours in use).
+  - **In colour-blind mode** created traces use the corresponding Palette A tone of their parent, with hollow symbols.
 - **Symbols:** Settings › Colours › **Trace symbols: Off · When colours repeat (default) · Always**.
   - Graph export defaults to Always.
   - When a colour repeats (9th source, 9th created trace), the trace gets a hollow symbol every ~90 px, in this order: ○ □ △ ◇ ▽ + × ☆.
   - The same symbol shows in its row swatch and in exports.
   - **Row swatch with a symbol:** it becomes a 16 × 12 px line sample: the line in the trace colour and width, the symbol centred on it and filled with the row background, never clipped.
 - **Sample dots and symbols together:** dots are filled, radius 2, on every sample; symbols are hollow, radius 3.6, every ~90 px. Symbols never hide data: no sample dot is ever removed. With Samples on, each symbol snaps to the real sample nearest its ~90 px position and is drawn hollow with no fill (stroke only), so that sample's dot shows in its centre. With Samples off, symbols stay every ~90 px along the path with the background fill.
-- **Colour-blind palette** swaps the 8 source hues for the colour-blind set; all rules stay the same.
+- **Colour-blind palette** uses the eight source and created colours listed in [Colours (22 Nov)](#510-colours-22-nov).
 
 ## Behaviour
 
@@ -259,7 +259,7 @@ One screen: settings on the left (delimiter `, ; Tab`, skip rows, domain Frequen
 
 ### 5.8 Export (P7)
 - Two quick paths, no dialog: **Copy as image** (Ctrl+Shift+C, clipboard) and **Download image** (Ctrl+Shift+S), both with the last-used options; the toast offers "Options…".
-- **Export dialog** (pane ⋯ → Export…, or top bar Export… with What = All panes): What (This pane · All panes · Pick…) · Format (PNG · SVG · PDF · TikZ · CSV) · Size (Screen · Slide · Paper 1-col · Paper 2-col · Custom px with 1× / 2× / 3×) · Theme (Print white · Dark · As app; default from App settings) · Include (Title, Legend, Marker tags, Marker table, Ref lines, Date) · Title · Legend (Below (default) · Inside · Off) · Names (Full · Short 16) · file name pattern `{file}_{pane}_{date}`. Live preview. Buttons: Cancel · Copy (neutral) · **Save …** (solid). Remembers choices per format.
+- **Export dialog** (pane ⋯ → Export…, or top bar Export… with What = All panes): What (This pane · All panes · Pick…) · Format (PNG · SVG · PDF · TikZ · CSV) · Size (Screen · Slide · Paper 1-col · Paper 2-col · Custom px with 1× / 2× / 3×) · Theme (Print white · Dark · As app; default Print, with the last choice remembered) · Include (Title, Legend, Marker tags, Marker table, Ref lines, Date) · Title · Legend (Below (default) · Inside · Off) · Names (Full · Short 16) · file name pattern `{file}_{pane}_{date}`. Live preview. Buttons: Cancel · Copy (neutral) · **Save …** (solid). Remembers choices per format.
 - The image is rendered again at the target size from the same SVG renderer (sharp at any size), never a screenshot. Never in the image: crosshair, selection rings, cursor card, header buttons, link chip. "All panes" keeps the layout and proportions with one title and one legend.
 - **Paper presets (IEEE):** 1 column 88.9 mm (3.5 in), 2 columns 181.9 mm (7.16 in); text 8 pt (9, 10 one click away), serif default (Sans option), lines 0.5 / 0.75 / 1 pt, in mm and pt at final size. Axis titles on, pre-filled from units ("Frequency (GHz)", "Magnitude (dB)"). Print-safe lines: trace symbols default to **Always** in export (○ □ △ ◇ ▽ + × ☆, the same order as on screen), with dashes only here (solid ○, dashed □, dotted △), plus colour at L 0.50. Paper look: white background, black frame, light grey grid, no UI colours or tints, marker tags as plain labels with a leader line. PNG fallback at 600 dpi. PDF with embedded fonts and SVG as vectors.
 - **TikZ / PGFPlots:** ready-to-paste figure (axes, grid, legend below, print-safe styles, marker pins, trace colours as named `\definecolor`s); options: wrap (figure + caption · tikzpicture only), width (`\columnwidth` · `\linewidth` · fixed), data (inline · .dat files zipped), points (all · 300 per trace), colours (trace · grayscale). "Copy as LaTeX" in the pane ⋯ menu.
@@ -268,4 +268,14 @@ One screen: settings on the left (delimiter `, ; Tab`, skip rows, domain Frequen
 - **CSV:** visible X range or full data, all traces in the pane or visible only, include markers. Replaces today's "Export Visible CSV".
 
 ### 5.9 App settings (S1)
-Footer gear (or Ctrl+,) opens a side sheet over the right panel (120 ms); charts stay visible and update live; Esc or × closes. Title "App settings · all panes, saved in this browser". Sections: **Appearance** (Theme Light · Dark · System; Size Compact · Comfortable · Large (default Comfortable); Neutral colour Slate · Stone · Zinc (default Slate)) · **Colours** (Palette Standard · Colour-blind safe = the reordered wheel; **Trace symbols** Off · When colours repeat (default) · Always) · **Export** (export theme) · **Experimental** ("Allow more than 4 panes (up to 8)", off, not recommended) · Keyboard shortcuts › · About › (version, licence Apache-2.0, GitHub link, the two feedback links) · Reset all to defaults. Ends with a hint that grid, markers, lines and Smith options are per pane (sliders icon). Saved in `localStorage`, never in workspace files.
+Footer gear (or Ctrl+,) opens a side sheet over the right panel (120 ms); charts stay visible and update live; Esc or × closes. Title "App settings · all panes, saved in this browser". Sections: **Appearance** (Theme Light · Dark · System; Size Compact · Comfortable · Large (default Comfortable); Neutral colour Slate · Stone · Zinc · Ocean · Moss · Purple · Pink (default Slate); Contrast Normal · High) · **Colours** (Palette Standard · Colour-blind safe uses Palette A; **Trace symbols** Off · When colours repeat (default) · Always) · **Experimental** ("Allow more than 4 panes (up to 8)", off, not recommended) · Keyboard shortcuts › · About › (version, licence Apache-2.0, GitHub link, the two feedback links) · Reset all to defaults. Ends with a hint that grid, markers, lines and Smith options are per pane (sliders icon). Saved in `localStorage`, never in workspace files.
+
+### 5.10 Colours (22 Nov)
+
+[Colour values](./colour-values.md) records the decided OKLCH values. Appearance offers Slate, Stone, Zinc, Ocean, Moss, Purple and Pink in two rows of four and three equal-width controls. Each tint changes the background, panel, raised surface, border, strong border, text and muted text. Accent, selection, tool and trace colours are independent of tint.
+
+Contrast offers Normal and High. High keeps the active tint hue, halves each token's chroma and uses the high-contrast lightness values. Zinc stays achromatic. High contrast uses 1.5 px borders and outlines, an additional 2 px accent outline for selected controls, 3 px focus rings, underlined links, 2 px source lines, 2.5 px created lines and a full-strength chart grid. Reset restores Slate, Normal and Standard.
+
+Colour-blind safe uses Palette A in the listed light and dark order. Sources take the next free slot. Created traces use the corresponding created colour of their parent source, have a 2 px line in normal contrast and always have an outline-only symbol from the existing set. The Trace symbols preference still applies to source traces and to all traces in Standard mode.
+
+The Export dialog owns the Print, Dark and As app theme choice. Copy image and Download image use the last choice, defaulting to Print. Existing browser preferences migrate the previous App settings export theme into the dialog once.

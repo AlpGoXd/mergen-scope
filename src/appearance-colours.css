@@ -1,0 +1,215 @@
+/* Values are specified in docs/design/colour-values.md. */
+:root, .export-tokens {
+  --neutral-h: 255;
+  --neutral-bg-c: 0.006; --neutral-bg-l: 0.985;
+  --neutral-panel-c: 0.010; --neutral-panel-l: 0.965;
+  --neutral-raised-c: 0.001; --neutral-raised-l: 0.997;
+  --neutral-border-c: 0.010; --neutral-border-l: 0.900;
+  --neutral-border-strong-c: 0.010; --neutral-border-strong-l: 0.780;
+  --neutral-text-c: 0.015; --neutral-text-l: 0.220;
+  --neutral-text-muted-c: 0.010; --neutral-text-muted-l: 0.500;
+}
+
+:root.theme-dark, .export-tokens.theme-dark {
+  --neutral-h: 255;
+  --neutral-bg-c: 0.016; --neutral-bg-l: 0.170;
+  --neutral-panel-c: 0.016; --neutral-panel-l: 0.200;
+  --neutral-raised-c: 0.016; --neutral-raised-l: 0.240;
+  --neutral-border-c: 0.016; --neutral-border-l: 0.310;
+  --neutral-border-strong-c: 0.016; --neutral-border-strong-l: 0.420;
+  --neutral-text-c: 0.016; --neutral-text-l: 0.930;
+  --neutral-text-muted-c: 0.016; --neutral-text-muted-l: 0.720;
+}
+
+:root[data-neutral="stone"] {
+  --neutral-h: 70;
+  --neutral-bg-c: 0.005; --neutral-bg-l: 0.985;
+  --neutral-panel-c: 0.008; --neutral-panel-l: 0.965;
+  --neutral-raised-c: 0.000; --neutral-raised-l: 0.997;
+  --neutral-border-c: 0.008; --neutral-border-l: 0.900;
+  --neutral-border-strong-c: 0.008; --neutral-border-strong-l: 0.780;
+  --neutral-text-c: 0.012; --neutral-text-l: 0.220;
+  --neutral-text-muted-c: 0.008; --neutral-text-muted-l: 0.500;
+}
+
+:root.theme-dark[data-neutral="stone"] {
+  --neutral-h: 70;
+  --neutral-bg-c: 0.013; --neutral-bg-l: 0.170;
+  --neutral-panel-c: 0.013; --neutral-panel-l: 0.200;
+  --neutral-raised-c: 0.013; --neutral-raised-l: 0.240;
+  --neutral-border-c: 0.013; --neutral-border-l: 0.310;
+  --neutral-border-strong-c: 0.013; --neutral-border-strong-l: 0.420;
+  --neutral-text-c: 0.013; --neutral-text-l: 0.930;
+  --neutral-text-muted-c: 0.013; --neutral-text-muted-l: 0.720;
+}
+
+:root[data-neutral="zinc"] {
+  --neutral-h: 0;
+  --neutral-bg-c: 0; --neutral-bg-l: 0.985;
+  --neutral-panel-c: 0; --neutral-panel-l: 0.965;
+  --neutral-raised-c: 0; --neutral-raised-l: 0.997;
+  --neutral-border-c: 0; --neutral-border-l: 0.900;
+  --neutral-border-strong-c: 0; --neutral-border-strong-l: 0.780;
+  --neutral-text-c: 0; --neutral-text-l: 0.220;
+  --neutral-text-muted-c: 0; --neutral-text-muted-l: 0.500;
+}
+
+:root.theme-dark[data-neutral="zinc"] {
+  --neutral-h: 0;
+  --neutral-bg-c: 0; --neutral-bg-l: 0.170;
+  --neutral-panel-c: 0; --neutral-panel-l: 0.200;
+  --neutral-raised-c: 0; --neutral-raised-l: 0.240;
+  --neutral-border-c: 0; --neutral-border-l: 0.310;
+  --neutral-border-strong-c: 0; --neutral-border-strong-l: 0.420;
+  --neutral-text-c: 0; --neutral-text-l: 0.930;
+  --neutral-text-muted-c: 0; --neutral-text-muted-l: 0.720;
+}
+
+:root[data-neutral="ocean"] {
+  --neutral-h: 222;
+  --neutral-bg-c: 0.010; --neutral-bg-l: 0.985;
+  --neutral-panel-c: 0.022; --neutral-panel-l: 0.965;
+  --neutral-raised-c: 0.001; --neutral-raised-l: 0.997;
+  --neutral-border-c: 0.030; --neutral-border-l: 0.900;
+  --neutral-border-strong-c: 0.030; --neutral-border-strong-l: 0.780;
+  --neutral-text-c: 0.024; --neutral-text-l: 0.220;
+  --neutral-text-muted-c: 0.016; --neutral-text-muted-l: 0.500;
+}
+
+:root.theme-dark[data-neutral="ocean"] {
+  --neutral-h: 222;
+  --neutral-bg-c: 0.032; --neutral-bg-l: 0.170;
+  --neutral-panel-c: 0.036; --neutral-panel-l: 0.200;
+  --neutral-raised-c: 0.044; --neutral-raised-l: 0.240;
+  --neutral-border-c: 0.048; --neutral-border-l: 0.310;
+  --neutral-border-strong-c: 0.048; --neutral-border-strong-l: 0.420;
+  --neutral-text-c: 0.026; --neutral-text-l: 0.930;
+  --neutral-text-muted-c: 0.026; --neutral-text-muted-l: 0.720;
+}
+
+:root[data-neutral="moss"] {
+  --neutral-h: 150;
+  --neutral-bg-c: 0.016; --neutral-bg-l: 0.985;
+  --neutral-panel-c: 0.026; --neutral-panel-l: 0.965;
+  --neutral-raised-c: 0.004; --neutral-raised-l: 0.997;
+  --neutral-border-c: 0.026; --neutral-border-l: 0.900;
+  --neutral-border-strong-c: 0.026; --neutral-border-strong-l: 0.780;
+  --neutral-text-c: 0.021; --neutral-text-l: 0.220;
+  --neutral-text-muted-c: 0.014; --neutral-text-muted-l: 0.500;
+}
+
+:root.theme-dark[data-neutral="moss"] {
+  --neutral-h: 150;
+  --neutral-bg-c: 0.042; --neutral-bg-l: 0.170;
+  --neutral-panel-c: 0.042; --neutral-panel-l: 0.200;
+  --neutral-raised-c: 0.042; --neutral-raised-l: 0.240;
+  --neutral-border-c: 0.042; --neutral-border-l: 0.310;
+  --neutral-border-strong-c: 0.042; --neutral-border-strong-l: 0.420;
+  --neutral-text-c: 0.022; --neutral-text-l: 0.930;
+  --neutral-text-muted-c: 0.022; --neutral-text-muted-l: 0.720;
+}
+
+:root[data-neutral="purple"] {
+  --neutral-h: 300;
+  --neutral-bg-c: 0.012; --neutral-bg-l: 0.975;
+  --neutral-panel-c: 0.036; --neutral-panel-l: 0.935;
+  --neutral-raised-c: 0.004; --neutral-raised-l: 0.990;
+  --neutral-border-c: 0.055; --neutral-border-l: 0.860;
+  --neutral-border-strong-c: 0.075; --neutral-border-strong-l: 0.720;
+  --neutral-text-c: 0.025; --neutral-text-l: 0.220;
+  --neutral-text-muted-c: 0.017; --neutral-text-muted-l: 0.500;
+}
+
+:root.theme-dark[data-neutral="purple"] {
+  --neutral-h: 300;
+  --neutral-bg-c: 0.051; --neutral-bg-l: 0.170;
+  --neutral-panel-c: 0.051; --neutral-panel-l: 0.200;
+  --neutral-raised-c: 0.051; --neutral-raised-l: 0.240;
+  --neutral-border-c: 0.051; --neutral-border-l: 0.310;
+  --neutral-border-strong-c: 0.051; --neutral-border-strong-l: 0.420;
+  --neutral-text-c: 0.027; --neutral-text-l: 0.930;
+  --neutral-text-muted-c: 0.027; --neutral-text-muted-l: 0.720;
+}
+
+:root[data-neutral="pink"] {
+  --neutral-h: 355;
+  --neutral-bg-c: 0.012; --neutral-bg-l: 0.978;
+  --neutral-panel-c: 0.032; --neutral-panel-l: 0.940;
+  --neutral-raised-c: 0.004; --neutral-raised-l: 0.990;
+  --neutral-border-c: 0.048; --neutral-border-l: 0.870;
+  --neutral-border-strong-c: 0.065; --neutral-border-strong-l: 0.740;
+  --neutral-text-c: 0.022; --neutral-text-l: 0.220;
+  --neutral-text-muted-c: 0.015; --neutral-text-muted-l: 0.500;
+}
+
+:root.theme-dark[data-neutral="pink"] {
+  --neutral-h: 355;
+  --neutral-bg-c: 0.045; --neutral-bg-l: 0.170;
+  --neutral-panel-c: 0.045; --neutral-panel-l: 0.200;
+  --neutral-raised-c: 0.045; --neutral-raised-l: 0.240;
+  --neutral-border-c: 0.045; --neutral-border-l: 0.310;
+  --neutral-border-strong-c: 0.045; --neutral-border-strong-l: 0.420;
+  --neutral-text-c: 0.024; --neutral-text-l: 0.930;
+  --neutral-text-muted-c: 0.024; --neutral-text-muted-l: 0.720;
+}
+
+:root, .export-tokens {
+  --bg: oklch(var(--neutral-bg-l) var(--neutral-bg-c) var(--neutral-h));
+  --panel: oklch(var(--neutral-panel-l) var(--neutral-panel-c) var(--neutral-h));
+  --raised: oklch(var(--neutral-raised-l) var(--neutral-raised-c) var(--neutral-h));
+  --border: oklch(var(--neutral-border-l) var(--neutral-border-c) var(--neutral-h));
+  --border-strong: oklch(var(--neutral-border-strong-l) var(--neutral-border-strong-c) var(--neutral-h));
+  --text: oklch(var(--neutral-text-l) var(--neutral-text-c) var(--neutral-h));
+  --text-muted: oklch(var(--neutral-text-muted-l) var(--neutral-text-muted-c) var(--neutral-h));
+}
+
+:root[data-contrast="high"] {
+  --bg: oklch(0.990 calc(var(--neutral-bg-c) / 2) var(--neutral-h));
+  --panel: oklch(0.970 calc(var(--neutral-panel-c) / 2) var(--neutral-h));
+  --raised: oklch(1.000 calc(var(--neutral-raised-c) / 2) var(--neutral-h));
+  --border: oklch(0.620 calc(var(--neutral-border-c) / 2) var(--neutral-h));
+  --border-strong: oklch(0.450 calc(var(--neutral-border-strong-c) / 2) var(--neutral-h));
+  --text: oklch(0.120 calc(var(--neutral-text-c) / 2) var(--neutral-h));
+  --text-muted: oklch(0.300 calc(var(--neutral-text-muted-c) / 2) var(--neutral-h));
+}
+
+:root.theme-dark[data-contrast="high"] {
+  --bg: oklch(0.100 calc(var(--neutral-bg-c) / 2) var(--neutral-h));
+  --panel: oklch(0.140 calc(var(--neutral-panel-c) / 2) var(--neutral-h));
+  --raised: oklch(0.180 calc(var(--neutral-raised-c) / 2) var(--neutral-h));
+  --border: oklch(0.620 calc(var(--neutral-border-c) / 2) var(--neutral-h));
+  --border-strong: oklch(0.800 calc(var(--neutral-border-strong-c) / 2) var(--neutral-h));
+  --text: oklch(0.980 calc(var(--neutral-text-c) / 2) var(--neutral-h));
+  --text-muted: oklch(0.860 calc(var(--neutral-text-muted-c) / 2) var(--neutral-h));
+}
+
+/* Apply to existing borders and outlines without introducing a border style. */
+:root[data-contrast="high"] :where(body, body *):not(:where(.export-tokens, .export-tokens *)) {
+  border-width: 1.5px !important;
+  outline-width: 1.5px !important;
+}
+
+:root[data-contrast="high"] :is(button[aria-pressed="true"], button.is-active, button[role="radio"][aria-checked="true"]):not(:focus-visible):not(:where(.export-tokens, .export-tokens *)) {
+  outline: 2px solid var(--accent) !important;
+}
+
+:root[data-contrast="high"] :focus-visible:not(:where(.export-tokens, .export-tokens *)) {
+  outline: 3px solid var(--accent) !important;
+}
+
+:root[data-contrast="high"] a[href]:not(:where(.export-tokens, .export-tokens *)) {
+  text-decoration-line: underline !important;
+}
+
+:root[data-contrast="high"] :is(.trace-source.recharts-line-curve, .trace-source .recharts-line-curve, .smith-trace.trace-source):not(:where(.export-tokens *)) {
+  stroke-width: 2px;
+}
+
+:root[data-contrast="high"] :is(.trace-created.recharts-line-curve, .trace-created .recharts-line-curve, .smith-trace.trace-created):not(:where(.export-tokens *)) {
+  stroke-width: 2.5px;
+}
+
+:root[data-contrast="high"] :is(.recharts-cartesian-grid line, .smith-grid, .smith-axis):not(:where(.export-tokens *)) {
+  opacity: 1;
+  stroke-opacity: 1;
+}

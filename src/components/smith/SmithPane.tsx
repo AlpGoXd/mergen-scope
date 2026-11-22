@@ -38,6 +38,7 @@ export interface SmithPaneTrace {
   readonly created?: boolean;
   /** The trace's symbol when colours repeat (or symbols are always on); null or absent for none. */
   readonly symbol?: SymbolKind | null;
+  readonly hollowSymbol?: boolean;
   /** Frequencies of the measured samples. When given, dots and symbols skip any other point (interpolated range edges). */
   readonly measured?: ReadonlySet<number>;
   /** Reference impedance in ohms that Γ is referred to (per file, usually 50). */
@@ -256,7 +257,7 @@ export function SmithPane({
       const at = gammaToPoint(sample.gamma, viewport);
       return at && (!trace.measured || trace.measured.has(sample.frequencyHz)) && at.x >= 0 && at.x <= viewport.width && at.y >= 0 && at.y <= viewport.height ? at : { x: Number.NaN, y: Number.NaN };
     });
-    return [{ trace, points, plan: planDotsAndSymbols({ points, showDots: showSamples, showSymbols }) }];
+    return [{ trace, points, plan: planDotsAndSymbols({ points, showDots: showSamples, showSymbols, forceHollow: trace.hollowSymbol }) }];
   }) : []), [traces, viewport, showSamples]);
 
   // ---- Markers ----
@@ -447,7 +448,7 @@ export function SmithPane({
                 </g>
               )}
               {tracePaths.map(({ trace, runs }) => (
-                <g key={trace.traceId} className="smith-trace" data-testid={`smith-trace-${trace.traceId}`} stroke={trace.color} strokeWidth={traceLineWidth ?? (trace.created ? 2 : 1.5)}>
+                <g key={trace.traceId} className={`smith-trace ${trace.created ? 'trace-created' : 'trace-source'}`} data-testid={`smith-trace-${trace.traceId}`} stroke={trace.color} strokeWidth={traceLineWidth ?? (trace.created ? 2 : 1.5)}>
                   {runs.map((run, index) => <path key={index} className={run.inBand ? undefined : 'is-faint'} d={run.path} />)}
                 </g>
               ))}

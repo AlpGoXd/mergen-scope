@@ -5,7 +5,7 @@ export const SYMBOL_RADIUS = 3.6;
 export const DOT_RADIUS = 2;
 export const SYMBOL_STROKE = 1.5;
 
-export function planDotsAndSymbols({ points, showDots, showSymbols, spacing = 90 }: { points: readonly Pt[]; showDots: boolean; showSymbols: boolean; spacing?: number }): { dots: number[]; symbols: { x: number; y: number; sampleIndex: number }[]; hollow: boolean } {
+export function planDotsAndSymbols({ points, showDots, showSymbols, forceHollow = false, spacing = 90 }: { points: readonly Pt[]; showDots: boolean; showSymbols: boolean; forceHollow?: boolean; spacing?: number }): { dots: number[]; symbols: { x: number; y: number; sampleIndex: number }[]; hollow: boolean } {
   const finite = points.flatMap((point, index) => Number.isFinite(point.x) && Number.isFinite(point.y) ? [index] : []);
   const claimed = new Set<number>();
   const symbols = showSymbols ? symbolPositions(points, spacing).flatMap(position => {
@@ -21,5 +21,10 @@ export function planDotsAndSymbols({ points, showDots, showSymbols, spacing = 90
     if (!point) return [];
     return [{ ...(showDots ? point : position), sampleIndex: nearest }];
   }) : [];
-  return { dots: showDots ? finite : [], symbols, hollow: showDots };
+  if (forceHollow && showSymbols && symbols.length === 0) {
+    const sampleIndex = finite[Math.floor(finite.length / 2)];
+    const point = sampleIndex === undefined ? undefined : points[sampleIndex];
+    if (point && sampleIndex !== undefined) symbols.push({ ...point, sampleIndex });
+  }
+  return { dots: showDots ? finite : [], symbols, hollow: showDots || forceHollow };
 }

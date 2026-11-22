@@ -1,7 +1,7 @@
 import type { ExportTheme } from '../../../domain/export-image';
 import { PAPER_TEXT_PT, ptToCssPx } from '../../../domain/export-image';
 
-/** The look an exported image is drawn in: the App setting "As app" resolves to light or dark. */
+/** The look an exported image is drawn in: the choice "As app" resolves to light or dark. */
 export type ResolvedExportTheme = 'print' | 'light' | 'dark';
 
 export function resolveExportTheme(choice: ExportTheme, appTheme: string): ResolvedExportTheme {

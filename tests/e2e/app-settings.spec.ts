@@ -15,7 +15,7 @@ test('settings uses full-width segments with equal buttons and the Slate selecti
   await page.goto('/app.html');
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
   const sheet = page.getByRole('dialog', { name: 'App settings' });
-  for (const name of ['Theme', 'Size', 'Neutral colour', 'Trace symbols', 'Export theme']) {
+  for (const name of ['Theme', 'Size', 'Neutral colour', 'Trace symbols', 'Contrast']) {
     const group = sheet.getByRole('group', { name, exact: true });
     const state = await group.evaluate(row => {
       const buttons = Array.from(row.querySelectorAll('button'));
@@ -30,15 +30,17 @@ test('settings uses full-width segments with equal buttons and the Slate selecti
         expectedFill,
         selectedFill: getComputedStyle(selected).backgroundColor,
         widths: buttons.map(button => button.getBoundingClientRect().width),
+        rows: Array.from(new Set(buttons.map(button => button.offsetTop))).map(y => buttons.filter(button => button.offsetTop === y).length),
         groupWidth: row.getBoundingClientRect().width,
         controlWidth: row.parentElement.getBoundingClientRect().width,
-        buttonSpan: (buttons.at(-1)?.getBoundingClientRect().right ?? 0) - (buttons[0]?.getBoundingClientRect().left ?? 0),
+        buttonSpan: Math.max(...buttons.map(button => button.getBoundingClientRect().right)) - Math.min(...buttons.map(button => button.getBoundingClientRect().left)),
       };
     });
     expect(Math.max(...state.widths) - Math.min(...state.widths)).toBeLessThanOrEqual(1);
     expect(state.groupWidth).toBeCloseTo(state.controlWidth, 0);
     expect(state.buttonSpan).toBeCloseTo(state.controlWidth, 0);
     expect(state.selectedFill).toBe(state.expectedFill);
+    if (name === 'Neutral colour') expect(state.rows).toEqual([4, 3]);
   }
 });
 
@@ -50,14 +52,14 @@ test('neutral colour and palette persist, and Reset restores all defaults', asyn
   const root = page.locator('html');
   const tokens = () => root.evaluate(el => {
     const css = getComputedStyle(el);
-    return ['--neutral-h', '--neutral-scale', '--bg', '--tr0', '--marker-fill'].map(token => css.getPropertyValue(token).trim());
+    return ['--neutral-h', '--neutral-bg-c', '--bg', '--tr0', '--marker-fill'].map(token => css.getPropertyValue(token).trim());
   });
 
   await settings.click();
   const slate = await tokens();
   await segment('Neutral colour', 'Stone').click();
   const stone = await tokens();
-  expect(stone.slice(0, 2)).toEqual(['60', '0.7']);
+  expect(stone.slice(0, 2)).toEqual(['70', '0.005']);
   expect(stone[2]).not.toBe(slate[2]);
   expect(stone.slice(3)).toEqual(slate.slice(3));
   await page.reload();
@@ -94,17 +96,17 @@ test('neutral colour and palette persist, and Reset restores all defaults', asyn
   await segment('Size', 'Large').click();
   await segment('Theme', 'Dark').click();
   await segment('Trace symbols', 'Always').click();
-  await segment('Export theme', 'As app').click();
+  await segment('Contrast', 'High').click();
   const limitSwitch = sheet.getByRole('switch', { name: 'Allow more than 4 panes' });
   await limitSwitch.click();
   await expect(limitSwitch).toHaveAttribute('aria-checked', 'true');
   await sheet.getByRole('button', { name: 'Reset all to defaults' }).click();
-  for (const [group, option] of [['Neutral colour', 'Slate'], ['Size', 'Comfortable'], ['Theme', 'System'], ['Trace symbols', 'Repeat'], ['Export theme', 'Print']] as const) {
+  for (const [group, option] of [['Neutral colour', 'Slate'], ['Size', 'Comfortable'], ['Theme', 'System'], ['Trace symbols', 'Repeat'], ['Contrast', 'Normal']] as const) {
     await expect(segment(group, option)).toHaveAttribute('aria-pressed', 'true');
   }
   await expect(standard).toHaveAttribute('aria-checked', 'true');
   await expect(limitSwitch).toHaveAttribute('aria-checked', 'false');
-  expect((await tokens()).slice(0, 2)).toEqual(['255', '1']);
+  expect((await tokens()).slice(0, 2)).toEqual(['255', '0.006']);
 });
 
 test('App settings slides over the right panel and updates the visible chart live', async ({ page }) => {
@@ -140,6 +142,44 @@ test('App settings slides over the right panel and updates the visible chart liv
   await settings.click();
   await plot.click({ position: { x: 4, y: 4 } });
   await expect(sheet).toBeVisible();
+  await expect(sheet.getByRole('heading', { name: 'Export', exact: true })).toHaveCount(0);
+  await expect(sheet.getByRole('group', { name: 'Export theme', exact: true })).toHaveCount(0);
   await sheet.getByRole('button', { name: 'Close settings' }).click();
   await expect(sheet).toHaveCount(0);
+});
+
+test('Pink and High persist while Palette A changes the trace colours', async ({ page }) => {
+  await page.emulateMedia({ colorScheme: 'light', reducedMotion: 'reduce' });
+  await page.goto('/app.html');
+  const loadChart = async () => {
+    await page.getByTestId('app-open-input').setInputFiles(resolve('test files/cascaded chain.s2p'));
+    await page.getByTestId('touchstone-cell-S21').click();
+  };
+  await loadChart();
+  const plot = page.getByTestId('chart-plot-pane-1');
+  const curve = plot.locator('.recharts-line-curve').first();
+  const standard = await curve.evaluate(el => getComputedStyle(el).stroke);
+  const settings = page.getByRole('button', { name: 'Settings', exact: true });
+  const sheet = page.getByRole('dialog', { name: 'App settings' });
+  const app = page.getByTestId('app-root');
+
+  await settings.click();
+  await sheet.getByRole('button', { name: 'Pink', exact: true }).click();
+  await expect(app).toHaveCSS('background-color', 'oklch(0.978 0.012 355)');
+  await expect(curve).toHaveCSS('stroke', standard);
+  await sheet.getByRole('button', { name: 'High', exact: true }).click();
+  await expect(app).toHaveCSS('background-color', 'oklch(0.99 0.006 355)');
+  await expect(curve).toHaveCSS('stroke', standard);
+  await expect(curve).toHaveCSS('stroke-width', '2px');
+  await expect(plot.locator('.recharts-cartesian-grid line').first()).toHaveCSS('stroke-opacity', '1');
+  await sheet.getByRole('radio', { name: 'Colour-blind safe' }).click();
+  await expect(curve).toHaveCSS('stroke', 'oklch(0.655 0.16 244)');
+  await page.reload();
+  await loadChart();
+  await expect(app).toHaveCSS('background-color', 'oklch(0.99 0.006 355)');
+  await expect(curve).toHaveCSS('stroke', 'oklch(0.655 0.16 244)');
+  await settings.click();
+  await expect(sheet.getByRole('button', { name: 'Pink', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(sheet.getByRole('button', { name: 'High', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(sheet.getByRole('radio', { name: 'Colour-blind safe' })).toHaveAttribute('aria-checked', 'true');
 });

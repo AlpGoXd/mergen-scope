@@ -2,14 +2,15 @@ import { DEFAULT_APP_SIZE, normalizeAppSize } from './app-size';
 import type { AppSize } from './app-size';
 import type { SymbolSetting } from '../../domain/trace-palette';
 
-type AppNeutral = 'slate' | 'stone' | 'zinc';
+export const appNeutrals = ['slate', 'stone', 'zinc', 'ocean', 'moss', 'purple', 'pink'] as const;
+type AppNeutral = (typeof appNeutrals)[number];
 
 export type AppPreferences = {
   size: AppSize;
   neutral: AppNeutral;
   palette: 'standard' | 'colour-blind';
   traceSymbols: SymbolSetting;
-  exportTheme: 'print' | 'dark' | 'app';
+  contrast: 'normal' | 'high';
 };
 
 export const defaultAppPreferences: AppPreferences = {
@@ -17,7 +18,7 @@ export const defaultAppPreferences: AppPreferences = {
   neutral: 'slate',
   palette: 'standard',
   traceSymbols: 'repeat',
-  exportTheme: 'print',
+  contrast: 'normal',
 };
 
 export const appPreferencesKey = 'mergen-app-preferences';
@@ -29,16 +30,17 @@ export function readAppPreferences(): AppPreferences {
     const v = raw as Partial<AppPreferences>;
     return {
       size: normalizeAppSize(v.size),
-      neutral: v.neutral === 'stone' || v.neutral === 'zinc' ? v.neutral : defaultAppPreferences.neutral,
+      neutral: appNeutrals.find(neutral => neutral === v.neutral) ?? defaultAppPreferences.neutral,
       palette: v.palette === 'colour-blind' ? v.palette : 'standard',
       traceSymbols: v.traceSymbols === 'off' || v.traceSymbols === 'always' ? v.traceSymbols : 'repeat',
-      exportTheme: v.exportTheme === 'dark' || v.exportTheme === 'app' ? v.exportTheme : 'print',
+      contrast: v.contrast === 'high' ? 'high' : 'normal',
     };
   } catch {
     return defaultAppPreferences;
   }
 }
 
-export function applyAppNeutral(neutral: AppNeutral): void {
+export function applyAppAppearance({ neutral, contrast }: AppPreferences): void {
   document.documentElement.dataset.neutral = neutral;
+  document.documentElement.dataset.contrast = contrast;
 }

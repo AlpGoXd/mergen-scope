@@ -2,12 +2,16 @@ import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import type { ExportImageOptions } from '../../src/domain/export-image';
 
 const pane = (page: Page, n: number) => page.getByTestId(`chart-pane-pane-${n}`);
 const header = (page: Page, n: number) => page.getByTestId(`chart-pane-header-pane-${n}`);
 const settingsOf = (page: Page, n: number) => page.locator(`.ui-popover[aria-label="Pane ${n} settings"]`);
 const lastSvg = (page: Page) => page.evaluate(() => window.__mergenLastExportSvg ?? '');
-const setOptions = (page: Page, options: object) => page.evaluate(value => localStorage.setItem('mergen-export-image-options', JSON.stringify(value)), options);
+const setOptions = (page: Page, options: ExportImageOptions) => page.evaluate(({ theme, ...size }) => {
+  localStorage.setItem('mergen-export-image-options', JSON.stringify(size));
+  localStorage.setItem('mergen-export-document-options', JSON.stringify({ theme }));
+}, options);
 
 async function openS21(page: Page) {
   await page.goto('/app.html');

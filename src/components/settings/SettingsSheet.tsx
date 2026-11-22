@@ -1,22 +1,22 @@
 ﻿import { useState } from 'react';
 import type { KeyboardEvent, ReactNode } from 'react';
 import './settings-sheet.css';
-import { COLOUR_BLIND_ORDER } from '../../domain/trace-colors';
-import { SOURCE_HUES } from '../../domain/trace-palette';
+import { COLOUR_BLIND_PALETTE } from '../../domain/trace-colors';
+import { useTheme } from '../../hooks/use-theme';
 import { useSheetFocus } from '../../hooks/use-sheet-focus';
 import { usePaneLimit } from '../../stores/pane-store';
 import { useThemePreference, useUiDispatch } from '../../stores/ui-store';
 import { FooterIcon } from '../layout/footer-icons';
 import { applyAppSize } from './app-size';
-import { appPreferencesKey, applyAppNeutral, defaultAppPreferences, readAppPreferences } from './app-preferences';
+import { appNeutrals, appPreferencesKey, applyAppAppearance, defaultAppPreferences, readAppPreferences } from './app-preferences';
 import type { AppPreferences } from './app-preferences';
 
 export { defaultAppPreferences, readAppPreferences } from './app-preferences';
 export type { AppPreferences } from './app-preferences';
 
 const palettes = [
-  { id: 'standard', name: 'Standard', caption: 'The 8-colour wheel.', hues: SOURCE_HUES },
-  { id: 'colour-blind', name: 'Colour-blind safe', caption: 'The same wheel in a colour-blind-safe order; created traces too.', hues: COLOUR_BLIND_ORDER },
+  { id: 'standard', name: 'Standard', caption: 'The 8-colour wheel.' },
+  { id: 'colour-blind', name: 'Colour-blind safe', caption: 'Eight distinct colours with matching tones and hollow symbols for created traces.' },
 ] as const;
 
 function SettingsRow({ label, children }: { label: string; children: ReactNode }) {
@@ -28,16 +28,17 @@ function SettingsRow({ label, children }: { label: string; children: ReactNode }
   );
 }
 
-function SegmentRow<T extends string>({ label, value, options, onChange, caption }: {
+function SegmentRow<T extends string>({ label, value, options, onChange, caption, wrap }: {
   label: string;
   value: T;
   options: readonly (readonly [T, string])[];
   onChange: (value: T) => void;
   caption?: string;
+  wrap?: boolean;
 }) {
   return (
     <SettingsRow label={label}>
-      <div className="ss-seg" role="group" aria-label={label}>
+      <div className={wrap ? 'ss-seg ss-seg-wrap' : 'ss-seg'} role="group" aria-label={label}>
         {options.map(([id, name]) => (
           <button className="t-label" key={id} type="button" aria-pressed={id === value} onClick={() => onChange(id)}>
             {name}
@@ -53,6 +54,7 @@ function PaletteCards({ value, onChange }: {
   value: AppPreferences['palette'];
   onChange: (palette: AppPreferences['palette']) => void;
 }) {
+  const { theme } = useTheme();
   const move = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
     if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return;
     event.preventDefault();
@@ -66,7 +68,7 @@ function PaletteCards({ value, onChange }: {
 
   return (
     <div className="ss-palette" role="radiogroup" aria-label="Palette">
-      {palettes.map(({ id, name, caption, hues }, index) => (
+      {palettes.map(({ id, name, caption }, index) => (
         <button className="ss-card" key={id} type="button" role="radio"
           aria-checked={value === id} tabIndex={value === id ? 0 : -1}
           aria-labelledby={`ss-palette-${id}`} aria-describedby={`ss-palette-caption-${id}`}
@@ -75,8 +77,8 @@ function PaletteCards({ value, onChange }: {
           <span className="t-card-title" id={`ss-palette-${id}`}>{name}</span>
           <span className="ss-caption t-caption" id={`ss-palette-caption-${id}`}>{caption}</span>
           <span className="ss-swatches" aria-hidden="true">
-            {hues.map(hue => (
-              <span className="ss-swatch" key={hue} style={{ background: `var(--tr${SOURCE_HUES.indexOf(hue)})` }} />
+            {COLOUR_BLIND_PALETTE[theme].map(([source], index) => (
+              <span className="ss-swatch" key={source} style={{ background: id === 'colour-blind' ? source : `var(--tr${index})` }} />
             ))}
           </span>
         </button>
@@ -101,7 +103,7 @@ export function SettingsSheet({ onClose, onShowShortcuts, onAbout, onPreferences
   const update = (next: AppPreferences) => {
     setPrefs(next);
     applyAppSize(next.size);
-    applyAppNeutral(next.neutral);
+    applyAppAppearance(next);
     try {
       localStorage.setItem(appPreferencesKey, JSON.stringify(next));
     } catch { /* Storage may be unavailable. */ }
@@ -134,8 +136,10 @@ export function SettingsSheet({ onClose, onShowShortcuts, onAbout, onPreferences
           <SegmentRow label="Theme" value={preference} options={[['light', 'Light'], ['dark', 'Dark'], ['system', 'System']]} onChange={setPreference} />
           <SegmentRow label="Size" value={prefs.size} options={[['compact', 'Compact'], ['comfortable', 'Comfortable'], ['large', 'Large']]}
             onChange={size => update({ ...prefs, size })} caption="Compact 24 px controls, 26 px rows · Comfortable 28 / 30 · Large 32 / 34" />
-          <SegmentRow label="Neutral colour" value={prefs.neutral} options={[['slate', 'Slate'], ['stone', 'Stone'], ['zinc', 'Zinc']]}
+          <SegmentRow label="Neutral colour" value={prefs.neutral} options={appNeutrals.map(neutral => [neutral, neutral.charAt(0).toUpperCase() + neutral.slice(1)])} wrap
             onChange={neutral => update({ ...prefs, neutral })} caption="Changes the greys of the whole app, not the trace or tool colours." />
+          <SegmentRow label="Contrast" value={prefs.contrast} options={[['normal', 'Normal'], ['high', 'High']]}
+            onChange={contrast => update({ ...prefs, contrast })} />
         </section>
         <section className="ss-section">
           <h3 className="t-section">Colours</h3>
@@ -144,11 +148,6 @@ export function SettingsSheet({ onClose, onShowShortcuts, onAbout, onPreferences
           </SettingsRow>
           <SegmentRow label="Trace symbols" value={prefs.traceSymbols} options={[['off', 'Off'], ['repeat', 'Repeat'], ['always', 'Always']]}
             onChange={traceSymbols => update({ ...prefs, traceSymbols })} caption="Repeat shows symbols when colours repeat." />
-        </section>
-        <section className="ss-section">
-          <h3 className="t-section">Export</h3>
-          <SegmentRow label="Export theme" value={prefs.exportTheme} options={[['print', 'Print'], ['dark', 'Dark'], ['app', 'As app']]}
-            onChange={exportTheme => update({ ...prefs, exportTheme })} caption="Used by Copy image, Download image and every export." />
         </section>
         <section className="ss-section">
           <h3 className="t-section">Experimental</h3>

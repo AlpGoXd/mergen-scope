@@ -1,48 +1,84 @@
-﻿import type { Trace } from '../types/trace';
+import type { Trace } from '../types/trace';
 
-import { allocateTraceColors, clampChroma, traceColor } from './trace-palette';
-import type { PaletteTrace, TraceColorAssignment, Theme } from './trace-palette';
-export const COLOUR_BLIND_ORDER = [270, 135, 0, 315, 180, 225, 45, 90] as const;
+import { allocateTraceColors, symbolFor, traceColor } from './trace-palette';
+import type { PaletteTrace, SymbolSetting, TraceColorAssignment, Theme } from './trace-palette';
+
+type Palette = 'standard' | 'colour-blind';
 export type ColourBlindAssignment = TraceColorAssignment & { readonly cbIndex?: number };
 
-/** Retain created choices, then allocate children around their parent's displayed hue. */
-export function allocateColourBlindCreated(traces: readonly PaletteTrace[], previous: ReadonlyMap<string, TraceColorAssignment>): Map<string, ColourBlindAssignment> {
-  const assignments = allocateTraceColors(traces, previous);
-  const out = new Map<string, ColourBlindAssignment>(assignments);
+// Palette A. Each entry contains the source and its matching created colour.
+export const COLOUR_BLIND_PALETTE = {
+  light: [
+    ['oklch(0.655 0.160 244)', 'oklch(0.495 0.122 244)'],
+    ['oklch(0.379 0.102 48)', 'oklch(0.539 0.102 48)'],
+    ['oklch(0.571 0.120 105)', 'oklch(0.411 0.086 105)'],
+    ['oklch(0.456 0.098 236)', 'oklch(0.316 0.068 236)'],
+    ['oklch(0.470 0.098 77)', 'oklch(0.650 0.098 77)'],
+    ['oklch(0.656 0 0)', 'oklch(0.456 0 0)'],
+    ['oklch(0.539 0.112 165)', 'oklch(0.379 0.078 165)'],
+    ['oklch(0.479 0.170 346)', 'oklch(0.339 0.142 346)'],
+  ],
+  dark: [
+    ['oklch(0.695 0.170 244)', 'oklch(0.495 0.122 244)'],
+    ['oklch(0.888 0.098 77)', 'oklch(0.648 0.098 77)'],
+    ['oklch(0.745 0.158 105)', 'oklch(0.505 0.106 105)'],
+    ['oklch(0.839 0.092 236)', 'oklch(0.679 0.092 236)'],
+    ['oklch(0.726 0.170 346)', 'oklch(0.526 0.170 346)'],
+    ['oklch(0.822 0 0)', 'oklch(0.622 0 0)'],
+    ['oklch(0.807 0.118 48)', 'oklch(0.587 0.118 48)'],
+    ['oklch(0.920 0.122 165)', 'oklch(0.760 0.122 165)'],
+  ],
+} as const;
+
+export function allocateColourBlindCreated(traces: readonly PaletteTrace[], previous: ReadonlyMap<string, ColourBlindAssignment>): Map<string, ColourBlindAssignment> {
+  const assignments: Map<string, ColourBlindAssignment> = allocateTraceColors(traces, previous);
   const byId = new Map(traces.map(trace => [trace.id, trace]));
-  const counts = Array<number>(8).fill(0);
-  for (const trace of traces) {
-    const slot = out.get(trace.id) as ColourBlindAssignment | undefined;
-    if (trace.kind === 'derived' && slot?.cbIndex !== undefined && Number.isInteger(slot.cbIndex) && slot.cbIndex >= 0 && slot.cbIndex < 8) counts[slot.cbIndex] = (counts[slot.cbIndex] ?? 0) + 1;
-  }
-  const assign = (trace: PaletteTrace, visiting: Set<string>): number => {
-    const slot = out.get(trace.id) as ColourBlindAssignment | undefined;
-    if (!slot) return 0;
+  const resolved = new Map<string, number>();
+
+  const sourceIndex = (trace: PaletteTrace, visiting: Set<string>): number | undefined => {
+    const slot = assignments.get(trace.id);
+    if (!slot || visiting.has(trace.id)) return undefined;
     if (trace.kind === 'raw') return slot.index;
-    if (slot.cbIndex !== undefined && Number.isInteger(slot.cbIndex) && slot.cbIndex >= 0 && slot.cbIndex < 8) return slot.cbIndex;
+    const cached = resolved.get(trace.id);
+    if (cached !== undefined) return cached;
     visiting.add(trace.id);
-    const parent = trace.sourceTraceIds?.map(id => byId.get(id)).find(item => item && !visiting.has(item.id));
-    const p = parent ? assign(parent, visiting) : 0;
+    for (const id of trace.sourceTraceIds ?? []) {
+      const parent = byId.get(id);
+      const saved = previous.get(id);
+      const index = parent ? sourceIndex(parent, visiting) : saved?.cbIndex ?? saved?.index;
+      if (index !== undefined) {
+        visiting.delete(trace.id);
+        resolved.set(trace.id, index);
+        return index;
+      }
+    }
     visiting.delete(trace.id);
-    const order = [(p + 1) % 8, (p + 7) % 8, ...Array.from({ length: 5 }, (_, i) => (p + i + 2) % 8), p];
-    const minimum = Math.min(...counts);
-    const index = order.find(i => (counts[i] ?? 0) === minimum) ?? 0;
-    counts[index] = (counts[index] ?? 0) + 1;
-    out.set(trace.id, { ...slot, cbIndex: index });
-    return index;
+    return undefined;
   };
-  for (const trace of traces) if (trace.kind === 'derived') assign(trace, new Set());
-  return out;
+
+  for (const trace of traces) {
+    const slot = assignments.get(trace.id);
+    if (slot?.palette === 'created') {
+      const cbIndex = sourceIndex(trace, new Set()) ?? slot.cbIndex ?? slot.index;
+      assignments.set(trace.id, { ...slot, cbIndex });
+    }
+  }
+  return assignments;
 }
 
-/** Source tones mirror the private source tones in trace-palette.ts. */
-export function displayTraceColor(assignment: ColourBlindAssignment, theme: Theme, palette: 'standard' | 'colour-blind'): string {
-  if (palette !== 'colour-blind') return traceColor(assignment, theme);
-  const h = COLOUR_BLIND_ORDER[assignment.palette === 'source' ? assignment.index : assignment.cbIndex ?? assignment.index] ?? assignment.hue;
-  // Created tones mirror trace-palette.ts.
-  const l = assignment.palette === 'created' ? (theme === 'dark' ? 0.84 : 0.46) : (theme === 'dark' ? 0.75 : 0.58);
-  const c = assignment.palette === 'created' ? (theme === 'dark' ? 0.10 : 0.15) : (theme === 'dark' ? 0.13 : 0.16);
-  return `oklch(${l} ${clampChroma(l, c, h)} ${h})`;
+export function displayTraceColor(assignment: ColourBlindAssignment, theme: Theme, palette: Palette): string {
+  if (palette === 'standard') return traceColor(assignment, theme);
+  const pair = COLOUR_BLIND_PALETTE[theme][assignment.cbIndex ?? assignment.index];
+  return pair?.[assignment.palette === 'created' ? 1 : 0] ?? traceColor(assignment, theme);
+}
+
+export function forcesHollowTraceSymbol(kind: 'raw' | 'derived', palette: Palette): boolean {
+  return kind === 'derived' && palette === 'colour-blind';
+}
+
+export function traceDisplaySymbol(assignment: TraceColorAssignment, setting: SymbolSetting, palette: Palette) {
+  const force = forcesHollowTraceSymbol(assignment.palette === 'created' ? 'derived' : 'raw', palette);
+  return symbolFor(assignment, force ? 'always' : setting);
 }
 
 export function makeTraceColorResolver(traces: readonly Trace[], overrides: Readonly<Record<string, string>>, theme: Theme, slots: Readonly<Record<string, TraceColorAssignment>>, palette: 'standard' | 'colour-blind') {

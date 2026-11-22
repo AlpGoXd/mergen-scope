@@ -248,7 +248,7 @@ test('Help lists every registry shortcut and the mouse hints; App settings opens
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
   const settings = page.getByRole('dialog', { name: 'App settings' });
   await expect(settings).toContainText('Grid, markers, lines and Smith options are set per pane, with the sliders button in each pane header.');
-  await expect(settings).toContainText('Used by Copy image, Download image and every export.');
+  await expect(settings.getByRole('heading', { name: 'Export', exact: true })).toHaveCount(0);
   await settings.getByRole('button', { name: /Keyboard shortcuts/ }).click();
   await expect(settings).toHaveCount(0);
   await expect(sheet).toBeVisible();
