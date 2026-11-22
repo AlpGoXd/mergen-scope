@@ -11,7 +11,7 @@ import { makeTrace } from "../trace-model.ts";
 import { buildScalarDisplayTraceFromSeriesDataset, buildSeriesDatasetFromTrace } from "../dataset-builders.ts";
 import { incrementFileCounter } from "./rs-dat.ts";
 import { normalizeTraceData } from "./helpers.ts";
-import { baseXUnit, storedYUnit } from "../import-units.ts";
+import { baseXUnit, detectXUnit, findXUnit, storedYUnit } from "../import-units.ts";
 import { isNumber } from "./tabular-detect.ts";
 
 // ---------------------------------------------------------------------------
@@ -71,6 +71,8 @@ export function parseTabularFile(
     const candidate = parenthesized || h;
     const normalized = candidate.toLowerCase();
     if (axis === "x") {
+      const angle = detectXUnit(h)?.unit;
+      if (angle === '°' || angle === 'rad') return angle;
       if (/\bghz\b/.test(normalized)) return "GHz";
       if (/\bmhz\b/.test(normalized)) return "MHz";
       if (/\bkhz\b/.test(normalized)) return "kHz";
@@ -81,6 +83,7 @@ export function parseTabularFile(
       if (/\bs\b|time/.test(normalized)) return "s";
       return null;
     }
+    if (/\bdbi\b/.test(normalized)) return "dBi";
     if (/\bdbm\b/.test(normalized)) return "dBm";
     if (/\bdb\b/.test(normalized)) return "dB";
     if (/\bmv\b/.test(normalized)) return "mV";
@@ -177,7 +180,8 @@ export function parseTabularFile(
   const datasetFamily = config.domain === 'time' ? 'waveform' : 'spectrum';
   const xHeader = sourceHeaders?.[config.xCol] ?? config.headers?.[config.xCol] ?? "";
   // A wizard-picked unit means xMult already converts to the base unit.
-  const xUnit = config.xUnit !== undefined ? baseXUnit(config.domain) : inferUnit(xHeader, "x") ?? baseXUnit(config.domain);
+  const xUnit = config.xUnit !== undefined ? findXUnit(config.domain, config.xUnit)?.base ?? baseXUnit(config.domain)
+    : inferUnit(xHeader, "x") ?? baseXUnit(config.domain);
   const pickedYUnit = config.yUnit;
 
   // skipRows comes from user input (wizard): only whole, non-negative row counts are valid indices.

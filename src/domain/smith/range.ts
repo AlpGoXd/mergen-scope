@@ -76,9 +76,11 @@ export function rangeLabel(range: SmithRange, full: SmithRange): string {
 }
 
 /** The range line's three texts, each value with its own unit: "7.324 GHz", "8.500 GHz", "10 kHz–8.5 GHz". */
-export function rangeParts(range: SmithRange, full: SmithRange): { start: string; stop: string; full: string } {
+export function rangeParts(range: SmithRange, full: SmithRange, allowMixedUnits = false): { start: string; stop: string; full: string } {
   const [values = '', fullText = ''] = rangeLabel(range, full).split(' of ');
   const [start = '', rest = ''] = values.split(' → ');
   const [stop = '', unit = 'Hz'] = rest.split(' ');
-  return { start: start + ' ' + unit, stop: stop + ' ' + unit, full: fullText };
+  const startText = allowMixedUnits && range.startHz !== 0 && Number(start.replace('−', '-')) === 0
+    ? formatEng(range.startHz, 'Hz', 0) : start + ' ' + unit;
+  return { start: startText, stop: stop + ' ' + unit, full: fullText };
 }

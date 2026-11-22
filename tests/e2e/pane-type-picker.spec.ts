@@ -25,12 +25,10 @@ test('empty picker has ordered actions and opens the chart empty state', async (
     await expect(tiles.nth(i)).toContainText(labels[i] ?? '');
     await expect(tiles.nth(i)).not.toHaveAttribute('aria-pressed', 'true');
   }
-  for (const label of ['Polar', 'Spectrogram']) {
-    const tile = pane.locator('.ptp-tile').filter({ hasText: label });
-    await expect(tile).toHaveAttribute('aria-disabled', 'true');
-    await expect(tile).toContainText(label === 'Spectrogram' ? 'needs data' : 'later');
-  }
-  for (const label of ['Table', 'Smith']) await expect(pane.locator('.ptp-tile').filter({ hasText: label })).not.toHaveAttribute('aria-disabled', 'true');
+  const spectrogram = pane.locator('.ptp-tile').filter({ hasText: 'Spectrogram' });
+  await expect(spectrogram).toHaveAttribute('aria-disabled', 'true');
+  await expect(spectrogram).toContainText('needs data');
+  for (const label of ['Table', 'Smith', 'Polar']) await expect(pane.locator('.ptp-tile').filter({ hasText: label })).not.toHaveAttribute('aria-disabled', 'true');
   const header = page.getByTestId('chart-pane-header-pane-1');
   await expect(header).toContainText('Pane 1');
   await expect(header).toContainText('Empty');

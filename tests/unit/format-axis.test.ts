@@ -1,10 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { formatAdaptiveXAxisTickLabels, formatPerDivision, makeYAxisTickFormatter } from "../../src/domain/format";
+import { formatAdaptiveXAxisTickLabels, formatAdaptiveXAxisValue, formatPerDivision, makeYAxisTickFormatter } from "../../src/domain/format";
 
 describe("axis display formatting", () => {
   it("trims adaptive frequency tick labels after duplicate detection", () => {
     expect(formatAdaptiveXAxisTickLabels([1.42e9, 1.4202e9], 2e5, { domain: "frequency" }))
       .toEqual(["1.42G", "1.4202G"]);
+  });
+
+  it("formats the declared angle unit even for the legacy frequency trace domain", () => {
+    expect(formatAdaptiveXAxisTickLabels([0, 90, 180], 180, { domain: "frequency", unit: "degrees" }))
+      .toEqual(["0°", "90°", "180°"]);
+    expect(formatAdaptiveXAxisValue(1.57, 3, { domain: "frequency", unit: "radians" })).toBe("1.57 rad");
   });
 
   it("formats per-division steps with SI prefixes except for dB units", () => {

@@ -1,5 +1,8 @@
 import React from 'react';
-import type { PaneSettings, TableSettings } from '../../types/pane';
+import type { AxisScale, ChartAxesSettings, PaneSettings, TableSettings } from '../../types/pane';
+import { DEFAULT_POLAR_SETTINGS } from '../../types/pane';
+import type { PolarSettings } from '../../types/pane';
+import type { PolarRadius } from '../../domain/polar';
 import type { TableVisibleRange } from '../../domain/table-view';
 import type { SmithSettings } from '../../types/pane';
 import type { SymbolSetting } from '../../domain/trace-palette';
@@ -80,6 +83,28 @@ export interface PaneAxes {
   readonly y: string;
   readonly onFitX: () => void;
   readonly onFitY: () => void;
+  readonly values: ChartAxesSettings;
+  readonly xReason?: string;
+  readonly yReason?: string;
+  readonly xRange: string;
+  readonly suggestLog: boolean;
+  readonly hasPhase: boolean;
+  readonly gainMode: ChartAxesSettings['gain'] | null;
+  readonly onChange: (values: ChartAxesSettings) => void;
+}
+
+export function AxisScaleChoices({ axis, axes }: { axis: 'x' | 'y'; axes: PaneAxes }) {
+  const reason = axis === 'x' ? axes.xReason : axes.yReason;
+  return <div role="group" aria-label={`${axis.toUpperCase()} scale`}>
+    {(['linear', 'log'] as const).map((value: AxisScale) => {
+      const label = value === 'linear' ? 'Linear' : 'Log';
+      const selected = axes.values[axis] === value && !(value === 'log' && reason);
+      const button = <Btn key={value} variant="slate" small disabled={value === 'log' && !!reason}
+        active={selected} aria-pressed={selected}
+        onClick={() => axes.onChange({ ...axes.values, [axis]: value })}>{label}</Btn>;
+      return value === 'log' && reason ? <Tooltip key={value} text={reason}>{button}</Tooltip> : button;
+    })}
+  </div>;
 }
 /** Table panes: the Table section (Range). */
 export interface PaneTableOptions {
@@ -106,7 +131,7 @@ export interface PaneActions {
  * then a row of actions: Copy image · Download image · Download SVG · Copy as LaTeX · Export data (CSV)… · Export… · Close pane. Changes apply at once; there is no OK.
  */
 export function PaneSettingsPopover({
-  paneId, settings, sections, paneName, current, tiles, pending, anchor, onAnchorChange, onChoose, onConfirm, onCancel, contentRef, axes, onFit, actions, table = null,
+  paneId, settings, sections, paneName, current, tiles, pending, anchor, onAnchorChange, onChoose, onConfirm, onCancel, contentRef, axes, onFit, actions, table = null, resolvedPolarRadius = 'linear',
 }: {
   paneId: string;
   settings: PaneSettings;
@@ -127,11 +152,16 @@ export function PaneSettingsPopover({
   onFit: (() => void) | null;
   actions: PaneActions;
   table?: PaneTableOptions | null;
+  resolvedPolarRadius?: PolarRadius;
 }) {
   const paneDispatch = usePaneDispatch();
   const patch = (p: Partial<PaneSettings>) => paneDispatch({ type: 'SET_PANE_SETTINGS', payload: { paneId, patch: p } });
   const [symbols, setSymbols] = useTraceSymbolSetting();
   const smith = current === 'smith';
+  const polar = current === 'polar';
+  const polarSettings = settings.polar ?? DEFAULT_POLAR_SETTINGS;
+  const setPolar = (next: Partial<PolarSettings>) => patch({ polar: { ...polarSettings, ...next } });
+  const manual = polarSettings.manual ?? { linearMax: 1, dbTop: 0, dbRange: 40 };
   const setTable = (p: Partial<TableSettings>) => { if (table) patch({ table: { ...table.settings, ...p } }); };
   const close = () => onAnchorChange(null);
 
@@ -142,7 +172,7 @@ export function PaneSettingsPopover({
         <SlidersIcon />
       </Btn>
 
-      {anchor && <PopoverAt label={`${paneName} settings`} at={anchor} onClose={close}>
+      {anchor && <PopoverAt label={`${paneName} settings`} at={anchor} onClose={close} keepAnchorVisible>
         <div ref={contentRef} className="pset" onClick={e => e.stopPropagation()}>
           {pending ? <PaneTypeMenu paneName={paneName} current={current} tiles={tiles} pending={pending} onChoose={onChoose} onConfirm={onConfirm} onCancel={onCancel} /> : <>
             <div className="pset-title t-title">{paneName} settings</div>
@@ -166,8 +196,8 @@ export function PaneSettingsPopover({
                 <Chip on={settings.showSampleDots} label="Samples" testId="sample-dots-toggle" onToggle={() => patch({ showSampleDots: !settings.showSampleDots })} />
                 <Chip on={settings.showMarkers} label="Markers" onToggle={() => patch({ showMarkers: !settings.showMarkers })} />
                 <Chip on={settings.showMarkerLabels} label="Marker tags" onToggle={() => patch({ showMarkerLabels: !settings.showMarkerLabels })} />
-                {!smith && <Chip on={settings.showReferenceLines} label="Lines" onToggle={() => patch({ showReferenceLines: !settings.showReferenceLines })} />}
-                {!smith && <Chip on={settings.showLineLabels} label="Line tags" onToggle={() => patch({ showLineLabels: !settings.showLineLabels })} />}
+                {!smith && !polar && <Chip on={settings.showReferenceLines} label="Lines" onToggle={() => patch({ showReferenceLines: !settings.showReferenceLines })} />}
+                {!smith && !polar && <Chip on={settings.showLineLabels} label="Line tags" onToggle={() => patch({ showLineLabels: !settings.showLineLabels })} />}
               </Row>
               <Row label="Trace symbols">
                 {([['off', 'Off'], ['repeat', 'When colours repeat'], ['always', 'Always']] as const).map(([value, text]) =>
@@ -217,8 +247,41 @@ export function PaneSettingsPopover({
               </>}
             </Section>}
 
-            {!table && <Section title="Axes">
+            {polar && <Section title="Polar">
+              {([
+                ['Radius', 'radius', [['auto', 'Auto'], ['linear', 'Linear'], ['db', 'dB']]],
+                ['Angle 0°', 'zero', [['right', 'Right'], ['top', 'Top']]],
+                ['Direction', 'direction', [['ccw', 'CCW'], ['cw', 'CW']]],
+              ] as const).map(([label, key, options]) => <Row key={key} label={label}>
+                {options.map(([value, text]) => <Btn key={value} variant="slate" small active={polarSettings[key] === value}
+                  aria-pressed={polarSettings[key] === value} onClick={() => setPolar({ [key]: value })}>{text}</Btn>)}
+              </Row>)}
+              <Row label="Rings">
+                <Btn variant="slate" small active={!polarSettings.manual} aria-pressed={!polarSettings.manual} onClick={() => setPolar({ manual: null })}>Auto</Btn>
+                <Btn variant="slate" small active={!!polarSettings.manual} aria-pressed={!!polarSettings.manual} onClick={() => setPolar({ manual })}>Manual</Btn>
+              </Row>
+              {polarSettings.manual && (resolvedPolarRadius === 'db' ? <>
+                <Row label="Top (dB)"><NumInput label="Top (dB)" min={-3000} max={3000} step={10} value={manual.dbTop}
+                  onChange={dbTop => setPolar({ manual: { ...manual, dbTop } })} /></Row>
+                <Row label="Range (dB)"><NumInput label="Range (dB)" min={1} max={1000} step={10} value={manual.dbRange}
+                  onChange={dbRange => setPolar({ manual: { ...manual, dbRange } })} /></Row>
+              </> : <Row label="Maximum"><NumInput label="Maximum radius" min={1e-15} max={1e15} step={0.1} value={manual.linearMax}
+                onChange={linearMax => setPolar({ manual: { ...manual, linearMax } })} /></Row>)}
+              {onFit && <Row label="View"><Btn small onClick={onFit}>Fit</Btn></Row>}
+            </Section>}
+            {!table && !polar && <Section title="Axes">
               {axes ? <>
+                <Row label="X scale"><AxisScaleChoices axis="x" axes={axes} />{axes.suggestLog && <span className="t-caption">Log suggested</span>}</Row>
+                {axes.gainMode && <Row label="Gain display"><div role="group" aria-label="Gain display">
+                  {(['db', 'linear'] as const).map(value => <Btn key={value} variant="slate" small
+                    active={axes.gainMode === value} aria-pressed={axes.gainMode === value}
+                    onClick={() => axes.onChange({ ...axes.values, gain: value })}>{value === 'db' ? 'Decibels' : 'Power ratio'}</Btn>)}
+                </div></Row>}
+                <Row label={axes.gainMode ? 'Y spacing' : 'Y scale'}><AxisScaleChoices axis="y" axes={axes} /></Row>
+                {axes.hasPhase && <Row label="Phase">{(['wrapped', 'unwrapped'] as const).map(value =>
+                  <Btn key={value} variant="slate" small active={axes.values.phase === value} aria-pressed={axes.values.phase === value}
+                    onClick={() => axes.onChange({ ...axes.values, phase: value })}>{value === 'wrapped' ? 'Wrapped' : 'Unwrapped'}</Btn>)}</Row>}
+                <div className="pset-note t-caption">X range: {axes.xRange}<br />Fit, or right-drag on the chart.</div>
                 <Row label="X"><span className="t-readout pset-scale">{axes.x}</span><Btn small onClick={axes.onFitX}>Fit X</Btn></Row>
                 <Row label="Y"><span className="t-readout pset-scale">{axes.y}</span><Btn small onClick={axes.onFitY}>Fit Y</Btn></Row>
               </> : onFit ? <Row label="View"><Btn small onClick={onFit}>Fit the unit circle</Btn></Row>
@@ -235,7 +298,7 @@ export function PaneSettingsPopover({
                 ['Export…', 'Export… (Ctrl+Shift+E)', actions.onExportOptions],
               ] as const).map(([label, title, run]) => run
                 ? <Btn key={label} small title={title} onClick={() => { close(); run(); }}>{label}</Btn>
-                : <Tooltip key={label} text={label === 'Copy as LaTeX' && actions.onCopyImage ? 'Table panes export as an image or CSV' : 'This pane has nothing to export'}><Btn small disabled>{label}</Btn></Tooltip>)}
+                : <Tooltip key={label} text={label === 'Copy as LaTeX' && polar ? 'Not available for Polar panes yet' : label === 'Copy as LaTeX' && actions.onCopyImage ? 'Table panes export as an image or CSV' : 'This pane has nothing to export'}><Btn small disabled>{label}</Btn></Tooltip>)}
               <span className="pset-actions__gap" />
               {actions.onClose
                 ? <Btn small className="pset-close" onClick={() => { close(); actions.onClose?.(); }}>Close pane</Btn>

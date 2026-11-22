@@ -9,6 +9,7 @@ export interface SmithRangeBarProps {
   readonly full: SmithRange;
   readonly range: SmithRange;
   readonly linkedLabel: string | null;
+  readonly allowMixedUnits?: boolean;
   readonly onChange: (range: SmithRange) => void;
   readonly onFull: () => void;
 }
@@ -18,7 +19,7 @@ export interface SmithRangeBarProps {
  * "Range  7.324 GHz → 8.500 GHz  of 10 kHz–8.5 GHz   Full range", with a 2 px track above it.
  * The two values are editable (shared EditableValue); the handles drag and take arrow keys.
  */
-export function SmithRangeBar({ full, range, linkedLabel, onChange, onFull }: SmithRangeBarProps) {
+export function SmithRangeBar({ full, range, linkedLabel, allowMixedUnits, onChange, onFull }: SmithRangeBarProps) {
   const track = useRef<HTMLDivElement>(null);
   const drag = useRef<'start' | 'stop' | null>(null);
   const latest = useRef<SmithRange>(range);
@@ -42,7 +43,7 @@ export function SmithRangeBar({ full, range, linkedLabel, onChange, onFull }: Sm
     event.preventDefault();
     onChange(setValue(which, (which === 'start' ? range.startHz : range.stopHz) + sign * (full.stopHz - full.startHz) / 200 * (event.shiftKey ? 10 : 1), range));
   };
-  const text = rangeParts(shown, full);
+  const text = rangeParts(shown, full, allowMixedUnits);
   const commit = (which: 'start' | 'stop', raw: string): string | null => {
     const parsed = parseRangeInput(raw);
     if (!parsed.ok) return `Not a frequency. Try ${which === 'start' ? text.start : text.stop}`;

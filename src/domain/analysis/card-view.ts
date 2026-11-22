@@ -10,6 +10,7 @@ import { formatCrossingValue, significantStep } from './crossing-rows';
 import { FFT_SCALE_UNITS, FFT_TONE_SCALE } from './fft';
 import type { FftScale } from './fft';
 import { spectrumUnit } from './tools/harmonics';
+import { antennaBearing } from './antenna-far-field';
 
 const FFT_SCALES: readonly FftScale[] = ['dbv', 'v', 'dbm', 'dbmv', 'dbuv', 'dbvhz', 'vrthz', 'dbmhz'];
 
@@ -53,6 +54,38 @@ export function describeNumbers(toolId: string, outputs: readonly AnalysisOutput
   if (!v) return null;
   const at = (y: number, x: number): string => `${fmtY(y, units)} @ ${fmtX(x, units)}`;
   switch (toolId) {
+    case 'antenna-far-field': {
+      const decimal = (value: number) => String(Number(value.toFixed(2))).replace(/^-/, '−');
+      const width = (value: number | undefined) => value === undefined ? '—' : `${decimal(value)}°`;
+      const angle = (value: number | undefined) => width(value === undefined ? undefined : antennaBearing(value));
+      const gainUnit = /^dbi$/i.test(units.y ?? '') ? 'dBi' : /^dbd$/i.test(units.y ?? '') ? 'dBd' : 'dB';
+      const level = (value: number | undefined, unit: string) => {
+        if (value === undefined) return '—';
+        if (!Number.isFinite(value)) return `${value > 0 ? '+' : '−'}∞ ${unit}`;
+        return `${decimal(value)} ${unit}`;
+      };
+      const beamwidth = v['bw3'];
+      const peak = `${level(v['peakGain'], gainUnit)} at ${angle(v['peakAngle'])}`;
+      return {
+        ...(beamwidth === undefined ? {} : { result: {
+          value: decimal(beamwidth), unit: '°',
+          note: `3 dB beamwidth · ${angle(v['bw3Left'])} → ${angle(v['bw3Right'])}`,
+        } }),
+        rows: [
+          { label: 'Main lobe peak', value: peak },
+          ...(beamwidth === undefined ? [{ label: '3 dB beamwidth', value: '—', title: 'Both 3 dB crossings are needed.' }] : []),
+          { label: '10 dB beamwidth', value: width(v['bw10']), title: 'Width between the nearest crossings 10 dB below the peak.' },
+          { label: 'First-minimum width', value: width(v['firstMinimumWidth']), title: 'Width between the first measured minima outside the 3 dB beam.' },
+          { label: 'Front-to-back ratio', value: level(v['frontToBack'], 'dB'), title: 'Peak gain minus the gain exactly 180° away.' },
+          { label: 'Opposite-direction gain', value: level(v['oppositeGain'], gainUnit) },
+          { label: 'Highest secondary lobe', value: v['secondaryLobe'] === undefined ? '—'
+            : `${level(v['secondaryLobe'], 'dB')} at ${angle(v['secondaryAngle'])}`, title: 'Peak outside the first minima, relative to the main lobe.' },
+        ],
+        summary: beamwidth === undefined ? peak : `${width(beamwidth)} at 3 dB`,
+        facts: [beamwidth, v['bw10'], v['firstMinimumWidth'], v['frontToBack'], v['secondaryLobe']].includes(undefined)
+          ? 'A dash means the cut does not resolve that measurement.' : undefined,
+      };
+    }
     case 'bandwidth': {
       const bandwidth = fmtX(v['bandwidth'] ?? NaN, units);
       return { result: { ...splitUnit(bandwidth), note: `centre ${fmtX(v['centre'] ?? NaN, units)} · ${fmtX(v['left'] ?? NaN, units)} → ${fmtX(v['right'] ?? NaN, units)}` },

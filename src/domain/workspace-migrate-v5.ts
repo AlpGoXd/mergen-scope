@@ -3,7 +3,8 @@ import { adaptDisplayTraceToLegacyTrace, adaptDisplayTracesToLegacyTraces } from
 import { autoLinkByUnit, paneXUnits } from './x-link';
 import type { RawFileRecord } from '../types/file';
 import { migrateWorkspaceSnapshot } from './workspace-migrate-v4';
-import { defaultPaneSettings } from '../types/pane';
+import { DEFAULT_CHART_AXES, DEFAULT_POLAR_SETTINGS, defaultPaneSettings } from '../types/pane';
+import type { PolarSettings } from '../types/pane';
 import type { WorkspacePaneV5, WorkspaceSnapshotV5 } from '../types/workspace-v5';
 import type { RefLine } from '../types/ref-line';
 import type { AnalysisInstance } from '../types/analysis-instance';
@@ -120,6 +121,17 @@ const legacyToolIds: Readonly<Record<string, string>> = {
   'touchstone-stability': 'stability', 'ripple-flatness': 'ripple',
 };
 const matrixViews = new Set(['vswr', 'return-loss', 'group-delay']);
+
+function validPolar(value: unknown): value is PolarSettings {
+  if (!object(value) || (value.radius !== 'auto' && value.radius !== 'linear' && value.radius !== 'db')
+    || (value.zero !== 'right' && value.zero !== 'top')
+    || (value.direction !== 'ccw' && value.direction !== 'cw')) return false;
+  const manual = value.manual;
+  if (manual !== null && (!object(manual) || !finite(manual.linearMax) || manual.linearMax <= 0
+    || !finite(manual.dbTop) || !finite(manual.dbRange) || manual.dbRange <= 0 || !Number.isFinite(manual.dbTop - manual.dbRange))) return false;
+  const range = value.range;
+  return range === null || (object(range) && finite(range.startHz) && finite(range.stopHz) && range.startHz <= range.stopHz);
+}
 
 function legacyAnalyses(snapshot: WorkspaceSnapshotV5): { analyses: AnalysisInstance[]; droppedViews: number } {
   const selected = snapshot.selectedTraceName;
@@ -579,7 +591,7 @@ function validCurrent(body: Record<string, unknown>): boolean {
         || !pane.id
         || paneIds.has(pane.id)
         || typeof pane.title !== 'string'
-        || !['cartesian','smith','smith-inverted','table'].includes(String(pane.renderMode))
+        || !['cartesian','smith','smith-inverted','table','polar'].includes(String(pane.renderMode))
         || !(pane.xLinkGroup === null || typeof pane.xLinkGroup === 'string')
         || !object(pane.settings)
     ) return false;
@@ -601,6 +613,11 @@ function validCurrent(body: Record<string, unknown>): boolean {
     for (const key of ['gridMajorThickness','gridMinorThickness']) if (!finite(settings[key]) || Number(settings[key]) < 0.5 || Number(settings[key]) > 5) return false;
     for (const key of ['gridMajorOpacity','gridMinorOpacity']) if (!finite(settings[key]) || Number(settings[key]) < 0 || Number(settings[key]) > 1) return false;
     if (typeof settings.gridDashStyle !== 'string' || !object(settings.smith) || !validTable(settings.table)) return false;
+    const axes = settings.axes;
+    if (!object(axes) || (axes.x !== 'linear' && axes.x !== 'log') || (axes.y !== 'linear' && axes.y !== 'log')
+      || (axes.phase !== 'wrapped' && axes.phase !== 'unwrapped')
+      || (axes.gain !== undefined && axes.gain !== 'db' && axes.gain !== 'linear')) return false;
+    if (!validPolar(settings.polar)) return false;
     const smith = settings.smith;
     if (smith.outside !== undefined && smith.outside !== 'hidden' && smith.outside !== 'faint') return false;
     if (
@@ -889,6 +906,8 @@ function migrateWorkspaceV5Body(raw: unknown): WorkspaceSnapshotV5 | null {
         renderMode: inverted ? 'smith' : pane.renderMode,
         settings: {
           ...pane.settings,
+          axes: pane.settings.axes ?? DEFAULT_CHART_AXES,
+          polar: pane.settings.polar ?? DEFAULT_POLAR_SETTINGS,
           gridMajor,
           smith: {
             ...smith,
@@ -989,10 +1008,17 @@ function migrateWorkspaceV5Body(raw: unknown): WorkspaceSnapshotV5 | null {
       const bounded = (key: keyof typeof defaults, min: number, max: number): number => finite(s[key]) && Number(s[key]) >= min && Number(s[key]) <= max ? Number(s[key]) : defaults[key] as number;
       return {
         id: String(p.id), title: typeof p.title === 'string' ? p.title : '',
-        renderMode: p.renderMode === 'smith-inverted' ? 'smith' : p.renderMode === 'smith' || p.renderMode === 'table' ? p.renderMode : 'cartesian',
-        typed: typeof p.typed === 'boolean' ? p.typed : p.renderMode === 'smith' || p.renderMode === 'smith-inverted' || p.renderMode === 'table',
+        renderMode: p.renderMode === 'smith-inverted' ? 'smith' : p.renderMode === 'smith' || p.renderMode === 'table' || p.renderMode === 'polar' ? p.renderMode : 'cartesian',
+        typed: typeof p.typed === 'boolean' ? p.typed : p.renderMode === 'smith' || p.renderMode === 'smith-inverted' || p.renderMode === 'table' || p.renderMode === 'polar',
         xLinkGroup: typeof p.xLinkGroup === 'string' ? p.xLinkGroup : null,
         settings: {
+          axes: object(s.axes) ? {
+            x: s.axes.x === 'log' ? 'log' : 'linear',
+            y: s.axes.y === 'log' ? 'log' : 'linear',
+            phase: s.axes.phase === 'unwrapped' ? 'unwrapped' : 'wrapped',
+            ...(s.axes.gain === 'db' || s.axes.gain === 'linear' ? { gain: s.axes.gain } : {}),
+          } : DEFAULT_CHART_AXES,
+          polar: validPolar(s.polar) ? s.polar : DEFAULT_POLAR_SETTINGS,
           gridMajor: s.gridMajor === undefined ? p.showGrid !== false : bool('gridMajor'), gridMinor: bool('gridMinor'),
           gridMajorThickness: bounded('gridMajorThickness', 0.5, 5), gridMinorThickness: bounded('gridMinorThickness', 0.5, 5),
           gridMajorOpacity: bounded('gridMajorOpacity', 0, 1), gridMinorOpacity: bounded('gridMinorOpacity', 0, 1),

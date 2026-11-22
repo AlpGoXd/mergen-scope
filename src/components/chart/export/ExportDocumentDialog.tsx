@@ -82,11 +82,12 @@ export function ExportDocumentDialog({ paneId, format: requestedFormat = 'png', 
   const titleVisible = options.figureTitle ?? !paper;
   const image = format !== 'csv' && format !== 'latex';
   const smithSelected = panes.some(pane => ids.includes(pane.id) && paneTypeOfMode(pane.renderMode) === 'smith');
+  const polarSelected = panes.some(pane => ids.includes(pane.id) && pane.renderMode === 'polar');
   const titlePanes = panes.filter(pane => ids.includes(pane.id) && paneTypeOfMode(pane.renderMode) === 'chart');
   const dimensionsValid = options.preset !== 'custom' || (options.width >= 160 && options.width <= 4096 && options.height >= 160 && options.height <= 4096);
   const pdfReason = !PDF_AVAILABLE() ? 'Open the app through a local or hosted web server to use PDF' : undefined;
   const smithNote = "Smith panes aren't in TikZ yet";
-  const latexReason = titlePanes.length ? undefined : smithSelected ? smithNote : 'Select a Chart pane';
+  const latexReason = polarSelected ? 'Not available for Polar panes yet' : titlePanes.length ? undefined : smithSelected ? smithNote : 'Select a Chart pane';
   const blocked = format === 'pdf' && pdfReason || format === 'latex' && latexReason ||
     format !== 'csv' && paper && !(paperHeight >= 30 && paperHeight <= 500) && 'Enter a paper height from 30 to 500 mm.' ||
     image && !dimensionsValid && 'Enter dimensions from 160 to 4096 px.' || undefined;

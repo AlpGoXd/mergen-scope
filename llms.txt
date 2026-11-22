@@ -25,7 +25,7 @@ Files are read and processed locally in the browser and are not uploaded. There 
 
 ## Limits
 
-Mergen Scope is beta. R&S `.dat` is the primary tested instrument path, tested with R&S FSVA3044 exports. Generic tables may need manual column and unit mapping.
+Mergen Scope is beta. Generic tables may need manual column and unit mapping which can done on internal wizzard.
 
 ## How to use
 

@@ -32,9 +32,12 @@ export function paneXUnits(panes: readonly LinkPane[], traces: readonly Trace[],
   }));
 }
 
-/** "frequency (Hz)", "time (s)", or the unit itself. */
+/** Give common X units a quantity name in the link menu. */
 export function describeXUnit(unit: string): string {
-  return unit === 'Hz' ? 'frequency (Hz)' : unit === 's' ? 'time (s)' : unit;
+  if (unit === 'Hz') return 'frequency (Hz)';
+  if (unit === 's') return 'time (s)';
+  if (unit === '°' || unit === 'rad') return `angle (${unit})`;
+  return unit;
 }
 
 export function linkGroupOf(panes: readonly LinkPane[], paneId: string): string | null {

@@ -1,6 +1,21 @@
 import { describe, expect, it } from 'vitest';
 import { admittanceToGamma, gammaToAdmittance, gammaToImpedance, impedanceToGamma, passiveMetrics, portZ0, seriesEquivalent } from '../../src/domain/smith/numerics.ts';
-import { fitViewport, gammaToPoint, panBy, pointToGamma, zoomAt } from '../../src/domain/smith/viewport.ts';
+import { fitViewport, gammaToPoint, panBy, pointToGamma, wheelZoomFactor, zoomAt, zoomRelativeAt } from '../../src/domain/smith/viewport.ts';
+
+it('uses the same anchored wheel zoom for pixel and line scrolling and clamps it relative to fit', () => {
+  const fit = fitViewport(500, 400, [], 25);
+  if (!fit) throw new Error('Missing fitted viewport');
+  const anchor = { x: 381, y: 87 };
+  expect(wheelZoomFactor(-3, 1)).toBe(wheelZoomFactor(-99, 0));
+  const zoom = zoomRelativeAt(fit, fit.scale, anchor, wheelZoomFactor(-99, 0));
+  if (!zoom) throw new Error('Missing zoomed viewport');
+  const point = pointToGamma(anchor, fit);
+  if (!point) throw new Error('Missing cursor point');
+  expect(gammaToPoint(point, zoom)?.x).toBeCloseTo(anchor.x);
+  expect(gammaToPoint(point, zoom)?.y).toBeCloseTo(anchor.y);
+  expect(zoomRelativeAt(fit, fit.scale, anchor, 0.001)?.scale).toBe(fit.scale / 2);
+  expect(zoomRelativeAt(fit, fit.scale, anchor, 1000)?.scale).toBe(fit.scale * 400);
+});
 
 const complex = (result: ReturnType<typeof impedanceToGamma>, re: number, im: number) => {
   expect(result.kind).toBe('value');

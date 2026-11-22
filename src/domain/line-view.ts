@@ -59,7 +59,7 @@ export function lineShowInChoices(line: RefLine, panes: readonly PlacementPane[]
     const targetUnit = entries.find(entry => entry.paneIds.includes(pane.id))?.trace.units.x;
     const sourceUnit = line.axisUnit ? decodeXAxisUnit(line.axisUnit)[1] : entries.find(entry => entry.paneIds.some(id => line.paneIds.includes(id)))?.trace.units.x;
     const aside = reason ? (pane.renderMode === 'table' || !targetGroup ? 'no X axis' : sourceGroup && targetGroup !== sourceGroup && targetUnit && sourceUnit ? `${targetUnit} ≠ ${sourceUnit}` : undefined) : undefined;
-    const kind = { cartesian: 'Chart', smith: 'Smith', 'smith-inverted': 'Smith', table: 'Table' }[pane.renderMode];
+    const kind = { cartesian: 'Chart', smith: 'Smith', 'smith-inverted': 'Smith', table: 'Table', polar: 'Polar' }[pane.renderMode];
     return { id: pane.id, label: `${paneName(panes, pane.id)} · ${kind}`, checked, ...(reason ? { disabledReason: reason } : {}), ...(aside ? { aside } : {}) };
   });
 }

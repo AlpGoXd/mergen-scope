@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  computeLogMarkerHitTolerance,
   computeMarkerHitTolerance,
   computeNearestPixelDist,
   findMarkerHit,
@@ -41,6 +42,20 @@ describe('marker hit lookup', () => {
     const invalid = { marker: { freq: NaN }, index: 9 };
     expect(findMarkerHit([first, invalid, nearer], 100, 4)).toBe(nearer);
     expect(findMarkerHit([first, invalid, nearer], 100, 1)).toBeUndefined();
+  });
+
+  it('uses the same pixel radius near the low and high ends of a log axis', () => {
+    const view = { min: 1e4, max: 1e10 };
+    const width = 600;
+    const tolerance = computeLogMarkerHitTolerance(width, view, view);
+    expect(tolerance).toBeCloseTo(0.07);
+    for (const freq of [1e5, 1e9]) {
+      const marker = { marker: { freq } };
+      expect(findMarkerHit([marker], freq * 10 ** 0.06, tolerance, 'log')).toBe(marker);
+      expect(findMarkerHit([marker], freq * 10 ** 0.08, tolerance, 'log')).toBeUndefined();
+    }
+    expect(findMarkerHit([{ marker: { freq: 0 } }], 1e5, tolerance, 'log')).toBeUndefined();
+    expect(computeLogMarkerHitTolerance(width, { min: 0, max: 10 }, view)).toBe(0);
   });
 });
 

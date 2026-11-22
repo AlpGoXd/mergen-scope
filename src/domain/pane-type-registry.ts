@@ -2,6 +2,7 @@ import type { Trace } from '../types/trace';
 import type { Capability, PaneTypeDefinition, PaneTypeId } from '../types/registry-contract';
 import { resolveDataKind } from './data-kind-registry';
 import type { PaneRenderMode } from '../types/pane';
+import { polarCapability } from './polar';
 
 export interface PaneTypeAdapters {
   /** Supplied by the pane/domain owner so this registry does not duplicate Smith eligibility rules. */
@@ -38,9 +39,9 @@ export function createPaneTypeRegistry(
       appliesTo: trace => adapters.smithCapability(trace).allowed ? { allowed: true } : { allowed: false, reason: 'Smith shows reflections (S11, S22 …)' },
     },
     polar: {
-      id: 'polar', title: 'Polar', description: 'Polar: planned, added when a data kind needs it',
-      status: 'later', laterReason: 'Planned, not built yet', iconKey: 'polar', settings: [], renderMode: null,
-      appliesTo: () => ({ allowed: false, reason: 'Planned, not built yet' }),
+      id: 'polar', title: 'Polar', description: 'Magnitude against angle.',
+      status: 'available', iconKey: 'polar', settings: ['display', 'polar'], renderMode: 'polar',
+      appliesTo: polarCapability,
     },
     eye: {
       id: 'eye', source: 'analysis', title: 'Eye', description: 'Eye: planned, added when a data kind needs it',
@@ -58,6 +59,7 @@ export function createPaneTypeRegistry(
 export function paneTypeOfMode(mode: PaneRenderMode): PaneTypeId {
   if (mode === 'cartesian') return 'chart';
   if (mode === 'table') return 'table';
+  if (mode === 'polar') return 'polar';
   return 'smith';
 }
 

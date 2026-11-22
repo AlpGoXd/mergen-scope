@@ -18,6 +18,9 @@ import { paneName } from '../../../domain/line-view';
 import { paneTypeOfMode } from '../../../domain/pane-type-registry';
 import { formatAdaptiveXAxisValue } from '../../../domain/format';
 import { latexDocument } from '../../../domain/export-latex';
+import { isPhase, unwrapPhase } from '../../../domain/chart/axis-scale';
+import { chartGainView } from '../../../domain/chart/gain-view';
+import { placeMarker } from '../../../domain/markers';
 import type { LatexDocument } from '../../../domain/export-latex';
 import type { ExportDocumentOptions, ExportFormat, ExportGeometry } from '../../../domain/export-document';
 import { exportTraceName, groupExportLegends } from '../../../domain/export-plot';
@@ -30,6 +33,7 @@ import { rememberedExportTheme } from './export-theme-storage';
 import { TraceSymbol } from '../../shared/TraceSymbol';
 import { ChartPane } from '../ChartPane';
 import { SmithPaneContainer } from '../../smith/SmithPaneContainer';
+import { PolarPane } from '../../panes/PolarPane';
 import type { SmithPaneTrace } from '../../smith/SmithPane';
 import { PaneImageExportContext } from './export-context';
 import type { ExportNotice, ExportPlotInfo, ExportView, PaneImageExport } from './export-context';
@@ -68,7 +72,7 @@ type JobMode = 'png' | 'svg' | 'latex';
 interface Job {
   readonly id: number;
   readonly paneId: string;
-  readonly kind: 'chart' | 'smith' | 'table';
+  readonly kind: 'chart' | 'smith' | 'table' | 'polar';
   readonly mode: JobMode;
   readonly options: ExportImageOptions;
   readonly geometry: ExportGeometry;
@@ -113,7 +117,7 @@ export function ExportImageProvider({ children, shortcutsOff = false }: { childr
     const pane = state.panes.find(item => item.id === paneId);
     if (!pane) return 'The pane no longer exists';
     const type = paneTypeOfMode(pane.renderMode);
-    if (type !== 'chart' && type !== 'smith' && type !== 'table') return 'This pane type cannot be exported yet';
+    if (format === 'latex' && type === 'polar') return 'Not available for Polar panes yet';
     if (format === 'latex' && type === 'table') return 'Choose CSV or an image for a Table pane';
     const shown = state.allTraces.some(trace => (state.tracePaneMap[trace.name] ?? []).includes(paneId) && state.vis[trace.name] !== false);
     return shown ? null : `${paneName(state.panes, paneId)} has no traces to export`;
@@ -125,7 +129,7 @@ export function ExportImageProvider({ children, shortcutsOff = false }: { childr
       const reason = unavailable(paneId, mode === 'latex' ? 'latex' : 'image');
       const pane = state.panes.find(item => item.id === paneId);
       const kind = pane && paneTypeOfMode(pane.renderMode);
-      if (reason || (kind !== 'chart' && kind !== 'smith' && kind !== 'table')) { reject(new Error(reason ?? 'The pane no longer exists')); return; }
+      if (reason || (kind !== 'chart' && kind !== 'smith' && kind !== 'table' && kind !== 'polar')) { reject(new Error(reason ?? 'The pane no longer exists')); return; }
       const element = document.querySelector(`[data-testid="chart-pane-${CSS.escape(paneId)}"]`);
       const box = element?.getBoundingClientRect() ?? { width: 800, height: 500 };
       // LaTeX takes its ranges and labels from a print render; its look is set in the .tex itself.
@@ -250,7 +254,7 @@ function textWidth(text: string, font: string): number {
 /** The off-screen render of one pane: the pane's own chart component at the export size, and the legend below it. */
 function ExportStage({ job, onDone }: { job: Job; onDone: (id: number) => void }) {
   const { tracePaneMap, panes } = usePaneState();
-  const { allKnownTraces } = useTraceState();
+  const { allKnownTraces, allTraces } = useTraceState();
   const { traceHueSlots, huePalette } = useUiState();
   const { markers } = useMarkerState();
   const { refLines } = useRefLineState();
@@ -259,6 +263,7 @@ function ExportStage({ job, onDone }: { job: Job; onDone: (id: number) => void }
   const colorTheme = colorThemeOf(theme);
   const names = useMemo(() => Object.entries(tracePaneMap).filter(([, ids]) => ids.includes(job.paneId)).map(([name]) => name), [tracePaneMap, job.paneId]);
   const { paneTraces } = usePaneData(names, null);
+  const paneMembers = useMemo(() => allTraces.filter(trace => names.includes(trace.name)), [allTraces, names]);
   const paperTone = !!job.document && geometry.paper;
   const color = useTraceColors(colorTheme, paperTone);
   const symbol = useTraceSymbols('always');
@@ -293,8 +298,8 @@ function ExportStage({ job, onDone }: { job: Job; onDone: (id: number) => void }
   const hostRef = useRef<HTMLDivElement>(null);
   const started = useRef(false);
   // The export reads the stores as they were when it started.
-  const snapshot = useRef({ paneTraces, color, symbol, markers, refLines, panes });
-  snapshot.current = { paneTraces, color, symbol, markers, refLines, panes };
+  const snapshot = useRef({ paneTraces, paneMembers, color, symbol, markers, refLines, panes });
+  snapshot.current = { paneTraces, paneMembers, color, symbol, markers, refLines, panes };
   const traceCount = paneTraces.length;
 
   useEffect(() => {
@@ -307,7 +312,7 @@ function ExportStage({ job, onDone }: { job: Job; onDone: (id: number) => void }
       for (let frame = 0; frame < 90 && !chart; frame += 1) {
         await nextFrame();
         const host = hostRef.current;
-        const selector = { chart: '[data-export-chart] svg.recharts-surface', smith: 'svg.smith-svg', table: 'svg[data-export-table]' }[job.kind];
+        const selector = { chart: '[data-export-chart] svg.recharts-surface', smith: 'svg.smith-svg', table: 'svg[data-export-table]', polar: 'svg.polar-svg' }[job.kind];
         const candidate = host?.querySelector<SVGSVGElement>(selector) ?? null;
         const box = candidate?.getBoundingClientRect();
         const drawn = job.kind !== 'chart' || ((host?.querySelectorAll('[data-export-chart] .recharts-line').length ?? 0) >= traceCount && (job.mode !== 'latex' || plotInfo.current !== null));
@@ -352,6 +357,7 @@ function ExportStage({ job, onDone }: { job: Job; onDone: (id: number) => void }
       <div style={{ position: 'relative', width: geometry.cssWidth, height: bodyHeight, flex: 'none' }}>
         {job.kind === 'chart' && <ChartPane paneId={job.paneId} exportView={view} />}
         {job.kind === 'smith' && <SmithPaneContainer paneId={job.paneId} exportView={view} />}
+        {job.kind === 'polar' && <PolarPane paneId={job.paneId} exportView={view} />}
         {job.kind === 'table' && <ExportTableSvg paneId={job.paneId} view={view} fontPx={fontPx} />}
       </div>
       {legend.height > 0 && <svg data-export-legend={job.paneId} width={geometry.cssWidth} height={legend.height} viewBox={`0 0 ${geometry.cssWidth} ${legend.height}`} style={{ display: 'block', flex: 'none' }}>
@@ -374,6 +380,7 @@ function ExportStage({ job, onDone }: { job: Job; onDone: (id: number) => void }
 
 interface StageSnapshot {
   readonly paneTraces: ReturnType<typeof usePaneData>['paneTraces'];
+  readonly paneMembers: ReturnType<typeof usePaneData>['paneTraces'];
   readonly color: ReturnType<typeof useTraceColors>;
   readonly symbol: ReturnType<typeof useTraceSymbols>;
   readonly markers: ReturnType<typeof useMarkerState>['markers'];
@@ -416,22 +423,32 @@ function buildLatex(job: Job, info: ExportPlotInfo | null, state: StageSnapshot,
   const first = state.paneTraces[0];
   const span = Math.max(xMax - xMin, 1e-12);
   const traceIndex = new Map(state.paneTraces.map((trace, index) => [trace.name, index]));
+  const gain = chartGainView(state.paneMembers, settings.axes?.gain);
+  const gainTraces = gain.traces === state.paneMembers ? state.paneTraces
+    : state.paneTraces.map(trace => gain.traces.find(item => item.name === trace.name) ?? trace);
+  const displayTraces = gainTraces.map(trace => settings.axes?.phase === 'unwrapped' && isPhase(trace)
+    ? { ...trace, data: unwrapPhase(trace.data, /^rad/i.test(trace.units.y ?? '') ? 2 * Math.PI : 360) } : trace);
   return latexDocument({
     paneName: title,
     date: new Date(),
-    x: { min: xMin, max: xMax, label: info.xLabel, unit: info.xUnit, scale: options ? info.autoX : undefined, ticks: info.xTicks },
-    y: { min: yMin, max: yMax, label: info.yLabel, scale: options ? info.autoY : undefined, ticks: info.yTicks },
+    x: { min: xMin, max: xMax, label: info.xLabel, unit: info.xUnit, scale: options ? info.autoX : undefined, ticks: info.xTicks, logarithmic: info.xScale === 'log' },
+    y: { min: yMin, max: yMax, label: info.yLabel, scale: options ? info.autoY : undefined, ticks: info.yTicks, logarithmic: info.yScale === 'log' },
     grid: options?.grid, legend, caption: options?.include.title, linePt: options?.paperLine, textPt: options?.paperText,
-    traces: state.paneTraces.map(trace => ({ name: named(trace), color: cssColorToRgb(state.color(trace), host), symbol: state.symbol(trace.id), data: trace.data })),
+    traces: displayTraces.map(trace => ({ name: named(trace), color: cssColorToRgb(state.color(trace), host), symbol: state.symbol(trace.id), data: trace.data })),
     markers: settings.showMarkers && options?.include.markerTags !== false ? state.markers.flatMap((marker, index) => {
       const at = traceIndex.get(marker.trace);
       if (at === undefined) return [];
+      const display = displayTraces[at];
+      const amplitude = display && display !== state.paneTraces[at] ? placeMarker(display, marker.freq).amp : marker.amp;
+      if (!Number.isFinite(amplitude) || (info.xScale === 'log' && marker.freq <= 0) || (info.yScale === 'log' && amplitude <= 0)) return [];
       const value = formatAdaptiveXAxisValue(marker.freq, span, { domain: first?.domain ?? 'frequency', unit: first?.units.x ?? (first?.domain === 'time' ? 's' : 'Hz') });
       const id = `${marker.type === 'delta' ? 'DM' : 'M'}${index + 1}`;
       const tag = paperTags?.[id];
-      return [{ label: tag?.text ?? `${id} ${value}`, x: marker.freq, y: marker.amp, trace: at,
+      return [{ label: tag?.text ?? `${id} ${value}`, x: marker.freq, y: amplitude, trace: at,
         shift: paperTags ? tag ? { x: tag.dx * 0.75, y: -tag.dy * 0.75 } : null : undefined }];
     }) : [],
-    lines: (options?.include.refLines ?? settings.showReferenceLines) ? state.refLines.filter(line => line.paneIds.includes(job.paneId)).map(line => ({ type: line.type, value: line.value, label: line.label ?? (line.type === 'v' ? 'V' : 'H') })) : [],
+    lines: (options?.include.refLines ?? settings.showReferenceLines) ? state.refLines.filter(line => line.paneIds.includes(job.paneId))
+      .map(line => ({ type: line.type, value: line.type === 'h' ? gain.toDisplay(line.value) : line.value, label: line.label ?? (line.type === 'v' ? 'V' : 'H') }))
+      .filter(line => Number.isFinite(line.value)) : [],
   }, options?.latex, prefix, job.latexSize);
 }

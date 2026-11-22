@@ -2,6 +2,8 @@ import { nearestIndexByFreq } from '../markers';
 import { pixelToAxisValue } from './plot-coords';
 import type { ZoomWindow } from '../../types/marker';
 import type { DataPoint } from '../../types/trace';
+import type { AxisScale, YDomain } from '../../types/pane';
+import { mapAxisDomain, toAxisSpace } from './axis-scale';
 
 export function computeMarkerHitTolerance(
   plotWidth: number, visibleXSpan: number, dataBounds: { min: number; max: number } | null,
@@ -14,11 +16,23 @@ export function computeMarkerHitTolerance(
   return Math.max((visibleXSpan / plotWidth) * hitRadiusPx, visibleXSpan * 1e-6);
 }
 
+/** Calculate the same screen hit radius in decades for a logarithmic X axis. */
+export function computeLogMarkerHitTolerance(plotWidth: number, view: YDomain | null, bounds: YDomain | null): number {
+  if (!view || !(view.min > 0) || !Number.isFinite(view.max) || view.max <= view.min) return 0;
+  const axis = mapAxisDomain(view, 'log');
+  const data = bounds && bounds.min > 0 && Number.isFinite(bounds.max) ? mapAxisDomain(bounds, 'log') : null;
+  return computeMarkerHitTolerance(plotWidth, axis.max - axis.min, data);
+}
+
+export function withinXAxisTolerance(value: number, target: number, tolerance: number, scale: AxisScale): boolean {
+  return Math.abs(toAxisSpace(value, scale) - toAxisSpace(target, scale)) < tolerance;
+}
+
 /** The first marker within tolerance wins, in array order. */
 export function findMarkerHit<T extends { marker: { freq: number } }>(
-  markers: readonly T[], clickFreq: number, tolerance: number,
+  markers: readonly T[], clickFreq: number, tolerance: number, scale: AxisScale = 'linear',
 ): T | undefined {
-  return markers.find(({ marker }) => Math.abs(marker.freq - clickFreq) < tolerance);
+  return markers.find(({ marker }) => withinXAxisTolerance(marker.freq, clickFreq, tolerance, scale));
 }
 
 /** Pick a trace by its amplitude at the click X. A missing Y mapping leaves the choice to the pane. */
@@ -78,15 +92,15 @@ export function pickPlacementTraceIndex(
 }
 
 export function computeNearestPixelDist(
-  data: readonly DataPoint[], targetFreq: number, domainLeft: number, domainRight: number, plotWidth: number,
+  data: readonly DataPoint[], targetFreq: number, domainLeft: number, domainRight: number, plotWidth: number, scale: AxisScale = 'linear',
 ): number {
   const nearest = data[nearestIndexByFreq(data, targetFreq)];
   if (!nearest || domainRight <= domainLeft || plotWidth <= 0) return Infinity;
 
-  const pxPerUnit = plotWidth / (domainRight - domainLeft);
+  const pxPerUnit = plotWidth / (toAxisSpace(domainRight, scale) - toAxisSpace(domainLeft, scale));
   const pointsInView = data.filter(point => point.freq >= domainLeft && point.freq <= domainRight).length;
   // At less than 20px average spacing, a 10px snap threshold would hide interpolation.
   const avgSpacingPx = pointsInView > 1 ? plotWidth / (pointsInView - 1) : Infinity;
   if (avgSpacingPx < 20) return Infinity;
-  return Math.abs(nearest.freq - targetFreq) * pxPerUnit;
+  return Math.abs(toAxisSpace(nearest.freq, scale) - toAxisSpace(targetFreq, scale)) * pxPerUnit;
 }

@@ -73,7 +73,7 @@ export function useDocumentExport(renderPane: RenderExportPane) {
           const linked = linkedPeers(panes, pane.id).find(id => panes.find(item => item.id === id)?.renderMode === 'cartesian');
           const local = paneXZooms[pane.id];
           const peer = linked ? paneXZooms[linked] : null;
-          const manual = !linked && type === 'smith' ? pane.settings.smith.range : null;
+          const manual = linked ? null : type === 'smith' ? pane.settings.smith.range : type === 'polar' ? pane.settings.polar?.range : null;
           const zoom = local || peer;
           const range = options.csvRange === 'full' ? null : paneViews[pane.id]?.x ?? (zoom
             ? [zoom.left, zoom.right] as const : manual ? [manual.startHz, manual.stopHz] as const : null);

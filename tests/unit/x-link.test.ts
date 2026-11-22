@@ -57,6 +57,18 @@ describe('X link groups', () => {
     expect(canLinkX(five, { ...units, p1: 'V' }, 'p1', 'p2')).toEqual({ ok: false, reason: 'Pane 2 shows frequency (Hz)' });
   });
 
+  it('links matching angle units and reports radians as a distinct numeric axis', () => {
+    const traces = [
+      makeTestTrace({ name: 'degrees', units: { x: 'deg', y: 'dBi' } }),
+      makeTestTrace({ name: 'pattern', units: { x: '°', y: 'dBi' } }),
+      makeTestTrace({ name: 'rad', units: { x: 'radians', y: 'dBi' } }),
+    ];
+    const angular = [pane('p1'), pane('p2', null, 'polar'), pane('p3')];
+    const angleUnits = paneXUnits(angular, traces, { degrees: ['p1'], pattern: ['p2'], rad: ['p3'] });
+    expect(canLinkX(angular, angleUnits, 'p1', 'p2')).toEqual({ ok: true });
+    expect(canLinkX(angular, angleUnits, 'p1', 'p3')).toEqual({ ok: false, reason: 'Pane 3 shows angle (rad)' });
+  });
+
   it('lists the other panes for the "Link X with" menu, greyed with the reason', () => {
     const linked = [pane('p1', 'x1'), pane('p2', 'x1'), pane('p3'), pane('p4'), pane('p5')];
     expect(linkMenuRows(linked, units, 'p1')).toEqual([

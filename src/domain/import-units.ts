@@ -30,6 +30,8 @@ export const X_UNITS: Readonly<Record<TraceDomain, readonly ImportUnit[]>> = {
     { id: "kHz", factor: 1e3, base: "Hz", name: "kilohertz" },
     { id: "MHz", factor: 1e6, base: "Hz", name: "megahertz" },
     { id: "GHz", factor: 1e9, base: "Hz", name: "gigahertz" },
+    { id: "°", factor: 1, base: "°", name: "degrees" },
+    { id: "rad", factor: 1, base: "rad", name: "radians" },
   ],
 };
 
@@ -42,6 +44,7 @@ export const Y_UNITS: readonly ImportUnit[] = [
   { id: "W", factor: 1, base: "W", name: "watts" },
   { id: "mW", factor: 1e-3, base: "W", name: "milliwatts" },
   { id: "dB", factor: 1, base: "dB", name: "decibels" },
+  { id: "dBi", factor: 1, base: "dBi", name: "gain relative to isotropic" },
   { id: "dBm", factor: 1, base: "dBm", name: "dB milliwatt" },
   { id: "dBV", factor: 1, base: "dBV", name: "dB volt" },
   { id: "", factor: 1, base: "", name: "no unit" },
@@ -76,6 +79,8 @@ function unitText(header: string): string {
 }
 
 const X_PATTERNS: readonly (readonly [RegExp, TraceDomain, string])[] = [
+  [/^(?:°|deg(?:rees?)?)$/, "frequency", "°"],
+  [/^rad(?:ians?)?$/, "frequency", "rad"],
   [/\bghz\b/, "frequency", "GHz"],
   [/\bmhz\b/, "frequency", "MHz"],
   [/\bkhz\b/, "frequency", "kHz"],
@@ -94,6 +99,7 @@ export function detectXUnit(header: string): { domain: TraceDomain; unit: string
 }
 
 const Y_PATTERNS: readonly (readonly [RegExp, string])[] = [
+  [/\bdbi\b/, "dBi"],
   [/\bdbm\b/, "dBm"],
   [/\bdbv\b/, "dBV"],
   [/\bdb\b/, "dB"],

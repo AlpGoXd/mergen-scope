@@ -184,7 +184,10 @@ export function ToolGroups() {
       {aggregate && <LayoutMenu paneCount={panes.length} limit={limit} className="zone-tool" />}
       <Btn small className="zone-tool" disabled={panes.length >= limit || !aggregate} title={panes.length >= limit ? `Maximum ${limit} panes` : 'Add a pane'} onClick={() => { const targetPaneId = activePaneId ?? panes[0]?.id; if (targetPaneId) aggregate?.dispatch({ slice: 'layout', action: { type: 'ADD_PANE_AFTER', targetPaneId, limit } }); }}>+ Pane</Btn>
       <Btn small className="zone-tool" disabled={panes.length <= 1 || !aggregate} title={panes.length <= 1 ? "At least one pane must remain" : !aggregate ? "Pane removal requires workspace history" : "Remove the last pane"} onClick={removeLastPane}>− Pane</Btn>
-      <Btn small className="zone-tool" title="Fit all panes" onClick={() => paneDispatch({ type: 'CLEAR_ALL_ZOOMS' })}>Fit all</Btn>
+      <Btn small className="zone-tool" title="Fit all panes" onClick={() => {
+        paneDispatch({ type: 'CLEAR_ALL_ZOOMS' });
+        window.dispatchEvent(new CustomEvent('mergen-fit-pane', { detail: { paneId: null } }));
+      }}>Fit all</Btn>
     </ToolZone>
   </div>;
 }
