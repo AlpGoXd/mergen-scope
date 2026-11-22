@@ -29,6 +29,15 @@ Mergen Scope is beta. R&S `.dat` is the primary tested instrument path, tested w
 
 [Open the app](https://mergenscope.com/app.html) and drop a file into the workspace, or [try the demo](https://mergenscope.com/app.html?demo=1).
 
+## Guides
+
+- [User guide](https://mergenscope.com/guide/): Workspace overview and guide index.
+- [Oscilloscope CSV](https://mergenscope.com/guide/open-oscilloscope-csv/): Import and analyze waveform columns.
+- [Touchstone and Smith chart](https://mergenscope.com/guide/touchstone-s2p-smith-chart/): Network views and analysis.
+- [R&S DAT](https://mergenscope.com/guide/rs-spectrum-analyzer-dat/): Open spectrum analyzer exports.
+- [Trace math](https://mergenscope.com/guide/trace-math/): Trace alignment and unit rules.
+- [Analysis tools](https://mergenscope.com/guide/analysis-tools/): Tool inputs, settings and outputs.
+
 ## Links
 
 - [Source on GitHub](https://github.com/AlpGoXd/mergen-scope)
