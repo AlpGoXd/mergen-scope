@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { buildPanes } from '../../src/domain/pane-math';
-import { buildSnapshot } from '../../src/domain/workspace-serialize';
+import { initialWorkspaceState, snapshotFromWorkspace } from '../../src/stores/aggregate-workspace-store';
 import { applyAppSize, DEFAULT_APP_SIZE, normalizeAppSize, readStoredAppSize } from '../../src/components/settings/app-size';
 import { defaultAppPreferences, readAppPreferences } from '../../src/components/settings/SettingsSheet';
 import { makeTestTrace } from './helpers';
@@ -51,63 +50,15 @@ describe('app size preference', () => {
   it('is not part of a saved workspace', () => {
     localStorage.setItem(key, JSON.stringify({ size: 'large' }));
     const trace = makeTestTrace();
-    const panes = buildPanes(1);
-        const snapshot = buildSnapshot({
-          files: [{
-            id: "file-1",
-            fileName: "fixture.dat",
-            meta: {},
-            traces: [trace],
-            format: "rs-dat",
-          }],
-          datasets: [],
-          displayTraces: [],
-          derivedTraces: [],
-          vis: { [trace.name]: true },
-          paneMode: 1,
-          panes,
-          paneRenderModes: {},
-          activePaneId: "pane-1",
-          traceAssignments: { [trace.name]: "pane-1" },
-          paneActiveTraceMap: { "pane-1": trace.name },
-          xZoomState: { zoomAll: true, sharedZoom: null, paneXZooms: {} },
-          yZoomState: { paneYZooms: {} },
-          ui: {
-            showSidebar: true,
-            showDetailedFiles: true,
-            showRightPanel: false,
-            showDots: false,
-            showMeta: true,
-            showTouchstoneControls: false,
-            showMarkers: true,
-            showMarkerTools: true,
-            showPaneTools: true,
-            showSearchTools: true,
-            showLineTools: true,
-            showViewTools: true,
-            theme: "dark",
-            searchDirection: "right",
-            newMarkerArmed: false,
-            markerTrace: "__auto__",
-            selectedMkrIdx: -1,
-            dRef: null,
-            refMode: null,
-            selectedRefLineId: null,
-            traceOpsOpenSections: { offset: false, scale: false, smoothing: false, subtract: false },
-            noiseFilter: "gaussian",
-            noiseSource: null,
-            ip3Gain: "",
-            dtTrace: null,
-            traceColors: {},
-            traceInterpolations: {},
-          },
-          markers: [{ trace: trace.name, requestedFreq: 10, freq: 10, amp: 10, type: "normal", label: null, refIdx: null, interpolated: false }],
-          refLines: [{ id: 1, type: "v", value: 10, paneIds: ["pane-1"], label: "V1" }],
-          savedNoise: [],
-          savedIP3: [],
-          analysisOpenState: {},
-          selectedTraceName: trace.name,
-        });
+    const state = initialWorkspaceState();
+    const snapshot = snapshotFromWorkspace({
+      ...state,
+      files: {
+        ...state.files,
+        files: [{ id: 'file-1', fileName: 'fixture.dat', meta: {}, traces: [trace], format: 'rs-dat' }],
+      },
+    });
+    if (!snapshot) throw new Error('Expected a saved workspace');
     const text = JSON.stringify(snapshot);
     expect(text).not.toContain(key);
     expect(text).not.toMatch(/"(size|density)":"(compact|comfortable|large)"/);
