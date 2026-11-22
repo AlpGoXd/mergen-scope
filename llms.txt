@@ -13,7 +13,11 @@ Not tied to one instrument brand: any waveform or measurement that an oscillosco
 
 ## Analysis tools
 
-Noise PSD, IP3, Peak Table, Range Statistics, Bandwidth, Threshold crossings, Line crossings, Ripple, Occupied bandwidth, Channel power, Reciprocity / Isolation, Stability, Offset / Scale, Smooth, Trace math, Waveform, FFT, Harmonics and Resample. Tools have data requirements; for example, Stability and Reciprocity / Isolation require a two-port network.
+Noise PSD, IP3, Peak Table, Range Statistics, Bandwidth, Antenna far field (beamwidth, peak bearing, front-to-back ratio and secondary lobes on a gain cut against angle), Threshold crossings, Line crossings, Ripple, Occupied bandwidth, Channel power, Reciprocity / Isolation, Stability, Offset / Scale, Smooth, Trace math, Waveform, FFT, Harmonics and Resample. Tools have data requirements; for example, Stability and Reciprocity / Isolation require a two-port network.
+
+## Views
+
+Chart panes (linear or logarithmic axes), Table panes, Smith chart panes and Polar panes (magnitude against angle, for example an antenna gain cut). Up to four panes, with linked X axes. Traces can be dragged onto panes, and traces and analysis cards can be reordered by dragging.
 
 ## Export
 
@@ -39,6 +43,10 @@ Mergen Scope is beta. Generic tables may need manual column and unit mapping whi
 - [R&S DAT](https://github.com/AlpGoXd/mergen-scope/blob/main/docs/guide/rs-spectrum-analyzer-dat.md): Open spectrum analyzer exports.
 - [Trace math](https://github.com/AlpGoXd/mergen-scope/blob/main/docs/guide/trace-math.md): Trace alignment and unit rules.
 - [Analysis tools](https://github.com/AlpGoXd/mergen-scope/blob/main/docs/guide/analysis-tools.md): Tool inputs, settings and outputs.
+
+## Design
+
+The full design specification is one self-contained page: [Design review](https://mergenscope.com/design-review.html). It covers the rules, colours and themes, the panels, every pane type, the toolbar, the import flows and the landing page. Source and notes: [docs/design](https://github.com/AlpGoXd/mergen-scope/blob/main/docs/design/README.md).
 
 ## Links
 

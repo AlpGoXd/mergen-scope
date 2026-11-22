@@ -8,7 +8,7 @@
 
 **A browser workspace for spectrum analyzer, scope and S-parameter files. Your files stay in your browser.**
 
-[**Try the demo**](https://mergenscope.com/app.html?demo=1) · [**Open the app**](https://mergenscope.com/app.html) · [User guide](docs/guide/README.md) · [Sample files](test%20files/) · [Feedback](https://github.com/AlpGoXd/mergen-scope/discussions)
+[**Try the demo**](https://mergenscope.com/app.html?demo=1) · [**Open the app**](https://mergenscope.com/app.html) · [User guide](docs/guide/README.md) · [Design review](https://mergenscope.com/design-review.html) · [Sample files](test%20files/) · [Feedback](https://github.com/AlpGoXd/mergen-scope/discussions)
 
 ![Mergen Scope workspace with a four-pane layout showing gain, Smith chart, waveforms, and two-tone IP3 analysis](docs/images/mergen-scope-workspace.png)
 
@@ -37,8 +37,9 @@ R&S `.dat` is the primary tested instrument path. Generic tables may need manual
 - **Spectrum and RF:** harmonics (THD, SFDR), IP3, noise PSD, occupied bandwidth and channel power.
 - **Time domain:** frequency, period, levels, RMS, rise/fall time, overshoot and duty cycle; resample; FFT with windows, averaging and max hold.
 - **Networks:** Smith chart with impedance, admittance, VSWR and return-loss readouts; two-port stability and reciprocity/isolation.
+- **Antennas:** Polar panes for gain cuts against angle, and an antenna far-field card for beamwidth, peak bearing, front-to-back ratio and secondary lobes.
 - **Trace math:** offset/scale, smoothing (moving average, median, Savitzky-Golay) and add, subtract, multiply or divide of two traces.
-- **Workspace:** up to four panes (experimental eight), linked X axes, undo/redo, save/restore as JSON, CSV export.
+- **Workspace:** up to four panes (experimental eight), linear or logarithmic chart axes, linked X axes, drag traces onto panes and reorder traces and analysis cards by dragging, undo/redo, save/restore as JSON, CSV export.
 
 A typical chain: `Time capture -> Resample if needed -> FFT -> Harmonics / Peak Table / Channel power`.
 
@@ -138,7 +139,7 @@ The aggregate workspace provider coordinates changes across files, traces, panes
 
 ### Current scope
 
-- Chart, Table and Smith panes exist. Polar, eye and spectrogram views are marked as planned.
+- Chart, Table, Smith and Polar panes exist. Constellation and spectrogram panes and the eye diagram are planned; see [docs/plan.md](docs/plan.md).
 - Network input is S-parameter Touchstone data. Stability and reciprocity/isolation are two-port only.
 - FFT, Waveform and Harmonics run on the main thread, so very large captures can be slow. Files over 50 MB ask before
   opening, and files over 500 MB are refused.
@@ -155,4 +156,5 @@ Issues and pull requests are welcome. Before opening a PR, run typecheck, unit t
 [Apache-2.0](LICENSE).
 
 **Alp Gokalp**, RF/Microwave Engineering, Analog IC Design<br>
+Made With Love &lt;3<br>
 [GitHub](https://github.com/alpgoxd) · [alpgokalp@hotmail.com.tr](mailto:alpgokalp@hotmail.com.tr)
