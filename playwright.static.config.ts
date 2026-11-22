@@ -1,5 +1,8 @@
 import { defineConfig, devices } from "@playwright/test";
 
+// PW_STATIC_PORT runs the built-bundle suite on its own preview server, so parallel folders never share one.
+const port = Number(process.env.PW_STATIC_PORT ?? 4173);
+
 export default defineConfig({
   testDir: "tests/static",
   timeout: 30_000,
@@ -8,7 +11,7 @@ export default defineConfig({
   },
   reporter: [["list"], ["html", { open: "never", outputFolder: "playwright-report-static" }]],
   use: {
-    baseURL: "http://127.0.0.1:4173",
+    baseURL: `http://127.0.0.1:${port}`,
     trace: "on-first-retry",
   },
   projects: [
@@ -18,8 +21,8 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: "npm run preview -- --host 127.0.0.1 --port 4173",
-    url: "http://127.0.0.1:4173/app.html",
+    command: `npm run preview -- --host 127.0.0.1 --port ${port} --strictPort`,
+    url: `http://127.0.0.1:${port}/app.html`,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
   },

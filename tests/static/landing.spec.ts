@@ -3,7 +3,7 @@ import type { Page } from '@playwright/test';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 
-const ORIGIN = 'http://127.0.0.1:4173';
+const ORIGIN = `http://127.0.0.1:${process.env.PW_STATIC_PORT ?? 4173}`;
 const { version } = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')) as { version: string };
 
 function watchOrigins(page: Page) {

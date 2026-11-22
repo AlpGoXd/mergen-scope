@@ -7,7 +7,7 @@ test('landing and demo run under the Pages CSP without external requests', async
   expect(policy).toBeTruthy();
   const external: string[] = [];
   const violations: string[] = [];
-  page.on('request', request => { if (new URL(request.url()).origin !== 'http://127.0.0.1:4173') external.push(request.url()); });
+  page.on('request', request => { if (new URL(request.url()).origin !== `http://127.0.0.1:${process.env.PW_STATIC_PORT ?? 4173}`) external.push(request.url()); });
   page.on('console', message => { if (message.text().includes('Content Security Policy')) violations.push(message.text()); });
   await page.route('**/*', async route => {
     const response = await route.fetch();
