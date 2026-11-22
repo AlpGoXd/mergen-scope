@@ -26,24 +26,69 @@ No file at hand? [Load the demo workspace](https://mergenscope.com/app.html?demo
 | --- | --- | --- |
 | R&S `.dat` | Spectrum traces with span, RBW and detector metadata. Amplitude-only exports rebuild the X axis from Start/Stop. | R&S FSVA3044 exports (`cascade_ip3_*.DAT`) |
 | `.csv`, `.tsv`, `.txt`, tabular `.dat` | Time or frequency traces. An import wizard maps delimiter, header rows, X/Y columns, multipliers and units. | Oscilloscope CSVs (`scope_1khz_sine_100ksps.csv`) |
-| Touchstone `.s1p` to `.sNp` (1.x and 2.0) | S-parameter networks in RI, MA or dB/angle form, with S, Y, Z and (two-port) ABCD views, VSWR, return loss, group delay and a Smith chart. | `cascaded chain.s2p` |
+| Touchstone `.s1p` to `.s16p` (1.x and 2.0) | S-parameter networks in RI, MA or dB/angle form, with S, Y, Z and (two-port) ABCD views, VSWR, return loss, group delay and a Smith chart. | `cascaded chain.s2p` |
 | Workspace `.json` | A saved session: data, panes, markers, lines and analyses. | Round trip in the unit tests |
 
 R&S `.dat` is the primary tested instrument path. Generic tables may need manual column and unit mapping.
 
-## What you can measure
+## Features
 
-- **Markers and lines:** normal and delta markers, peak and minimum search, tone roles for IP3, and reference lines that list their intersections with traces.
+### Four pane types
+
+- **Chart:** traces against frequency or time on linear or logarithmic axes. Right-drag to zoom, Ctrl+drag to pan, scroll to zoom the Y axis, double-click to fit. X axes can be linked across panes, and the measured sample dots appear once you zoom in far enough to tell them apart.
+- **Smith chart:** reflections (S11, S22, ...) as impedance or admittance, with a frequency range bar and Z, Γ and VSWR readouts under the pointer.
+- **Polar:** magnitude against angle, for example an antenna gain cut.
+- **Table:** every sample of a pane's traces as rows.
+
+Up to four panes (an experimental eight-pane layout too). Drag traces onto panes, and reorder traces and analysis cards by dragging.
+
+### Unit-aware trace math
+
+- **A + B, A − B, A × B, A ÷ B**, with the result unit worked out from the inputs: dBm + dB gives dBm, dBm − dBm gives dB, V × V gives V².
+- It **warns, never blocks**, on mistakes such as adding two dBm levels (convert to watts first to add powers).
+- Traces on different X points: you choose whose points to use (A's, B's or both) and how to fill the gaps (linear, cubic, nearest, previous, next or sinc). Nothing is extrapolated, and a time trace is never combined with a frequency trace.
+- Touchstone traces are interpolated on their complex values before converting to dB or phase.
+- A math trace follows its inputs; freeze a copy to keep it fixed. More in the [trace math guide](docs/guide/trace-math.md).
+
+### Import wizard
+
+- Detects the delimiter (comma, semicolon or tab) and the header rows, with a live table and plot preview.
+- Pick the X column and one or more Y columns, set units and multipliers, and choose the time or frequency domain.
+- Blank or non-numeric cells are skipped instead of becoming zeros, binary files are refused, files over 50 MB ask first and files over 500 MB are refused. More in the [CSV guide](docs/guide/oscilloscope-csv.md).
+
+### Markers and lines
+
+- Normal and delta markers, peak and minimum search, next peak in either direction, and tone roles for IP3. Markers interpolate between samples and snap to sparse ones.
+- Vertical and horizontal reference lines that list their intersections with traces. Dragging a marker or a line is one undo step.
+
+### Analysis
+
 - **Spectrum and RF:** harmonics (THD, SFDR), IP3, noise PSD, occupied bandwidth and channel power.
 - **Time domain:** frequency, period, levels, RMS, rise/fall time, overshoot and duty cycle; resample; FFT with windows, averaging and max hold.
-- **Networks:** Smith chart with impedance, admittance, VSWR and return-loss readouts; two-port stability and reciprocity/isolation.
-- **Antennas:** Polar panes for gain cuts against angle, and an antenna far-field card for beamwidth, peak bearing, front-to-back ratio and secondary lobes.
-- **Trace math:** offset/scale, smoothing (moving average, median, Savitzky-Golay) and add, subtract, multiply or divide of two traces.
-- **Workspace:** up to four panes (experimental eight), linear or logarithmic chart axes, linked X axes, drag traces onto panes and reorder traces and analysis cards by dragging, undo/redo, save/restore as JSON, CSV export.
+- **Networks:** VSWR, return loss and group delay views; two-port stability (K and μ) and reciprocity/isolation.
+- **Antennas:** an antenna far-field card for beamwidth, peak bearing, front-to-back ratio and secondary lobes on a gain cut.
+- **Trace tools:** offset/scale, smoothing (moving average, median, Savitzky-Golay), peak table, range statistics, bandwidth, ripple and threshold or line crossings.
 
 A typical chain: `Time capture -> Resample if needed -> FFT -> Harmonics / Peak Table / Channel power`.
 
-Each tool states when it cannot use the selected data. FFT needs evenly spaced time samples, Channel power needs density units such as `dBm/Hz`, and the network cards need a two-port. SNR, SINAD, ENOB and THD+N need the window and noise-bandwidth information that only the app's own FFT spectra carry, so they are not reported for ordinary analyzer traces.
+Each tool states when it cannot use the selected data. FFT needs evenly spaced time samples, Channel power needs density units such as `dBm/Hz`, and the network cards need a two-port. SNR, SINAD, ENOB and THD+N need the window and noise-bandwidth information that only the app's own FFT spectra carry, so they are not reported for ordinary analyzer traces. Every tool is described in [Analysis tools](docs/guide/analysis-tools.md).
+
+### Export
+
+- PNG, SVG, PDF and LaTeX (pgfplots/TikZ) figures, plus CSV data. Paper sizes match the text size of a paper, for example one IEEE column at 300 dpi.
+- Copy an image or the LaTeX code straight to the clipboard.
+
+### Look and workspace
+
+- Light and dark themes, eight neutral tints, a high-contrast mode and a colour-blind trace palette, with trace symbols to tell traces apart without colour.
+- Undo and redo for every change, workspaces saved and restored as JSON (older formats are migrated), a demo workspace and a keyboard shortcut reference.
+
+## Design
+
+The whole design is specified in one detailed page: the rules every screen follows, colours and themes, every panel and pane type, the toolbar, the import flows and the landing page.
+
+- **[Open the design review](https://mergenscope.com/design-review.html)** in your browser.
+- Source: [`docs/design/design-review.html`](docs/design/design-review.html), with notes in [`docs/design/README.md`](docs/design/README.md) and exact colour values in [`docs/design/colour-values.md`](docs/design/colour-values.md).
 
 ## Privacy
 
