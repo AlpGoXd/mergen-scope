@@ -22,6 +22,7 @@ import { useSharedHoverPublisher, useSharedHoverValue } from '../../stores/share
 import { useLegendDodge } from '../../hooks/use-legend-dodge';
 import { usePointerReadoutPublisher } from '../../stores/pointer-readout-store';
 import { formatPointerXY } from '../../domain/footer-state';
+import { dragReducer, idleDragState } from '../../domain/chart/drag-state';
 import {
   computeMarkerHitTolerance as markerHitToleranceForPlot,
   computeNearestPixelDist as nearestPixelDistForPlot,
@@ -358,13 +359,16 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
     if (historyDispatch) historyDispatch({ type: 'change', ...(toastKind ? { toastMessage: message, toastKind } : {}), command: { slice: 'lines', action } });
     else refLineDispatch(action);
   };
-  const [dragStart, setDragStart] = React.useState<number | null>(null);
-  const [dragCurrent, setDragCurrent] = React.useState<number | null>(null);
-  const [zoomDragActive, setZoomDragActive] = React.useState(false);
-  const [panStartZoom, setPanStartZoom] = React.useState<{ left: number; right: number } | null>(null);
-  const [panStartClientX, setPanStartClientX] = React.useState<number | null>(null);
-  const [draggingMarkerIdx, setDraggingMarkerIdx] = React.useState<number | null>(null);
-  const [draggingRefLineId, setDraggingRefLineId] = React.useState<number | null>(null);
+  const [pointerDrag, dispatchPointerDrag] = React.useReducer(dragReducer, idleDragState);
+  const zoomDrag = 'zoom' in pointerDrag ? pointerDrag.zoom : undefined;
+  const panDrag = 'pan' in pointerDrag ? pointerDrag.pan : undefined;
+  const zoomDragActive = zoomDrag !== undefined;
+  const dragStart = zoomDrag?.start ?? null;
+  const dragCurrent = zoomDrag?.current ?? null;
+  const panStartZoom = panDrag?.startZoom ?? null;
+  const panStartClientX = panDrag?.startClientX ?? null;
+  const draggingMarkerIdx = 'marker' in pointerDrag ? pointerDrag.marker ?? null : null;
+  const draggingRefLineId = 'line' in pointerDrag ? pointerDrag.line ?? null : null;
   const [hoverFreq, setHoverFreq] = React.useState<number | null>(null);
   const chartAreaRef = React.useRef<HTMLDivElement | null>(null);
   const [plotHeight, setPlotHeight] = useState(0);
@@ -402,14 +406,8 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
   const latestPaneTracesRef = React.useRef(paneTraces);
   latestPaneTracesRef.current = paneTraces;
 
-  const clearPointerDragState = React.useCallback(() => {
-    setDragStart(null);
-    setDragCurrent(null);
-    setZoomDragActive(false);
-    setPanStartZoom(null);
-    setPanStartClientX(null);
-    setDraggingMarkerIdx(null);
-    setDraggingRefLineId(null);
+  const finishPointerDrag = React.useCallback((type: 'release' | 'cancel') => {
+    dispatchPointerDrag({ type });
     lastPointerClientXRef.current = null;
     lastPointerClientYRef.current = null;
     lastPointerButtonRef.current = null;
@@ -688,7 +686,7 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
       refLineDispatch({ type: 'SET_SELECTED', payload: null });
       markerDispatch({ type: 'SET_SELECTED_IDX', payload: markerHit.index });
       historyDispatch?.({type:'begin-gesture'});
-      setDraggingMarkerIdx(markerHit.index);
+      dispatchPointerDrag({ type: 'start-marker', index: markerHit.index });
       return;
     }
 
@@ -699,7 +697,7 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
       markerDispatch({ type: 'SET_SELECTED_IDX', payload: -1 });
       refLineDispatch({ type: 'SET_SELECTED', payload: lineHit.id });
       historyDispatch?.({type:'begin-gesture'});
-          setDraggingRefLineId(lineHit.id);
+      dispatchPointerDrag({ type: 'start-line', id: lineHit.id });
       return;
     }
 
@@ -714,7 +712,7 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
       markerDispatch({ type: 'SET_SELECTED_IDX', payload: -1 });
       refLineDispatch({ type: 'SET_SELECTED', payload: hLineHit.id });
       historyDispatch?.({type:'begin-gesture'});
-          setDraggingRefLineId(hLineHit.id);
+      dispatchPointerDrag({ type: 'start-line', id: hLineHit.id });
       return;
     }
 
@@ -771,20 +769,20 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
   const handleMouseUp = () => {
     if (zoomDragActive || panStartZoom) return;
     if (draggingMarkerIdx !== null || draggingRefLineId !== null) historyDispatch?.({type:'commit-gesture'});
-    clearPointerDragState();
+    finishPointerDrag('release');
   };
 
   React.useEffect(() => {
     if (draggingMarkerIdx === null && draggingRefLineId === null) return;
-    const finish = () => { historyDispatch?.({type:'commit-gesture'}); clearPointerDragState(); };
+    const finish = () => { historyDispatch?.({type:'commit-gesture'}); finishPointerDrag('release'); };
     const cancel = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
-      historyDispatch?.({type:'cancel-gesture'}); clearPointerDragState(); event.preventDefault(); event.stopPropagation();
+      historyDispatch?.({type:'cancel-gesture'}); finishPointerDrag('cancel'); event.preventDefault(); event.stopPropagation();
     };
     window.addEventListener('mouseup',finish);
     window.addEventListener('keydown',cancel,true);
     return () => { window.removeEventListener('mouseup',finish); window.removeEventListener('keydown',cancel,true); };
-  },[draggingMarkerIdx,draggingRefLineId,historyDispatch,clearPointerDragState]);
+  },[draggingMarkerIdx,draggingRefLineId,historyDispatch,finishPointerDrag]);
 
   const handleWheel = (e: React.WheelEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -807,8 +805,7 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
       const zoom = paneXZooms[paneId] || null;
       if (!zoom) return;
       e.preventDefault();
-      setPanStartZoom({ left: zoom.left, right: zoom.right });
-      setPanStartClientX(e.clientX);
+      dispatchPointerDrag({ type: 'start-pan', startZoom: { left: zoom.left, right: zoom.right }, startClientX: e.clientX });
       return;
     }
     if (e.button === 2) {
@@ -816,15 +813,12 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
       e.preventDefault();
       const zoom = paneXZooms[paneId] || null;
       if (zoom) {
-        setPanStartZoom({ left: zoom.left, right: zoom.right });
-        setPanStartClientX(e.clientX);
+        dispatchPointerDrag({ type: 'start-pan', startZoom: { left: zoom.left, right: zoom.right }, startClientX: e.clientX });
         return;
       }
       const startFreq = resolveClientFreq(e.clientX);
       if (startFreq == null || !Number.isFinite(startFreq)) return;
-      setDragStart(startFreq);
-      setDragCurrent(startFreq);
-      setZoomDragActive(true);
+      dispatchPointerDrag({ type: 'start-zoom', start: startFreq });
       return;
     }
     if (e.button !== 1) return;
@@ -1084,7 +1078,7 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
       if (zoomDragActive && dragStart !== null) {
         const freq = resolveClientFreq(ev.clientX);
         if (freq != null && Number.isFinite(freq)) {
-          setDragCurrent(freq);
+          dispatchPointerDrag({ type: 'move', current: freq });
         }
         return;
       }
@@ -1124,7 +1118,7 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
           if (yZoom) paneDispatch({ type: 'SET_PANE_Y_ZOOM', payload: { paneId, zoom: yZoom } });
         }
       }
-      clearPointerDragState();
+      finishPointerDrag('release');
     };
 
     window.addEventListener('mousemove', handleWindowMouseMove);
@@ -1134,7 +1128,7 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
       window.removeEventListener('mouseup', handleWindowMouseUp);
     };
   }, [
-    clearPointerDragState,
+    finishPointerDrag,
     dragCurrent,
     dragStart,
     linkedFit,
