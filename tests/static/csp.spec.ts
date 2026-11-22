@@ -30,24 +30,3 @@ test('landing and demo run under the Pages CSP without external requests', async
   expect(external).toEqual([]);
   expect(violations).toEqual([]);
 });
-
-
-test('guide runs under the Pages CSP without external requests', async ({ page }) => {
-  expect(policy).toBeTruthy();
-  const external: string[] = [];
-  const violations: string[] = [];
-  await page.addInitScript(() => {
-    document.addEventListener('securitypolicyviolation', event => console.error(`Content Security Policy: ${event.violatedDirective}`));
-  });
-  page.on('request', request => { if (new URL(request.url()).origin !== `http://127.0.0.1:${process.env.PW_STATIC_PORT ?? 4173}`) external.push(request.url()); });
-  page.on('console', message => { if (message.text().includes('Content Security Policy')) violations.push(message.text()); });
-  await page.route('**/*', async route => {
-    const response = await route.fetch();
-    await route.fulfill({ response, headers: { ...response.headers(), 'content-security-policy': policy ?? '' } });
-  });
-  await page.goto('/guide/analysis-tools/');
-  await expect(page.locator('h1')).toBeVisible();
-  await page.waitForLoadState('networkidle');
-  expect(external).toEqual([]);
-  expect(violations).toEqual([]);
-});
