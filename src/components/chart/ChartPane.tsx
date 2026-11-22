@@ -24,7 +24,7 @@ import { useTraceColors } from '../../hooks/use-trace-colors';
 import { useFileImport } from '../../hooks/use-file-import';
 import { deriveAxisInfo } from '../../domain/units';
 import { defaultTraceForPane } from '../../domain/default-trace';
-import { canRenderInPane, checkPaneAssignment, planEmptyPaneType, planPaneTypeChange } from '../../domain/pane-placement';
+import { canRenderInPane, planPaneTypeChange } from '../../domain/pane-placement';
 import { paneDisplayState } from '../../domain/pane-display-state';
 import { createPaneTypeRegistry, paneTypeOfMode } from '../../domain/pane-type-registry';
 import type { PaneTypeDefinition } from '../../types/registry-contract';
@@ -67,7 +67,7 @@ import type { ExportView } from './export/export-context';
 import { defaultPaneSettings } from '../../types/pane';
 import { usePaneDrag } from './use-pane-drag';
 import { PaneDragOverlay } from './PaneDragOverlay';
-import { refusalGuidance, traceAlreadyInPane } from '../../domain/pane-drop-hints';
+import { planTraceDrop } from '../../domain/pane-drop-hints';
 
 export interface ChartPaneProps {
   paneId: string;
@@ -911,30 +911,21 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
     // Only a known trace name is a trace move; file drags can carry unrelated text/plain too.
     const trace = traceName ? allKnownTraces.find((item) => item.name === traceName) : undefined;
     if (trace) {
-      if (traceAlreadyInPane(tracePaneMap, trace.name, paneId)) return;
-      const entry = { trace, paneIds: [], displayTrace: allDisplayTraces.find(display => display.id === trace.id || display.id === trace.parameters?.['displayTraceId']) };
-      const acceptsCurrent = pane.renderMode === 'smith' || pane.renderMode === 'smith-inverted' ? canRenderInPane(entry, pane) : paneTypes[currentType].appliesTo(trace);
-      const choice = acceptsCurrent.allowed ? { mode: pane.renderMode, reason: undefined } : !pane.typed ? planEmptyPaneType(paneTypes, pane, trace, traceNamesInPane.length === 0) : { mode: null, reason: acceptsCurrent.reason };
-      if (!choice.mode) {
-        drag.showRefusal(refusalGuidance(choice.reason ?? 'Cannot assign trace to this pane.', trace, `Pane ${panes.findIndex(item => item.id === paneId) + 1}`, []));
+      const plan = planTraceDrop({ pane, panes, traces: allKnownTraces, memberships: tracePaneMap, displays: allDisplayTraces }, trace.name, activePaneId, e.altKey);
+      if (plan.kind === 'refused') {
+        drag.showRefusal(plan.reason);
         return;
       }
-      const targetPanes = choice.mode ? panes.map(item => item.id === paneId ? { ...item, renderMode: choice.mode ?? item.renderMode } : item) : panes;
-      const validation = checkPaneAssignment(trace, paneId, allKnownTraces, tracePaneMap, targetPanes, allDisplayTraces);
-      if (!validation.allowed) {
-        drag.showRefusal(refusalGuidance(validation.reason, trace, `Pane ${panes.findIndex(item => item.id === paneId) + 1}`, allKnownTraces.filter(item => tracePaneMap[item.name]?.includes(paneId))));
+      if (plan.kind !== 'move' && plan.kind !== 'add') return;
+      const payload = { trace: plan.trace, targetPaneId: paneId, allTraces: allKnownTraces, drop: true };
+      const action = plan.fromPaneId
+        ? { type: 'MOVE_MEMBERSHIP' as const, payload: { ...payload, fromPaneId: plan.fromPaneId } }
+        : { type: 'ADD_MEMBERSHIP' as const, payload };
+      if (historyDispatch && plan.mode !== pane.renderMode) {
+        historyDispatch({ type: 'change', command: { slice: 'transaction', actions: [{ slice: 'panes', limit, action: { type: 'SET_RENDER_MODE', payload: { paneId, mode: plan.mode } } }, { slice: 'panes', limit, action }] } });
         return;
       }
-      const fromPaneId = activePaneId && tracePaneMap[trace.name]?.includes(activePaneId) ? activePaneId : tracePaneMap[trace.name]?.[0];
-      if (historyDispatch && choice.mode && choice.mode !== pane.renderMode) {
-        const action = fromPaneId
-          ? { type: 'MOVE_MEMBERSHIP' as const, payload: { trace, fromPaneId, targetPaneId: paneId, allTraces: allKnownTraces, drop: true } }
-          : { type: 'ADD_MEMBERSHIP' as const, payload: { trace, targetPaneId: paneId, allTraces: allKnownTraces, drop: true } };
-        historyDispatch({ type: 'change', command: { slice: 'transaction', actions: [{ slice: 'panes', limit, action: { type: 'SET_RENDER_MODE', payload: { paneId, mode: choice.mode } } }, { slice: 'panes', limit, action }] } });
-        return;
-      }
-      if (fromPaneId) paneDispatch({ type: 'MOVE_MEMBERSHIP', payload: { trace, fromPaneId, targetPaneId: paneId, allTraces: allKnownTraces, drop: true } });
-      else paneDispatch({ type: 'ADD_MEMBERSHIP', payload: { trace, targetPaneId: paneId, allTraces: allKnownTraces, drop: true } });
+      paneDispatch(action);
       if (!aggregate) {
         paneDispatch({ type: 'SET_PANE_ACTIVE_TRACE', payload: { paneId, traceName: trace.name } });
         paneDispatch({ type: 'SET_ACTIVE_PANE', payload: paneId });

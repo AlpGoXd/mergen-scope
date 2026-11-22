@@ -47,7 +47,7 @@ test("rejecting a trace drop onto another domain shows a warning", async ({ page
   await timeRow.dispatchEvent("dragstart", { dataTransfer: transfer });
   await target.dispatchEvent("dragover", { dataTransfer: transfer });
   const refusal = target.locator(".pane-drag-overlay--refused");
-  await expect(refusal).toContainText("It's a time capture and Pane 2 shows frequency. Drop it on a time pane, an empty pane or + New pane.");
+  await expect(refusal).toHaveText('s trace, this pane is Hz');
   await expect(page.getByRole("alert")).toHaveCount(0);
   await target.dispatchEvent("drop", { dataTransfer: transfer });
   await timeRow.dispatchEvent("dragend", { dataTransfer: transfer });

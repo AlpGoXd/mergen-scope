@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { dropHint, refusalGuidance, traceAlreadyInPane } from '../../src/domain/pane-drop-hints';
+import { dropHint, planTraceDrop, refusalGuidance, traceAlreadyInPane } from '../../src/domain/pane-drop-hints';
 import { buildPanes } from '../../src/domain/pane-math';
 import { makeTestTrace } from './helpers';
 
@@ -33,5 +33,20 @@ it('includes hidden incompatible members in the refusal hint', () => {
   const time = makeTestTrace({ id: 'time', name: 'time', domain: 'time', family: 'waveform', units: { x: 's', y: 'V' } });
   const hidden = makeTestTrace({ id: 'hidden', name: 'hidden', domain: 'frequency', units: { x: 'Hz', y: 'V' } });
   const hint = dropHint({ drag: { kind: 'trace', traceName: time.name }, pane: target, panes, traces: [time, hidden], memberships: { time: [panes[0].id], hidden: [target.id] }, displays: [] });
-  expect(hint.kind).toBe('refused'); expect(hint.text).toContain('Pane 2 shows frequency');
+  expect(hint.kind).toBe('refused'); expect(hint.text).toBe('s trace, this pane is Hz');
+});
+
+it('plans a move or Alt-add for the same X unit and refuses a different X unit', () => {
+  const panes = buildPanes(3);
+  const [source, frequency, time] = panes;
+  if (!source || !frequency || !time) throw new Error('missing panes');
+  const trace = makeTestTrace({ name: 'trace', domain: 'frequency', units: { x: 'Hz', y: 'V' } });
+  const peer = makeTestTrace({ name: 'peer', domain: 'frequency', units: { x: 'hz', y: 'dBm' } });
+  const waveform = makeTestTrace({ name: 'waveform', domain: 'time', units: { x: 's', y: 'V' } });
+  const input = { panes, traces: [trace, peer, waveform], displays: [], memberships: { trace: [source.id], peer: [frequency.id], waveform: [time.id] } };
+
+  expect(planTraceDrop({ ...input, pane: frequency }, trace.name, source.id)).toMatchObject({ kind: 'move', fromPaneId: source.id });
+  expect(planTraceDrop({ ...input, pane: frequency }, trace.name, source.id, true)).toMatchObject({ kind: 'add', fromPaneId: undefined });
+  expect(planTraceDrop({ ...input, pane: time }, trace.name, source.id)).toMatchObject({ kind: 'refused', text: 'Hz trace, this pane is s' });
+  expect(planTraceDrop({ ...input, pane: time }, trace.name, source.id, true).kind).toBe('refused');
 });

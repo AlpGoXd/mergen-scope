@@ -10,6 +10,7 @@ import { useFileState } from './file-store';
 export interface TraceState {
   derivedTraces: Trace[];
   vis: Record<string, boolean>;
+  listOrder?: readonly string[];
 }
 
 export interface TraceContextValue extends TraceState {
@@ -28,6 +29,7 @@ export type TraceAction =
   | { type: 'SET_DERIVED_INTERPOLATION'; payload: { traceId: string; interpolation: InterpolationStrategy } }
   | { type: 'SET_VISIBILITY'; name: string; visible: boolean }
   | { type: 'SET_ALL_VISIBILITY'; visible: boolean }
+  | { type: 'SET_LIST_ORDER'; payload: readonly string[] }
   | { type: 'RESTORE'; payload: { derivedTraces: Trace[]; vis: Record<string, boolean> } };
 
 export const defaultTraceState: TraceState = {
@@ -40,6 +42,8 @@ export const TraceDispatchContext = createContext<React.Dispatch<TraceAction> | 
 
 export function traceReducer(state: TraceState, action: TraceAction): TraceState {
   switch (action.type) {
+    case 'SET_LIST_ORDER':
+      return { ...state, listOrder: action.payload };
     case 'ADD_DERIVED': {
       return { ...state, derivedTraces: [...state.derivedTraces, action.payload] };
     }

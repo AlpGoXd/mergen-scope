@@ -1,5 +1,7 @@
 ﻿import type { InterpolationStrategy } from '../../types/interpolation';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import type { DragEvent } from 'react';
+import type { ListDropTarget } from '../../hooks/use-list-reorder';
 import type { Trace } from '../../types/trace';
 import type { PaneRenderMode } from '../../types/pane';
 import { TraceRow as KitTrace } from '../left-panel/Rows';
@@ -15,6 +17,9 @@ import { cssColorToHex } from '../../domain/color-hue';
 
 export function TraceRow(props: {
   trace: Trace;
+  dropTarget?: ListDropTarget;
+  onReorderStart?: (event: DragEvent<HTMLDivElement>) => void;
+  onDragEnd: () => void;
   displayName: string;
   subtitle?: string;
   isVisible: boolean;
@@ -39,6 +44,32 @@ export function TraceRow(props: {
 }) {
   const { trace, displayName, subtitle, isVisible, isSelected, paneIds, panes, onTogglePane, onNewPane, newPaneDisabledReason, traceColor, onSelect, onRemove, onRename, onToggle, onColorChange, interpolation, sincDisabledReason, onInterpolationChange, onApplyInterpolation, removeLabel } = props;
   const [editing, setEditing] = useState(false);
+  const [dragging, setDragging] = useState(false);
+  const dragBlocked = useRef(false);
+  const startDrag = (event: DragEvent<HTMLDivElement>) => {
+    if (editing || dragBlocked.current) {
+      event.preventDefault();
+      return;
+    }
+    event.dataTransfer.setData('application/x-mergen-trace', trace.name);
+    props.onReorderStart?.(event);
+    event.dataTransfer.setData('text/plain', trace.name);
+    event.dataTransfer.effectAllowed = 'copyMove';
+    const preview = document.createElement('div');
+    preview.className = 'lp-trace-preview';
+    preview.setAttribute('aria-hidden', 'true');
+    const swatch = document.createElement('span');
+    swatch.className = 'lp-swatch';
+    swatch.style.background = traceColor;
+    const name = document.createElement('span');
+    name.className = 'lp-name';
+    name.textContent = displayName;
+    preview.append(swatch, name);
+    event.currentTarget.append(preview);
+    event.dataTransfer.setDragImage(preview, 8, 10);
+    requestAnimationFrame(() => preview.remove());
+    setDragging(true);
+  };
   useEffect(() => { const start = () => { if (isSelected) setEditing(true); }; window.addEventListener('mergen-rename-trace', start); return () => window.removeEventListener('mergen-rename-trace', start); }, [isSelected]);
   const symbol = useTraceSymbols()(trace.id);
   const { allKnownTraces } = useTraceState();
@@ -55,10 +86,11 @@ export function TraceRow(props: {
     { value: 'cubic', label: 'Cubic spline', note: 'Smooth curve through samples' },
     { value: 'sinc', label: 'Sinc', note: 'Band-limited interpolation on uniform samples' },
   ];
-  const interpControl = <span onClick={event => event.stopPropagation()}><Popover label={labels[interpolation]}><KitMenu label="Interpolation" title="Interpolation" checklist entries={choices.map(choice => ({ label: choice.label, note: choice.note, noteBelow: true, checked: interpolation === choice.value || (interpolation === 'snap' && choice.value === 'exact'), disabledReason: choice.value === 'sinc' ? sincDisabledReason || undefined : undefined, onSelect: () => onInterpolationChange(choice.value) }))} footer={<button type="button" className="lp-link" onClick={() => onApplyInterpolation(interpolation)}>Apply to all traces from this file</button>} /></Popover></span>;
+  const interpControl = <span className="lp-trace__interp" onClick={event => event.stopPropagation()}><Popover label={labels[interpolation]}><KitMenu label="Interpolation" title="Interpolation" checklist entries={choices.map(choice => ({ label: choice.label, note: choice.note, noteBelow: true, checked: interpolation === choice.value || (interpolation === 'snap' && choice.value === 'exact'), disabledReason: choice.value === 'sinc' ? sincDisabledReason || undefined : undefined, onSelect: () => onInterpolationChange(choice.value) }))} footer={<button type="button" className="lp-link" onClick={() => onApplyInterpolation(interpolation)}>Apply to all traces from this file</button>} /></Popover></span>;
   const paneLabels = panes.filter(pane => paneIds.includes(pane.id)).map(pane => ({ id: pane.id, label: `P${panes.findIndex(item => item.id === pane.id) + 1}` }));
   const panesControl = <span className="lp-pane-trigger" style={{ width: `max(20px, calc(${paneIds.length} * (var(--font-caption) * 1.2 + 11px) - 3px))` }} title="Show in panes" onClick={event => event.stopPropagation()}><Popover label={paneLabels.length ? paneLabels.map(item => item.label).join(' ') : '—'}><KitMenu label="Show in" title="Show in" style={{ width: 220 }} checklist entries={[...panes.map(pane => ({ id: pane.id, label: `${pane.title} · ${{ cartesian: 'Chart', smith: 'Smith', 'smith-inverted': 'Smith', table: 'Table' }[pane.type]}`, note: pane.disabledReason, checked: paneIds.includes(pane.id), disabledReason: pane.disabledReason, noteBelow: true, onSelect: () => onTogglePane(pane.id) })), { id: 'new-pane', label: 'New pane', command: true, disabledReason: newPaneDisabledReason, onSelect: onNewPane }]} /></Popover><span className="lp-pane-trigger__face" aria-hidden="true">{paneLabels.length ? paneLabels.map(item => <span className="lp-pane" key={item.id}>{item.label}</span>) : <span className="lp-pane lp-pane--none">&#8212;</span>}</span></span>;
-  return <div data-testid={`trace-row-${trace.name}`} tabIndex={0} onKeyDown={event => { if (event.key === 'F2' && !editing) { event.preventDefault(); event.stopPropagation(); setEditing(true); } }} draggable={!editing} onDragStart={event => { event.dataTransfer.setData('application/x-mergen-trace', trace.name); event.dataTransfer.setData('text/plain', trace.name); event.dataTransfer.effectAllowed = 'move'; }} title={removeLabel}>
+  return <div {...props.dropTarget} data-testid={`trace-row-${trace.name}`} className={dragging ? 'is-trace-dragging' : undefined} tabIndex={0} onKeyDown={event => { if (event.key === 'F2' && !editing) { event.preventDefault(); event.stopPropagation(); setEditing(true); } }} draggable={!editing} onDragStart={startDrag} onDragEnd={() => { dragBlocked.current = false; setDragging(false); props.onDragEnd(); }}
+    onPointerDown={event => { dragBlocked.current = event.target instanceof Element && !!event.target.closest('input, .lp-trace__interp, .lp-icon-btn'); }} title={removeLabel}>
     <KitTrace hue={270} color={traceColor} name={displayName} subline={subtitle} interp={labels[interpolation] as 'Auto' | 'Exact' | 'Lin' | 'Near' | 'Prev' | 'Next' | 'Cub' | 'Sinc'} panes={paneLabels.map(item => item.label)} visible={isVisible} selected={isSelected} created={trace.kind === 'derived'} child={trace.kind === 'derived'} onVisible={onToggle} onSelect={onSelect} onInterp={() => {}} onPanes={() => {}} onRename={() => setEditing(true)} editingName={editing} onCommitName={value => { setEditing(false); onRename(value); }} onCancelName={() => setEditing(false)} onRemove={onRemove} interpControl={interpControl} panesControl={panesControl}
       swatch={<span className={`lp-swatch lp-color-control${symbol !== null ? ' lp-swatch--symbol' : ''}`} style={symbol === null ? { background: isVisible ? traceColor : 'transparent', border: isVisible ? undefined : `1.5px solid ${traceColor}` } : undefined}>{symbol !== null && <svg width="16" height="12" viewBox="-8 -6 16 12" style={{ overflow: 'visible' }}><line x1="-8" y1="0" x2="8" y2="0" stroke={traceColor} strokeWidth={assignment ? traceWidth(assignment) : 1.5} opacity={isVisible ? 1 : 0.4} /><TraceSymbol kind={symbol} color={traceColor} background="var(--panel)" hollow={forcesHollowTraceSymbol(trace.kind, huePalette)} /></svg>}<input type="color" value={cssColorToHex(traceColor) ?? '#000000'} title="Trace color" onClick={event => event.stopPropagation()} onChange={event => onColorChange(event.target.value)} /></span>} />
   </div>;

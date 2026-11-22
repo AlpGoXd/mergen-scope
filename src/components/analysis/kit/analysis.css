@@ -64,6 +64,9 @@
   cursor: pointer; user-select: none;
 }
 .an-card.is-collapsed .an-card__head { border-bottom: 0; }
+.an-card__drag-handle { flex: 0 0 10px; color: var(--text-muted); font-size: 11px; cursor: grab; }
+.an-card__drag-handle::before { content: '⠿'; }
+.an-card__drag-handle:active { cursor: grabbing; }
 .an-card__kind { flex: none; width: 14px; display: inline-flex; justify-content: center; color: var(--analysis-ink); }
 .an-card__title { flex: none; font-weight: var(--fw-semibold); white-space: nowrap; }
 .an-card__source {

@@ -25,6 +25,7 @@ export function snapshotFromWorkspace(state: WorkspaceState): WorkspaceSnapshotV
     datasets: files.files.flatMap(file => file.datasets ?? []),
     displayTraces: files.files.flatMap(file => file.displayTraces ?? []),
     derivedTraces: traces.derivedTraces,
+    traceListOrder: traces.listOrder,
     vis: traces.vis,
     panes: panes.panes,
     paneMode: panes.panes.length,
@@ -74,7 +75,11 @@ export function workspaceFromSnapshot(
     ? [[String(file.id), file.rawText]]
     : []));
   const fileState: FileState = { ...current.files, files, rawFileData, vis: { ...snapshot.vis }, wizardQueue: [] };
-  const traceState: TraceState = { derivedTraces: [...snapshot.derivedTraces], vis: { ...snapshot.vis } };
+  const traceState: TraceState = {
+    derivedTraces: [...snapshot.derivedTraces],
+    vis: { ...snapshot.vis },
+    ...(snapshot.traceListOrder ? { listOrder: snapshot.traceListOrder } : {}),
+  };
   const view = traceView(fileState, traceState);
   const entries: PlacementTrace[] = view.allKnownTraces.map(trace => ({
     trace,
