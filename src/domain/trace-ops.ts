@@ -77,8 +77,8 @@ function interpolateAmpAtFreq(
   let prev: DataPoint | null = null;
 
   for (let i = 0; i < data.length; i++) {
-    const p = data[i]!;
-    if (!Number.isFinite(p.freq) || !Number.isFinite(p.amp)) continue;
+    const p = data[i];
+    if (p === undefined || !Number.isFinite(p.freq) || !Number.isFinite(p.amp)) continue;
     if (p.freq === freq) return p.amp;
     if (p.freq > freq) {
       if (!prev) return null;
@@ -90,12 +90,12 @@ function interpolateAmpAtFreq(
         let p0: DataPoint | null = null;
         let p3: DataPoint | null = null;
         for (let j = i - 2; j >= 0; j--) {
-          const d = data[j]!;
-          if (Number.isFinite(d.freq) && Number.isFinite(d.amp)) { p0 = d; break; }
+          const d = data[j];
+          if (d !== undefined && Number.isFinite(d.freq) && Number.isFinite(d.amp)) { p0 = d; break; }
         }
         for (let k = i + 1; k < data.length; k++) {
-          const d = data[k]!;
-          if (Number.isFinite(d.freq) && Number.isFinite(d.amp)) { p3 = d; break; }
+          const d = data[k];
+          if (d !== undefined && Number.isFinite(d.freq) && Number.isFinite(d.amp)) { p3 = d; break; }
         }
         const cubicAmp = cubicInterpolateSegment(p0, prev, p, p3, freq);
         if (Number.isFinite(cubicAmp) && cubicAmp !== null) return cubicAmp;
@@ -113,9 +113,13 @@ function getOverlapWindow(
   aData: readonly DataPoint[],
   bData: readonly DataPoint[],
 ): { left: number; right: number } | null {
-  if (!aData.length || !bData.length) return null;
-  const left = Math.max(aData[0]!.freq, bData[0]!.freq);
-  const right = Math.min(aData[aData.length - 1]!.freq, bData[bData.length - 1]!.freq);
+  const aFirst = aData[0];
+  const bFirst = bData[0];
+  const aLast = aData[aData.length - 1];
+  const bLast = bData[bData.length - 1];
+  if (aFirst === undefined || bFirst === undefined || aLast === undefined || bLast === undefined) return null;
+  const left = Math.max(aFirst.freq, bFirst.freq);
+  const right = Math.min(aLast.freq, bLast.freq);
   return (Number.isFinite(left) && Number.isFinite(right) && right >= left) ? { left, right } : null;
 }
 
@@ -135,7 +139,9 @@ function overlapArraysMatchExactly(
 ): boolean {
   if (aData.length !== bData.length || !aData.length) return false;
   for (let i = 0; i < aData.length; i++) {
-    if (aData[i]!.freq !== bData[i]!.freq) return false;
+    const a = aData[i];
+    const b = bData[i];
+    if (a === undefined || b === undefined || a.freq !== b.freq) return false;
   }
   return true;
 }
@@ -156,33 +162,46 @@ function medianOfNumbers(vals: readonly number[]): number | null {
   if (!vals.length) return null;
   const sorted = vals.slice().sort((a, b) => a - b);
   const mid = Math.floor(sorted.length / 2);
-  return sorted.length % 2 ? sorted[mid]! : (sorted[mid - 1]! + sorted[mid]!) / 2;
+  const upper = sorted[mid];
+  if (upper === undefined) return null;
+  if (sorted.length % 2) return upper;
+  const lower = sorted[mid - 1];
+  return lower === undefined ? null : (lower + upper) / 2;
 }
 
 function solveLinearSystem(mat: number[][], vec: number[]): number[] | null {
   const n = mat.length;
-  const a = mat.map((row, i) => [...row, vec[i]!]);
+  const a = mat.map((row, i) => [...row, vec[i] ?? NaN]);
   for (let col = 0; col < n; col++) {
-    let pivot = col;
+    const currentRow = a[col];
+    if (currentRow === undefined) return null;
+    let pivotIndex = col;
+    let pivotRow = currentRow;
     for (let row = col + 1; row < n; row++) {
-      if (Math.abs(a[row]![col]!) > Math.abs(a[pivot]![col]!)) pivot = row;
+      const candidate = a[row];
+      if (candidate === undefined) return null;
+      if (Math.abs(candidate[col] ?? NaN) > Math.abs(pivotRow[col] ?? NaN)) {
+        pivotIndex = row;
+        pivotRow = candidate;
+      }
     }
-    if (Math.abs(a[pivot]![col]!) < 1e-12) return null;
-    if (pivot !== col) {
-      const tmp = a[col]!;
-      a[col] = a[pivot]!;
-      a[pivot] = tmp;
+    const d = pivotRow[col];
+    if (d === undefined || Math.abs(d) < 1e-12) return null;
+    if (pivotIndex !== col) {
+      a[col] = pivotRow;
+      a[pivotIndex] = currentRow;
     }
-    const d = a[col]![col]!;
-    for (let j = col; j <= n; j++) a[col]![j] = a[col]![j]! / d;
+    for (let j = col; j <= n; j++) pivotRow[j] = (pivotRow[j] ?? NaN) / d;
     for (let r = 0; r < n; r++) {
       if (r === col) continue;
-      const factor = a[r]![col]!;
+      const row = a[r];
+      if (row === undefined) return null;
+      const factor = row[col];
       if (!factor) continue;
-      for (let c = col; c <= n; c++) a[r]![c] = a[r]![c]! - factor * a[col]![c]!;
+      for (let c = col; c <= n; c++) row[c] = (row[c] ?? NaN) - factor * (pivotRow[c] ?? NaN);
     }
   }
-  return a.map((row) => row[n]!);
+  return a.map((row) => row[n] ?? NaN);
 }
 
 function savitzkyGolayValue(
@@ -197,8 +216,8 @@ function savitzkyGolayValue(
   const xs: number[] = [];
   const ys: number[] = [];
   for (let i = lo; i <= hi; i++) {
-    const d = data[i]!;
-    if (Number.isFinite(d.amp)) {
+    const d = data[i];
+    if (d !== undefined && Number.isFinite(d.amp)) {
       xs.push(i - idx);
       ys.push(d.amp);
     }
@@ -211,18 +230,19 @@ function savitzkyGolayValue(
   const mat: number[][] = [];
   const vec: number[] = [];
   for (let r = 0; r < size; r++) {
-    mat[r] = [];
+    const row: number[] = [];
+    mat[r] = row;
     for (let c = 0; c < size; c++) {
       let sum = 0;
-      for (let k = 0; k < xs.length; k++) sum += Math.pow(xs[k]!, r + c);
-      mat[r]![c] = sum;
+      for (const x of xs) sum += Math.pow(x, r + c);
+      row[c] = sum;
     }
     let rhs = 0;
-    for (let m = 0; m < xs.length; m++) rhs += ys[m]! * Math.pow(xs[m]!, r);
+    for (let m = 0; m < xs.length; m++) rhs += (ys[m] ?? NaN) * Math.pow(xs[m] ?? NaN, r);
     vec[r] = rhs;
   }
-  const coeff = solveLinearSystem(mat, vec);
-  return coeff && Number.isFinite(coeff[0]) ? coeff[0]! : ys.reduce((a, b) => a + b, 0) / ys.length;
+  const intercept = solveLinearSystem(mat, vec)?.[0];
+  return intercept !== undefined && Number.isFinite(intercept) ? intercept : ys.reduce((a, b) => a + b, 0) / ys.length;
 }
 
 // ---------------------------------------------------------------------------
@@ -236,7 +256,7 @@ export function smoothTraceData(
   windowSize: unknown,
   polyOrder?: unknown,
 ): SmoothResult {
-  const src = Array.isArray(data) ? data : [];
+  const src: readonly DataPoint[] = Array.isArray(data) ? data : [];
   if (!src.length) return { data: [], window: Number(windowSize) || 3, polyOrder: null };
   const mode = method ?? "moving-average";
 
@@ -260,7 +280,8 @@ export function smoothTraceData(
         let sum = 0;
         let count = 0;
         for (let i = lo; i <= hi; i++) {
-          if (Number.isFinite(src[i]!.amp)) { sum += src[i]!.amp; count++; }
+          const sample = src[i];
+          if (sample !== undefined && Number.isFinite(sample.amp)) { sum += sample.amp; count++; }
         }
         return { freq: p.freq, amp: count ? sum / count : p.amp };
       }),
@@ -276,7 +297,8 @@ export function smoothTraceData(
         const hi = Math.min(src.length - 1, idx + half);
         const vals: number[] = [];
         for (let i = lo; i <= hi; i++) {
-          if (Number.isFinite(src[i]!.amp)) vals.push(src[i]!.amp);
+          const sample = src[i];
+          if (sample !== undefined && Number.isFinite(sample.amp)) vals.push(sample.amp);
         }
         const med = medianOfNumbers(vals);
         return { freq: p.freq, amp: Number.isFinite(med) && med !== null ? med : p.amp };
