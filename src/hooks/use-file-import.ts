@@ -1,17 +1,15 @@
 import { useCallback, useRef } from 'react';
 import { flushSync } from 'react-dom';
-import { parseForImport } from '../domain/parsers/parse-file';
-import { migrateWorkspaceV5 } from '../domain/workspace-migrate-v5';
 import type { WorkspaceSnapshotV5 } from '../types/workspace-v5';
 import { syncParserFileCounter } from '../domain/parsers/rs-dat';
 import { syncTraceIdCounter } from '../domain/trace-model';
 import { useAggregateWorkspace } from '../stores/aggregate-workspace-store';
-import type { OpenDataCommand, WorkspaceState } from '../stores/aggregate-workspace-store';
+import type { OpenDataCommand } from '../stores/aggregate-workspace-store';
 import { useAsk } from '../stores/dialog-store';
-import { replaceWorkspaceText, sameNameText } from '../domain/confirm-text';
-import type { WorkspaceCounts } from '../domain/confirm-text';
+import { replaceWorkspaceText, sameNameText, warnLargeFileText } from '../domain/confirm-text';
+import { classifyReadFile, maxTraceSerial, workspaceCounts } from '../domain/open-file-read';
 import { copyName } from '../domain/open-files-plan';
-import { classifyFileSize, formatFileSize, REFUSE_BYTES } from '../domain/file-size-policy';
+import { classifyFileSize, refuseLargeFileMessage } from '../domain/file-size-policy';
 import { usePaneLimit } from '../stores/pane-store';
 import type { OpenChoice } from '../types/open-files-plan';
 
@@ -19,11 +17,7 @@ export const DATA_FILE_ACCEPT = ['.csv', '.tsv', '.txt', '.dat', ...Array.from({
 let issuedImportId = 0;
 function nextImportId(): string { issuedImportId += 1; return `import-${Date.now()}-${issuedImportId}`; }
 
-/** What opening a workspace would close; null when nothing is open (no question needed). */
-export function workspaceCounts(state: WorkspaceState): WorkspaceCounts | null {
-  const counts = { files: state.files.files.length, createdTraces: state.traces.derivedTraces.length, markers: state.markers.markers.length, lines: state.lines.refLines.length, panes: state.panes.panes.length };
-  return counts.files || counts.createdTraces || counts.markers || counts.lines || counts.panes > 1 ? counts : null;
-}
+export { workspaceCounts };
 
 /** Read and parse first; the aggregate reducer plans against the latest workspace. */
 export function useFileImport() {
@@ -42,15 +36,11 @@ export function useFileImport() {
       if (classification === 'refuse') {
         workspace.dispatch({ slice: 'files', action: { type: 'REPORT_IMPORT_ERROR', payload: {
           fileName: file.name,
-          message: `File size is ${formatFileSize(bytes)}. Files over ${formatFileSize(REFUSE_BYTES)} can't be opened in the browser.`,
+          message: refuseLargeFileMessage(bytes),
         } } });
         continue;
       }
-      if (classification === 'warn' && await ask({
-        title: 'Open large file?',
-        message: `${file.name} is ${formatFileSize(bytes)}. Large files can make the app slow. Open it anyway?`,
-        confirmLabel: 'Open anyway',
-      }) !== 'confirm') continue;
+      if (classification === 'warn' && await ask(warnLargeFileText(file.name, bytes)) !== 'confirm') continue;
       accepted.push(file);
     }
     if (!accepted.length) return;
@@ -59,26 +49,7 @@ export function useFileImport() {
       const id=nextImportId();
       try {
         const text=await file.text();
-        const extensionSuggestsWorkspace = /\.json$/i.test(file.name);
-        let raw: unknown;
-        let isWorkspaceEnvelope = false;
-        if (extensionSuggestsWorkspace || workspaceRoute || text.trimStart().startsWith('{')) {
-          try {
-            raw = JSON.parse(text);
-            isWorkspaceEnvelope = !!raw && typeof raw === 'object' && !Array.isArray(raw)
-              && 'kind' in raw && raw.kind === 'mergen-scope-workspace';
-          } catch {
-            if (extensionSuggestsWorkspace || workspaceRoute) return {kind:'invalid-workspace' as const,name:file.name};
-          }
-        }
-        if (extensionSuggestsWorkspace || workspaceRoute || isWorkspaceEnvelope) {
-          const snapshot=migrateWorkspaceV5(raw);
-          if (!snapshot) return {kind:'invalid-workspace' as const,name:file.name};
-          const body=raw && typeof raw==='object' && 'kind' in raw && raw.kind==='mergen-scope-workspace' && 'snapshot' in raw ? raw.snapshot : raw;
-          return {kind:'workspace' as const,snapshot,legacy:!(body && typeof body==='object' && 'version' in body && body.version===5)};
-        }
-        if (text.includes(String.fromCharCode(0))) return {kind:'data' as const,input:{id,name:file.name,text,parsed:null,error:'Binary files cannot be opened as measurement data.'}};
-        return {kind:'data' as const,input:{id,name:file.name,text,parsed:parseForImport(text,file.name)}};
+        return classifyReadFile(file.name, text, workspaceRoute, id);
       } catch(error) {
         if (/\.json$/i.test(file.name) || workspaceRoute) return {kind:'invalid-workspace' as const,name:file.name};
         return {kind:'data' as const,input:{id,name:file.name,text:'',parsed:null,error:error instanceof Error ? error.message : 'Could not read this file.'}};
@@ -99,7 +70,7 @@ export function useFileImport() {
       workspaceInput={snapshot:loaded.snapshot,legacy:loaded.legacy,choice:hasWork ? 'replace' : undefined};
       const traces=[...loaded.snapshot.files.flatMap(file=>file.traces),...loaded.snapshot.derivedTraces];
       syncTraceIdCounter(traces);
-      syncParserFileCounter(traces.reduce((max,trace)=>{const serial=Number(/_(\d+)$/.exec(trace.name)?.[1]);return Number.isFinite(serial) ? Math.max(max,serial) : max;},0));
+      syncParserFileCounter(maxTraceSerial(traces));
     }
     const inputs:OpenDataCommand[]=read.flatMap(item=>item.kind==='data' ? [item.input] : []);
     const names=new Set((workspaceInput?.snapshot.files ?? stateRef.current.files.files).map(file=>file.fileName));

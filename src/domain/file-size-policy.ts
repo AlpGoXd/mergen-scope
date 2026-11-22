@@ -14,3 +14,7 @@ export function formatFileSize(bytes: number): string {
   // Round up to a tenth so a file just over a limit displays as over it.
   return `${Math.ceil(mb * 10) / 10} MB`;
 }
+
+export function refuseLargeFileMessage(bytes: number): string {
+  return `File size is ${formatFileSize(bytes)}. Files over ${formatFileSize(REFUSE_BYTES)} can't be opened in the browser.`;
+}
