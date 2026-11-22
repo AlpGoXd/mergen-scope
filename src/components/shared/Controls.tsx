@@ -146,8 +146,12 @@ function placePopup(anchor: HTMLElement, popup: HTMLElement) {
   const a = anchor.getBoundingClientRect();
   popup.style.maxWidth = `${Math.max(0, window.innerWidth - 8)}px`; popup.style.maxHeight = `${Math.max(0, window.innerHeight - 8)}px`; const p = popup.getBoundingClientRect();
   popup.style.left = `${Math.max(4, Math.min(a.left, window.innerWidth - p.width - 4))}px`;
-  const preferredY = a.bottom + p.height + 4 <= window.innerHeight ? a.bottom + 4 : a.top - p.height - 4;
-  popup.style.top = `${Math.max(4, Math.min(preferredY, window.innerHeight - p.height - 4))}px`;
+  const below = Math.max(0, window.innerHeight - a.bottom - 8);
+  const above = Math.max(0, a.top - 8);
+  const openBelow = p.height <= below || (p.height > above && below >= above);
+  const available = openBelow ? below : above;
+  popup.style.maxHeight = `${available}px`;
+  popup.style.top = `${openBelow ? a.bottom + 4 : a.top - Math.min(p.height, available) - 4}px`;
 }
 export function Menu({ label, items, iconOnly = false, icon = 'chevron', className = '' }: {
   label: string;

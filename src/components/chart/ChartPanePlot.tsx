@@ -9,18 +9,19 @@ import { formatAdaptiveXAxisValue, formatScalarWithUnit } from '../../domain/for
 import type { MergedPaneRow } from '../../domain/pane-data';
 import { computeHorizontalIntersections, computeVerticalIntersections } from '../../domain/ref-lines';
 import { traceWidth } from '../../domain/trace-palette';
+import { placeMarker } from '../../domain/markers';
 import type { TraceColorAssignment } from '../../domain/trace-palette';
 import type { AnalysisOverlay } from '../../hooks/use-analysis-overlays';
 import type { useTraceSymbols } from '../../hooks/use-trace-symbols';
 import type { Marker } from '../../types/marker';
-import type { PaneSettings } from '../../types/pane';
+import type { ChartAxesSettings, PaneSettings } from '../../types/pane';
 import type { RefLine } from '../../types/ref-line';
 import type { ThemeColors } from '../../types/theme';
 import type { Trace } from '../../types/trace';
 import type { AxisInfo } from '../../types/units';
 import { ExportFrame } from './export/ExportFrame';
 import type { ExportView } from './export/export-context';
-import { CrossingsLayer, LinesLayer } from './LinesLayer';
+import { CrossingsLayer, LinesLayer, LogGrid } from './LinesLayer';
 import type { LinesLayerProps, PlotView } from './LinesLayer';
 import { OverlaysLayer } from './OverlaysLayer';
 import { MeasuredSampleDot, SymbolsLayer } from './SymbolsLayer';
@@ -49,6 +50,9 @@ interface ChartPanePlotProps {
     onMouseUp: () => void;
   };
   settings: PaneSettings;
+  axisSettings: ChartAxesSettings;
+  displayTraces: Trace[];
+  logRows: ReadonlyMap<string, MergedPaneRow[]>;
   exportView: ExportView | undefined;
   axisInfo: AxisInfo;
   xAxis: ReactElement;
@@ -89,10 +93,11 @@ export function ChartPanePlot({
   paneId, plotData, plotView, lineChartRef, mouseEvents, settings, exportView, axisInfo, xAxis, yAxis,
   paneTraces, activePaneTrace, visibleXSpan, resolveTraceColor, traceSymbol, colorAssignments,
   crosshairX, ghostCrosshairX, paneMarkers, selectedMkrIdx, linesLayer, overlays, paneRefLines,
-  vDeltaPairs, hDeltaPairs, colors, dragStart, dragCurrent,
+  vDeltaPairs, hDeltaPairs, colors, dragStart, dragCurrent, axisSettings, displayTraces, logRows,
 }: ChartPanePlotProps) {
   const isExport = exportView !== undefined;
   const appearance = exportView?.appearance;
+  const logX = axisSettings.x === 'log', logY = axisSettings.y === 'log';
   const lineChart = (
     <LineChart
       ref={lineChartRef}
@@ -106,22 +111,27 @@ export function ChartPanePlot({
           strokeOpacity={settings.gridMajorOpacity}
           strokeWidth={settings.gridMajorThickness}
           strokeDasharray={settings.gridDashStyle === 'solid' ? undefined : settings.gridDashStyle}
-          horizontal
-          vertical
+          horizontal={!logY}
+          vertical={!logX}
         />
       )}
+      {settings.gridMajor && (logX || logY) && <Customized component={<LogGrid x={logX} y={logY} />} />}
       {xAxis}
       {yAxis}
       <Tooltip isAnimationActive={false} cursor={false} content={() => null} />
-      {paneTraces.map((trace) => (
+      {displayTraces.map((trace) => (
         <Line key={trace.name} className={trace.kind === 'derived' ? 'trace-created' : 'trace-source'} type="linear" dataKey={trace.name} name={trace.dn || trace.name} stroke={resolveTraceColor(trace.name)}
+          data={logRows.get(trace.name)}
           dot={settings.showSampleDots && traceSymbol(trace.id) === null && plotView
             && sampleDotsVisible(visibleSampleCount(trace.data, plotView.x), plotView.plot.width)
-            ? <MeasuredSampleDot data={trace.data} /> : false} activeDot={false} isAnimationActive={false} connectNulls strokeWidth={exportView?.paper ? ptToCssPx(appearance?.paperLine ?? PAPER_LINE_PT) : colorAssignments.get(trace.id) ? traceWidth(colorAssignments.get(trace.id) as NonNullable<ReturnType<typeof colorAssignments.get>>) : 1.5} />
+            ? <MeasuredSampleDot data={trace.data} /> : false} activeDot={false} isAnimationActive={false} connectNulls={!logY} strokeWidth={exportView?.paper ? ptToCssPx(appearance?.paperLine ?? PAPER_LINE_PT) : colorAssignments.get(trace.id) ? traceWidth(colorAssignments.get(trace.id) as NonNullable<ReturnType<typeof colorAssignments.get>>) : 1.5} />
       ))}
       {crosshairX != null && <ReferenceLine x={crosshairX} stroke="color-mix(in oklch, var(--accent) 60%, var(--plot))" strokeDasharray="4 4" strokeWidth={1} />}
       {ghostCrosshairX != null && <ReferenceLine className="x-ghost-crosshair" x={ghostCrosshairX} stroke="color-mix(in oklch, var(--accent) 60%, var(--plot))" strokeDasharray="4 4" strokeWidth={1} />}
       {settings.showMarkers && paneMarkers.map(({ marker, index }) => {
+        const trace = axisSettings.phase === 'unwrapped' ? displayTraces.find(trace => trace.name === marker.trace) : undefined;
+        const amplitude = trace ? placeMarker(trace, marker.freq).amp : marker.amp;
+        if ((logY && !(amplitude > 0)) || (logX && !(marker.freq > 0))) return null;
         const color = resolveTraceColor(marker.trace || '');
         const isSelected = !isExport && index === selectedMkrIdx;
         const labelPrefix = marker.type === 'delta' ? `DM${index + 1}` : `M${index + 1}`;
@@ -133,7 +143,7 @@ export function ChartPanePlot({
           <ReferenceDot
             key={`m-${index}`}
             x={marker.freq}
-            y={marker.amp}
+            y={amplitude}
             r={7}
             isFront
             shape={(dotProps: { readonly cx?: number; readonly cy?: number }) => {
@@ -227,7 +237,7 @@ export function ChartPanePlot({
       })}
       <Customized component={<LinesLayer {...linesLayer} />} />
       <Customized component={<OverlaysLayer overlays={overlays} />} />
-      <Customized component={<SymbolsLayer traces={paneTraces} showDots={settings.showSampleDots} symbolSetting={isExport ? 'always' : undefined} markScale={exportView?.markScale} colorTheme={exportView?.colorTheme} paperTone={exportView?.paperTone} />} />
+      <Customized component={<SymbolsLayer traces={displayTraces} showDots={settings.showSampleDots} symbolSetting={isExport ? 'always' : undefined} markScale={exportView?.markScale} colorTheme={exportView?.colorTheme} paperTone={exportView?.paperTone} />} />
       {/* ΔX between V-line delta pairs */}
       {settings.showReferenceLines && vDeltaPairs.map(([a, b]) => {
         const lo = Math.min(a.value, b.value);
@@ -294,7 +304,7 @@ export function ChartPanePlot({
       )}
       {dragStart !== null && dragCurrent !== null && <ReferenceLine x={dragStart} stroke="var(--accent)" strokeWidth={1} />}
       {dragStart !== null && dragCurrent !== null && <ReferenceLine x={dragCurrent} stroke="var(--accent)" strokeWidth={1} />}
-      <ReferenceLine y={0} stroke="var(--dim)" strokeWidth={0.5} />
+      {!logY && <ReferenceLine y={0} stroke="var(--dim)" strokeWidth={0.5} />}
       {exportView?.print && <Customized component={<ExportFrame />} />}
     </LineChart>
   );

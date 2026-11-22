@@ -2,6 +2,8 @@ import { nearestIndexByFreq } from '../markers';
 import { pixelToAxisValue } from './plot-coords';
 import type { ZoomWindow } from '../../types/marker';
 import type { DataPoint } from '../../types/trace';
+import type { AxisScale } from '../../types/pane';
+import { toAxisSpace } from './axis-scale';
 
 export function computeMarkerHitTolerance(
   plotWidth: number, visibleXSpan: number, dataBounds: { min: number; max: number } | null,
@@ -78,15 +80,15 @@ export function pickPlacementTraceIndex(
 }
 
 export function computeNearestPixelDist(
-  data: readonly DataPoint[], targetFreq: number, domainLeft: number, domainRight: number, plotWidth: number,
+  data: readonly DataPoint[], targetFreq: number, domainLeft: number, domainRight: number, plotWidth: number, scale: AxisScale = 'linear',
 ): number {
   const nearest = data[nearestIndexByFreq(data, targetFreq)];
   if (!nearest || domainRight <= domainLeft || plotWidth <= 0) return Infinity;
 
-  const pxPerUnit = plotWidth / (domainRight - domainLeft);
+  const pxPerUnit = plotWidth / (toAxisSpace(domainRight, scale) - toAxisSpace(domainLeft, scale));
   const pointsInView = data.filter(point => point.freq >= domainLeft && point.freq <= domainRight).length;
   // At less than 20px average spacing, a 10px snap threshold would hide interpolation.
   const avgSpacingPx = pointsInView > 1 ? plotWidth / (pointsInView - 1) : Infinity;
   if (avgSpacingPx < 20) return Infinity;
-  return Math.abs(nearest.freq - targetFreq) * pxPerUnit;
+  return Math.abs(toAxisSpace(nearest.freq, scale) - toAxisSpace(targetFreq, scale)) * pxPerUnit;
 }

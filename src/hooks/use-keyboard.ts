@@ -68,14 +68,22 @@ export function useKeyboard() {
     // Smith panes keep their own view; ChartPane fits it on this event.
     window.dispatchEvent(new CustomEvent('mergen-fit-pane', { detail: { paneId: targetPaneId } }));
   });
-  useShortcut('previous-zoom', () => {
-    if (!targetPaneId) return false;
-    const step = takePreviousZoom(zoomHistory.current, targetPaneId);
+  const previousZoom = (paneId: string | null) => {
+    if (!paneId) return false;
+    const step = takePreviousZoom(zoomHistory.current, paneId);
     if (!step) return false;
     zoomHistory.current = step.history;
-    restoring.current.set(targetPaneId, step.zoom);
-    paneDispatch({ type: 'SET_PANE_ZOOM', payload: { paneId: targetPaneId, zoom: step.zoom.x } });
-    paneDispatch({ type: 'SET_PANE_Y_ZOOM', payload: { paneId: targetPaneId, zoom: step.zoom.y } });
+    restoring.current.set(paneId, step.zoom);
+    paneDispatch({ type: 'SET_PANE_ZOOM', payload: { paneId, zoom: step.zoom.x } });
+    paneDispatch({ type: 'SET_PANE_Y_ZOOM', payload: { paneId, zoom: step.zoom.y } });
+  };
+  useShortcut('previous-zoom', () => previousZoom(targetPaneId));
+  useEffect(() => {
+    const restore = (event: Event) => {
+      if (event instanceof CustomEvent && typeof event.detail === 'string') previousZoom(event.detail);
+    };
+    window.addEventListener('mergen-previous-zoom', restore);
+    return () => window.removeEventListener('mergen-previous-zoom', restore);
   });
   useShortcut('delete', () => {
     if (selected) { markerDispatch({ type: 'REMOVE_MARKER', payload: selectedMkrIdx }); return; }

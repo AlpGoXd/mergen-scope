@@ -18,6 +18,8 @@ import { paneName } from '../../../domain/line-view';
 import { paneTypeOfMode } from '../../../domain/pane-type-registry';
 import { formatAdaptiveXAxisValue } from '../../../domain/format';
 import { latexDocument } from '../../../domain/export-latex';
+import { isPhase, unwrapPhase } from '../../../domain/chart/axis-scale';
+import { placeMarker } from '../../../domain/markers';
 import type { LatexDocument } from '../../../domain/export-latex';
 import type { ExportDocumentOptions, ExportFormat, ExportGeometry } from '../../../domain/export-document';
 import { exportTraceName, groupExportLegends } from '../../../domain/export-plot';
@@ -416,20 +418,25 @@ function buildLatex(job: Job, info: ExportPlotInfo | null, state: StageSnapshot,
   const first = state.paneTraces[0];
   const span = Math.max(xMax - xMin, 1e-12);
   const traceIndex = new Map(state.paneTraces.map((trace, index) => [trace.name, index]));
+  const displayTraces = state.paneTraces.map(trace => settings.axes?.phase === 'unwrapped' && isPhase(trace)
+    ? { ...trace, data: unwrapPhase(trace.data, /^rad/i.test(trace.units.y ?? '') ? 2 * Math.PI : 360) } : trace);
   return latexDocument({
     paneName: title,
     date: new Date(),
-    x: { min: xMin, max: xMax, label: info.xLabel, unit: info.xUnit, scale: options ? info.autoX : undefined, ticks: info.xTicks },
-    y: { min: yMin, max: yMax, label: info.yLabel, scale: options ? info.autoY : undefined, ticks: info.yTicks },
+    x: { min: xMin, max: xMax, label: info.xLabel, unit: info.xUnit, scale: options ? info.autoX : undefined, ticks: info.xTicks, logarithmic: info.xScale === 'log' },
+    y: { min: yMin, max: yMax, label: info.yLabel, scale: options ? info.autoY : undefined, ticks: info.yTicks, logarithmic: info.yScale === 'log' },
     grid: options?.grid, legend, caption: options?.include.title, linePt: options?.paperLine, textPt: options?.paperText,
-    traces: state.paneTraces.map(trace => ({ name: named(trace), color: cssColorToRgb(state.color(trace), host), symbol: state.symbol(trace.id), data: trace.data })),
+    traces: displayTraces.map(trace => ({ name: named(trace), color: cssColorToRgb(state.color(trace), host), symbol: state.symbol(trace.id), data: trace.data })),
     markers: settings.showMarkers && options?.include.markerTags !== false ? state.markers.flatMap((marker, index) => {
       const at = traceIndex.get(marker.trace);
       if (at === undefined) return [];
+      const display = displayTraces[at];
+      const amplitude = display && display !== state.paneTraces[at] ? placeMarker(display, marker.freq).amp : marker.amp;
+      if ((info.xScale === 'log' && marker.freq <= 0) || (info.yScale === 'log' && amplitude <= 0)) return [];
       const value = formatAdaptiveXAxisValue(marker.freq, span, { domain: first?.domain ?? 'frequency', unit: first?.units.x ?? (first?.domain === 'time' ? 's' : 'Hz') });
       const id = `${marker.type === 'delta' ? 'DM' : 'M'}${index + 1}`;
       const tag = paperTags?.[id];
-      return [{ label: tag?.text ?? `${id} ${value}`, x: marker.freq, y: marker.amp, trace: at,
+      return [{ label: tag?.text ?? `${id} ${value}`, x: marker.freq, y: amplitude, trace: at,
         shift: paperTags ? tag ? { x: tag.dx * 0.75, y: -tag.dy * 0.75 } : null : undefined }];
     }) : [],
     lines: (options?.include.refLines ?? settings.showReferenceLines) ? state.refLines.filter(line => line.paneIds.includes(job.paneId)).map(line => ({ type: line.type, value: line.value, label: line.label ?? (line.type === 'v' ? 'V' : 'H') })) : [],

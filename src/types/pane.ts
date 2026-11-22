@@ -10,6 +10,15 @@
 
 /** How a chart pane renders its traces. */
 export type PaneRenderMode = "cartesian" | "smith" | "smith-inverted" | "table";
+export type AxisScale = 'linear' | 'log';
+
+export interface ChartAxesSettings {
+  readonly x: AxisScale;
+  readonly y: AxisScale;
+  readonly phase: 'wrapped' | 'unwrapped';
+}
+
+export const DEFAULT_CHART_AXES: ChartAxesSettings = { x: 'linear', y: 'linear', phase: 'wrapped' };
 export interface SmithSettings {
   readonly range?: { readonly startHz: number; readonly stopHz: number } | null;
   readonly outside?: 'hidden' | 'faint';
@@ -35,6 +44,7 @@ export function defaultTableSettings(): TableSettings {
 
 /** Per-pane display and grid settings. */
 export interface PaneSettings {
+  axes?: ChartAxesSettings;
   smith: SmithSettings;
   /** Only read by Table panes; missing means the defaults. */
   table?: TableSettings;
@@ -57,6 +67,7 @@ export interface PaneSettings {
 
 export function defaultPaneSettings(): PaneSettings {
   return {
+    axes: DEFAULT_CHART_AXES,
     smith: { grid: 'z', labels: 'normalised', direction: 'chevrons', readout: ['z', 'gamma', 'vswr'], range: null, outside: 'hidden' },
     gridMajor: true,
     gridMinor: false,

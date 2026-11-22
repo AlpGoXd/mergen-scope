@@ -3,7 +3,7 @@ import { adaptDisplayTraceToLegacyTrace, adaptDisplayTracesToLegacyTraces } from
 import { autoLinkByUnit, paneXUnits } from './x-link';
 import type { RawFileRecord } from '../types/file';
 import { migrateWorkspaceSnapshot } from './workspace-migrate-v4';
-import { defaultPaneSettings } from '../types/pane';
+import { DEFAULT_CHART_AXES, defaultPaneSettings } from '../types/pane';
 import type { WorkspacePaneV5, WorkspaceSnapshotV5 } from '../types/workspace-v5';
 import type { RefLine } from '../types/ref-line';
 import type { AnalysisInstance } from '../types/analysis-instance';
@@ -601,6 +601,9 @@ function validCurrent(body: Record<string, unknown>): boolean {
     for (const key of ['gridMajorThickness','gridMinorThickness']) if (!finite(settings[key]) || Number(settings[key]) < 0.5 || Number(settings[key]) > 5) return false;
     for (const key of ['gridMajorOpacity','gridMinorOpacity']) if (!finite(settings[key]) || Number(settings[key]) < 0 || Number(settings[key]) > 1) return false;
     if (typeof settings.gridDashStyle !== 'string' || !object(settings.smith) || !validTable(settings.table)) return false;
+    const axes = settings.axes;
+    if (!object(axes) || (axes.x !== 'linear' && axes.x !== 'log') || (axes.y !== 'linear' && axes.y !== 'log')
+      || (axes.phase !== 'wrapped' && axes.phase !== 'unwrapped')) return false;
     const smith = settings.smith;
     if (smith.outside !== undefined && smith.outside !== 'hidden' && smith.outside !== 'faint') return false;
     if (
@@ -889,6 +892,7 @@ function migrateWorkspaceV5Body(raw: unknown): WorkspaceSnapshotV5 | null {
         renderMode: inverted ? 'smith' : pane.renderMode,
         settings: {
           ...pane.settings,
+          axes: pane.settings.axes ?? DEFAULT_CHART_AXES,
           gridMajor,
           smith: {
             ...smith,
@@ -993,6 +997,11 @@ function migrateWorkspaceV5Body(raw: unknown): WorkspaceSnapshotV5 | null {
         typed: typeof p.typed === 'boolean' ? p.typed : p.renderMode === 'smith' || p.renderMode === 'smith-inverted' || p.renderMode === 'table',
         xLinkGroup: typeof p.xLinkGroup === 'string' ? p.xLinkGroup : null,
         settings: {
+          axes: object(s.axes) ? {
+            x: s.axes.x === 'log' ? 'log' : 'linear',
+            y: s.axes.y === 'log' ? 'log' : 'linear',
+            phase: s.axes.phase === 'unwrapped' ? 'unwrapped' : 'wrapped',
+          } : DEFAULT_CHART_AXES,
           gridMajor: s.gridMajor === undefined ? p.showGrid !== false : bool('gridMajor'), gridMinor: bool('gridMinor'),
           gridMajorThickness: bounded('gridMajorThickness', 0.5, 5), gridMinorThickness: bounded('gridMinorThickness', 0.5, 5),
           gridMajorOpacity: bounded('gridMajorOpacity', 0, 1), gridMinorOpacity: bounded('gridMinorOpacity', 0, 1),

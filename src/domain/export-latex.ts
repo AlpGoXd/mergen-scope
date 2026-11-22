@@ -13,6 +13,7 @@ import type { LatexOptions } from './export-document';
 import { exportGroupLayout, exportTick } from './export-plot';
 import type { ExportAxis } from './export-plot';
 import type { PresetId } from './pane-layout';
+import { logTickLabel, logTicks } from './chart/axis-scale';
 
 export interface Rgb { readonly r: number; readonly g: number; readonly b: number }
 
@@ -40,7 +41,7 @@ export interface LatexFigureInput {
   readonly linePt?: number;
   readonly textPt?: number;
 }
-interface LatexAxis { readonly min: number; readonly max: number; readonly label: string; readonly scale?: ExportAxis; readonly ticks?: readonly number[] }
+interface LatexAxis { readonly min: number; readonly max: number; readonly label: string; readonly scale?: ExportAxis; readonly ticks?: readonly number[]; readonly logarithmic?: boolean }
 
 /** Points per trace in the figure (min/max decimated, so peaks survive). */
 export const LATEX_MAX_POINTS = 2000;
@@ -118,11 +119,19 @@ function traceColor(trace: LatexTrace, options: LatexOptions): Rgb {
 
 export function latexDocument(input: LatexFigureInput, options = DEFAULT_LATEX_OPTIONS, filePrefix = 'pane', size?: { width: number; height: number }): LatexDocument {
   const { x, y } = input;
-  const { factor, prefix } = input.smithGrid ? { factor: 1, prefix: '' } : axisPrefix(Math.max(Math.abs(x.min), Math.abs(x.max)));
-  const sx = (value: number) => latexNumber((value - (x.scale?.offset ?? 0)) / (x.scale?.factor ?? factor));
-  const sy = (value: number) => latexNumber((value - (y.scale?.offset ?? 0)) / (y.scale?.factor ?? 1));
+  const { factor, prefix } = input.smithGrid || x.logarithmic ? { factor: 1, prefix: '' } : axisPrefix(Math.max(Math.abs(x.min), Math.abs(x.max)));
+  const sx = (value: number) => x.logarithmic ? String(value) : latexNumber((value - (x.scale?.offset ?? 0)) / (x.scale?.factor ?? factor));
+  const sy = (value: number) => y.logarithmic ? String(value) : latexNumber((value - (y.scale?.offset ?? 0)) / (y.scale?.factor ?? 1));
   const name = (index: number) => colorName(index) + (size ? filePrefix.replace(/\d/g, digit => String.fromCharCode(65 + Number(digit))).replace(/[^a-z]/gi, '') : '');
   const tickOptions = (key: 'x' | 'y', axis: LatexAxis, scale: (value: number) => string) => {
+    if (axis.logarithmic) {
+      const ticks = logTicks(axis);
+      const labels = ticks.filter(tick => tick.label);
+      return [`      ${key}mode=log, log basis ${key}=10,`,
+        `      ${key}tick={${labels.map(tick => tick.value).join(',')}},`,
+        `      ${key}ticklabels={${labels.map(tick => latexEscape(logTickLabel(tick.value))).join(',')}},`,
+        `      minor ${key}tick={${ticks.filter(tick => !tick.label).map(tick => tick.value).join(',')}},`];
+    }
     if (!axis.scale || !axis.ticks?.length) return [];
     return [`      ${key}tick={${axis.ticks.map(scale).join(',')}},`, `      ${key}ticklabels={${axis.ticks.map(value => exportTick(axis.scale!, value)).join(',')}},`];
   };
@@ -148,6 +157,11 @@ export function latexDocument(input: LatexFigureInput, options = DEFAULT_LATEX_O
     `      xlabel={${x.scale ? latexEscape(x.label) : scaledAxisLabel(x.label, x.unit, prefix)}}, ylabel={${latexEscape(y.label)}},`,
     ...tickOptions('x', x, sx), ...tickOptions('y', y, sy),
     input.smithGrid ? '      hide axis, axis equal image,' : `      grid=${input.grid === false ? 'none' : 'major'}, grid style={gray!30, line width=0.4pt}, axis line style={black},`,
+    ...(!input.smithGrid && input.grid !== false && (x.logarithmic || y.logarithmic) ? [
+      x.logarithmic ? '      minor x grid=true,' : '',
+      y.logarithmic ? '      minor y grid=true,' : '',
+      '      minor grid style={gray!20, solid, line width=0.4pt},',
+    ].filter(Boolean) : []),
     `      tick label style={font=${textFont}}, label style={font=${textFont}},`,
     '      scaled ticks=false, tick align=inside, clip=true,',
     `      every axis plot/.append style={line width=${input.linePt ?? 0.75}pt, mark size=2.5pt},`,
@@ -158,14 +172,16 @@ export function latexDocument(input: LatexFigureInput, options = DEFAULT_LATEX_O
   const bodyStart = out.length;
   if (input.smithGrid) addSmithGrid(out, input.smithGrid, input.grid !== false);
   input.traces.forEach((trace, index) => {
-    const points = trace.runs ? smithPoints(trace.runs, options.points) : cartesianPoints(trace.data, x.min, x.max, options.points);
+    const logarithmic = x.logarithmic || y.logarithmic;
+    const points = trace.runs ? smithPoints(trace.runs, options.points) : cartesianPoints(trace.data, x.min, x.max, logarithmic ? 'all' : options.points);
     // About eight marks per trace, offset per trace so marks of different traces do not stack.
     const repeat = Math.max(1, Math.round(points.length / 8));
     const phase = 1 + Math.round((index * repeat) / Math.max(1, input.traces.length)) % repeat;
     const mark = trace.symbol ? `${MARKS[trace.symbol]}, mark repeat=${repeat}, mark phase=${phase}` : 'mark=none';
     const markSolid = trace.symbol && trace.symbol !== 'triangle-down' ? ', mark options={solid}' : '';
-    const plot = `      \\addplot[color=${name(index)}, solid, ${mark}${markSolid}${trace.runs ? ', unbounded coords=jump' : ''}]`;
-    const coords = points.map(point => [sx(point.freq), sy(point.amp)] as const);
+    const plot = `      \\addplot[color=${name(index)}, solid, ${mark}${markSolid}${trace.runs || logarithmic ? ', unbounded coords=jump' : ''}]`;
+    const coords = points.map(point => x.logarithmic && point.freq <= 0 || y.logarithmic && point.amp <= 0
+      ? ['nan', 'nan'] as const : [sx(point.freq), sy(point.amp)] as const);
     if (options.data === 'zip') {
       const name = `${filePrefix}-trace-${index + 1}.dat`;
       files.push({ name, text: ['x y', ...coords.map(([a, b]) => `${a} ${b}`)].join('\n') + '\n' });

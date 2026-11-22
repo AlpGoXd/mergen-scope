@@ -7,6 +7,8 @@ import type { Trace } from '../../types/trace';
 import type { AxisInfo } from '../../types/units';
 import type { ExportView } from './export/export-context';
 import type { PlotView } from './LinesLayer';
+import type { AxisScale } from '../../types/pane';
+import { logTickLabel, logTicks } from '../../domain/chart/axis-scale';
 
 interface ChartPaneAxesOptions {
   paneId: string;
@@ -22,12 +24,14 @@ interface ChartPaneAxesOptions {
   formatYTick: (value: number) => string;
   hideXTicks: boolean;
   exportView: ExportView | undefined;
+  xScale: AxisScale;
+  yScale: AxisScale;
 }
 
 // Recharts reads direct XAxis and YAxis children before rendering them.
 export function useChartPaneAxes({
   paneId, paneTraces, activePaneTrace, axisInfo, xDomain, yDomain, visibleXSpan, plotView,
-  labelRoom, yAxisWidth, formatYTick, hideXTicks, exportView,
+  labelRoom, yAxisWidth, formatYTick, hideXTicks, exportView, xScale, yScale,
 }: ChartPaneAxesOptions) {
   const isExport = exportView !== undefined;
   const appearance = exportView?.appearance;
@@ -58,13 +62,15 @@ export function useChartPaneAxes({
   const fittedYLabel = yAxisLabelText.length * 7 <= labelRoom ? yAxisLabelText
     : shortYLabel.length * 7 <= labelRoom ? shortYLabel : '';
 
-  const xTickValues = useMemo(() => makeNiceTicks(xDomain, NICE_TICK_COUNT), [xDomain]);
+  const xTickValues = useMemo(() => xScale === 'log' && xDomain
+    ? logTicks(xDomain).filter(tick => tick.label).map(tick => tick.value) : makeNiceTicks(xDomain, NICE_TICK_COUNT), [xDomain, xScale]);
   const yTickValues = useMemo(() => {
     if (Array.isArray(yDomain) && yDomain[0] !== 'auto') {
-      return makeNiceTicks({ min: yDomain[0] as number, max: yDomain[1] as number }, NICE_TICK_COUNT);
+      const domain = { min: yDomain[0], max: Number(yDomain[1]) };
+      return yScale === 'log' ? logTicks(domain).filter(tick => tick.label).map(tick => tick.value) : makeNiceTicks(domain, NICE_TICK_COUNT);
     }
     return undefined;
-  }, [yDomain]);
+  }, [yDomain, yScale]);
   const xTickLabelMap = useMemo(() => {
     const ticks = xTickValues ?? [];
     const labels = formatAdaptiveXAxisTickLabels(ticks, visibleXSpan, {
@@ -73,7 +79,7 @@ export function useChartPaneAxes({
     });
     return new Map(ticks.map((tick, index) => [tick, labels[index] ?? '--']));
   }, [activePaneTrace?.domain, activePaneTrace?.units.x, visibleXSpan, xTickValues]);
-  const exportYTicks = useMemo(() => isExport && plotView?.y ? makeNiceTicks({ min: plotView.y[0], max: plotView.y[1] }, NICE_TICK_COUNT) : undefined, [isExport, plotView?.y]);
+  const exportYTicks = useMemo(() => yScale === 'log' ? yTickValues : isExport && plotView?.y ? makeNiceTicks({ min: plotView.y[0], max: plotView.y[1] }, NICE_TICK_COUNT) : undefined, [isExport, plotView?.y, yScale, yTickValues]);
   const axes = useMemo(() => {
     if (!isExport || !plotView?.x || !plotView.y) return null;
     return autoExportAxes(paneTraces[0], plotView.x, plotView.y, xTickValues, exportYTicks, new Set(paneTraces.map(trace => trace.units.y)).size > 1);
@@ -86,14 +92,15 @@ export function useChartPaneAxes({
     const legacy = !appearance;
     exportOnPlot({
       x: plotView.x, y: plotView.y, xLabel: legacy ? xAxisLabelText : exportXTitle, xUnit: exportXUnit,
-      yLabel: legacy ? yAxisLabelText : exportYTitle, autoX: axes.x, autoY: axes.y, xTicks: xTickValues, yTicks: exportYTicks,
+      yLabel: legacy ? yAxisLabelText : exportYTitle, autoX: axes.x, autoY: axes.y, xTicks: xTickValues, yTicks: exportYTicks, xScale, yScale,
     });
-  }, [exportOnPlot, plotView, axes, appearance, exportXTitle, exportYTitle, exportXUnit, xAxisLabelText, yAxisLabelText, xTickValues, exportYTicks]);
+  }, [exportOnPlot, plotView, axes, appearance, exportXTitle, exportYTitle, exportXUnit, xAxisLabelText, yAxisLabelText, xTickValues, exportYTicks, xScale, yScale]);
 
   const xAxis = (
     <XAxis
       dataKey="fs"
       type="number"
+      scale={xScale === 'log' ? 'log' : 'auto'}
       domain={xDomain ? [xDomain.min, xDomain.max] : ['dataMin', 'dataMax']}
       allowDataOverflow={!!xDomain}
       ticks={xTickValues}
@@ -102,7 +109,7 @@ export function useChartPaneAxes({
       fontSize={'var(--font-label)'}
       tickSize={exportView?.tikzStyle ? -4 : undefined}
       tickMargin={exportView?.tikzStyle ? 12 : undefined}
-      tickFormatter={(value) => appearance && axes ? exportTick(axes.x, Number(value)) : xTickLabelMap.get(Number(value)) ?? formatAdaptiveXAxisValue(Number(value), visibleXSpan, {
+      tickFormatter={(value) => xScale === 'log' ? logTickLabel(Number(value)) : appearance && axes ? exportTick(axes.x, Number(value)) : xTickLabelMap.get(Number(value)) ?? formatAdaptiveXAxisValue(Number(value), visibleXSpan, {
         domain: activePaneTrace?.domain ?? 'frequency',
         unit: activePaneTrace?.units.x ?? (activePaneTrace?.domain === 'time' ? 's' : 'Hz'),
       })}
@@ -111,6 +118,7 @@ export function useChartPaneAxes({
   );
   const yAxis = (
     <YAxis
+      scale={yScale === 'log' ? 'log' : 'auto'}
       domain={yDomain}
       allowDataOverflow={Array.isArray(yDomain) && yDomain[0] !== 'auto'}
       ticks={appearance ? exportYTicks ?? yTickValues : yTickValues}
@@ -119,7 +127,7 @@ export function useChartPaneAxes({
       tickMargin={exportView?.tikzStyle ? 12 : undefined}
       fontSize={'var(--font-label)'}
       width={yAxisWidth}
-      tickFormatter={value => appearance && axes ? exportTick(axes.y, Number(value)) : formatYTick(value)}
+      tickFormatter={value => yScale === 'log' ? logTickLabel(Number(value)) : appearance && axes ? exportTick(axes.y, Number(value)) : formatYTick(value)}
 
       label={appearance && !exportYTitle ? undefined : { value: appearance ? fitAxisTitle(exportYTitle, labelRoom, (exportView?.labelPx ?? 12) * (exportView?.paper ? 0.5 : 0.58)) : fittedYLabel, angle: -90, position: 'insideLeft', offset: 10, style: { fontSize: 'var(--font-label)', fill: 'var(--muted)', textAnchor: 'middle' } }}
     />

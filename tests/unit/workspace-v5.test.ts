@@ -23,6 +23,19 @@ it('accepts optional trace math alignment choices and rejects unknown choices', 
 });
 
 const fixture = (name: string): unknown => JSON.parse(readFileSync(`tests/fixtures/phase3-preservation/${name}.json`, 'utf8'));
+it('defaults old chart axes and round-trips the saved scales and phase mode', () => {
+  const base = migrateWorkspaceV5(fixture('workspace-v4-eight-pane-extension'));
+  expect(base?.panes[0]?.settings.axes).toEqual({ x: 'linear', y: 'linear', phase: 'wrapped' });
+  if (!base) throw new Error('fixture');
+  const withAxes = (axes: unknown) => ({ ...base, panes: base.panes.map(pane => ({ ...pane, settings: { ...pane.settings, axes } })) });
+  const axes = { x: 'log', y: 'log', phase: 'unwrapped' } as const;
+  expect(migrateWorkspaceV5(JSON.parse(JSON.stringify(withAxes(axes))))?.panes[0]?.settings.axes).toEqual(axes);
+  expect(migrateWorkspaceV5(withAxes(undefined))?.panes[0]?.settings.axes).toEqual({ x: 'linear', y: 'linear', phase: 'wrapped' });
+  expect(migrateWorkspaceV5(withAxes({ ...axes, x: 'Other' }))).toBeNull();
+  const state = workspaceReducer(initialWorkspaceState(), { slice: 'panes', limit: 4,
+    action: { type: 'SET_PANE_SETTINGS', payload: { paneId: 'pane-1', patch: { axes } } } });
+  expect(snapshotFromWorkspace(state)?.panes[0]?.settings.axes).toEqual(axes);
+});
 it('round-trips a manual trace list order and keeps it optional for older workspaces', () => {
   const base = migrateWorkspaceV5(fixture('workspace-v4-eight-pane-extension'));
   if (!base) throw new Error('fixture');

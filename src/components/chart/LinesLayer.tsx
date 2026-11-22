@@ -7,6 +7,7 @@ import '../lines/lines.css';
 import { ChartLine, CrossingDot } from '../lines/Lines';
 import { oklchHue } from '../../domain/color-hue';
 import type { RefLine } from '../../types/ref-line';
+import { logTicks } from '../../domain/chart/axis-scale';
 
 type AxisScale = ((value: number) => number) & { domain?: () => unknown[] };
 interface AxisEntry { scale?: AxisScale }
@@ -44,6 +45,25 @@ function domainOf(scale: AxisScale | null): readonly [number, number] | null {
   const d = scale?.domain?.();
   const lo = Number(d?.[0]), hi = Number(d?.[1]);
   return d && d.length >= 2 && Number.isFinite(lo) && Number.isFinite(hi) ? [Math.min(lo, hi), Math.max(lo, hi)] : null;
+}
+
+export function LogGrid({ x, y, xAxisMap, yAxisMap, offset }: ChartScaleProps & { x: boolean; y: boolean }) {
+  if (!offset) return null;
+  const { left, top, width, height } = offset;
+  return <g className="chart-log-grid" stroke="var(--border)" pointerEvents="none">
+    {([['x', x, xAxisMap], ['y', y, yAxisMap]] as const).flatMap(([axis, enabled, axisMap]) => {
+      const scale = firstScale(axisMap);
+      const domain = domainOf(scale);
+      if (!enabled || !scale || !domain) return [];
+      return logTicks({ min: domain[0], max: domain[1] }).map(tick => {
+        const at = scale(tick.value);
+        return <line key={`${axis}-${tick.value}`} data-decade={tick.major || undefined}
+          x1={axis === 'x' ? at : left} x2={axis === 'x' ? at : left + width}
+          y1={axis === 'y' ? at : top} y2={axis === 'y' ? at : top + height}
+          strokeDasharray={tick.major ? '3 3' : undefined} opacity={tick.major ? 1 : 0.45} />;
+      });
+    })}
+  </g>;
 }
 
 export function LinesLayer(p: LinesLayerProps): ReactElement | null {

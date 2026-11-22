@@ -1,10 +1,16 @@
 import type { ZoomWindow } from '../../types/marker';
-import type { YDomain } from '../../types/pane';
+import type { AxisScale, YDomain } from '../../types/pane';
+import { fromAxisSpace, mapAxisDomain, toAxisSpace } from './axis-scale';
 
 /** Map a pixel to a linear axis, clamping at the plot edges. Y runs from max to min. */
 export function pixelToAxisValue(
-  pixel: number, origin: number, length: number, min: number, max: number, reversed = false,
+  pixel: number, origin: number, length: number, min: number, max: number, reversed = false, scale: AxisScale = 'linear',
 ): number | null {
+  if (scale === 'log') {
+    if (!(min > 0)) return null;
+    const value = pixelToAxisValue(pixel, origin, length, Math.log10(min), Math.log10(max), reversed);
+    return value === null ? null : fromAxisSpace(value, scale);
+  }
   if (length <= 0 || max <= min) return null;
   const offset = Math.max(0, Math.min(length, pixel - origin));
   const distance = (offset / length) * (max - min);
@@ -36,8 +42,13 @@ export function dragZoomXDomain(start: number, end: number): ZoomWindow | null {
 
 /** Shift by the difference of two values on the starting domain, then constrain the window to the data. */
 export function panXDomain(
-  start: ZoomWindow, anchor: number, current: number, bounds: { min: number; max: number } | null,
+  start: ZoomWindow, anchor: number, current: number, bounds: { min: number; max: number } | null, scale: AxisScale = 'linear',
 ): ZoomWindow {
+  if (scale === 'log') {
+    const next = panXDomain({ left: Math.log10(start.left), right: Math.log10(start.right) },
+      Math.log10(anchor), Math.log10(current), bounds && bounds.min > 0 ? mapAxisDomain(bounds, scale) : null);
+    return { left: fromAxisSpace(next.left, scale), right: fromAxisSpace(next.right, scale) };
+  }
   const delta = anchor - current;
   const zoom = { left: start.left + delta, right: start.right + delta };
   if (!bounds) return zoom;
@@ -47,6 +58,14 @@ export function panXDomain(
   if (zoom.left < bounds.min) return { left: bounds.min, right: bounds.min + span };
   if (zoom.right > bounds.max) return { left: bounds.max - span, right: bounds.max };
   return zoom;
+}
+
+export function wheelAxisDomain(domain: YDomain, direction: -1 | 1, cursor: number | null, pan: boolean, scale: AxisScale): YDomain | null {
+  const mapped = mapAxisDomain(domain, scale);
+  const next = pan ? panYDomain(mapped, direction) : zoomYDomain(mapped, direction, cursor === null ? null : toAxisSpace(cursor, scale));
+  if (!next) return null;
+  const result = mapAxisDomain(next, scale, true);
+  return Number.isFinite(result.min) && Number.isFinite(result.max) && result.max > result.min && (scale !== 'log' || result.min > 0) ? result : null;
 }
 
 /** Pad Y sample extremes, or return null when no finite samples supplied the extremes. */

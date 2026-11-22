@@ -2,6 +2,7 @@ import { createContext, useContext } from 'react';
 import type { ExportDocumentOptions } from '../../../domain/export-document';
 import type { SmithPaneTrace } from '../../smith/SmithPane';
 import type { ExportAxis } from '../../../domain/export-plot';
+import type { AxisScale } from '../../../types/pane';
 
 /** Props that turn ChartPane / SmithPaneContainer into an export render (no chrome, no interaction, fixed size). */
 export interface ExportView {
@@ -38,6 +39,8 @@ export interface ExportPlotInfo {
   readonly autoY?: ExportAxis;
   readonly xTicks?: readonly number[];
   readonly yTicks?: readonly number[];
+  readonly xScale?: AxisScale;
+  readonly yScale?: AxisScale;
 }
 
 export interface ExportNotice {

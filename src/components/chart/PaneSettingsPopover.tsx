@@ -1,5 +1,5 @@
 import React from 'react';
-import type { PaneSettings, TableSettings } from '../../types/pane';
+import type { AxisScale, ChartAxesSettings, PaneSettings, TableSettings } from '../../types/pane';
 import type { TableVisibleRange } from '../../domain/table-view';
 import type { SmithSettings } from '../../types/pane';
 import type { SymbolSetting } from '../../domain/trace-palette';
@@ -80,6 +80,26 @@ export interface PaneAxes {
   readonly y: string;
   readonly onFitX: () => void;
   readonly onFitY: () => void;
+  readonly values: ChartAxesSettings;
+  readonly xReason?: string;
+  readonly yReason?: string;
+  readonly xRange: string;
+  readonly suggestLog: boolean;
+  readonly hasPhase: boolean;
+  readonly onChange: (values: ChartAxesSettings) => void;
+}
+
+export function AxisScaleChoices({ axis, axes }: { axis: 'x' | 'y'; axes: PaneAxes }) {
+  const reason = axis === 'x' ? axes.xReason : axes.yReason;
+  return <div role="group" aria-label={`${axis.toUpperCase()} scale`}>
+    {(['linear', 'log'] as const).map((value: AxisScale) => {
+      const label = value === 'linear' ? 'Linear' : 'Log';
+      const button = <Btn key={value} variant="slate" small disabled={value === 'log' && !!reason}
+        aria-pressed={axes.values[axis] === value && !(value === 'log' && reason)}
+        onClick={() => axes.onChange({ ...axes.values, [axis]: value })}>{label}</Btn>;
+      return value === 'log' && reason ? <Tooltip key={value} text={reason}>{button}</Tooltip> : button;
+    })}
+  </div>;
 }
 /** Table panes: the Table section (Range). */
 export interface PaneTableOptions {
@@ -219,6 +239,12 @@ export function PaneSettingsPopover({
 
             {!table && <Section title="Axes">
               {axes ? <>
+                <Row label="X scale"><AxisScaleChoices axis="x" axes={axes} />{axes.suggestLog && <span className="t-caption">Log suggested</span>}</Row>
+                <Row label="Y scale"><AxisScaleChoices axis="y" axes={axes} /></Row>
+                {axes.hasPhase && <Row label="Phase">{(['wrapped', 'unwrapped'] as const).map(value =>
+                  <Btn key={value} variant="slate" small aria-pressed={axes.values.phase === value}
+                    onClick={() => axes.onChange({ ...axes.values, phase: value })}>{value === 'wrapped' ? 'Wrapped' : 'Unwrapped'}</Btn>)}</Row>}
+                <div className="pset-note t-caption">X range: {axes.xRange}<br />Fit, or right-drag on the chart.</div>
                 <Row label="X"><span className="t-readout pset-scale">{axes.x}</span><Btn small onClick={axes.onFitX}>Fit X</Btn></Row>
                 <Row label="Y"><span className="t-readout pset-scale">{axes.y}</span><Btn small onClick={axes.onFitY}>Fit Y</Btn></Row>
               </> : onFit ? <Row label="View"><Btn small onClick={onFit}>Fit the unit circle</Btn></Row>
