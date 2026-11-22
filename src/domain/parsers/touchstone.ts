@@ -28,8 +28,8 @@ import { incrementFileCounter } from "./rs-dat.ts";
 // ---------------------------------------------------------------------------
 
 function getTouchstonePortCountFromFileName(fileName: string): number | null {
-  const match = String(fileName ?? "").match(/\.s(\d+)p$/i);
-  return match ? Math.max(1, parseInt(match[1]!, 10)) : null;
+  const port = String(fileName ?? "").match(/\.s(\d+)p$/i)?.[1];
+  return port === undefined ? null : Math.max(1, parseInt(port, 10));
 }
 
 
@@ -52,7 +52,8 @@ interface ParserState {
 function parseTouchstoneOptionLine(trimmed: string, state: ParserState): void {
   const tokens = trimmed.slice(1).trim().split(/\s+/).filter(Boolean);
   for (let i = 0; i < tokens.length; i++) {
-    const token = tokens[i]!;
+    const token = tokens[i];
+    if (token === undefined) throw new Error("Missing Touchstone option token.");
     const upper = token.toUpperCase();
     if (upper === "HZ" || upper === "KHZ" || upper === "MHZ" || upper === "GHZ") {
       state.freqUnit = upper === "HZ" ? "Hz" : upper === "KHZ" ? "kHz" : upper === "MHZ" ? "MHz" : "GHz";
@@ -84,8 +85,10 @@ function parseTouchstoneOptionLine(trimmed: string, state: ParserState): void {
 function parseTouchstoneKeyword(trimmed: string, state: ParserState): boolean {
   const match = trimmed.match(/^\[([^\]]+)\]\s*(.*)$/);
   if (!match) return false;
-  const keyword = match[1]!.trim().toLowerCase();
-  const arg = match[2]!.trim();
+  const [, name, argument] = match;
+  if (name === undefined || argument === undefined) return false;
+  const keyword = name.trim().toLowerCase();
+  const arg = argument.trim();
 
   if (keyword === "version") { state.version = 2; state.versionString = arg || "2.0"; return true; }
   if (keyword === "number of ports") {
@@ -178,25 +181,23 @@ export function parseTouchstoneFile(text: string, fileName: string): ParsedFile 
 
   if (!state.sawOptionLine) throw new Error("Touchstone file is missing an option line.");
   // Opened by content under another name: infer the port count from the data layout.
-  state.portCount ??= inferTouchstonePortCount(dataTokens, firstDataLineCount);
-  if (!state.portCount) throw new Error("Unable to determine the Touchstone port count.");
+  const portCount = state.portCount ?? inferTouchstonePortCount(dataTokens, firstDataLineCount);
+  if (!portCount) throw new Error("Unable to determine the Touchstone port count.");
   const filePortCount = getTouchstonePortCountFromFileName(fileNameStr);
-  if (filePortCount && filePortCount !== state.portCount) {
+  if (filePortCount && filePortCount !== portCount) {
     throw new Error("Touchstone port count does not match the file extension.");
   }
 
-  if (state.referenceOhms == null) state.referenceOhms = [state.optionReference];
-  const refs = normalizeReferenceArray(state.referenceOhms, state.portCount);
+  const refs = normalizeReferenceArray(state.referenceOhms ?? [state.optionReference], portCount);
   if (!refs) throw new Error("Unsupported Touchstone reference format.");
-  state.referenceOhms = refs;
 
-  const order = buildMatrixOrder(state.portCount, state.matrixFormat);
+  const order = buildMatrixOrder(portCount, state.matrixFormat);
   const expectedPerSample = 1 + order.length * 2;
 
   const buildNetwork = (): TouchstoneNetwork => ({
     parameterType: state.parameterType,
-    portCount: state.portCount!,
-    referenceOhms: state.referenceOhms!.slice(),
+    portCount,
+    referenceOhms: refs.slice(),
     freqUnit: state.freqUnit,
     dataFormat: state.dataFormat,
     comments: comments.slice(),
@@ -208,13 +209,11 @@ export function parseTouchstoneFile(text: string, fileName: string): ParsedFile 
   const buildMeta = (): FileMetadata => ({
     "Format": "Touchstone",
     "Version": state.versionString,
-    "Port Count": String(state.portCount),
+    "Port Count": String(portCount),
     "Parameter Type": state.parameterType,
     "Data Format": state.dataFormat,
     "Frequency Unit": state.freqUnit,
-    "Reference": state.referenceOhms!.length === 1
-      ? String(state.referenceOhms![0])
-      : state.referenceOhms!.join(", "),
+    "Reference": refs.length === 1 ? String(refs[0]) : refs.join(", "),
   });
 
   if (!dataTokens.length) {
@@ -227,22 +226,24 @@ export function parseTouchstoneFile(text: string, fileName: string): ParsedFile 
   let idx = 0;
 
   while (idx < dataTokens.length) {
-    if (idx + expectedPerSample > dataTokens.length) {
+    const freqValue = dataTokens[idx];
+    if (idx + expectedPerSample > dataTokens.length || freqValue === undefined) {
       throw new Error(`Incomplete Touchstone network data at frequency sample ${samples.length + 1}.`);
     }
-    const freqValue = dataTokens[idx]!;
     idx++;
     const freqScale = freqScaleMap[state.freqUnit] ?? 1e9;
     const freqHz = freqValue * freqScale;
     const values: Complex[] = [];
     for (let j = 0; j < order.length; j++) {
-      const first = dataTokens[idx]!;
-      idx++;
-      const second = dataTokens[idx]!;
-      idx++;
+      const first = dataTokens[idx];
+      const second = dataTokens[idx + 1];
+      if (first === undefined || second === undefined) {
+        throw new Error(`Incomplete Touchstone network data at frequency sample ${samples.length + 1}.`);
+      }
+      idx += 2;
       values.push(touchstonePairToComplex(state.dataFormat, first, second));
     }
-    const matrix = expandOrderedValuesToMatrix(state.portCount!, state.matrixFormat, values);
+    const matrix = expandOrderedValuesToMatrix(portCount, state.matrixFormat, values);
     if (!matrix) throw new Error("Unable to reconstruct the Touchstone network matrix.");
     samples.push({ freq: freqHz, sMatrix: matrix });
   }

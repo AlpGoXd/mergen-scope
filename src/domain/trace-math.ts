@@ -150,16 +150,17 @@ export function getVisibleTraceData(
     }
   }
 
-  if (out.length) {
+  const first = out[0];
+  if (first) {
     // Interpolate left edge
-    if (out[0]!.freq > left && leftIdx >= 0 && leftIdx + 1 < data.length) {
-      const leftPt = interpolatePointAtX(data[leftIdx]!, data[leftIdx + 1]!, left);
+    if (first.freq > left && leftIdx >= 0 && leftIdx + 1 < data.length) {
+      const leftPt = interpolatePointAtX(data[leftIdx] ?? null, data[leftIdx + 1] ?? null, left);
       if (leftPt) out.unshift(leftPt);
     }
     // Interpolate right edge
-    const last = out[out.length - 1]!;
-    if (last.freq < right && rightIdx >= 0 && rightIdx - 1 >= 0) {
-      const rightPt = interpolatePointAtX(data[rightIdx - 1]!, data[rightIdx]!, right);
+    const last = out[out.length - 1];
+    if (last && last.freq < right && rightIdx >= 0 && rightIdx - 1 >= 0) {
+      const rightPt = interpolatePointAtX(data[rightIdx - 1] ?? null, data[rightIdx] ?? null, right);
       if (rightPt) out.push(rightPt);
     }
     return out;
@@ -167,9 +168,9 @@ export function getVisibleTraceData(
 
   // No points inside window — check if window is entirely within a segment
   if (leftIdx >= 0 && leftIdx + 1 < data.length) {
-    const a = data[leftIdx]!;
-    const b = data[leftIdx + 1]!;
-    if (Number.isFinite(a.freq) && Number.isFinite(b.freq) && a.freq <= left && b.freq >= right) {
+    const a = data[leftIdx];
+    const b = data[leftIdx + 1];
+    if (a && b && Number.isFinite(a.freq) && Number.isFinite(b.freq) && a.freq <= left && b.freq >= right) {
       const pLeft = interpolatePointAtX(a, b, left);
       const pRight = interpolatePointAtX(a, b, right);
       return [pLeft, pRight].filter((p): p is DataPoint => p !== null);
@@ -306,7 +307,7 @@ export function niceStepAtIndex(i: number): number {
   const base = [1, 2, 5] as const;
   const mod = ((i % 3) + 3) % 3;
   const power = Math.floor(i / 3);
-  return base[mod]! * Math.pow(10, power);
+  return (base[mod] ?? NaN) * Math.pow(10, power);
 }
 
 /** Integer index of nice step closest to the given step (log-scale). */
@@ -372,11 +373,12 @@ export function findHorizontalCrossings(
   }
 
   for (let i = 0; i < data.length; i++) {
-    const d = data[i]!;
-    if (d.amp === yVal) pushFreq(d.freq);
+    const b = data[i];
+    if (!b) continue;
+    if (b.amp === yVal) pushFreq(b.freq);
     if (i === 0) continue;
-    const a = data[i - 1]!;
-    const b = d;
+    const a = data[i - 1];
+    if (!a) continue;
     const da = a.amp - yVal;
     const db = b.amp - yVal;
     if (da === 0 || db === 0) continue;

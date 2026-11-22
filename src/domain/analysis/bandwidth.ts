@@ -17,11 +17,14 @@ function finiteData(data: readonly DataPoint[]): DataPoint[] {
 }
 
 function nearestIndexByFreq(data: readonly DataPoint[], freq: number): number {
-  if (!data.length || !Number.isFinite(freq)) return -1;
+  const first = data[0];
+  if (!first || !Number.isFinite(freq)) return -1;
   let bestIdx = 0;
-  let bestDelta = Math.abs(data[0]!.freq - freq);
+  let bestDelta = Math.abs(first.freq - freq);
   for (let i = 1; i < data.length; i++) {
-    const delta = Math.abs(data[i]!.freq - freq);
+    const point = data[i];
+    if (!point) continue;
+    const delta = Math.abs(point.freq - freq);
     if (delta < bestDelta) { bestDelta = delta; bestIdx = i; }
   }
   return bestIdx;
@@ -83,8 +86,9 @@ export function computeBandwidth(
 
   // Search left
   for (let i = refIdx; i > 0; i--) {
-    const a = points[i - 1]!;
-    const b = points[i]!;
+    const a = points[i - 1];
+    const b = points[i];
+    if (!a || !b) continue;
     if (a.amp === level) { left = a.freq; leftMode = "sample"; break; }
     if (b.amp === level) { left = b.freq; leftMode = "sample"; break; }
     if ((a.amp - level) * (b.amp - level) < 0) {
@@ -96,8 +100,9 @@ export function computeBandwidth(
 
   // Search right
   for (let j = refIdx; j < points.length - 1; j++) {
-    const c = points[j]!;
-    const d = points[j + 1]!;
+    const c = points[j];
+    const d = points[j + 1];
+    if (!c || !d) continue;
     if (c.amp === level) { right = c.freq; rightMode = "sample"; break; }
     if (d.amp === level) { right = d.freq; rightMode = "sample"; break; }
     if ((c.amp - level) * (d.amp - level) < 0) {
