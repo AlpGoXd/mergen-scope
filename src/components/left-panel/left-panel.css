@@ -191,14 +191,26 @@
 .lp-info__raw { margin: 0; max-height: 220px; overflow: auto; padding: 6px 8px; border-radius: 4px; background: var(--panel); font-family: var(--font-mono); font-size: var(--font-caption); line-height: var(--lh-caption); white-space: pre; }
 
 /* ---------- trace row (C02) ---------- */
-.lp-colhead { height: 14px; display: flex; align-items: center; gap: 6px; padding: 0 6px 0 46px; font-size: var(--font-caption); color: var(--text-muted); }
+.lp-traces-list { display: grid; grid-template-columns: minmax(0, 1fr); min-width: 0; }
+.lp-trace-group > [draggable] { padding-bottom: 2px; }
+.lp-trace-group:last-child > [draggable]:last-child { padding-bottom: 0; }
+.lp-traces-list > .lp-colhead { margin-bottom: 2px; }
+.lp-colhead { height: 14px; display: flex; align-items: center; gap: 6px; padding: 0 6px 0 56px; font-size: var(--font-caption); color: var(--text-muted); }
 .lp-colhead__interp { min-width: 30px; text-align: center; }
 .lp-colhead__pane { min-width: 22px; text-align: center; }
 .lp-colhead__end { width: 12px; }
-.lp-trace { border: 1.5px solid transparent; border-radius: 5px; padding: 0 6px; }
-.lp-trace.lp-selected { background: var(--on-fill); border-color: var(--on-line); color: var(--on-ink); }
+.lp-trace { border: 1px solid var(--border); border-radius: 5px; padding: 0 6px; }
+.lp-trace.lp-selected { background: var(--on-fill); border-color: var(--trace); color: var(--on-ink); }
+.lp-trace__handle { flex: 0 0 10px; margin-right: -5px; opacity: 0; cursor: grab; user-select: none; }
+.lp-trace__handle::before { content: '⠿'; color: var(--text-muted); font-size: 11px; }
+[draggable='true'] > .lp-trace:hover:not(:has(button:hover, input:hover)) .lp-trace__handle,
+[draggable='true']:focus > .lp-trace .lp-trace__handle,
+.is-trace-dragging .lp-trace__handle { opacity: 1; }
+.is-trace-dragging .lp-trace__handle, .lp-trace__handle:active { cursor: grabbing; }
+.lp-trace-preview { position: fixed; top: -100px; left: 0; display: flex; align-items: center; gap: 6px; max-width: 220px; padding: 4px 8px; border: 1px solid var(--border); border-radius: 5px; background: var(--panel); color: var(--text); font-size: var(--font-caption); pointer-events: none; }
 .lp-trace.is-hidden { opacity: 0.6; }
 .lp-trace.is-unplaced:not(.lp-selected) { border-style: dashed; border-color: var(--border-strong); }
+.lp-trace:hover:not(.lp-selected, :has(button:hover, input:hover)) { border: 1px solid var(--border-strong); }
 .lp-trace__check { flex: none; width: 12px; height: 12px; margin: 0; accent-color: var(--accent); }
 .lp-swatch { flex: none; width: 9px; height: 9px; border-radius: 2px; background: var(--trace); }
 .lp-trace.is-hidden .lp-swatch { background: none; border: 1.5px solid var(--trace); }

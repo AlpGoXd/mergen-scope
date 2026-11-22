@@ -6,6 +6,7 @@ import type { CSSProperties } from 'react';
 import './kit/analysis.css';
 import './peak-rows.css';
 import { AnalysisCard, CardMsg, CreateRow, CrossingsList, KeyValues, Params, Result, Results } from './kit/Analysis';
+import type { AnalysisCardProps } from './kit/types';
 import type { ParamField } from './kit/types';
 import { Menu as KitMenu } from '../left-panel/Menu';
 import { PopoverAt } from '../shared/Controls';
@@ -77,7 +78,7 @@ const traceLabel = (trace: Trace): string => trace.dn || trace.name;
 
 interface SelectState { anchor: HTMLElement; title: string; options: { value: string; label: string }[]; value: string; onPick: (value: string) => void }
 
-export function AnalysisInstanceCard({ instance }: { instance: AnalysisInstance }) {
+export function AnalysisInstanceCard({ instance, dropTarget, dragHandle }: { instance: AnalysisInstance } & Pick<AnalysisCardProps, 'dropTarget' | 'dragHandle'>) {
   const ctx = useAnalysisContext();
   const analysisDispatch = useAnalysisDispatch();
   const { analyses, highlightedPeak } = useAnalysisState();
@@ -366,6 +367,8 @@ export function AnalysisInstanceCard({ instance }: { instance: AnalysisInstance 
     <>
       <AnalysisCard
         id={instance.id}
+        dropTarget={dropTarget}
+        dragHandle={dragHandle}
         kind={tool.kind === 'math' ? 'math' : 'measure'}
         title={title}
         source={sourceText}

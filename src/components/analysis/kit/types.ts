@@ -2,6 +2,7 @@
 // (formatEng, real minus, units) and passes strings in. Callbacks carry no events unless a
 // popover needs an anchor element.
 import type { ReactNode } from 'react';
+import type { ListDropTarget } from '../../../hooks/use-list-reorder';
 
 /** Math makes a trace (ƒ); Measure reads numbers off a trace (ruler). */
 export type AnalysisKind = 'math' | 'measure';
@@ -37,6 +38,8 @@ export interface CreateRowProps {
 
 export interface AnalysisCardProps {
   id: string;
+  dropTarget?: ListDropTarget;
+  dragHandle?: ReactNode;
   kind: AnalysisKind;
   title: string;                 // "Bandwidth"
   source?: string;               // "S21 · lna_board_rev3.s2p · Pane 1"

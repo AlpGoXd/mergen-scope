@@ -285,3 +285,7 @@ dialog.ui-dialog::backdrop { background: var(--dialog-scrim); }
 }
 /* Pane setting "line labels" off hides the kit's label chip (the kit itself has no such switch). */
 [data-line-labels="off"] .ln-label { display: none; }
+[data-reorder-edge] { position: relative; }
+[data-reorder-edge]::after { content: ''; position: absolute; inset-inline: 0; height: 2px; background: var(--accent); z-index: 1; pointer-events: none; }
+[data-reorder-edge='before']::after { top: 0; }
+[data-reorder-edge='after']::after { bottom: 0; }

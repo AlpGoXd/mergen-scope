@@ -856,6 +856,8 @@ function migrateWorkspaceV5Body(raw: unknown): WorkspaceSnapshotV5 | null {
   if (body.datasets !== undefined && !Array.isArray(body.datasets)) return null;
   if (body.panes !== undefined && (!Array.isArray(body.panes) || body.panes.length < 1 || body.panes.length > 8 || body.panes.some(p => !object(p) || typeof p.id !== 'string' || !p.id))) return null;
   if (body.traceAssignments !== undefined && !object(body.traceAssignments)) return null;
+  const traceListOrder = body.traceListOrder;
+  if (traceListOrder !== undefined && (!strings(traceListOrder) || new Set(traceListOrder).size !== traceListOrder.length)) return null;
   if (object(body.ui) && hueSlots(body.ui.traceHueSlots) === null) return null;
   if (body.version === 5) {
     const rawLayout = object(body.layout) ? body.layout : {};
@@ -1057,6 +1059,7 @@ function migrateWorkspaceV5Body(raw: unknown): WorkspaceSnapshotV5 | null {
         typed: pane.typed || Object.values(traceAssignments).some(ids => ids.includes(pane.id))
       })),
       traceAssignments,
+      ...(traceListOrder === undefined ? {} : { traceListOrder }),
       paneActiveTraceMap,
       refLines,
       analysisResults: {

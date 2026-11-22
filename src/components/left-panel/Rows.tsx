@@ -21,6 +21,7 @@ export function TraceRow(p: TraceRowProps): ReactElement {
   return (
     <div className={cls} style={p.color ? ({ ['--trace' as string]: p.color } as CSSProperties) : hueStyle(p.hue)} onClick={p.onSelect} title={p.name}>
       <div className="lp-row">
+        <span className="lp-trace__handle" aria-hidden="true" />
         {p.child ? <span className="lp-trace__child" aria-hidden="true">└</span> : null}
         <input className="lp-trace__check" type="checkbox" checked={p.visible} aria-label={p.visible ? `Hide ${p.name}` : `Show ${p.name}`}
           onClick={(e) => e.stopPropagation()} onChange={(e) => p.onVisible(e.currentTarget.checked)} />

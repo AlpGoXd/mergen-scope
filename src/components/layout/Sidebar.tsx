@@ -12,7 +12,8 @@ import { removeFileText, removeTraceText } from '../../domain/confirm-text';
 import { useTraceColors } from '../../hooks/use-trace-colors';
 import { planMatrixAdd } from '../../domain/matrix-add';
 import type { MatrixTrace } from '../../domain/matrix-add';
-import { orderTracesForList } from '../../domain/trace-order';
+import { groupTracesForList } from '../../domain/trace-order';
+import { useListReorder } from '../../hooks/use-list-reorder';
 import { defaultTraceForPane } from '../../domain/default-trace';
 import { paneName } from '../../domain/line-view';
 import { canPlaceMembership } from '../../domain/pane-placement';
@@ -58,7 +59,7 @@ export interface SidebarProps {
 }
 export function Sidebar({ width = 280, hidden = false, onOpenFiles, onDropFiles, onLoadDemo, onReplaceFile, onEditColumns, onThresholdCrossings }: SidebarProps) {
   const { files, rawFileData } = useFileState();
-  const { allTraces, allKnownTraces, allDisplayTraces, vis } = useTraceState();
+  const { allTraces, allKnownTraces, allDisplayTraces, vis, listOrder } = useTraceState();
   const { analyses } = useAnalysisState();
   const { markers, selectedMkrIdx } = useMarkerState();
   const { refLines, selectedRefLineId, hoveredRefLineId, paneViews } = useRefLineState();
@@ -73,6 +74,34 @@ export function Sidebar({ width = 280, hidden = false, onOpenFiles, onDropFiles,
   const markerDispatch = useMarkerDispatch();
   const refLineDispatch = useRefLineDispatch();
   const traceDispatch = useTraceDispatch();
+  const { traceGroups, traceIds, groupIds, siblingsById } = useMemo(() => {
+    const traceGroups = groupTracesForList(allTraces, listOrder);
+    const childrenByParent = new Map<string, string[]>();
+    for (const group of traceGroups) for (const trace of group.traces) {
+      const parent = trace.id !== group.root.id && trace.kind === 'derived' ? trace.sourceTraceIds[0] : undefined;
+      if (!parent) continue;
+      const siblings = childrenByParent.get(parent) ?? [];
+      siblings.push(trace.id);
+      childrenByParent.set(parent, siblings);
+    }
+    return {
+      traceGroups,
+      groupIds: traceGroups.map(group => group.root.id),
+      traceIds: traceGroups.flatMap(group => group.traces.map(trace => trace.id)),
+      siblingsById: new Map([...childrenByParent.values()].flatMap(siblings => siblings.map(id => [id, siblings] as const))),
+    };
+  }, [allTraces, listOrder]);
+  const changeTraceOrder = (source: number, index: number, siblings: readonly string[]) => {
+    const next = [...siblings];
+    const [moved] = next.splice(source, 1);
+    if (moved === undefined) return;
+    next.splice(index, 0, moved);
+    const ids = new Set(siblings);
+    const ordered = next.values();
+    traceDispatch({ type: 'SET_LIST_ORDER', payload: traceIds.map(id => ids.has(id) ? ordered.next().value ?? id : id) });
+  };
+  const traceReorder = useListReorder('application/x-mergen-trace-reorder', groupIds, changeTraceOrder);
+  const childReorder = useListReorder('application/x-mergen-trace-siblings', id => siblingsById.get(id) ?? [], changeTraceOrder);
   const uiDispatch = useUiDispatch();
   const { touchstoneStateByFileId, appendCell, setActiveFamily, setActiveView } = useTouchstoneState();
   const { selectTrace, removeTrace, toggleVisibility } = useTraceActions();
@@ -540,9 +569,11 @@ export function Sidebar({ width = 280, hidden = false, onOpenFiles, onDropFiles,
             })
           ),
         ]}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 2, minWidth: 0 }}>
+          <div className="lp-traces-list">
             {allTraces.length > 0 && <TraceColumnsHeader />}
-            {orderTracesForList(allTraces).map((trace, index) => {
+            {traceGroups.map(group => <div key={group.root.id} className="lp-trace-group" {...traceReorder.target(group.root.id)}>{group.traces.map((trace, index) => {
+              const reorder = trace.kind !== 'derived' ? traceReorder : childReorder;
+              const siblingTarget = (siblingsById.get(trace.id)?.length ?? 0) > 1;
               const traceColor = resolveTraceColor(trace, index);
               const isBackedByDisplayTrace = visibleDisplayTraces.some(
                 (displayTrace) => (displayTrace.compat?.legacyTraceName ?? displayTrace.id) === trace.name,
@@ -618,6 +649,9 @@ export function Sidebar({ width = 280, hidden = false, onOpenFiles, onDropFiles,
                 <TraceRow
                   key={trace.id || trace.name}
                   trace={trace}
+                  dropTarget={siblingTarget ? childReorder.target(trace.id) : undefined}
+                  onReorderStart={trace.kind !== 'derived' || siblingTarget ? event => reorder.start(event, trace.id) : undefined}
+                  onDragEnd={reorder.clear}
                   displayName={rowName.length > 28 ? `${rowName.slice(0, 14)}\u2026${rowName.slice(-11)}` : rowName}
                   subtitle={(() => {
                     const display = allDisplayTraces.find(item => (item.compat?.legacyTraceName ?? item.id) === trace.name);
@@ -708,7 +742,7 @@ export function Sidebar({ width = 280, hidden = false, onOpenFiles, onDropFiles,
                   }
                 />
               );
-            })}
+            })}</div>)}
             {allTraces.length === 0 && <SidebarEmpty text={EMPTY_TEXT.traces} compact={compactSidebar} />}
           </div>
         </PanelSection>

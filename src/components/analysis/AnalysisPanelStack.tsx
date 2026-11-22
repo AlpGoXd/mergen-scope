@@ -9,8 +9,10 @@ import { useAnalysisContext } from '../../hooks/use-analysis-context';
 import { useAnalysisDispatch, useAnalysisState } from '../../stores/analysis-store';
 import { useUiDispatch } from '../../stores/ui-store';
 import { listAddableTools } from '../../domain/analysis/tool-registry';
+import { useListReorder } from '../../hooks/use-list-reorder';
 
 const RECENT_KEY = 'mergen-recent-analyses';
+const ANALYSIS_DRAG_TYPE = 'application/x-mergen-analysis';
 function readRecent(): string[] {
   try { const raw: unknown = JSON.parse(localStorage.getItem(RECENT_KEY) ?? '[]'); return Array.isArray(raw) ? raw.filter((id): id is string => typeof id === 'string').slice(0, 3) : []; } catch { return []; }
 }
@@ -21,6 +23,10 @@ function writeRecent(ids: string[]): void {
 export function AnalysisPanelStack() {
   const { analyses } = useAnalysisState();
   const analysisDispatch = useAnalysisDispatch();
+  const reorder = useListReorder(ANALYSIS_DRAG_TYPE, analyses.map(instance => instance.id), (source, index) => {
+    const instance = analyses[source];
+    if (instance) analysisDispatch({ type: 'MOVE_ANALYSIS', payload: { id: instance.id, index } });
+  });
   const uiDispatch = useUiDispatch();
   const ctx = useAnalysisContext();
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
@@ -60,7 +66,14 @@ export function AnalysisPanelStack() {
     <>
       <AnalysisPanel count={analyses.length} addOpen={anchor !== null} onAdd={onAdd}
         empty={<AnalysisEmpty onAdd={onAdd} />}>
-        {analyses.map(instance => <AnalysisInstanceCard key={instance.id} instance={instance} />)}
+        {analyses.map(instance => <AnalysisInstanceCard key={instance.id} instance={instance} dropTarget={reorder.target(instance.id)}
+          dragHandle={<span className="an-card__drag-handle" title="Drag to reorder" aria-hidden="true" draggable
+            onClick={event => event.stopPropagation()}
+            onDragStart={event => {
+              event.dataTransfer.setData(ANALYSIS_DRAG_TYPE, instance.id);
+              event.dataTransfer.effectAllowed = 'move';
+              if (event.currentTarget.parentElement) event.dataTransfer.setDragImage(event.currentTarget.parentElement, 8, 10);
+            }} onDragEnd={reorder.clear} />} />)}
       </AnalysisPanel>
       {anchor ? (
         <PopoverAt label="Add analysis" at={anchor} onClose={close}>

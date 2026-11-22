@@ -23,6 +23,22 @@ it('accepts optional trace math alignment choices and rejects unknown choices', 
 });
 
 const fixture = (name: string): unknown => JSON.parse(readFileSync(`tests/fixtures/phase3-preservation/${name}.json`, 'utf8'));
+it('round-trips a manual trace list order and keeps it optional for older workspaces', () => {
+  const base = migrateWorkspaceV5(fixture('workspace-v4-eight-pane-extension'));
+  if (!base) throw new Error('fixture');
+  expect(base.traceListOrder).toBeUndefined();
+  const state = workspaceFromSnapshot(initialWorkspaceState(), base, true);
+  if (!state) throw new Error('workspace');
+  const order = traceView(state.files, state.traces).allTraces.map(trace => trace.id).reverse();
+  expect(order.length).toBeGreaterThan(1);
+  const reordered = workspaceReducer(state, { slice: 'traces', action: { type: 'SET_LIST_ORDER', payload: order } });
+  const saved = migrateWorkspaceV5(JSON.parse(JSON.stringify(snapshotFromWorkspace(reordered))));
+  if (!saved) throw new Error('saved workspace');
+  expect(saved.traceListOrder).toEqual(order);
+  expect(workspaceFromSnapshot(initialWorkspaceState(), saved)?.traces.listOrder).toEqual(order);
+  expect(migrateWorkspaceV5({ ...base, traceListOrder: ['trace', 42] })).toBeNull();
+  expect(migrateWorkspaceV5({ ...base, traceListOrder: ['trace', 'trace'] })).toBeNull();
+});
 it('validates per-preset layout size keys', () => {
   const base = migrateWorkspaceV5(fixture('workspace-v4-eight-pane-extension'));
   if (!base) throw new Error('fixture');
