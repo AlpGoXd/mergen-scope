@@ -22,6 +22,12 @@ import { useSharedHoverPublisher, useSharedHoverValue } from '../../stores/share
 import { useLegendDodge } from '../../hooks/use-legend-dodge';
 import { usePointerReadoutPublisher } from '../../stores/pointer-readout-store';
 import { formatPointerXY } from '../../domain/footer-state';
+import {
+  computeMarkerHitTolerance as markerHitToleranceForPlot,
+  computeNearestPixelDist as nearestPixelDistForPlot,
+  findMarkerHit,
+  pickPlacementTraceIndex,
+} from '../../domain/chart/marker-placement';
 import { centerXDomain, centerYDomain, dragZoomXDomain, paddedYDomain, panXDomain, panYDomain, pixelToAxisValue, zoomYDomain } from '../../domain/chart/plot-coords';
 import { useTheme } from '../../hooks/use-theme';
 import { usePaneData } from '../../hooks/use-pane-data';
@@ -42,7 +48,7 @@ import type { PickerTileId } from '../panes/PaneTypePicker';
 import { paneTypeCompatibilityNote, summarizePaneTypeChange } from '../../domain/pane-type-change-summary';
 import { formatAdaptiveXAxisTickLabels, formatAdaptiveXAxisValue, formatPerDivision, formatScalarWithUnit, makeYAxisTickFormatter } from '../../domain/format';
 import { getResolvedInterpolationStrategy } from '../../domain/interpolation';
-import { placeMarker, nearestIndexByFreq } from '../../domain/markers';
+import { placeMarker } from '../../domain/markers';
 import { computeVerticalIntersections, computeHorizontalIntersections, nextLineLabel } from '../../domain/ref-lines';
 import { makeNiceTicks, NICE_TICK_COUNT } from '../../domain/trace-math';
 import { allocateTraceColors, traceWidth } from '../../domain/trace-palette';
@@ -522,14 +528,7 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
     const plotWidth = chartEl
       ? chartEl.getBoundingClientRect().width - yAxisWidth - CHART_MARGIN_RIGHT
       : 0;
-    if (plotWidth <= 0 || !Number.isFinite(plotWidth)) {
-      return visibleXSpan * 0.006;
-    }
-
-    const fullSpan = paneDataBounds ? Math.max(paneDataBounds.max - paneDataBounds.min, visibleXSpan) : visibleXSpan;
-    const zoomRatio = fullSpan > 0 ? Math.max(0, Math.min(1, visibleXSpan / fullSpan)) : 1;
-    const hitRadiusPx = 3 + zoomRatio * 4;
-    return Math.max((visibleXSpan / plotWidth) * hitRadiusPx, visibleXSpan * 1e-6);
+    return markerHitToleranceForPlot(plotWidth, visibleXSpan, paneDataBounds);
   }, [paneDataBounds, visibleXSpan, yAxisWidth]);
 
   const resolveBaseYDomain = React.useCallback((): { min: number; max: number } | null => {
@@ -685,7 +684,7 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
     const tol = computeMarkerHitTolerance();
 
     // Click near an existing marker → select it and start drag (in all modes)
-    const markerHit = paneMarkers.find(({ marker }) => Math.abs(marker.freq - freq) < tol);
+    const markerHit = findMarkerHit(paneMarkers, freq, tol);
     if (markerHit) {
       refLineDispatch({ type: 'SET_SELECTED', payload: null });
       markerDispatch({ type: 'SET_SELECTED_IDX', payload: markerHit.index });
@@ -979,7 +978,7 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
         const tickNodes = Array.from(
           el.querySelectorAll('.recharts-yAxis .recharts-cartesian-axis-tick')
         );
-        const tickPairs: { val: number; svgY: number }[] = [];
+        const tickPairs: { val: number; clientY: number }[] = [];
         for (const node of tickNodes) {
           const tspan = node.querySelector('tspan');
           const val = tspan ? Number(tspan.textContent) : NaN;
@@ -995,63 +994,15 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
           const svgRect = svgEl?.getBoundingClientRect();
           if (!svgRect) continue;
           const clientYOfTick = svgRect.top + svgY;
-          tickPairs.push({ val, svgY: clientYOfTick });
+          tickPairs.push({ val, clientY: clientYOfTick });
         }
 
-        if (tickPairs.length >= 2) {
-          // Sort by svgY ascending (top ticks have smaller clientY)
-          tickPairs.sort((a, b) => a.svgY - b.svgY);
-          const topTick = tickPairs[0]!;
-          const botTick = tickPairs[tickPairs.length - 1]!;
-          const pixelSpan = botTick.svgY - topTick.svgY;
-          if (pixelSpan > 0) {
-            // Linear interpolation: top tick = higher value, bottom tick = lower value
-            const frac = (clientY - topTick.svgY) / pixelSpan;
-            const clickAmp = topTick.val + frac * (botTick.val - topTick.val);
-
-            let bestTrace = paneTraces[0];
-            let bestDist = Infinity;
-            for (const tr of paneTraces) {
-              const placement = placeMarker(tr, targetFreq);
-              const dist = Math.abs(placement.amp - clickAmp);
-              if (dist < bestDist) { bestDist = dist; bestTrace = tr; }
-            }
-            return bestTrace ?? null;
-          }
-        }
-
-        // Fallback: use tick value range + chart margin estimate
-        const tickVals = tickPairs.map(t => t.val);
-        if (tickVals.length < 2) {
-          // Compute from data if ticks unavailable
-          const allAmps = paneTraces.flatMap(tr =>
-            tr.data
-              .filter(p => p.freq >= (currentXZoom?.left ?? -Infinity) && p.freq <= (currentXZoom?.right ?? Infinity))
-              .map(p => p.amp)
-              .filter(Number.isFinite)
-          );
-          tickVals.push(...(allAmps.length ? [Math.min(...allAmps), Math.max(...allAmps)] : [0, 1]));
-        }
-        const yMin = Math.min(...tickVals);
-        const yMax = Math.max(...tickVals);
-        if (yMax > yMin) {
-          const rect = el.getBoundingClientRect();
-          const CHART_MARGIN_TOP = 10;
-          const CHART_MARGIN_BOTTOM = 30; // accounts for x-axis ticks + label
-          const plotH = rect.height - CHART_MARGIN_TOP - CHART_MARGIN_BOTTOM;
-          if (plotH > 0) {
-            const fracFromTop = Math.max(0, Math.min(1, (clientY - rect.top - CHART_MARGIN_TOP) / plotH));
-            const clickAmp = yMax - fracFromTop * (yMax - yMin);
-            let bestTrace = paneTraces[0];
-            let bestDist = Infinity;
-            for (const tr of paneTraces) {
-              const placement = placeMarker(tr, targetFreq);
-              const dist = Math.abs(placement.amp - clickAmp);
-              if (dist < bestDist) { bestDist = dist; bestTrace = tr; }
-            }
-            return bestTrace ?? null;
-          }
-        }
+        const rect = el.getBoundingClientRect();
+        const traceAmps = paneTraces.map(trace => placeMarker(trace, targetFreq).amp);
+        const traceIndex = pickPlacementTraceIndex(tickPairs, traceAmps, clientY, {
+          top: rect.top, height: rect.height, traces: paneTraces, xZoom: currentXZoom,
+        });
+        if (traceIndex !== null) return paneTraces[traceIndex] ?? null;
       }
     }
 
@@ -1061,26 +1012,12 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
   }, [markerTrace, selectedTraceName, paneActiveTraceMap, paneId, paneTraces, currentXZoom, allTraces, tracePaneMap, vis]);
 
   const computeNearestPixelDist = React.useCallback((trace: typeof paneTraces[0], targetFreq: number): number => {
-    const nearestIdx = nearestIndexByFreq(trace.data, targetFreq);
-    const nearest = trace.data[nearestIdx];
-    if (!nearest) return Infinity;
     const el = chartAreaRef.current;
     if (!el) return Infinity;
     const domainLeft = currentXZoom?.left ?? mergedData[0]?.fs ?? 0;
     const domainRight = currentXZoom?.right ?? mergedData[mergedData.length - 1]?.fs ?? 1;
-    if (domainRight <= domainLeft) return Infinity;
     const plotWidth = el.getBoundingClientRect().width - yAxisWidth - CHART_MARGIN_RIGHT;
-    if (plotWidth <= 0) return Infinity;
-    const pxPerUnit = plotWidth / (domainRight - domainLeft);
-    // Count how many of this trace's points fall inside the visible x-range
-    const pointsInView = trace.data.filter(p => p.freq >= domainLeft && p.freq <= domainRight).length;
-    // Only engage pixel-distance snap when data points are sparse enough on screen.
-    // If the average spacing between adjacent points is < 20px, points are too dense
-    // for the 10px threshold to be meaningful — clicking between two points would always
-    // be within 10px of one of them, making true interpolation impossible.
-    const avgSpacingPx = pointsInView > 1 ? plotWidth / (pointsInView - 1) : Infinity;
-    if (avgSpacingPx < 20) return Infinity; // data too dense — let interpolation strategy decide
-    return Math.abs(nearest.freq - targetFreq) * pxPerUnit;
+    return nearestPixelDistForPlot(trace.data, targetFreq, domainLeft, domainRight, plotWidth);
   }, [currentXZoom, mergedData, yAxisWidth]);
 
   const handlePaneDragOver = (e: React.DragEvent<HTMLDivElement>) => {
