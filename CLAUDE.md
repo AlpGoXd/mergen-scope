@@ -13,7 +13,7 @@ Browser RF/signal analysis app (R&S `.dat`, CSV/TSV, Touchstone `.sNp`). React 1
 - `src/components/` — UI only; put math in `domain/`, not in components.
 - `app.html` = SPA shell, `index.html` = static landing page. `dist/` is build output: never hand-edit it.
 - **Fragile:** `src/components/chart/ChartPane.tsx` (marker placement, drag zoom/pan, Y zoom, crosshair). Small, reversible steps; run the chart e2e specs after every change there (see "When to run what").
-- Workspace files are versioned: the app saves **v5** (`use-workspace-v5.ts`, `types/workspace-v5.ts`) and loads every older version through `workspace-migrate-v5.ts`, which calls `workspace-migrate-v4.ts` for v1–v4 files. Changing the saved shape needs a migration in `workspace-migrate-v5.ts` and a test in `tests/unit/workspace-v5.test.ts`. `workspace-serialize.ts` (`CURRENT_VERSION = 4`) is the legacy v4 serializer; don't add new fields there.
+- Workspace files are versioned: the app saves **v5** (`use-workspace-v5.ts`, `types/workspace-v5.ts`) and loads every older version through `workspace-migrate-v5.ts`, which calls `workspace-migrate-v4.ts` for v1–v4 files. Changing the saved shape needs a migration in `workspace-migrate-v5.ts` and a test in `tests/unit/workspace-v5.test.ts`. The v5 save path handles all new workspace exports.
 
 ## TypeScript conventions
 
