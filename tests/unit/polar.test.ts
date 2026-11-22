@@ -1,7 +1,7 @@
 import { expect, it } from 'vitest';
 import { DEFAULT_POLAR_SETTINGS, defaultPaneSettings } from '../../src/types/pane';
 import { canPlaceMembership } from '../../src/domain/pane-placement';
-import { complexPolar, POLAR_REFUSAL, polarCapability, polarFraction, polarReadout, polarRings, polarTrace, polarVector } from '../../src/domain/polar';
+import { complexPolar, POLAR_REFUSAL, polarCapability, polarFraction, polarReadout, polarRings, polarTrace, polarValue, polarVector } from '../../src/domain/polar';
 import { makeTestTrace } from './helpers';
 
 it('maps complex values into linear magnitude, dB and signed phase', () => {
@@ -9,6 +9,17 @@ it('maps complex values into linear magnitude, dB and signed phase', () => {
   expect(result.linear).toBe(0.5);
   expect(result.db).toBeCloseTo(-6.0206);
   expect(result.angle).toBe(-90);
+});
+
+it('converts antenna gain to a power ratio and retains the recorded dB value', () => {
+  for (const unit of ['dBi', 'dBd', 'dB']) {
+    const pattern = polarTrace(makeTestTrace({ units: { x: '°', y: unit } }));
+    if (!pattern) throw new Error('Missing pattern');
+    const value = polarValue({ re: 10, im: 45 }, pattern);
+    expect(value.linear).toBeCloseTo(unit === 'dB' ? Math.sqrt(10) : 10);
+    expect(value.db).toBe(10);
+    expect(value.angle).toBe(45);
+  }
 });
 
 it('rounds the auto limits, draws nice rings, and clips dB values below the floor to the centre', () => {

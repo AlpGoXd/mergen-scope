@@ -10,10 +10,12 @@ import { useChartHover } from '../../hooks/use-chart-hover';
 import { useLegendDodge } from '../../hooks/use-legend-dodge';
 import { dragReducer, idleDragState } from '../../domain/chart/drag-state';
 import {
+  computeLogMarkerHitTolerance,
   computeMarkerHitTolerance as markerHitToleranceForPlot,
   computeNearestPixelDist as nearestPixelDistForPlot,
   findMarkerHit,
   pickPlacementTraceIndex,
+  withinXAxisTolerance,
 } from '../../domain/chart/marker-placement';
 import { centerXDomain, centerYDomain, dragZoomXDomain, paddedYDomain, panXDomain, pixelToAxisValue, refLineYTolerance, wheelAxisDomain } from '../../domain/chart/plot-coords';
 import { chartAxisData, isPhase, logXReason, logYReason, positiveDomain, suggestLog } from '../../domain/chart/axis-scale';
@@ -487,14 +489,6 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
     return pixelToAxisValue(clientX - rect.left, yAxisWidth, plotWidth, domainLeft, domainRight, false, xScale);
   };
 
-  const computeMarkerHitTolerance = React.useCallback((): number => {
-    const chartEl = chartAreaRef.current;
-    const plotWidth = chartEl
-      ? chartEl.getBoundingClientRect().width - yAxisWidth - CHART_MARGIN_RIGHT
-      : 0;
-    return markerHitToleranceForPlot(plotWidth, visibleXSpan, paneDataBounds);
-  }, [paneDataBounds, visibleXSpan, yAxisWidth]);
-
   const resolveBaseYDomain = React.useCallback((): { min: number; max: number } | null => {
     if (Array.isArray(yDomain) && yDomain[0] !== 'auto') {
       return { min: yDomain[0], max: yDomain[1] };
@@ -655,10 +649,15 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
       return;
     }
 
-    const tol = computeMarkerHitTolerance();
+    const chartWidth = chartAreaRef.current?.getBoundingClientRect().width;
+    const fallbackWidth = chartWidth === undefined ? 0 : chartWidth - yAxisWidth - CHART_MARGIN_RIGHT;
+    const logView = plotView?.x ? { min: plotView.x[0], max: plotView.x[1] } : xDomain;
+    const tol = xScale === 'log'
+      ? computeLogMarkerHitTolerance(plotGeometry()?.plot.width ?? fallbackWidth, logView, paneDataBounds)
+      : markerHitToleranceForPlot(fallbackWidth, visibleXSpan, paneDataBounds);
 
     // Click near an existing marker → select it and start drag (in all modes)
-    const markerHit = findMarkerHit(paneMarkers, freq, tol);
+    const markerHit = findMarkerHit(paneMarkers, freq, tol, xScale);
     if (markerHit) {
       refLineDispatch({ type: 'SET_SELECTED', payload: null });
       markerDispatch({ type: 'SET_SELECTED_IDX', payload: markerHit.index });
@@ -669,7 +668,7 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
 
     const lineHit = refLines
       .filter((line) => line.type === 'v' && line.paneIds.includes(paneId))
-      .find((line) => Math.abs(line.value - freq) < tol);
+      .find((line) => withinXAxisTolerance(line.value, freq, tol, xScale));
     if (lineHit) {
       markerDispatch({ type: 'SET_SELECTED_IDX', payload: -1 });
       refLineDispatch({ type: 'SET_SELECTED', payload: lineHit.id });

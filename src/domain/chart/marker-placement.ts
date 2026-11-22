@@ -2,8 +2,8 @@ import { nearestIndexByFreq } from '../markers';
 import { pixelToAxisValue } from './plot-coords';
 import type { ZoomWindow } from '../../types/marker';
 import type { DataPoint } from '../../types/trace';
-import type { AxisScale } from '../../types/pane';
-import { toAxisSpace } from './axis-scale';
+import type { AxisScale, YDomain } from '../../types/pane';
+import { mapAxisDomain, toAxisSpace } from './axis-scale';
 
 export function computeMarkerHitTolerance(
   plotWidth: number, visibleXSpan: number, dataBounds: { min: number; max: number } | null,
@@ -16,11 +16,23 @@ export function computeMarkerHitTolerance(
   return Math.max((visibleXSpan / plotWidth) * hitRadiusPx, visibleXSpan * 1e-6);
 }
 
+/** Calculate the same screen hit radius in decades for a logarithmic X axis. */
+export function computeLogMarkerHitTolerance(plotWidth: number, view: YDomain | null, bounds: YDomain | null): number {
+  if (!view || !(view.min > 0) || !Number.isFinite(view.max) || view.max <= view.min) return 0;
+  const axis = mapAxisDomain(view, 'log');
+  const data = bounds && bounds.min > 0 && Number.isFinite(bounds.max) ? mapAxisDomain(bounds, 'log') : null;
+  return computeMarkerHitTolerance(plotWidth, axis.max - axis.min, data);
+}
+
+export function withinXAxisTolerance(value: number, target: number, tolerance: number, scale: AxisScale): boolean {
+  return Math.abs(toAxisSpace(value, scale) - toAxisSpace(target, scale)) < tolerance;
+}
+
 /** The first marker within tolerance wins, in array order. */
 export function findMarkerHit<T extends { marker: { freq: number } }>(
-  markers: readonly T[], clickFreq: number, tolerance: number,
+  markers: readonly T[], clickFreq: number, tolerance: number, scale: AxisScale = 'linear',
 ): T | undefined {
-  return markers.find(({ marker }) => Math.abs(marker.freq - clickFreq) < tolerance);
+  return markers.find(({ marker }) => withinXAxisTolerance(marker.freq, clickFreq, tolerance, scale));
 }
 
 /** Pick a trace by its amplitude at the click X. A missing Y mapping leaves the choice to the pane. */

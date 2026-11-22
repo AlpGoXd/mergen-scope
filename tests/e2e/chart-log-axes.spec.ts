@@ -68,3 +68,31 @@ test('Log Y leaves a break at nonpositive voltage samples', async ({ page }) => 
   await expect(plot.getByText('1 points ≤ 0 not shown')).toBeVisible();
   await expect(plot.locator('path.recharts-line-curve')).toHaveAttribute('d', /^M[^M]+M[^M]+$/);
 });
+
+test('Log X selects a marker only near its screen position at low frequencies', async ({ page }) => {
+  await page.goto('/app.html');
+  const network = ['# Hz S DB R 50', ...[1e4, 1e5, 1e6, 1e7, 1e8, 1e9, 8.5e9]
+    .map(hz => `${hz} -10 0 -2 0 -30 0 -10 0`)].join('\n');
+  await page.getByTestId('app-open-input').setInputFiles({ name: 'decades.s2p', mimeType: 'text/plain', buffer: Buffer.from(network) });
+  const plot = page.getByTestId('chart-plot-pane-1');
+  await expect(plot).toBeVisible();
+  await page.getByRole('button', { name: 'Pane settings' }).click();
+  await page.getByRole('group', { name: 'X scale' }).getByRole('button', { name: 'Log' }).click();
+  await page.keyboard.press('Escape');
+  const grid = plot.locator('.chart-log-grid line[data-decade]').nth(1);
+  const at = await grid.evaluate(line => {
+    const svg = line.closest('svg')?.getBoundingClientRect();
+    if (!svg) throw new Error('Missing grid bounds');
+    return { x: svg.x + Number(line.getAttribute('x1')), y: svg.y + svg.height / 2 };
+  });
+  const markers = page.getByRole('button', { name: 'Markers', exact: true });
+  if (await markers.getAttribute('aria-pressed') !== 'true') await markers.click();
+  await page.getByRole('button', { name: 'New Marker', exact: true }).click();
+  await page.mouse.click(at.x, at.y);
+  const selected = plot.locator('circle[r="9"]');
+  await expect(selected).toBeVisible();
+  await page.mouse.click(at.x + 30, at.y);
+  await expect(selected).toHaveCount(0);
+  await page.mouse.click(at.x + 2, at.y);
+  await expect(selected).toBeVisible();
+});

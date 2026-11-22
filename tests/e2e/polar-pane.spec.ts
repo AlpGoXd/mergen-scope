@@ -97,6 +97,7 @@ test('an angle CSV closes a full-turn pattern and omits the frequency slider', a
   const plot = pane.getByTestId('polar-plot');
   await expect(plot.locator('[data-testid^="polar-trace-"] path')).toHaveAttribute('d', / Z$/);
   await expect(plot.getByTestId('polar-grid')).toContainText('330°');
+  await expect(plot.getByTestId('polar-grid').getByText('10', { exact: true })).toBeVisible();
   await expect(pane.getByTestId('smith-range-bar')).toHaveCount(0);
   const position = await curvePoint(plot.locator('[data-testid^="polar-trace-"] path'));
   await page.mouse.move(position.x, position.y);

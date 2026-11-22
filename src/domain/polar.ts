@@ -79,9 +79,11 @@ export function complexPolar(value: Complex): PolarValue {
 
 export function polarValue(value: Complex, trace: PolarTrace): PolarValue {
   if (trace.kind === 'network') return complexPolar(value);
+  // dBi and dBd are antenna power gain relative to a reference antenna.
+  const gainFactor = /^db[id]$/i.test(trace.trace.units.y?.trim() ?? '') ? 10 : 20;
   return {
     angle: value.im,
-    linear: trace.alreadyDb ? 10 ** (value.re / 20) : Math.max(0, value.re),
+    linear: trace.alreadyDb ? 10 ** (value.re / gainFactor) : Math.max(0, value.re),
     db: trace.alreadyDb ? value.re : 20 * Math.log10(Math.max(0, value.re)),
   };
 }
