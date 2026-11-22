@@ -1,4 +1,6 @@
 ﻿import { useLayoutEffect, useRef, useState } from 'react';
+import type { RefObject } from 'react';
+import { createPortal } from 'react-dom';
 import { useFileState } from '../../stores/file-store';
 import { usePaneState } from '../../stores/pane-store';
 import { useUiState } from '../../stores/ui-store';
@@ -39,7 +41,7 @@ function PointerReadout({ kind }: { kind: 'chart' | 'smith' }) {
  * The app footer: what a click does now · target pane · active trace · mouse position, then the mouse hints for
  * the target pane and four quiet buttons. One line; on narrow windows it drops items in a fixed order (see fitRow).
  */
-export function FooterBar() {
+export function FooterBar({ workspaceRef }: { workspaceRef: RefObject<HTMLDivElement | null> }) {
   const { files } = useFileState();
   const { activePaneId, paneActiveTraceMap, tracePaneMap, panes } = usePaneState();
   const { selectedTraceName } = useUiState();
@@ -108,6 +110,6 @@ export function FooterBar() {
     {feedback && <PopoverAt label="Feedback" at={feedback} onClose={() => setFeedback(null)}><div className="footer-feedback" role="menu" aria-label="Feedback" data-testid="footer-feedback"><FeedbackLinks menu /></div></PopoverAt>}
     {(sheet === 'help' || sheet === 'help-keys') && <HelpSheet key={sheet} focus={sheet === 'help-keys' ? 'keyboard' : 'top'} onClose={() => open(null)} onAbout={() => open('about')} />}
     {sheet === 'about' && <AboutPanel onClose={() => open(null)} />}
-    {sheet === 'settings' && <SettingsSheet onClose={() => open(null)} onShowShortcuts={() => open('help-keys')} onAbout={() => open('about')} />}
+    {sheet === 'settings' && workspaceRef.current && createPortal(<SettingsSheet onClose={() => open(null)} onShowShortcuts={() => open('help-keys')} onAbout={() => open('about')} />, workspaceRef.current)}
   </footer>;
 }

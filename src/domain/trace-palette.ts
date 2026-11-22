@@ -132,17 +132,20 @@ const TONE = {
 } as const;
 
 /** Whether an OKLCH colour fits the sRGB gamut. */
-export function inSrgb(l: number, c: number, h: number): boolean {
+export function oklchToLinearSrgb(l: number, c: number, h: number): [number, number, number] {
   const angle = (h * Math.PI) / 180, a = c * Math.cos(angle), b = c * Math.sin(angle);
   const x = (l + 0.3963377774 * a + 0.2158037573 * b) ** 3;
   const y = (l - 0.1055613458 * a - 0.0638541728 * b) ** 3;
   const z = (l - 0.0894841775 * a - 1.291485548 * b) ** 3;
-  const rgb = [
+  return [
     4.0767416621 * x - 3.3077115913 * y + 0.2309699292 * z,
     -1.2684380046 * x + 2.6097574011 * y - 0.3413193965 * z,
     -0.0041960863 * x - 0.7034186147 * y + 1.707614701 * z,
   ];
-  return rgb.every((v) => v >= -1e-6 && v <= 1 + 1e-6);
+}
+
+export function inSrgb(l: number, c: number, h: number): boolean {
+  return oklchToLinearSrgb(l, c, h).every(value => value >= -1e-6 && value <= 1 + 1e-6);
 }
 
 /** Largest chroma ≤ `c` that the screen can show at this lightness and hue. */

@@ -5,9 +5,14 @@ import { StoreRoot } from './stores/StoreRoot';
 import './index.css';
 import './text-roles.css';
 import './components/panes/pane-types.css';
-import { applyAppSize, readStoredAppSize } from './components/settings/app-size';
+import { applyAppSize } from './components/settings/app-size';
+import { readExportDocumentPreferences } from './components/chart/export/export-theme-storage';
+import { applyAppAppearance, readAppPreferences } from './components/settings/app-preferences';
 
-applyAppSize(readStoredAppSize());
+readExportDocumentPreferences(); // Migrate the old theme before any App settings writes.
+const preferences = readAppPreferences();
+applyAppSize(preferences.size);
+applyAppAppearance(preferences);
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

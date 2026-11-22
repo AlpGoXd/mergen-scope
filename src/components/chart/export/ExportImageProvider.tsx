@@ -11,6 +11,7 @@ import { useShortcut } from '../../../stores/shortcut-store';
 import { usePaneData } from '../../../hooks/use-pane-data';
 import { useTraceColors } from '../../../hooks/use-trace-colors';
 import { useTraceSymbols } from '../../../hooks/use-trace-symbols';
+import { forcesHollowTraceSymbol } from '../../../domain/trace-colors';
 import { allocateTraceColors, traceWidth } from '../../../domain/trace-palette';
 import { SYMBOL_RADIUS } from '../../../domain/dots-and-symbols';
 import { paneName } from '../../../domain/line-view';
@@ -25,7 +26,7 @@ import { gammaAtFrequency } from '../../../domain/smith/hit';
 import { PAPER_LINE_PT, PAPER_MARK_RADIUS_PT, PAPER_TAG_PT, exportFileName, exportGeometry, exportPhysicalSize, layoutLegend, ptToCssPx, wrapLegendLabel } from '../../../domain/export-image';
 import type { ExportImageOptions } from '../../../domain/export-image';
 import { defaultPaneSettings } from '../../../types/pane';
-import { readAppPreferences } from '../../settings/app-preferences';
+import { rememberedExportTheme } from './export-theme-storage';
 import { TraceSymbol } from '../../shared/TraceSymbol';
 import { ChartPane } from '../ChartPane';
 import { SmithPaneContainer } from '../../smith/SmithPaneContainer';
@@ -128,7 +129,7 @@ export function ExportImageProvider({ children, shortcutsOff = false }: { childr
       const element = document.querySelector(`[data-testid="chart-pane-${CSS.escape(paneId)}"]`);
       const box = element?.getBoundingClientRect() ?? { width: 800, height: 500 };
       // LaTeX takes its ranges and labels from a print render; its look is set in the .tex itself.
-      const theme = mode === 'latex' || pdf ? 'print' : resolveExportTheme(chosen.theme ?? readAppPreferences().exportTheme, state.appTheme);
+      const theme = mode === 'latex' || pdf ? 'print' : resolveExportTheme(rememberedExportTheme(), state.appTheme);
       const next: Job = {
         id: ++counter.current, paneId, kind, mode, options: chosen,
         geometry: geometry ?? exportGeometry(chosen, { width: box.width, height: box.height }), document: settings, pdf, latexSize, theme, resolve, reject,
@@ -250,7 +251,7 @@ function textWidth(text: string, font: string): number {
 function ExportStage({ job, onDone }: { job: Job; onDone: (id: number) => void }) {
   const { tracePaneMap, panes } = usePaneState();
   const { allKnownTraces } = useTraceState();
-  const { traceHueSlots } = useUiState();
+  const { traceHueSlots, huePalette } = useUiState();
   const { markers } = useMarkerState();
   const { refLines } = useRefLineState();
   const { geometry, theme } = job;
@@ -362,7 +363,7 @@ function ExportStage({ job, onDone }: { job: Job; onDone: (id: number) => void }
           const mid = legend.rowHeight / 2;
           return <g key={trace.id} transform={`translate(${at.x} ${at.y})`} data-export-legend-item={trace.name}>
             <line x1={0} y1={mid} x2={LEGEND_SAMPLE_WIDTH} y2={mid} stroke={traceColor} strokeWidth={lineWidth(trace.id)} />
-            {kind && <g transform={`translate(${LEGEND_SAMPLE_WIDTH / 2} ${mid}) scale(${markScale})`}><TraceSymbol kind={kind} color={traceColor} /></g>}
+            {kind && <g transform={`translate(${LEGEND_SAMPLE_WIDTH / 2} ${mid}) scale(${markScale})`}><TraceSymbol kind={kind} color={traceColor} hollow={forcesHollowTraceSymbol(trace.kind, huePalette)} /></g>}
             <text x={LEGEND_SAMPLE_WIDTH + LEGEND_SAMPLE_GAP} y={mid} dominantBaseline="central" fill="var(--text)" fontSize={fontPx} fontFamily="var(--font-sans)">{(legend.lines[index] ?? [legend.labels[index]]).map((line, n) => <tspan key={n} x={LEGEND_SAMPLE_WIDTH + LEGEND_SAMPLE_GAP} dy={n === 0 ? 0 : legend.lineHeight}>{line}</tspan>)}</text>
           </g>;
         })}

@@ -52,14 +52,14 @@ This file is the written design source of truth. Newer decisions in the sections
   - Order, starting at the parent's hue: one step forward, one step back, then onward forward, skipping created hues already on screen.
   - Example, parent 90°: ƒ1 112.5°, ƒ2 67.5°, ƒ3 157.5°, ƒ4 202.5°…
   - A created trace sits indented under its first source in the Traces list, with ƒ.
-  - **In colour-blind mode** created traces use the colour-blind set in the created tone, 2 px, ordered from the parent's colour in the colour-blind order (+1, −1, then forward, skipping colours in use).
+  - **In colour-blind mode** created traces use the corresponding Palette A tone of their parent, with hollow symbols.
 - **Symbols:** Settings › Colours › **Trace symbols: Off · When colours repeat (default) · Always**.
   - Graph export defaults to Always.
   - When a colour repeats (9th source, 9th created trace), the trace gets a hollow symbol every ~90 px, in this order: ○ □ △ ◇ ▽ + × ☆.
   - The same symbol shows in its row swatch and in exports.
   - **Row swatch with a symbol:** it becomes a 16 × 12 px line sample: the line in the trace colour and width, the symbol centred on it and filled with the row background, never clipped.
 - **Sample dots and symbols together:** dots are filled, radius 2, on every sample; symbols are hollow, radius 3.6, every ~90 px. Symbols never hide data: no sample dot is ever removed. With Samples on, each symbol snaps to the real sample nearest its ~90 px position and is drawn hollow with no fill (stroke only), so that sample's dot shows in its centre. With Samples off, symbols stay every ~90 px along the path with the background fill.
-- **Colour-blind palette** swaps the 8 source hues for the colour-blind set; all rules stay the same.
+- **Colour-blind palette** uses the eight source and created colours listed in [Colours (22 Nov)](#510-colours-22-nov).
 
 ## Behaviour
 
@@ -144,7 +144,7 @@ This file is the written design source of truth. Newer decisions in the sections
 
 ## Additional shared requirements
 
-- Target pane: new items and pane actions target the selected pane; clicking a pane selects it, with a tinted header and 3 px pane-colour edge. Disabled actions explain the reason; incompatible drops show their reason before release.
+- Target pane: new items and pane actions target the selected pane; clicking a pane selects it, with a tinted header, an accent top edge and a bold pane name. Disabled actions explain the reason; incompatible drops show their reason before release.
 - Prefer Undo; confirm when user-created work would be lost. Toasts appear bottom centre for five seconds, pause on hover, and errors persist until dismissed.
 - Menus and panels use 120 ms motion; toast entry uses 150 ms. Charts do not animate; respect reduced motion. Use line icons rather than emoji and semantic OKLCH colours rather than component hex values.
 - The footer's Local only promise means files are read in the browser, never uploaded; no cookies, bundled fonts, and no network calls except same-site demo files. Feedback opens a GitHub link and does not itself send workspace data.
@@ -259,13 +259,23 @@ One screen: settings on the left (delimiter `, ; Tab`, skip rows, domain Frequen
 
 ### 5.8 Export (P7)
 - Two quick paths, no dialog: **Copy as image** (Ctrl+Shift+C, clipboard) and **Download image** (Ctrl+Shift+S), both with the last-used options; the toast offers "Options…".
-- **Export dialog** (pane ⋯ → Export…, or top bar Export… with What = All panes): What (This pane · All panes · Pick…) · Format (PNG · SVG · PDF · TikZ · CSV) · Size (Screen · Slide · Paper 1-col · Paper 2-col · Custom px with 1× / 2× / 3×) · Theme (Print white · Dark · As app; default from App settings) · Include (Title, Legend, Marker tags, Marker table, Ref lines, Date) · Title · Legend (Below (default) · Inside · Off) · Names (Full · Short 16) · file name pattern `{file}_{pane}_{date}`. Live preview. Buttons: Cancel · Copy (neutral) · **Save …** (solid). Remembers choices per format.
+- **Export dialog** (pane ⋯ → Export…, or top bar Export… with What = All panes): What (This pane · All panes · Pick…) · Format (PNG · SVG · PDF · TikZ · CSV) · Size (Screen · Slide · Paper 1-col · Paper 2-col · Custom px with 1× / 2× / 3×) · Theme (Print white · Dark · As app; default Print, with the last choice remembered) · Include (Title, Legend, Marker tags, Marker table, Ref lines, Date) · Title · Legend (Below (default) · Inside · Off) · Names (Full · Short 16) · file name pattern `{file}_{pane}_{date}`. Live preview. Buttons: Cancel · Copy (neutral) · **Save …** (solid). Remembers choices per format.
 - The image is rendered again at the target size from the same SVG renderer (sharp at any size), never a screenshot. Never in the image: crosshair, selection rings, cursor card, header buttons, link chip. "All panes" keeps the layout and proportions with one title and one legend.
 - **Paper presets (IEEE):** 1 column 88.9 mm (3.5 in), 2 columns 181.9 mm (7.16 in); text 8 pt (9, 10 one click away), serif default (Sans option), lines 0.5 / 0.75 / 1 pt, in mm and pt at final size. Axis titles on, pre-filled from units ("Frequency (GHz)", "Magnitude (dB)"). Print-safe lines: trace symbols default to **Always** in export (○ □ △ ◇ ▽ + × ☆, the same order as on screen), with dashes only here (solid ○, dashed □, dotted △), plus colour at L 0.50. Paper look: white background, black frame, light grey grid, no UI colours or tints, marker tags as plain labels with a leader line. PNG fallback at 600 dpi. PDF with embedded fonts and SVG as vectors.
 - **TikZ / PGFPlots:** ready-to-paste figure (axes, grid, legend below, print-safe styles, marker pins, trace colours as named `\definecolor`s); options: wrap (figure + caption · tikzpicture only), width (`\columnwidth` · `\linewidth` · fixed), data (inline · .dat files zipped), points (all · 300 per trace), colours (trace · grayscale). "Copy as LaTeX" in the pane ⋯ menu.
 - **Vector PDF:** jsPDF + svg2pdf.js, Paper presets, standard fonts, lazy-loaded. Use Times for paper text and Courier for monospaced text. The app loads the PDF modules from the same site only when saving a PDF.
-- **P7 feedback update:** the centred dialog uses per-pane axis titles and legends. Ticks use plain numbers with units and narrow-span offsets in the titles. Paper defaults are 88.9 × 60 mm and 181.9 × 100 mm, with editable height, solid traces with symbols, and one optional figure title. TikZ has preview and code tabs, uses groupplots for Cartesian panes, and decimates only over 2,000 points. Import, confirmation, Settings, Help and About use centred modal placement.
+- **P7 feedback update:** the centred dialog uses per-pane axis titles and legends. Ticks use plain numbers with units and narrow-span offsets in the titles. Paper defaults are 88.9 × 60 mm and 181.9 × 100 mm, with editable height, solid traces with symbols, and one optional figure title. TikZ has preview and code tabs, uses groupplots for Cartesian panes, and decimates only over 2,000 points. Import, confirmation and About use centred modal placement.
 - **CSV:** visible X range or full data, all traces in the pane or visible only, include markers. Replaces today's "Export Visible CSV".
 
 ### 5.9 App settings (S1)
-Footer gear (or Ctrl+,) opens a side sheet over the right panel (120 ms); charts stay visible and update live; Esc or × closes. Title "App settings · all panes, saved in this browser". Sections: **Appearance** (Theme Light · Dark · System; Size Compact · Comfortable · Large (default Comfortable); Neutral colour Slate, more later) · **Colours** (Palette Standard · Colour-blind safe = the reordered wheel; **Trace symbols** Off · When colours repeat (default) · Always) · **Export** (export theme) · **Experimental** ("Allow more than 4 panes (up to 8)", off, not recommended) · Keyboard shortcuts › · About › (version, licence Apache-2.0, GitHub link, the two feedback links) · Reset all to defaults. Ends with a hint that grid, markers, lines and Smith options are per pane (sliders icon). Saved in `localStorage`, never in workspace files.
+Footer gear (or Ctrl+,) opens a side sheet over the right panel (120 ms); charts stay visible and update live; Esc or × closes. Title "App settings · all panes, saved in this browser". Sections: **Appearance** (Theme Light · Dark · System; Size Compact · Comfortable · Large (default Comfortable); Neutral tint Slate · Stone · Zinc · Ocean · Moss · Purple · Pink · Ember (default Slate); Contrast Normal · High) · **Colours** (Palette Standard · Colour-blind safe uses Palette A; **Trace symbols** Off · When colours repeat (default) · Always) · **Experimental** ("Allow more than 4 panes (up to 8)", off, not recommended) · Keyboard shortcuts › · About › (version, licence Apache-2.0, GitHub link, the two feedback links) · Reset all to defaults. Ends with a hint that grid, markers, lines and Smith options are per pane (sliders icon). Saved in `localStorage`, never in workspace files.
+
+### 5.10 Colours (22 Nov)
+
+[Colour values](./colour-values.md) records the decided OKLCH values. Appearance offers Slate, Stone, Zinc, Ocean, Moss, Purple, Pink and Ember in two rows of four equal-width controls. The tint supplies the surface, plot, border, text, accent and selection tokens. Toolbar zones and trace colours have their own palettes.
+
+Contrast offers Normal and High. High uses the separate high-contrast table, with text and background colours for small selected controls and the target header, with a 1.5 px text-coloured pane border. It uses 3 px focus rings, underlined links, clear matrix states, 2 px source lines, 2.5 px created lines and a full-strength chart grid. Reset restores Slate, Normal and Standard.
+
+Colour-blind safe uses Palette A in the listed light and dark order. Sources take the next free slot. Created traces use the corresponding created colour of their parent source, have a 2 px line in normal contrast and always have an outline-only symbol from the existing set. The Trace symbols preference still applies to source traces and to all traces in Standard mode.
+
+The Export dialog owns the Print, Dark and As app theme choice. Copy image and Download image use the last choice, defaulting to Print. Existing browser preferences migrate the previous App settings export theme into the dialog once.

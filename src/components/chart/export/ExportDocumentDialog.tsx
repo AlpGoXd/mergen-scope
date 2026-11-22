@@ -11,23 +11,16 @@ import { useCenteredDialog } from '../../../hooks/use-centered-dialog';
 import { downloadBlob } from './export-png';
 import { exportDocumentBlob, useDocumentExport } from './use-document-export';
 import type { ExportPreview, RenderExportPane } from './use-document-export';
+import { readExportDocumentPreferences, rememberedExportTheme, saveExportDocumentPreferences } from './export-theme-storage';
 import './export-dialog.css';
 
 const FORMATS = { png: 'PNG', svg: 'SVG', pdf: 'PDF', latex: 'TikZ', csv: 'CSV' } as const;
-const STORAGE_KEY = 'mergen-export-document-options';
 const PDF_AVAILABLE = () => window.location.protocol !== 'file:';
 const isPaper = (preset: ExportDocumentOptions['preset']) => preset === 'ieee-1' || preset === 'ieee-2';
 
-function readSettings(): Partial<Record<ExportFormat, ExportDocumentOptions>> {
-  try {
-    const value: unknown = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}');
-    return value && typeof value === 'object' ? value : {};
-  } catch { return {}; }
-}
-
-function savedOptions(settings: ReturnType<typeof readSettings>, format: ExportFormat): ExportDocumentOptions {
+function savedOptions(settings: ReturnType<typeof readExportDocumentPreferences>, format: ExportFormat): ExportDocumentOptions {
   const saved = settings[format];
-  return { ...DEFAULT_DOCUMENT_OPTIONS, ...saved, include: { ...DEFAULT_DOCUMENT_OPTIONS.include, ...saved?.include },
+  return { ...DEFAULT_DOCUMENT_OPTIONS, ...saved, theme: rememberedExportTheme(settings), include: { ...DEFAULT_DOCUMENT_OPTIONS.include, ...saved?.include },
     axisTitles: saved?.axisTitles === 'edit' || saved?.axisTitles === 'off' ? saved.axisTitles : 'auto',
     legend: saved?.legend === 'off' ? 'off' : 'below',
     latex: { ...DEFAULT_DOCUMENT_OPTIONS.latex, ...saved?.latex, points: saved?.latex?.points === 'all' ? 'all' : '2000',
@@ -67,7 +60,7 @@ export function ExportDocumentDialog({ paneId, format: requestedFormat = 'png', 
   const [format, setFormat] = useState<ExportFormat>(requestedFormat);
   const scope = scopeChoice ?? (paneId && format !== 'csv' ? 'pane' : 'all');
   const [tab, setTab] = useState<'preview' | 'code'>('preview');
-  const [prefs, setPrefs] = useState(readSettings);
+  const [prefs, setPrefs] = useState(readExportDocumentPreferences);
   const [revision, setRevision] = useState<PreviewState | null>(null);
   const [actionError, setActionError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -122,8 +115,8 @@ export function ExportDocumentDialog({ paneId, format: requestedFormat = 'png', 
   const change = (patch: Partial<ExportDocumentOptions>) => {
     setActionError('');
     setPrefs(previous => {
-      const next = { ...previous, [format]: { ...savedOptions(previous, format), ...patch } };
-      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); } catch { /* Settings remain available in this session. */ }
+      const next = { ...previous, theme: patch.theme ?? rememberedExportTheme(previous), [format]: { ...savedOptions(previous, format), ...patch } };
+      saveExportDocumentPreferences(next);
       return next;
     });
   };
@@ -235,8 +228,8 @@ export function ExportDocumentDialog({ paneId, format: requestedFormat = 'png', 
               {format === 'png' && (paper
                 ? <Row label="Resolution"><Choice value={options.dpi} onChange={dpi => change({ dpi })} choices={[[150, '150 dpi'], [300, '300 dpi'], [600, '600 dpi']]} /></Row>
                 : <Row label="Scale"><Choice value={options.scale} onChange={scale => change({ scale })} choices={[[1, '1×'], [2, '2×'], [3, '3×']]} /></Row>)}
-              {!paper && <Row label="Theme"><Choice value={options.theme ?? 'default'} onChange={theme => change({ theme: theme === 'default' ? null : theme })}
-                choices={[['default', 'Default'], ['print', 'Print'], ['dark', 'Dark'], ['app', 'As app']]} /></Row>}
+              {!paper && <Row label="Theme"><Choice value={options.theme ?? 'print'} onChange={theme => change({ theme })}
+                choices={[['print', 'Print'], ['dark', 'Dark'], ['app', 'As app']]} /></Row>}
             </>}
             </Section>
             {format === 'csv' ? <Section label="Include">

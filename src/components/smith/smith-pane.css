@@ -4,29 +4,36 @@
  * follow the Size setting. JetBrains Mono ships weight 400 only: nothing here is bold.
  */
 .smith-pane {
-  --smith-bg: var(--bg);
-  --smith-grid: color-mix(in oklab, var(--border) 62%, var(--border-strong));
-  --smith-frame: var(--border-strong);
-  /* Z + Y overlay, as on the classic combined chart: impedance red, admittance blue, both translucent
-     so crossings stay readable. Trace colours are unchanged; the traces draw on top. */
-  --smith-grid-z-both: oklch(0.58 0.19 27 / 0.5);
-  --smith-grid-y-both: oklch(0.56 0.16 255 / 0.5);
+  --smith-bg: var(--plot);
+  --smith-grid: var(--border);
+  --smith-frame: var(--border);
+  /* Solid Z and dashed Y share the live grid colour. */
+  --smith-grid-z-both: var(--border);
+  --smith-grid-y-both: var(--border);
   display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; height: 100%;
   background: var(--smith-bg); color: var(--text);
+}
+.export-tokens .smith-pane {
+  --smith-grid: color-mix(in oklab, var(--border) 62%, var(--border-strong));
+  --smith-frame: var(--border-strong);
+  --smith-grid-z-both: oklch(0.58 0.19 27 / 0.5);
+  --smith-grid-y-both: oklch(0.56 0.16 255 / 0.5);
 }
 .smith-plot { position: relative; flex: 1; min-height: 0; overflow: hidden; outline: none; user-select: none; touch-action: none; cursor: crosshair; }
 .smith-plot.is-panning { cursor: grabbing; }
 .smith-plot:focus-visible { box-shadow: inset 0 0 0 2px var(--accent); }
+:root[data-contrast="high"] .smith-plot:focus-visible { box-shadow: inset 0 0 0 3px var(--text); }
 .smith-svg { display: block; position: absolute; inset: 0; }
 
 /* Everything inside the scaled group keeps its pixel width. */
 .smith-svg path, .smith-svg circle { vector-effect: non-scaling-stroke; }
 
-/* Grid: thin and muted. Z solid, Y dashed. In Z + Y both are solid and told apart by colour. */
+/* The live grid uses the border tone, with a dashed Y grid. */
 .smith-grid path { fill: none; stroke: var(--smith-grid); stroke-width: 1; }
 .smith-grid-y path { stroke-dasharray: 3 3; }
 .smith-pane[data-grid="both"] .smith-grid-z path { stroke: var(--smith-grid-z-both); }
-.smith-pane[data-grid="both"] .smith-grid-y path { stroke: var(--smith-grid-y-both); stroke-dasharray: none; }
+.smith-pane[data-grid="both"] .smith-grid-y path { stroke: var(--smith-grid-y-both); }
+.export-tokens .smith-pane[data-grid="both"] .smith-grid-y path { stroke-dasharray: none; }
 .smith-axis, .smith-rim { fill: none; stroke: var(--smith-frame); stroke-width: 1; }
 .smith-rim.is-active { stroke-dasharray: 6 4; }
 .smith-active-area { fill: color-mix(in oklab, var(--warning-fill) 40%, var(--smith-bg)); stroke: none; }
@@ -48,8 +55,8 @@
 .smith-marker-ring { fill: none; stroke-width: 1.5; stroke-dasharray: 3 2; }
 .smith-tag { fill: var(--raised); stroke: var(--border-strong); stroke-width: 1; }
 .smith-tag-text { fill: var(--text); pointer-events: none; }
-.smith-marker.is-selected .smith-tag { fill: var(--slate-fill); stroke: var(--slate-line); }
-.smith-marker.is-selected .smith-tag-text { fill: var(--slate-ink); }
+.smith-marker.is-selected .smith-tag { fill: var(--on-fill); stroke: var(--on-line); }
+.smith-marker.is-selected .smith-tag-text { fill: var(--on-ink); }
 
 .smith-hover-dot { fill: var(--smith-bg); stroke-width: 2; pointer-events: none; }
 .smith-ghost { fill: none; stroke: var(--accent); stroke-width: 1; stroke-dasharray: 3 2; pointer-events: none; }
@@ -91,7 +98,7 @@
 .smith-step:disabled { color: var(--text-muted); opacity: 0.5; cursor: default; }
 .smith-step:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
-.theme-dark .smith-pane {
+.export-tokens.theme-dark .smith-pane {
   --smith-grid-z-both: oklch(0.70 0.16 27 / 0.5);
   --smith-grid-y-both: oklch(0.72 0.13 255 / 0.5);
 }

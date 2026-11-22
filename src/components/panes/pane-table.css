@@ -1,5 +1,5 @@
 /* Table pane (table kit, 11 Nov). App tokens and text roles only. Import after pane-types.css. */
-.tbp { position: absolute; inset: 0; display: flex; flex-direction: column; background: var(--bg); }
+.tbp { position: absolute; inset: 0; display: flex; flex-direction: column; background: var(--plot); }
 .tbp-scroll { flex: 1; min-height: 0; overflow: auto; position: relative; }
 .tbp-scroll:focus { outline: none; }
 /* Keyboard focus ring above the rows (an outline on the scroll box would be painted over by them). */
@@ -9,7 +9,7 @@
 .tbp-row { display: grid; height: calc(var(--row-height) - 6px); align-items: center; border-bottom: 1px solid color-mix(in oklch, var(--border) 55%, transparent); }
 .tbp-row > span { padding: 0 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tbp-x { position: sticky; left: 0; z-index: 1; background: inherit; font-family: var(--font-mono); font-size: var(--font-caption); font-weight: var(--fw-regular); color: var(--text-muted); font-variant-numeric: tabular-nums; }
-.tbp-row { background: var(--bg); }
+.tbp-row { background: var(--plot); }
 .tbp-c { font-family: var(--font-mono); font-size: var(--font-caption); font-weight: var(--fw-regular); color: var(--text); text-align: right; font-variant-numeric: tabular-nums; }
 .tbp-c.is-empty { color: var(--text-muted); }
 
@@ -29,14 +29,14 @@
 
 /* Selected cells (click, drag, Shift-click, row/column headings): an accent tint over the row background. */
 .tbp-row > span[role="cell"], .tbp-row > span[role="rowheader"], .tbp-head > span { cursor: cell; }
-.tbp-row > span.is-sel { background: color-mix(in oklch, var(--accent) 18%, var(--bg)); color: var(--text); }
+.tbp-row > span.is-sel { background: var(--on-fill); color: var(--on-ink); }
 .tbp-row.is-cursor > span.is-sel { background: color-mix(in oklch, var(--accent) 18%, var(--sel-bg)); }
 
 /* Markers: the trace's cell on the marker's row is tinted in the trace colour and carries the chart's label chip
    (normal = filled in the trace colour, delta = outlined with a light tint), Readout role. */
 .tbp-c.has-mark { display: flex; align-items: center; justify-content: flex-end; gap: 4px; background: color-mix(in oklch, var(--mark-color) 14%, var(--bg)); }
 .tbp-row.is-cursor > .tbp-c.has-mark { background: color-mix(in oklch, var(--mark-color) 14%, var(--sel-bg)); }
-.tbp-row > .tbp-c.has-mark.is-sel { background: color-mix(in oklch, var(--accent) 18%, color-mix(in oklch, var(--mark-color) 14%, var(--bg))); }
+.tbp-row > .tbp-c.has-mark.is-sel { background: var(--on-fill); }
 .tbp-v { margin-left: auto; overflow: hidden; text-overflow: ellipsis; }
 .tbp-mark {
   flex: none; height: calc(var(--row-height) - 12px); display: inline-flex; align-items: center; padding: 0 5px;

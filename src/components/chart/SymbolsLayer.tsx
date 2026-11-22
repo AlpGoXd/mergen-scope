@@ -3,6 +3,8 @@ import { Dot } from 'recharts';
 import type { ChartScaleProps } from './LinesLayer';
 import type { DataPoint, Trace } from '../../types/trace';
 import type { SymbolSetting, Theme, TraceSymbol as SymbolKind } from '../../domain/trace-palette';
+import { forcesHollowTraceSymbol } from '../../domain/trace-colors';
+import { useUiState } from '../../stores/ui-store';
 import { DOT_RADIUS, planDotsAndSymbols, sampleDotsVisible, visibleSampleCount } from '../../domain/dots-and-symbols';
 import { decimateMinMax, traceBound } from '../../domain/trace-math';
 import { TraceSymbol } from '../shared/TraceSymbol';
@@ -16,12 +18,13 @@ export function MeasuredSampleDot({ data, cx, cy, payload, stroke, strokeWidth }
   return <Dot className="recharts-line-dot" cx={cx} cy={cy} r={DOT_RADIUS} fill={stroke} stroke={stroke} strokeWidth={strokeWidth} />;
 }
 
-function TraceMarks({ trace, kind, color, markScale, showDots, x, y, range, plot }: {
+function TraceMarks({ trace, kind, color, markScale, showDots, forceHollow, x, y, range, plot }: {
   trace: Trace;
   kind: SymbolKind;
   color: string;
   markScale: number;
   showDots: boolean;
+  forceHollow: boolean;
   x: (value: number) => number;
   y: (value: number) => number;
   range: readonly [number, number];
@@ -36,7 +39,7 @@ function TraceMarks({ trace, kind, color, markScale, showDots, x, y, range, plot
     const px = x(point.freq);
     return px < plot.left || px > plot.left + width ? { x: NaN, y: NaN } : { x: px, y: y(point.amp) };
   });
-  const plan = planDotsAndSymbols({ points, showDots: dotsVisible, showSymbols: true });
+  const plan = planDotsAndSymbols({ points, showDots: dotsVisible, showSymbols: true, forceHollow });
   const sampleIndex = (index: number) => {
     const sample = samples[index];
     return sample && traceBound(trace.data, sample.freq);
@@ -53,6 +56,7 @@ function TraceMarks({ trace, kind, color, markScale, showDots, x, y, range, plot
 /** `markScale` sizes symbols and dots for paper exports (1 on screen). */
 export function SymbolsLayer({ traces, showDots, symbolSetting, markScale = 1, colorTheme, paperTone, xAxisMap, yAxisMap, offset }: ChartScaleProps & { traces: readonly Trace[]; showDots: boolean; symbolSetting?: SymbolSetting; markScale?: number; colorTheme?: Theme; paperTone?: boolean }) {
   const symbol = useTraceSymbols(symbolSetting);
+  const { huePalette } = useUiState();
   const resolveTraceColor = useTraceColors(colorTheme, paperTone);
   const x = xAxisMap ? Object.values(xAxisMap)[0]?.scale : undefined;
   const y = yAxisMap ? Object.values(yAxisMap)[0]?.scale : undefined;
@@ -63,6 +67,7 @@ export function SymbolsLayer({ traces, showDots, symbolSetting, markScale = 1, c
   return <g pointerEvents="none">{traces.flatMap(trace => {
     const kind = symbol(trace.id);
     return kind === null ? [] : [<TraceMarks key={trace.id} trace={trace} kind={kind} color={resolveTraceColor(trace)}
-      markScale={markScale} showDots={showDots} x={x} y={y} range={range} plot={offset} />];
+      markScale={markScale} showDots={showDots} forceHollow={forcesHollowTraceSymbol(trace.kind, huePalette)}
+      x={x} y={y} range={range} plot={offset} />];
   })}</g>;
 }

@@ -61,7 +61,7 @@ function Demo() {
 
   const button = (label: string, on: boolean, onClick: () => void) => (
     <button key={label} type="button" aria-pressed={on} onClick={onClick}
-      style={{ font: 'inherit', padding: '2px 8px', borderRadius: 'var(--radius-control)', border: '1px solid var(--border-strong)', background: on ? 'var(--slate-fill)' : 'var(--raised)', color: on ? 'var(--slate-ink)' : 'var(--text)', cursor: 'pointer' }}>
+      style={{ font: 'inherit', padding: '2px 8px', borderRadius: 'var(--radius-control)', border: '1px solid var(--border-strong)', background: on ? 'var(--on-fill)' : 'var(--raised)', color: on ? 'var(--on-ink)' : 'var(--text)', cursor: 'pointer' }}>
       {label}
     </button>
   );

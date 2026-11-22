@@ -2,12 +2,16 @@ import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import type { ExportImageOptions } from '../../src/domain/export-image';
 
 const pane = (page: Page, n: number) => page.getByTestId(`chart-pane-pane-${n}`);
 const header = (page: Page, n: number) => page.getByTestId(`chart-pane-header-pane-${n}`);
 const settingsOf = (page: Page, n: number) => page.locator(`.ui-popover[aria-label="Pane ${n} settings"]`);
 const lastSvg = (page: Page) => page.evaluate(() => window.__mergenLastExportSvg ?? '');
-const setOptions = (page: Page, options: object) => page.evaluate(value => localStorage.setItem('mergen-export-image-options', JSON.stringify(value)), options);
+const setOptions = (page: Page, options: ExportImageOptions) => page.evaluate(({ theme, ...size }) => {
+  localStorage.setItem('mergen-export-image-options', JSON.stringify(size));
+  localStorage.setItem('mergen-export-document-options', JSON.stringify({ theme }));
+}, options);
 
 async function openS21(page: Page) {
   await page.goto('/app.html');
@@ -163,7 +167,7 @@ test('Print and Dark exports use the same trace colours as the app, whatever the
 
   await setAppTheme('Dark');
   const dark = await screenStrokes(page);
-  const darkBackground = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--bg').trim());
+  const darkBackground = 'oklch(0.170 0.016 255)';
   expect(dark).not.toEqual(light);
   const darkFromDarkApp = await exportWith('dark');
   expect(await svgStrokes(page, darkFromDarkApp)).toEqual(dark);

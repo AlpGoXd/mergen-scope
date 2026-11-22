@@ -13,6 +13,7 @@ import { tableMarks } from '../../domain/table-markers';
 import { tableXFormat, tableYFormat } from '../../domain/table-format';
 import { tableXLabel } from '../../domain/table-view';
 import { xUnitGroup } from '../../domain/pane-placement';
+import { forcesHollowTraceSymbol } from '../../domain/trace-colors';
 import { allocateTraceColors, traceWidth } from '../../domain/trace-palette';
 import { TraceSymbol } from '../shared/TraceSymbol';
 import { Btn } from '../shared/Btn';
@@ -26,7 +27,7 @@ export function TablePaneContainer({ paneId }: { paneId: string; fitRequest?: nu
   const view = useTableView(paneId);
   const { traces, xGroup, settings, visible } = view;
   const { allKnownTraces } = useTraceState();
-  const { traceHueSlots } = useUiState();
+  const { traceHueSlots, huePalette } = useUiState();
   const color = useTraceColors();
   const symbol = useTraceSymbols();
   const paneDispatch = usePaneDispatch();
@@ -59,11 +60,11 @@ export function TablePaneContainer({ paneId }: { paneId: string; fitRequest?: nu
       sample: kind === null ? undefined : (
         <svg width="16" height="12" viewBox="-8 -6 16 12" style={{ overflow: 'visible', flex: 'none' }} aria-hidden="true">
           <line x1="-8" y1="0" x2="8" y2="0" stroke={traceColor} strokeWidth={assignment ? traceWidth(assignment) : 1.5} />
-          <TraceSymbol kind={kind} color={traceColor} background="var(--panel)" />
+          <TraceSymbol kind={kind} color={traceColor} background="var(--panel)" hollow={forcesHollowTraceSymbol(trace.kind, huePalette)} />
         </svg>
       ),
     };
-  }), [traces, sources, color, symbolKey, assignments]);
+  }), [traces, sources, color, symbolKey, assignments, huePalette]);
   const formats = useMemo(() => new Map(columns.map(column => [column.id, column.format])), [columns]);
   const marks = useMemo(() => tableMarks(markers, traces.map(trace => trace.name), rows.x), [markers, traces, rows.x]);
   const selectedMarkerId = markers[selectedMkrIdx]?.id ?? null;

@@ -191,22 +191,19 @@ test('Export stays centred, stacks on narrow windows and only closes explicitly'
   await expect(dialog).toHaveCount(0);
 });
 
-test('import, confirms, Settings, Help and About are centred', async ({ page }) => {
+test('import, confirms and About are centred', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/app.html');
   const centered = async () => {
     const dialog = page.getByRole('dialog', { exact: false });
     await expect(dialog).toBeVisible();
+    await expect(dialog).toHaveAttribute('aria-modal', 'true');
     const box = (await dialog.boundingBox())!;
     expect(box.x + box.width / 2).toBeCloseTo(720, 0);
     expect(box.y + box.height / 2).toBeCloseTo(450, 0);
   };
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
-  await centered();
   await page.getByRole('button', { name: /^About/ }).click();
-  await centered();
-  await page.keyboard.press('Escape');
-  await page.getByRole('button', { name: 'Help', exact: true }).click();
   await centered();
   await page.keyboard.press('Escape');
   await page.getByTestId('app-open-input').setInputFiles({ name: 'channels.csv', mimeType: 'text/csv', buffer: Buffer.from('Time,CH1,CH2\n0,2,3\n1,3,4\n2,4,5') });

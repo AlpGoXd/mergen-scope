@@ -6,6 +6,7 @@ import { useRefLineDispatch } from '../../stores/ref-line-store';
 import { useUiState } from '../../stores/ui-store';
 import { useLinkedHoverFrequency, useSharedHoverPublisher } from '../../stores/shared-hover-store';
 import { useTraceColors } from '../../hooks/use-trace-colors';
+import { forcesHollowTraceSymbol } from '../../domain/trace-colors';
 import { useTraceSymbols } from '../../hooks/use-trace-symbols';
 import { canRenderInPane } from '../../domain/pane-placement';
 import { allocateTraceColors, traceWidth } from '../../domain/trace-palette';
@@ -24,7 +25,7 @@ export function SmithPaneContainer({ paneId, fitRequest = 0, exportView }: { pan
   const { panes, tracePaneMap, paneXZooms } = usePaneState();
   const paneDispatch = usePaneDispatch();
   const { allTraces, allKnownTraces, allDisplayTraces, vis } = useTraceState();
-  const { traceHueSlots } = useUiState();
+  const { traceHueSlots, huePalette } = useUiState();
   const { markers, selectedMkrIdx, armed } = useMarkerState();
   const publish = useSharedHoverPublisher();
   const publishReadout = usePointerReadoutPublisher();
@@ -51,9 +52,9 @@ export function SmithPaneContainer({ paneId, fitRequest = 0, exportView }: { pan
       if (!model) return [];
       z0 ??= model.z0;
       const assignment = assignments.get(trace.id);
-      return [{ traceId: trace.id, name: trace.name, shortName: model.shortName, color: color(trace), created: assignment ? traceWidth(assignment) === 2 : false, symbol: symbol(trace.id), z0: model.z0, samples: model.samples, measured: new Set(model.samples.map(sample => sample.frequencyHz)) }];
+      return [{ traceId: trace.id, name: trace.name, shortName: model.shortName, color: color(trace), created: assignment ? traceWidth(assignment) === 2 : false, symbol: symbol(trace.id), hollowSymbol: forcesHollowTraceSymbol(trace.kind, huePalette), z0: model.z0, samples: model.samples, measured: new Set(model.samples.map(sample => sample.frequencyHz)) }];
     });
-  }, [eligible, assignments, color, symbolKey]);
+  }, [eligible, assignments, color, symbolKey, huePalette]);
   // Linked to a Hz chart pane: show that pane's visible band. The group shares one zoom; the first chart pane names it.
   const linkedPane = useMemo(() => {
     const peers = new Set(linkedPeers(panes, paneId));
