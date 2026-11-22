@@ -22,6 +22,7 @@ import { useSharedHoverPublisher, useSharedHoverValue } from '../../stores/share
 import { useLegendDodge } from '../../hooks/use-legend-dodge';
 import { usePointerReadoutPublisher } from '../../stores/pointer-readout-store';
 import { formatPointerXY } from '../../domain/footer-state';
+import { centerXDomain, centerYDomain, dragZoomXDomain, paddedYDomain, panXDomain, panYDomain, pixelToAxisValue, zoomYDomain } from '../../domain/chart/plot-coords';
 import { useTheme } from '../../hooks/use-theme';
 import { usePaneData } from '../../hooks/use-pane-data';
 import { useTableView } from '../../hooks/use-table-view';
@@ -389,7 +390,7 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
   /** The press in flight is a Ctrl+left press: it pans, so the chart's own press handler must ignore it. */
   const lastCtrlPanRef = React.useRef(false);
   const yAxisMapRef = React.useRef<Record<string, unknown> | null>(null);
-  const lineChartRef = React.useRef<any>(null);
+  const lineChartRef = React.useRef<React.ComponentRef<typeof LineChart>>(null);
   const latestMergedDataRef = React.useRef(mergedData);
   latestMergedDataRef.current = mergedData;
   const latestPaneTracesRef = React.useRef(paneTraces);
@@ -422,24 +423,6 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
     }
     return { min, max };
   }, [paneTraces]);
-
-  const clampZoomToDataBounds = React.useCallback((zoom: { left: number; right: number }) => {
-    // A linked pane pans within the data of its whole group.
-    const bounds = linkedFit ?? paneDataBounds;
-    if (!bounds) return zoom;
-    const span = zoom.right - zoom.left;
-    if (!Number.isFinite(span) || span <= 0) return zoom;
-    if (span >= bounds.max - bounds.min) {
-      return { left: bounds.min, right: bounds.max };
-    }
-    if (zoom.left < bounds.min) {
-      return { left: bounds.min, right: bounds.min + span };
-    }
-    if (zoom.right > bounds.max) {
-      return { left: bounds.max - span, right: bounds.max };
-    }
-    return zoom;
-  }, [linkedFit, paneDataBounds]);
 
   const activePaneTrace = useMemo(() => {
     const activeTraceName = paneActiveTraceMap[paneId];
@@ -515,15 +498,12 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
     const domainRight = domainOverride?.right ?? (geometry ? plotView?.x?.[1] : undefined) ?? currentXZoom?.right ?? mergedData[mergedData.length - 1]?.fs ?? null;
     if (!chartEl || domainLeft == null || domainRight == null || domainRight <= domainLeft) return null;
     if (geometry) {
-      const gx = Math.max(0, Math.min(geometry.plot.width, clientX - geometry.svgLeft - geometry.plot.left));
-      return geometry.plot.width > 0 ? domainLeft + (gx / geometry.plot.width) * (domainRight - domainLeft) : null;
+      const { left, width } = geometry.plot;
+      return pixelToAxisValue(clientX - geometry.svgLeft, left, width, domainLeft, domainRight);
     }
     const rect = chartEl.getBoundingClientRect();
-    const plotLeft = yAxisWidth;
-    const plotWidth = rect.width - plotLeft - CHART_MARGIN_RIGHT;
-    if (plotWidth <= 0) return null;
-    const x = Math.max(0, Math.min(plotWidth, clientX - rect.left - plotLeft));
-    return domainLeft + (x / plotWidth) * (domainRight - domainLeft);
+    const plotWidth = rect.width - yAxisWidth - CHART_MARGIN_RIGHT;
+    return pixelToAxisValue(clientX - rect.left, yAxisWidth, plotWidth, domainLeft, domainRight);
   };
 
   const computeRefLineYTolerance = React.useCallback((): number => {
@@ -560,10 +540,7 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
       paneTraces.map((tr) => row[tr.name] as number | undefined).filter((v): v is number => v != null && Number.isFinite(v))
     );
     if (!amps.length) return null;
-    const minAmp = Math.min(...amps);
-    const maxAmp = Math.max(...amps);
-    const pad = (maxAmp - minAmp) * 0.05 || 1;
-    return { min: minAmp - pad, max: maxAmp + pad };
+    return paddedYDomain(Math.min(...amps), Math.max(...amps), 0.05);
   }, [mergedData, paneTraces, yDomain]);
 
   // The line layer reports the plot rectangle and the real scale domains: they feed the edge tags here and the rows' "off view" text.
@@ -581,29 +558,23 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
     const geometry = plotGeometry();
     const baseDomain = geometry && plotView?.y ? { min: plotView.y[0], max: plotView.y[1] } : resolveBaseYDomain();
     if (!baseDomain) return null;
-    let yMin = baseDomain.min;
-    let yMax = baseDomain.max;
-    if (overshootFraction > 0) {
-      const overshoot = (yMax - yMin) * overshootFraction;
-      yMin -= overshoot;
-      yMax += overshoot;
-    }
+    const range = overshootFraction > 0 ? paddedYDomain(baseDomain.min, baseDomain.max, overshootFraction, 0) : baseDomain;
+    if (!range) return null;
+    const { min: yMin, max: yMax } = range;
     if (!Number.isFinite(yMin) || !Number.isFinite(yMax) || yMax <= yMin) return null;
     if (geometry) {
-      const gy = Math.max(0, Math.min(geometry.plot.height, clientY - geometry.svgTop - geometry.plot.top));
-      return yMax - (gy / geometry.plot.height) * (yMax - yMin);
+      const { top, height } = geometry.plot;
+      return pixelToAxisValue(clientY - geometry.svgTop, top, height, yMin, yMax, true);
     }
     const rect = chartEl.getBoundingClientRect();
     const plotHeight = rect.height - CHART_MARGIN_TOP - xAxisHeight;
-    if (plotHeight <= 0) return null;
-    const y = Math.max(0, Math.min(plotHeight, clientY - rect.top - CHART_MARGIN_TOP));
-    return yMax - (y / plotHeight) * (yMax - yMin);
+    return pixelToAxisValue(clientY - rect.top, CHART_MARGIN_TOP, plotHeight, yMin, yMax, true);
   };
 
   const resolveEventAmp = (e: ChartMouseEvent | undefined): number | null => {
     if (!e) return null;
     if (e.yAxisMap) yAxisMapRef.current = e.yAxisMap;
-    const instanceYMap = lineChartRef.current?.state?.yAxisMap as Record<string, unknown> | undefined;
+    const instanceYMap = lineChartRef.current?.state?.yAxisMap;
     if (instanceYMap && !yAxisMapRef.current) yAxisMapRef.current = instanceYMap;
     const clientY = e.nativeEvent?.clientY ?? lastPointerClientYRef.current;
     if (clientY == null) return null;
@@ -617,14 +588,14 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
     // so use scale.invert from the D3 scale which knows the actual rendered domain.
     const yMap = e.yAxisMap ?? yAxisMapRef.current ?? instanceYMap;
     if (yMap && chartAreaRef.current) {
-      const yEntry = Object.values(yMap)[0] as any;
+      const yEntry = Object.values(yMap)[0] as { readonly scale?: { readonly invert?: unknown } } | undefined;
       const scale = yEntry?.scale;
-      if (scale && typeof scale.invert === 'function') {
+      if (typeof scale?.invert === 'function') {
         const svgEl = chartAreaRef.current.querySelector('svg');
         const svgRect = svgEl?.getBoundingClientRect();
         if (svgRect) {
-          const val = scale.invert(clientY - svgRect.top) as number;
-          if (Number.isFinite(val)) return val;
+          const val: unknown = scale.invert(clientY - svgRect.top);
+          if (typeof val === 'number' && Number.isFinite(val)) return val;
         }
       }
     }
@@ -664,8 +635,7 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
       const domainLeft = currentXZoom?.left ?? mergedData[0]?.fs ?? null;
       const domainRight = currentXZoom?.right ?? mergedData[mergedData.length - 1]?.fs ?? null;
       if (domainLeft != null && domainRight != null && domainRight > domainLeft && e.offset.width > 0) {
-        const frac = Math.max(0, Math.min(1, (e.chartX - e.offset.left) / e.offset.width));
-        return domainLeft + frac * (domainRight - domainLeft);
+        return pixelToAxisValue(e.chartX, e.offset.left, e.offset.width, domainLeft, domainRight);
       }
     }
     if (e.activeLabel != null) {
@@ -822,27 +792,11 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
     e.preventDefault();
     const direction: -1 | 1 = e.deltaY > 0 ? 1 : -1; // +1 = out, -1 = in
     const baseDomain = resolveBaseYDomain();
-    if (!baseDomain) return;
-    const span = baseDomain.max - baseDomain.min;
-    if (!(span > 0)) return;
-
-    // Shift+wheel: pan Y
-    if (e.shiftKey) {
-      const shift = span * 0.15 * direction;
-      paneDispatch({ type: 'SET_PANE_Y_ZOOM', payload: { paneId, zoom: { min: baseDomain.min + shift, max: baseDomain.max + shift } } });
-      return;
-    }
-
-    // Default wheel: zoom Y by ~8% per tick, anchored at cursor
-    const rawAnchor = resolveClientAmp(e.clientY) ?? (baseDomain.min + baseDomain.max) / 2;
-    const anchor = Math.max(baseDomain.min, Math.min(baseDomain.max, rawAnchor));
-    const WHEEL_ZOOM_FACTOR = 1.08;
-    const newSpan = span * (direction > 0 ? WHEEL_ZOOM_FACTOR : 1 / WHEEL_ZOOM_FACTOR);
-    if (!Number.isFinite(newSpan) || newSpan < 1e-10) return;
-    const frac = Math.max(0, Math.min(1, (anchor - baseDomain.min) / span));
-    const newMin = anchor - frac * newSpan;
-    const newMax = newMin + newSpan;
-    paneDispatch({ type: 'SET_PANE_Y_ZOOM', payload: { paneId, zoom: { min: newMin, max: newMax } } });
+    if (!baseDomain || !(baseDomain.max > baseDomain.min)) return;
+    const zoom = e.shiftKey
+      ? panYDomain(baseDomain, direction)
+      : zoomYDomain(baseDomain, direction, resolveClientAmp(e.clientY));
+    if (zoom) paneDispatch({ type: 'SET_PANE_Y_ZOOM', payload: { paneId, zoom } });
   };
 
   const handleContainerMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -1203,11 +1157,8 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
         const anchorFreq = resolveClientFreq(panStartClientX, panStartZoom);
         const currentFreq = resolveClientFreq(ev.clientX, panStartZoom);
         if (anchorFreq == null || currentFreq == null) return;
-        const delta = anchorFreq - currentFreq;
-        const next = clampZoomToDataBounds({
-          left: panStartZoom.left + delta,
-          right: panStartZoom.right + delta,
-        });
+        // A linked pane pans within the data of its whole group.
+        const next = panXDomain(panStartZoom, anchorFreq, currentFreq, linkedFit ?? paneDataBounds);
         paneDispatch({ type: 'SET_PANE_ZOOM', payload: { paneId, zoom: next } });
       }
     };
@@ -1215,10 +1166,10 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
     const handleWindowMouseUp = (ev: MouseEvent) => {
       if (zoomDragActive && dragStart !== null) {
         const endFreq = resolveClientFreq(ev.clientX) ?? dragCurrent ?? dragStart;
-        const left = Math.min(dragStart, endFreq);
-        const right = Math.max(dragStart, endFreq);
-        if (right - left > 0) {
-          paneDispatch({ type: 'SET_PANE_ZOOM', payload: { paneId, zoom: { left, right } } });
+        const zoom = dragZoomXDomain(dragStart, endFreq);
+        if (zoom) {
+          const { left, right } = zoom;
+          paneDispatch({ type: 'SET_PANE_ZOOM', payload: { paneId, zoom } });
           // Auto-fit Y to the new X window
           const md = latestMergedDataRef.current;
           const pt = latestPaneTracesRef.current;
@@ -1233,10 +1184,8 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
               }
             }
           }
-          if (Number.isFinite(lo) && Number.isFinite(hi)) {
-            const pad = (hi - lo) * 0.08 || 1;
-            paneDispatch({ type: 'SET_PANE_Y_ZOOM', payload: { paneId, zoom: { min: lo - pad, max: hi + pad } } });
-          }
+          const yZoom = paddedYDomain(lo, hi, 0.08);
+          if (yZoom) paneDispatch({ type: 'SET_PANE_Y_ZOOM', payload: { paneId, zoom: yZoom } });
         }
       }
       clearPointerDragState();
@@ -1249,10 +1198,11 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
       window.removeEventListener('mouseup', handleWindowMouseUp);
     };
   }, [
-    clampZoomToDataBounds,
     clearPointerDragState,
     dragCurrent,
     dragStart,
+    linkedFit,
+    paneDataBounds,
     paneDispatch,
     paneId,
     panStartClientX,
@@ -1432,7 +1382,7 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
                     <ReferenceArea key={`vd-${a.id}-${b.id}`} x1={lo} x2={hi} fill={dColor} fillOpacity={0.06} strokeOpacity={0}
                       label={(props: { viewBox?: { x: number; y: number; width: number; height: number } }) => {
                         const vb = props.viewBox;
-                        if (!vb || vb.width < 20) return <></> as any;
+                        if (!vb || vb.width < 20) return <></>;
                         const cx = vb.x + vb.width / 2;
                         const ty = vb.y + 13;
                         const tw = deltaText.length * 6.3;
@@ -1460,7 +1410,7 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
                     <ReferenceArea key={`hd-${a.id}-${b.id}`} y1={lo} y2={hi} fill={dColor} fillOpacity={0.06} strokeOpacity={0}
                       label={(props: { viewBox?: { x: number; y: number; width: number; height: number } }) => {
                         const vb = props.viewBox;
-                        if (!vb || vb.height < 14) return <></> as any;
+                        if (!vb || vb.height < 14) return <></>;
                         const rx = vb.x + vb.width - 4;
                         const cy = vb.y + vb.height / 2;
                         const tw = deltaText.length * 6.3;
@@ -1589,15 +1539,11 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
               const value = formatCrossingValue(line.value, unit, Math.abs(line.value) > 0 ? 10 ** (Math.floor(Math.log10(Math.abs(line.value))) - 5) : 0);
               const reveal = () => {
                 if (line.type === 'v') {
-                  // Centre the line, but keep the window inside the data so the pane never goes blank.
-                  const span = Math.max(visibleXSpan, 1e-12);
-                  const lo = paneDataBounds?.min ?? line.value - span / 2, hi = paneDataBounds?.max ?? line.value + span / 2;
-                  const left = Math.min(Math.max(line.value - span / 2, lo), Math.max(lo, hi - span));
-                  const win = { left, right: left + span };
-                  paneDispatch({ type: 'SET_PANE_ZOOM', payload: { paneId, zoom: win } });
+                  const zoom = centerXDomain(line.value, visibleXSpan, paneDataBounds);
+                  paneDispatch({ type: 'SET_PANE_ZOOM', payload: { paneId, zoom } });
                 } else {
-                  const half = Math.max(range[1] - range[0], 1e-12) / 2;
-                  paneDispatch({ type: 'SET_PANE_Y_ZOOM', payload: { paneId, zoom: { min: line.value - half, max: line.value + half } } });
+                  const zoom = centerYDomain(line.value, range[0], range[1]);
+                  paneDispatch({ type: 'SET_PANE_Y_ZOOM', payload: { paneId, zoom } });
                 }
               };
               return [<EdgeTag key={`edge-${line.id}`} side={side} offset={offset} label={line.label ?? (line.type === 'v' ? 'V' : 'H')} value={value}
