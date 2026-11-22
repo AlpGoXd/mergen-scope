@@ -1,5 +1,7 @@
 // Wording of the app's confirmation dialogs (stores/dialog-store.tsx). Pure: each says what will be lost.
 
+import { formatFileSize } from './file-size-policy';
+
 export interface ConfirmText {
   readonly title: string;
   readonly message: string;
@@ -17,6 +19,14 @@ function list(parts: readonly string[]): string {
 }
 
 export interface WorkspaceCounts { readonly files: number; readonly markers: number; readonly lines: number; readonly panes: number; readonly createdTraces: number }
+
+export function warnLargeFileText(fileName: string, bytes: number): ConfirmText {
+  return {
+    title: 'Open large file?',
+    message: `${fileName} is ${formatFileSize(bytes)}. Large files can make the app slow. Open it anyway?`,
+    confirmLabel: 'Open anyway',
+  };
+}
 
 /** Opening a saved workspace over open work. */
 export function replaceWorkspaceText(counts: WorkspaceCounts, workspaceName?: string): ConfirmText {
