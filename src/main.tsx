@@ -5,9 +5,12 @@ import { StoreRoot } from './stores/StoreRoot';
 import './index.css';
 import './text-roles.css';
 import './components/panes/pane-types.css';
-import { applyAppSize, readStoredAppSize } from './components/settings/app-size';
+import { applyAppSize } from './components/settings/app-size';
+import { applyAppNeutral, readAppPreferences } from './components/settings/app-preferences';
 
-applyAppSize(readStoredAppSize());
+const preferences = readAppPreferences();
+applyAppSize(preferences.size);
+applyAppNeutral(preferences.neutral);
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

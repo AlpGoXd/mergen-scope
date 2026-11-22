@@ -182,7 +182,10 @@ test('inserting after the target renumbers badges and grid falls back on removal
 test('adding a fifth pane falls back from grid to Rows', async ({ page }) => {
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
   const settings = page.getByRole('dialog', { name: 'App settings' });
-  await settings.getByRole('checkbox', { name: /Allow more than 4 panes/ }).check();
+  const limitSwitch = settings.getByRole('switch', { name: 'Allow more than 4 panes' });
+  await expect(limitSwitch).toHaveAttribute('aria-checked', 'false');
+  await limitSwitch.click();
+  await expect(limitSwitch).toHaveAttribute('aria-checked', 'true');
   await settings.getByRole('button', { name: 'Close settings' }).click();
   await addPanes(page, 4); await selectLayout(page, '2 × 2');
   await page.getByRole('button', { name: '+ Pane', exact: true }).click();

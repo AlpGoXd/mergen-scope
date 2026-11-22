@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef } from 'react';
 
-export function useSheetFocus() {
-  const ref = useRef<HTMLDivElement>(null);
+export function useSheetFocus<T extends HTMLElement = HTMLDivElement>() {
+  const ref = useRef<T>(null);
   useLayoutEffect(() => {
     const sheet = ref.current;
     const trigger = document.activeElement;
