@@ -72,3 +72,25 @@ test('the landing uses content-versioned URLs for its cacheable assets', async (
     expect(url.searchParams.get('v'), url.pathname).toBe(revision);
   }
 });
+
+
+test('structured FAQ matches the visible questions and answers', async ({ page }) => {
+  await page.goto('/');
+  const blocks = await page.locator('head script[type="application/ld+json"]').allTextContents();
+  expect(blocks).toHaveLength(2);
+  const structured = blocks.map(block => JSON.parse(block) as { '@type': string; mainEntity?: { name: string; acceptedAnswer: { text: string } }[] });
+  const faq = structured.find(block => block['@type'] === 'FAQPage');
+  expect(faq?.mainEntity).toBeDefined();
+  const visible = await page.locator('#faq .pfacts > div').evaluateAll(items => items.map(item => ({
+    name: item.querySelector('h3')?.textContent?.trim(),
+    answer: item.querySelector('p')?.textContent?.trim(),
+  })));
+  expect(visible.length).toBeGreaterThanOrEqual(6);
+  expect(visible).toEqual(faq?.mainEntity?.map(item => ({ name: item.name, answer: item.acceptedAnswer.text })));
+});
+
+test('serves llms.txt', async ({ request }) => {
+  const response = await request.get('/llms.txt');
+  expect(response.status()).toBe(200);
+  expect(await response.text()).toMatch(/^# Mergen Scope(?:\r?\n|$)/);
+});

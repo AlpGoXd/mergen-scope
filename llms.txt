@@ -1,0 +1,36 @@
+# Mergen Scope
+
+> Mergen Scope is a free, open-source browser workspace for viewing and analyzing spectrum analyzer, oscilloscope and S-parameter files. It is intended for RF and measurement engineers, students and radio amateurs.
+
+## Supported files
+
+- R&S spectrum `.dat`: spectrum traces with span, RBW and detector metadata. Tabular `.dat` files can also contain time or frequency columns.
+- Touchstone `.s1p` through `.s16p`: S-parameter networks. Views include S, Y, Z and, for two-port networks, ABCD; a Smith chart is available.
+- `.csv`, `.txt` and `.tsv`: waveform and other time or frequency column data, using comma, semicolon or tab delimiters. The import wizard can map columns and units.
+- Workspace `.json`: saved data, panes, markers, lines and analyses.
+
+## Analysis tools
+
+Noise PSD, IP3, Peak Table, Range Statistics, Bandwidth, Threshold crossings, Line crossings, Ripple, Occupied bandwidth, Channel power, Reciprocity / Isolation, Stability, Offset / Scale, Smooth, Trace math, Waveform, FFT, Harmonics and Resample. Tools have data requirements; for example, Stability and Reciprocity / Isolation require a two-port network.
+
+## Export
+
+PNG, SVG, PDF, LaTeX (TikZ) and CSV. PDF export works on mergenscope.com; a copy of the built app opened directly from disk (file://) needs a local web server for PDF. A workspace can also be saved as JSON.
+
+## Privacy
+
+Files are read and processed locally in the browser and are not uploaded. There are no cookies, trackers or account. Preferences such as the theme, export options, recent analysis tools and some interface settings are stored in the browser; a workspace is saved when downloaded. Files attached to a GitHub issue are public.
+
+## Limits
+
+Mergen Scope is beta. R&S `.dat` is the primary tested instrument path, tested with R&S FSVA3044 exports. Generic tables may need manual column and unit mapping.
+
+## How to use
+
+[Open the app](https://mergenscope.com/app.html) and drop a file into the workspace, or [try the demo](https://mergenscope.com/app.html?demo=1).
+
+## Links
+
+- [Source on GitHub](https://github.com/AlpGoXd/mergen-scope)
+- [License: Apache-2.0](https://www.apache.org/licenses/LICENSE-2.0)
+- [Feedback](https://github.com/AlpGoXd/mergen-scope/issues/new/choose)

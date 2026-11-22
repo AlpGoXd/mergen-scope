@@ -14,8 +14,11 @@
 <meta property="og:url" content="https://mergenscope.com/">
 <meta property="og:title" content="Mergen Scope – Free Oscilloscope &amp; Spectrum Analyzer File Viewer">
 <meta property="og:description" content="Open oscilloscope CSV captures, spectrum analyzer traces and Touchstone (.s2p) files in your browser. Free, open source, nothing uploaded.">
-<meta property="og:image" content="https://mergenscope.com/landing-assets/brand/icon-512.png">
-<meta name="twitter:card" content="summary">
+<meta property="og:image" content="https://mergenscope.com/mergen-scope-preview.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Mergen Scope workspace showing RF and waveform plots">
+<meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Mergen Scope – Free Oscilloscope &amp; Spectrum Analyzer File Viewer">
 <meta name="twitter:description" content="Open oscilloscope CSV captures, spectrum analyzer traces and Touchstone (.s2p) files in your browser. Free, open source, nothing uploaded.">
 <script type="application/ld+json">
@@ -26,14 +29,125 @@
   "url": "https://mergenscope.com/",
   "applicationCategory": "EngineeringApplication",
   "operatingSystem": "Web browser",
-  "offers": { "@type": "Offer", "price": 0, "priceCurrency": "USD" },
+  "offers": {
+    "@type": "Offer",
+    "price": 0,
+    "priceCurrency": "USD"
+  },
   "license": "https://www.apache.org/licenses/LICENSE-2.0",
   "codeRepository": "https://github.com/AlpGoXd/mergen-scope",
-  "description": "Browser-based viewer for oscilloscope, spectrum analyzer and Touchstone files."
+  "description": "Browser-based viewer for oscilloscope, spectrum analyzer and Touchstone files.",
+  "featureList": [
+    "R&S spectrum .dat files",
+    "Touchstone S-parameter .s1p through .s16p files with S, Y, Z and two-port ABCD views and Smith chart",
+    "CSV, TSV and TXT waveform and column data",
+    "Noise PSD",
+    "IP3",
+    "Peak Table",
+    "Range Statistics",
+    "Bandwidth",
+    "Threshold crossings",
+    "Line crossings",
+    "Ripple",
+    "Occupied bandwidth",
+    "Channel power",
+    "Reciprocity / Isolation",
+    "Stability",
+    "Offset / Scale",
+    "Smooth",
+    "Trace math",
+    "Waveform",
+    "FFT",
+    "Harmonics",
+    "Resample",
+    "Export PNG, SVG, PDF, LaTeX (TikZ), and CSV"
+  ],
+  "softwareVersion": "1.0.0-beta.2",
+  "author": {
+    "@type": "Person",
+    "name": "Alp Gokalp"
+  },
+  "sameAs": [
+    "https://github.com/AlpGoXd/mergen-scope"
+  ],
+  "screenshot": "https://mergenscope.com/mergen-scope-preview.png",
+  "isAccessibleForFree": true
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "How do I open an oscilloscope CSV file in my browser?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Open the app and drop the CSV file into the workspace. The import wizard lets you map columns and units if needed."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Can I view a Touchstone .s2p file and its Smith chart online?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. Open the app and drop in the .s2p file to view its S-parameters and Smith chart."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Are my files uploaded anywhere?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Files are read and processed in your browser and are not uploaded. Settings such as the theme stay in your browser."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Which instruments and file formats work?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Mergen Scope accepts R&S spectrum .dat, Touchstone .s1p through .s16p, and CSV, TSV and TXT column data. R&S .dat has been tested with FSVA3044 exports; other files may need column and unit mapping."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Does Mergen Scope require installation or an account?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "No installation or account is required. Open the app in your browser to use it."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Is Mergen Scope free?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. Mergen Scope is free and open source under the Apache-2.0 license."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Can I export plots for a paper or LaTeX?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Plots can be exported as PNG, SVG, PDF or LaTeX (TikZ); CSV data export is also available."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Can I compare traces or do trace math?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. You can compare traces and use trace math to add, subtract, multiply or divide two traces."
+      }
+    }
+  ]
 }
 </script>
 <meta name="twitter:url" content="https://mergenscope.com/">
-<meta name="twitter:image" content="https://mergenscope.com/landing-assets/brand/icon-512.png">
+<meta name="twitter:image" content="https://mergenscope.com/mergen-scope-preview.png">
 <link rel="icon" href="favicon.ico?v=3" sizes="16x16 32x32 48x48">
 <link rel="icon" type="image/svg+xml" href="mergen-scope-icon.svg?v=3">
 <link rel="apple-touch-icon" href="landing-assets/brand/apple-touch-icon.png?v=3">
@@ -209,6 +323,20 @@ Detector;AUTOPEAK;</pre>
 <div class="np-empty">No requests after opening<br>cascaded chain.s2p</div>
 <div class="np-foot">0 requests · 0 B transferred</div>
 </div>
+</div>
+</section>
+
+<section id="faq" class="section wrap" aria-labelledby="faq-title">
+<div class="sub"><h2 id="faq-title">Frequently asked questions</h2></div>
+<div class="pfacts">
+<div><h3>How do I open an oscilloscope CSV file in my browser?</h3><p>Open the app and drop the CSV file into the workspace. The import wizard lets you map columns and units if needed.</p></div>
+<div><h3>Can I view a Touchstone .s2p file and its Smith chart online?</h3><p>Yes. Open the app and drop in the .s2p file to view its S-parameters and Smith chart.</p></div>
+<div><h3>Are my files uploaded anywhere?</h3><p>Files are read and processed in your browser and are not uploaded. Settings such as the theme stay in your browser.</p></div>
+<div><h3>Which instruments and file formats work?</h3><p>Mergen Scope accepts R&S spectrum .dat, Touchstone .s1p through .s16p, and CSV, TSV and TXT column data. R&S .dat has been tested with FSVA3044 exports; other files may need column and unit mapping.</p></div>
+<div><h3>Does Mergen Scope require installation or an account?</h3><p>No installation or account is required. Open the app in your browser to use it.</p></div>
+<div><h3>Is Mergen Scope free?</h3><p>Yes. Mergen Scope is free and open source under the Apache-2.0 license.</p></div>
+<div><h3>Can I export plots for a paper or LaTeX?</h3><p>Plots can be exported as PNG, SVG, PDF or LaTeX (TikZ); CSV data export is also available.</p></div>
+<div><h3>Can I compare traces or do trace math?</h3><p>Yes. You can compare traces and use trace math to add, subtract, multiply or divide two traces.</p></div>
 </div>
 </section>
 
