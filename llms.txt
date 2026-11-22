@@ -9,6 +9,8 @@
 - `.csv`, `.txt` and `.tsv`: waveform and other time or frequency column data, using comma, semicolon or tab delimiters. The import wizard can map columns and units.
 - Workspace `.json`: saved data, panes, markers, lines and analyses.
 
+Not tied to one instrument brand: any waveform or measurement that an oscilloscope, spectrum analyzer, VNA or other instrument (or a script) exports as a text table (CSV, TXT or TSV with comma, semicolon or tab delimiters) can be opened. The import wizard picks the X column, one or more Y columns, units and multipliers. Proprietary binary formats are not read; export the data as CSV or text first.
+
 ## Analysis tools
 
 Noise PSD, IP3, Peak Table, Range Statistics, Bandwidth, Threshold crossings, Line crossings, Ripple, Occupied bandwidth, Channel power, Reciprocity / Isolation, Stability, Offset / Scale, Smooth, Trace math, Waveform, FFT, Harmonics and Resample. Tools have data requirements; for example, Stability and Reciprocity / Isolation require a two-port network.
