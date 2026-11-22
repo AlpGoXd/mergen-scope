@@ -20,6 +20,13 @@ export function axisValueToPixel(
   return origin + (reversed ? 1 - fraction : fraction) * length;
 }
 
+/** Convert the eight-pixel horizontal reference line hit radius to Y axis units. */
+export function refLineYTolerance(domain: YDomain, plotHeight: number): number {
+  const span = domain.max - domain.min;
+  if (!Number.isFinite(span) || span <= 0 || !Number.isFinite(plotHeight) || plotHeight <= 0) return 0;
+  return (span / plotHeight) * 8;
+}
+
 /** A horizontal drag creates a window at any positive span. */
 export function dragZoomXDomain(start: number, end: number): ZoomWindow | null {
   const left = Math.min(start, end);
