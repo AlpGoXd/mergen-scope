@@ -1,6 +1,6 @@
 import type { Capability } from '../../types/registry-contract';
 import type { DataPoint, Trace } from '../../types/trace';
-import { angleUnit } from '../polar';
+import { angleAxisUnit } from '../units';
 import { interpolatePointAtX, traceBound } from '../trace-math';
 import { computeBandwidth } from './bandwidth';
 import type { BandwidthResult } from './bandwidth';
@@ -11,7 +11,7 @@ const gainInDb = (unit: string | null) => /^db(?:i|d)?$/i.test(unit?.trim() ?? '
 const linearGain = (unit: string | null) => /^(?:unitless|linear|ratio|1)$/i.test(unit?.trim() ?? '');
 
 export function antennaFarFieldCapability(trace: Trace): Capability {
-  if (!angleUnit(trace.units.x)) return { allowed: false, reason: 'Antenna far-field analysis needs an angle on X.' };
+  if (!angleAxisUnit(trace.units.x)) return { allowed: false, reason: 'Antenna far-field analysis needs an angle on X.' };
   if (!gainInDb(trace.units.y) && !linearGain(trace.units.y)) {
     return { allowed: false, reason: 'Use gain in dB, dBi, dBd or a linear power ratio.' };
   }
@@ -71,7 +71,7 @@ export interface AntennaFarFieldResult {
 /** Calculate one angular cut. Interpolate in the input gain scale and report gain in dB. */
 export function computeAntennaFarField(trace: Trace): AntennaFarFieldResult | null {
   if (!antennaFarFieldCapability(trace).allowed) return null;
-  const scale = /^rad/i.test(trace.units.x?.trim() ?? '') ? 180 / Math.PI : 1;
+  const scale = angleAxisUnit(trace.units.x) === 'rad' ? 180 / Math.PI : 1;
   const isLinear = linearGain(trace.units.y);
   const samples = trace.data.flatMap(point => {
     const freq = point.freq * scale;

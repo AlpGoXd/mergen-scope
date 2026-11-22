@@ -2,6 +2,7 @@ import React from 'react';
 import type { AxisScale, ChartAxesSettings, PaneSettings, TableSettings } from '../../types/pane';
 import { DEFAULT_POLAR_SETTINGS } from '../../types/pane';
 import type { PolarSettings } from '../../types/pane';
+import type { PolarRadius } from '../../domain/polar';
 import type { TableVisibleRange } from '../../domain/table-view';
 import type { SmithSettings } from '../../types/pane';
 import type { SymbolSetting } from '../../domain/trace-palette';
@@ -88,6 +89,7 @@ export interface PaneAxes {
   readonly xRange: string;
   readonly suggestLog: boolean;
   readonly hasPhase: boolean;
+  readonly gainMode: ChartAxesSettings['gain'] | null;
   readonly onChange: (values: ChartAxesSettings) => void;
 }
 
@@ -129,7 +131,7 @@ export interface PaneActions {
  * then a row of actions: Copy image · Download image · Download SVG · Copy as LaTeX · Export data (CSV)… · Export… · Close pane. Changes apply at once; there is no OK.
  */
 export function PaneSettingsPopover({
-  paneId, settings, sections, paneName, current, tiles, pending, anchor, onAnchorChange, onChoose, onConfirm, onCancel, contentRef, axes, onFit, actions, table = null,
+  paneId, settings, sections, paneName, current, tiles, pending, anchor, onAnchorChange, onChoose, onConfirm, onCancel, contentRef, axes, onFit, actions, table = null, resolvedPolarRadius = 'linear',
 }: {
   paneId: string;
   settings: PaneSettings;
@@ -150,6 +152,7 @@ export function PaneSettingsPopover({
   onFit: (() => void) | null;
   actions: PaneActions;
   table?: PaneTableOptions | null;
+  resolvedPolarRadius?: PolarRadius;
 }) {
   const paneDispatch = usePaneDispatch();
   const patch = (p: Partial<PaneSettings>) => paneDispatch({ type: 'SET_PANE_SETTINGS', payload: { paneId, patch: p } });
@@ -246,7 +249,7 @@ export function PaneSettingsPopover({
 
             {polar && <Section title="Polar">
               {([
-                ['Radius', 'radius', [['linear', 'Linear'], ['db', 'dB']]],
+                ['Radius', 'radius', [['auto', 'Auto'], ['linear', 'Linear'], ['db', 'dB']]],
                 ['Angle 0°', 'zero', [['right', 'Right'], ['top', 'Top']]],
                 ['Direction', 'direction', [['ccw', 'CCW'], ['cw', 'CW']]],
               ] as const).map(([label, key, options]) => <Row key={key} label={label}>
@@ -257,19 +260,24 @@ export function PaneSettingsPopover({
                 <Btn variant="slate" small active={!polarSettings.manual} aria-pressed={!polarSettings.manual} onClick={() => setPolar({ manual: null })}>Auto</Btn>
                 <Btn variant="slate" small active={!!polarSettings.manual} aria-pressed={!!polarSettings.manual} onClick={() => setPolar({ manual })}>Manual</Btn>
               </Row>
-              {polarSettings.manual && (polarSettings.radius === 'db' ? <>
+              {polarSettings.manual && (resolvedPolarRadius === 'db' ? <>
                 <Row label="Top (dB)"><NumInput label="Top (dB)" min={-3000} max={3000} step={10} value={manual.dbTop}
                   onChange={dbTop => setPolar({ manual: { ...manual, dbTop } })} /></Row>
                 <Row label="Range (dB)"><NumInput label="Range (dB)" min={1} max={1000} step={10} value={manual.dbRange}
                   onChange={dbRange => setPolar({ manual: { ...manual, dbRange } })} /></Row>
               </> : <Row label="Maximum"><NumInput label="Maximum radius" min={1e-15} max={1e15} step={0.1} value={manual.linearMax}
                 onChange={linearMax => setPolar({ manual: { ...manual, linearMax } })} /></Row>)}
-              {onFit && <Row label="Radius zoom"><Btn small onClick={onFit}>Fit</Btn></Row>}
+              {onFit && <Row label="View"><Btn small onClick={onFit}>Fit</Btn></Row>}
             </Section>}
             {!table && !polar && <Section title="Axes">
               {axes ? <>
                 <Row label="X scale"><AxisScaleChoices axis="x" axes={axes} />{axes.suggestLog && <span className="t-caption">Log suggested</span>}</Row>
-                <Row label="Y scale"><AxisScaleChoices axis="y" axes={axes} /></Row>
+                {axes.gainMode && <Row label="Gain display"><div role="group" aria-label="Gain display">
+                  {(['db', 'linear'] as const).map(value => <Btn key={value} variant="slate" small
+                    active={axes.gainMode === value} aria-pressed={axes.gainMode === value}
+                    onClick={() => axes.onChange({ ...axes.values, gain: value })}>{value === 'db' ? 'Decibels' : 'Power ratio'}</Btn>)}
+                </div></Row>}
+                <Row label={axes.gainMode ? 'Y spacing' : 'Y scale'}><AxisScaleChoices axis="y" axes={axes} /></Row>
                 {axes.hasPhase && <Row label="Phase">{(['wrapped', 'unwrapped'] as const).map(value =>
                   <Btn key={value} variant="slate" small active={axes.values.phase === value} aria-pressed={axes.values.phase === value}
                     onClick={() => axes.onChange({ ...axes.values, phase: value })}>{value === 'wrapped' ? 'Wrapped' : 'Unwrapped'}</Btn>)}</Row>}

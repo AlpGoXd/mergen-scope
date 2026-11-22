@@ -131,7 +131,7 @@ export function ChartPanePlot({
       {settings.showMarkers && paneMarkers.map(({ marker, index }) => {
         const trace = axisSettings.phase === 'unwrapped' ? displayTraces.find(trace => trace.name === marker.trace) : undefined;
         const amplitude = trace ? placeMarker(trace, marker.freq).amp : marker.amp;
-        if ((logY && !(amplitude > 0)) || (logX && !(marker.freq > 0))) return null;
+        if (!Number.isFinite(amplitude) || (logY && !(amplitude > 0)) || (logX && !(marker.freq > 0))) return null;
         const color = resolveTraceColor(marker.trace || '');
         const isSelected = !isExport && index === selectedMkrIdx;
         const labelPrefix = marker.type === 'delta' ? `DM${index + 1}` : `M${index + 1}`;

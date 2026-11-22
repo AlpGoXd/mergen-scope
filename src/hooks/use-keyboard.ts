@@ -63,24 +63,23 @@ export function useKeyboard() {
   useShortcut('escape', () => { cancel(); });
   useShortcut('fit-pane', () => {
     if (!targetPaneId) return false;
-    if (panes.find(pane => pane.id === targetPaneId)?.renderMode === 'polar') {
+    if (panes.find(pane => pane.id === targetPaneId)?.renderMode !== 'polar') {
+      paneDispatch({ type: 'SET_PANE_ZOOM', payload: { paneId: targetPaneId, zoom: null } });
       paneDispatch({ type: 'SET_PANE_Y_ZOOM', payload: { paneId: targetPaneId, zoom: null } });
-      return;
     }
-    paneDispatch({ type: 'SET_PANE_ZOOM', payload: { paneId: targetPaneId, zoom: null } });
-    paneDispatch({ type: 'SET_PANE_Y_ZOOM', payload: { paneId: targetPaneId, zoom: null } });
-    // Smith panes keep their own view; ChartPane fits it on this event.
     window.dispatchEvent(new CustomEvent('mergen-fit-pane', { detail: { paneId: targetPaneId } }));
   });
   const previousZoom = (paneId: string | null) => {
     if (!paneId) return false;
+    if (panes.find(pane => pane.id === paneId)?.renderMode === 'polar') {
+      if (window.dispatchEvent(new CustomEvent('mergen-previous-polar-view', { detail: paneId, cancelable: true }))) return false;
+      return;
+    }
     const step = takePreviousZoom(zoomHistory.current, paneId);
     if (!step) return false;
     zoomHistory.current = step.history;
     restoring.current.set(paneId, step.zoom);
-    if (panes.find(pane => pane.id === paneId)?.renderMode !== 'polar') {
-      paneDispatch({ type: 'SET_PANE_ZOOM', payload: { paneId, zoom: step.zoom.x } });
-    }
+    paneDispatch({ type: 'SET_PANE_ZOOM', payload: { paneId, zoom: step.zoom.x } });
     paneDispatch({ type: 'SET_PANE_Y_ZOOM', payload: { paneId, zoom: step.zoom.y } });
   };
   useShortcut('previous-zoom', () => previousZoom(targetPaneId));

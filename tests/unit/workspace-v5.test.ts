@@ -32,6 +32,12 @@ it('preserves Polar pane settings through the live save path and rejects invalid
   const saved = snapshotFromWorkspace(state);
   if (!saved) throw new Error('snapshot');
   expect(migrateWorkspaceV5(JSON.parse(JSON.stringify(saved)))?.panes[0]).toMatchObject({ renderMode: 'polar', settings: { polar } });
+  const withRadius = (radius: unknown) => ({ ...saved, panes: saved.panes.map(pane => ({
+    ...pane, settings: { ...pane.settings, polar: { ...polar, radius } },
+  })) });
+  expect(migrateWorkspaceV5(withRadius('auto'))?.panes[0]?.settings.polar?.radius).toBe('auto');
+  expect(migrateWorkspaceV5(withRadius('linear'))?.panes[0]?.settings.polar?.radius).toBe('linear');
+  expect(migrateWorkspaceV5(withRadius('invalid'))).toBeNull();
   expect(migrateWorkspaceV5({ ...saved, panes: saved.panes.map(pane => ({ ...pane,
     settings: { ...pane.settings, polar: { ...polar, manual: { ...polar.manual, dbRange: 0 } } },
   })) })).toBeNull();
@@ -45,6 +51,9 @@ it('defaults old chart axes and round-trips the saved scales and phase mode', ()
   expect(migrateWorkspaceV5(JSON.parse(JSON.stringify(withAxes(axes))))?.panes[0]?.settings.axes).toEqual(axes);
   expect(migrateWorkspaceV5(withAxes(undefined))?.panes[0]?.settings.axes).toEqual({ x: 'linear', y: 'linear', phase: 'wrapped' });
   expect(migrateWorkspaceV5(withAxes({ ...axes, x: 'Other' }))).toBeNull();
+  expect(migrateWorkspaceV5(withAxes({ ...axes, gain: 'linear' }))?.panes[0]?.settings.axes?.gain).toBe('linear');
+  expect(migrateWorkspaceV5(withAxes({ ...axes, gain: 'db' }))?.panes[0]?.settings.axes?.gain).toBe('db');
+  expect(migrateWorkspaceV5(withAxes({ ...axes, gain: 'volts' }))).toBeNull();
   const state = workspaceReducer(initialWorkspaceState(), { slice: 'panes', limit: 4,
     action: { type: 'SET_PANE_SETTINGS', payload: { paneId: 'pane-1', patch: { axes } } } });
   expect(snapshotFromWorkspace(state)?.panes[0]?.settings.axes).toEqual(axes);

@@ -13,6 +13,7 @@ export type PaneRenderMode = "cartesian" | "smith" | "smith-inverted" | "table" 
 export type AxisScale = 'linear' | 'log';
 
 export interface ChartAxesSettings {
+  readonly gain?: 'db' | 'linear';
   readonly x: AxisScale;
   readonly y: AxisScale;
   readonly phase: 'wrapped' | 'unwrapped';
@@ -21,14 +22,14 @@ export interface ChartAxesSettings {
 export const DEFAULT_CHART_AXES: ChartAxesSettings = { x: 'linear', y: 'linear', phase: 'wrapped' };
 
 export interface PolarSettings {
-  readonly radius: 'linear' | 'db';
+  readonly radius: 'auto' | 'linear' | 'db';
   readonly zero: 'right' | 'top';
   readonly direction: 'ccw' | 'cw';
   readonly manual: { readonly linearMax: number; readonly dbTop: number; readonly dbRange: number } | null;
   readonly range: { readonly startHz: number; readonly stopHz: number } | null;
 }
 
-export const DEFAULT_POLAR_SETTINGS: PolarSettings = { radius: 'linear', zero: 'right', direction: 'ccw', manual: null, range: null };
+export const DEFAULT_POLAR_SETTINGS: PolarSettings = { radius: 'auto', zero: 'right', direction: 'ccw', manual: null, range: null };
 export interface SmithSettings {
   readonly range?: { readonly startHz: number; readonly stopHz: number } | null;
   readonly outside?: 'hidden' | 'faint';

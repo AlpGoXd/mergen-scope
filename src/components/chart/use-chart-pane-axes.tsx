@@ -9,6 +9,7 @@ import type { ExportView } from './export/export-context';
 import type { PlotView } from './LinesLayer';
 import type { AxisScale } from '../../types/pane';
 import { logTickLabel, logTicks } from '../../domain/chart/axis-scale';
+import { angleAxisUnit, isDecibelGain, isLinearGain } from '../../domain/units';
 
 interface ChartPaneAxesOptions {
   paneId: string;
@@ -38,12 +39,16 @@ export function useChartPaneAxes({
   const xAxisLabelText = useMemo(() => {
     if (!activePaneTrace) return axisInfo.xLabel;
     const xUnit = activePaneTrace.units.x ? String(activePaneTrace.units.x) : (activePaneTrace.domain === 'time' ? 's' : 'Hz');
+    const angle = angleAxisUnit(xUnit);
+    if (angle) return `Angle (${angle})`;
     return activePaneTrace.domain === 'time' ? `Time (${xUnit})` : `Frequency (${xUnit})`;
   }, [activePaneTrace, axisInfo.xLabel]);
 
   const yAxisLabelText = useMemo(() => {
     if (!activePaneTrace) return axisInfo.yLabel;
     const yUnit = activePaneTrace.units.y ? String(activePaneTrace.units.y) : '';
+    if (isDecibelGain(activePaneTrace.units.x, yUnit)) return `Gain (${yUnit})`;
+    if (isLinearGain(activePaneTrace.units.x, yUnit)) return 'Gain (ratio)';
     const source = activePaneTrace.kind === 'raw' ? activePaneTrace.networkSource : undefined;
     if (source?.view === 'Phase') return `Phase (${yUnit || 'deg'})`;
     if (source?.family === 'S' && source?.view === 'dB') return `Magnitude (${yUnit || 'dB'})`;

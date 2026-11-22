@@ -25,6 +25,19 @@ export function zoomAt(v: SmithViewport, anchor: SmithPoint, factor: number): Sm
   const next = { ...v, scale, center: { re: g.re - (anchor.x - v.width / 2) / scale, im: g.im + (anchor.y - v.height / 2) / scale } };
   return valid(next) ? next : null;
 }
+
+export function wheelZoomFactor(deltaY: number, deltaMode: number): number {
+  const pixels = deltaMode === 1 ? deltaY * 33 : deltaY;
+  return Math.max(0.5, Math.min(2, Math.exp(-pixels * 0.0015)));
+}
+
+/** Both circular plots zoom around the same cursor anchor, relative to their fitted view. */
+export function zoomRelativeAt(v: SmithViewport, fitScale: number, anchor: SmithPoint, factor: number): SmithViewport | null {
+  if (!(fitScale > 0) || !Number.isFinite(factor) || factor <= 0) return null;
+  const zoom = v.scale / fitScale;
+  const clamped = Math.max(0.5, Math.min(400, zoom * factor));
+  return clamped === zoom ? null : zoomAt(v, anchor, clamped / zoom);
+}
 export function panBy(v: SmithViewport, delta: SmithPoint): SmithViewport | null {
   if (!valid(v) || !Number.isFinite(delta.x) || !Number.isFinite(delta.y)) return null;
   const next = { ...v, center: { re: v.center.re - delta.x / v.scale, im: v.center.im + delta.y / v.scale } };

@@ -5,13 +5,13 @@ import { makeTestTrace } from './helpers';
 
 it('draws decades, minor subdivisions, and short-range ticks with SI labels', () => {
   const ticks = logTicks({ min: 10000, max: 8.5e9 });
-  expect(ticks.filter(tick => tick.label).map(tick => logTickLabel(tick.value))).toEqual(['10 k', '100 k', '1 M', '10 M', '100 M', '1 G']);
+  expect(ticks.filter(tick => tick.label).map(tick => logTickLabel(tick.value))).toEqual(['10k', '100k', '1M', '10M', '100M', '1G']);
   expect(ticks.find(tick => tick.value === 90000)).toEqual({ value: 90000, major: false, label: false });
   expect(logTicks({ min: 10, max: 350 }).find(tick => tick.value === 50)?.label).toBe(true);
   const short = logTicks({ min: 20, max: 45 });
   expect(short.length).toBeGreaterThan(1);
   expect(short.every(tick => tick.label && tick.value >= 20 && tick.value <= 45)).toBe(true);
-  expect(logTickLabel(0.002)).toBe('2 m');
+  expect(logTickLabel(0.002)).toBe('2m');
 });
 
 it('maps and zooms around the cursor using ratios and pans within positive bounds', () => {

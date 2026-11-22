@@ -1,7 +1,7 @@
 import { expect, it } from 'vitest';
 import { DEFAULT_POLAR_SETTINGS, defaultPaneSettings } from '../../src/types/pane';
 import { canPlaceMembership } from '../../src/domain/pane-placement';
-import { complexPolar, POLAR_REFUSAL, polarCapability, polarFraction, polarReadout, polarRings, polarTrace, polarValue, polarVector } from '../../src/domain/polar';
+import { complexPolar, POLAR_REFUSAL, polarCapability, polarFraction, polarRadius, polarReadout, polarRings, polarTrace, polarValue, polarVector } from '../../src/domain/polar';
 import { makeTestTrace } from './helpers';
 
 it('maps complex values into linear magnitude, dB and signed phase', () => {
@@ -9,6 +9,17 @@ it('maps complex values into linear magnitude, dB and signed phase', () => {
   expect(result.linear).toBe(0.5);
   expect(result.db).toBeCloseTo(-6.0206);
   expect(result.angle).toBe(-90);
+});
+
+it('uses the native decibel radius for angle patterns in Auto and respects explicit scales', () => {
+  const pattern = makeTestTrace({ units: { x: '°', y: 'dBi' } });
+  const linearPattern = makeTestTrace({ units: { x: 'rad', y: 'ratio' } });
+  const network = makeTestTrace({ units: { x: 'Hz', y: 'dB' } });
+  expect(polarRadius('auto', [pattern])).toBe('db');
+  expect(polarRadius('auto', [network])).toBe('linear');
+  expect(polarRadius('auto', [linearPattern])).toBe('linear');
+  expect(polarRadius('linear', [pattern])).toBe('linear');
+  expect(polarRadius('db', [network])).toBe('db');
 });
 
 it('converts antenna gain to a power ratio and retains the recorded dB value', () => {

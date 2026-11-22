@@ -4,6 +4,7 @@ import type { DisplayTrace } from '../types/display';
 import type { PaneTypeDefinition, PaneTypeId } from '../types/registry-contract';
 import { paneTypeOfMode, typeForTrace } from './pane-type-registry';
 import { polarCapability, polarKind } from './polar';
+import { angleAxisUnit } from './units';
 
 export type PaneMemberships = Readonly<Record<string, readonly string[]>>;
 export interface PlacementTrace { readonly trace: Trace; readonly paneIds: readonly string[]; readonly displayTrace?: DisplayTrace }
@@ -26,7 +27,7 @@ export function xUnitGroup(value: string | null | undefined): string | null {
   if (!unit) return null;
   if (unit.toLowerCase() === 'hz') return 'Hz';
   if (unit === 's' || unit.toLowerCase() === 'sec' || unit.toLowerCase() === 'seconds') return 's';
-  return unit;
+  return angleAxisUnit(unit) ?? unit;
 }
 export type PlacementPane = Omit<Pane, 'renderMode'> & { readonly renderMode: Pane['renderMode'] | 'table' };
 

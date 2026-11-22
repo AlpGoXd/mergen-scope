@@ -123,7 +123,7 @@ const legacyToolIds: Readonly<Record<string, string>> = {
 const matrixViews = new Set(['vswr', 'return-loss', 'group-delay']);
 
 function validPolar(value: unknown): value is PolarSettings {
-  if (!object(value) || (value.radius !== 'linear' && value.radius !== 'db')
+  if (!object(value) || (value.radius !== 'auto' && value.radius !== 'linear' && value.radius !== 'db')
     || (value.zero !== 'right' && value.zero !== 'top')
     || (value.direction !== 'ccw' && value.direction !== 'cw')) return false;
   const manual = value.manual;
@@ -615,7 +615,8 @@ function validCurrent(body: Record<string, unknown>): boolean {
     if (typeof settings.gridDashStyle !== 'string' || !object(settings.smith) || !validTable(settings.table)) return false;
     const axes = settings.axes;
     if (!object(axes) || (axes.x !== 'linear' && axes.x !== 'log') || (axes.y !== 'linear' && axes.y !== 'log')
-      || (axes.phase !== 'wrapped' && axes.phase !== 'unwrapped')) return false;
+      || (axes.phase !== 'wrapped' && axes.phase !== 'unwrapped')
+      || (axes.gain !== undefined && axes.gain !== 'db' && axes.gain !== 'linear')) return false;
     if (!validPolar(settings.polar)) return false;
     const smith = settings.smith;
     if (smith.outside !== undefined && smith.outside !== 'hidden' && smith.outside !== 'faint') return false;
@@ -1015,6 +1016,7 @@ function migrateWorkspaceV5Body(raw: unknown): WorkspaceSnapshotV5 | null {
             x: s.axes.x === 'log' ? 'log' : 'linear',
             y: s.axes.y === 'log' ? 'log' : 'linear',
             phase: s.axes.phase === 'unwrapped' ? 'unwrapped' : 'wrapped',
+            ...(s.axes.gain === 'db' || s.axes.gain === 'linear' ? { gain: s.axes.gain } : {}),
           } : DEFAULT_CHART_AXES,
           polar: validPolar(s.polar) ? s.polar : DEFAULT_POLAR_SETTINGS,
           gridMajor: s.gridMajor === undefined ? p.showGrid !== false : bool('gridMajor'), gridMinor: bool('gridMinor'),

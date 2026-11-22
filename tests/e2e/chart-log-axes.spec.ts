@@ -30,7 +30,7 @@ test('Log X draws decade paper, zooms in data units, and survives workspace reop
   await settings.getByRole('group', { name: 'X scale' }).getByRole('button', { name: 'Log' }).click();
   await page.keyboard.press('Escape');
   const ticks = plot.locator('.recharts-xAxis .recharts-cartesian-axis-tick-value');
-  await expect(ticks).toHaveText(['10 k', '100 k', '1 M', '10 M', '100 M', '1 G']);
+  await expect(ticks).toHaveText(['10k', '100k', '1M', '10M', '100M', '1G']);
   await expect(plot.locator('.chart-log-grid line[data-decade]')).toHaveCount(6);
   await expect(marker).toHaveText(markerValue);
   const view = plot.getByTestId('lines-layer');
@@ -50,6 +50,9 @@ test('Log X draws decade paper, zooms in data units, and survives workspace reop
   await page.getByTestId('topbar-workspace-input').setInputFiles(workspacePath);
   await expect(plot.locator('.chart-log-grid')).toBeAttached();
   await expect(marker).toHaveText(zoomedMarkerValue);
+  if (!fitted) throw new Error('Missing fitted axis range');
+  await plot.click({ button: 'middle' });
+  await expect(view).toHaveAttribute('data-x-domain', fitted);
 });
 
 test('Log Y leaves a break at nonpositive voltage samples', async ({ page }) => {

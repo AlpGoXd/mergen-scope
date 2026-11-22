@@ -5,14 +5,26 @@ import type { Trace } from '../types/trace';
 import type { Capability } from '../types/registry-contract';
 import { formatEngineeringValue } from './format';
 import { gammaAtFrequency } from './smith/hit';
-import { isLogUnit } from './units';
+import { angleAxisUnit, isLogUnit } from './units';
 import { splitByBand } from './smith/band';
+import type { SmithRun } from './smith/band';
+import { gammaToPoint } from './smith/viewport';
 import { smithRangeModel } from './smith-pane-model';
 import type { SmithRange } from './smith/range';
 
 export const POLAR_REFUSAL = 'Polar needs a complex network trace or an angle on X';
 export type PolarKind = 'network' | 'pattern';
-export const angleUnit = (unit: string | null | undefined) => /^(?:°|deg(?:rees?)?|rad(?:ians?)?)$/i.test(unit?.trim() ?? '');
+export type PolarRadius = Exclude<PolarSettings['radius'], 'auto'>;
+type ResolvedPolarSettings = PolarSettings & { radius: PolarRadius };
+
+export function polarRadius(radius: PolarSettings['radius'], traces: readonly Trace[]): PolarRadius {
+  if (radius !== 'auto') return radius;
+  return traces.length > 0 && traces.every(trace => angleAxisUnit(trace.units.x) && isPolarDbUnit(trace.units.y)) ? 'db' : 'linear';
+}
+
+function isPolarDbUnit(unit: string | null | undefined): boolean {
+  return isLogUnit(unit) || /^db[id]$/i.test(unit?.trim() ?? '');
+}
 
 function networkSource(trace: Trace) {
   if (trace.kind !== 'raw') return null;
@@ -29,7 +41,7 @@ export function polarKind(trace: Trace): PolarKind | null {
     const value = sample.sMatrix[source.row]?.[source.col];
     return value && Number.isFinite(value.re) && Number.isFinite(value.im);
   })) return 'network';
-  return angleUnit(trace.units.x) ? 'pattern' : null;
+  return angleAxisUnit(trace.units.x) ? 'pattern' : null;
 }
 
 export function polarCapability(trace: Trace): Capability {
@@ -57,15 +69,15 @@ export function polarTrace(trace: Trace): PolarTrace | null {
     })),
     sParameter: source.family === 'S', alreadyDb: false, closed: false,
   };
-  if (!angleUnit(trace.units.x)) return null;
-  const radians = /^rad/i.test(trace.units.x ?? '');
-  const degrees = radians ? 180 / Math.PI : 1;
+  const unit = angleAxisUnit(trace.units.x);
+  if (!unit) return null;
+  const degrees = unit === 'rad' ? 180 / Math.PI : 1;
   const samples = trace.data.map(point => ({ frequencyHz: point.freq, gamma: { re: point.amp, im: point.freq * degrees } }));
   const first = samples[0]?.gamma.im;
   const last = samples.at(-1)?.gamma.im;
   return {
     trace, kind: 'pattern', name: trace.file || trace.dn || trace.name, samples, sParameter: false,
-    alreadyDb: isLogUnit(trace.units.y) || /^db/i.test(trace.units.y ?? ''),
+    alreadyDb: isPolarDbUnit(trace.units.y),
     closed: first !== undefined && last !== undefined && last - first >= 360 - 1e-6,
   };
 }
@@ -105,15 +117,15 @@ function niceCeiling(value: number): number {
   return magnitude * (ratio <= 1 ? 1 : ratio <= 2 ? 2 : ratio <= 5 ? 5 : 10);
 }
 
-export function polarRings(maximum: number, { radius, manual }: PolarSettings, zoom = 1): PolarRings {
+export function polarRings(maximum: number, { radius, manual }: PolarSettings): PolarRings {
   if (radius === 'db') {
     const max = manual?.dbTop ?? (Number.isFinite(maximum) ? Math.ceil(maximum / 10) * 10 || 0 : 0);
-    const min = max - (manual?.dbRange ?? 40) * zoom;
+    const min = max - (manual?.dbRange ?? 40);
     const ticks = [max];
     for (let value = max - 10; value > min && ticks.length < 100; value -= 10) ticks.push(value);
     return { min, max, ticks };
   }
-  const max = (manual?.linearMax ?? niceCeiling(maximum > 0 && Number.isFinite(maximum) ? maximum : 1)) * zoom;
+  const max = manual?.linearMax ?? niceCeiling(maximum > 0 && Number.isFinite(maximum) ? maximum : 1);
   const ceiling = niceCeiling(max);
   const leading = ceiling / 10 ** Math.floor(Math.log10(ceiling));
   const step = ceiling / (leading > 4 ? 5 : 4);
@@ -130,17 +142,19 @@ export function polarViewport(width: number, height: number): SmithViewport {
   return { width, height, center: { re: 0, im: 0 }, scale: Math.max(1, Math.min(width, height) / 2 - 34) };
 }
 
-export function polarSamples(samples: readonly SmithSample[], trace: PolarTrace, rings: PolarRings, settings: PolarSettings): SmithSample[] {
+export function polarSamples(samples: readonly SmithSample[], trace: PolarTrace, rings: PolarRings, settings: ResolvedPolarSettings): SmithSample[] {
   return samples.map(sample => {
     const value = polarValue(sample.gamma, trace);
     return { ...sample, gamma: polarVector(value.angle, polarFraction(value, rings, settings.radius === 'db'), settings) };
   });
 }
 
-export function polarPlotModel(traces: readonly PolarTrace[], settings: PolarSettings, linked: boolean, linkedRange: SmithRange | null, zoom: number) {
-  const range = smithRangeModel(traces.filter(trace => trace.kind === 'network'), linked ? null : settings.range, linkedRange, linked ? 'faint' : 'hidden');
-  const ranged = traces[0]?.kind === 'pattern' ? traces : range.traces;
-  const raw = ranged.map(trace => ({ ...trace, runs: splitByBand(trace.samples, range.band) }));
+export function polarPlotModel(traces: readonly PolarTrace[], settings: ResolvedPolarSettings, linked: boolean, linkedRange: SmithRange | null) {
+  const network = traces[0]?.kind === 'network';
+  const range = network
+    ? smithRangeModel(traces, linked ? null : settings.range, linkedRange, linked ? 'faint' : 'hidden')
+    : { traces, band: linkedRange && { minHz: linkedRange.startHz, maxHz: linkedRange.stopHz }, full: null, range: null };
+  const raw = range.traces.map(trace => ({ ...trace, runs: splitByBand(trace.samples, range.band) }));
   let maximum = -Infinity;
   for (const trace of raw) for (const run of trace.runs) {
     for (const sample of run.samples) {
@@ -148,7 +162,7 @@ export function polarPlotModel(traces: readonly PolarTrace[], settings: PolarSet
       maximum = Math.max(maximum, settings.radius === 'db' ? value.db : value.linear);
     }
   }
-  const rings = polarRings(maximum, settings, zoom);
+  const rings = polarRings(maximum, settings);
   const plots = raw.map(trace => {
     const runs = trace.runs.map(run => ({ ...run, samples: polarSamples(run.samples, trace, rings, settings) }));
     return { ...trace, runs };
@@ -156,8 +170,18 @@ export function polarPlotModel(traces: readonly PolarTrace[], settings: PolarSet
   return { plots, rings, full: range.full, range: range.range };
 }
 
-export function polarZoom(current: number, delta: number, db: boolean): number {
-  return Math.min(25, Math.max(db ? 0.15 : 0.04, current * (delta > 0 ? 1.15 : 1 / 1.15)));
+/** Keep one measured sample per small screen cell when a dense curve's dots overlap. */
+export function polarSampleDots(runs: readonly SmithRun[], viewport: SmithViewport) {
+  const dots = new Map<string, { x: number; y: number; inBand: boolean }>();
+  for (const run of runs) for (const sample of run.samples) {
+    if (sample.synthetic || Math.hypot(sample.gamma.re, sample.gamma.im) > 1 + 1e-9) continue;
+    const point = gammaToPoint(sample.gamma, viewport);
+    if (!point || point.x < 0 || point.x > viewport.width || point.y < 0 || point.y > viewport.height) continue;
+    const cell = `${Math.floor(point.x / 5)}:${Math.floor(point.y / 5)}`;
+    const existing = dots.get(cell);
+    if (!existing || (run.inBand && !existing.inBand)) dots.set(cell, { ...point, inBand: run.inBand });
+  }
+  return dots;
 }
 
 export function polarCrosshair(point: Complex): { radius: number; end: Complex } {

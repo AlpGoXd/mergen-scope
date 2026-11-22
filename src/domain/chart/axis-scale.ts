@@ -119,5 +119,5 @@ export function logTicks(domain: YDomain): LogTick[] {
 }
 
 export function logTickLabel(value: number): string {
-  return value < 1e-12 || value >= 1e15 ? value.toExponential(2) : formatEngineeringValue(value, '', 4).trim();
+  return value < 1e-12 || value >= 1e15 ? value.toExponential(2) : formatEngineeringValue(value, '', 4).trim().replace(' ', '');
 }

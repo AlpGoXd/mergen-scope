@@ -19,6 +19,7 @@ import { paneTypeOfMode } from '../../../domain/pane-type-registry';
 import { formatAdaptiveXAxisValue } from '../../../domain/format';
 import { latexDocument } from '../../../domain/export-latex';
 import { isPhase, unwrapPhase } from '../../../domain/chart/axis-scale';
+import { chartGainView } from '../../../domain/chart/gain-view';
 import { placeMarker } from '../../../domain/markers';
 import type { LatexDocument } from '../../../domain/export-latex';
 import type { ExportDocumentOptions, ExportFormat, ExportGeometry } from '../../../domain/export-document';
@@ -253,7 +254,7 @@ function textWidth(text: string, font: string): number {
 /** The off-screen render of one pane: the pane's own chart component at the export size, and the legend below it. */
 function ExportStage({ job, onDone }: { job: Job; onDone: (id: number) => void }) {
   const { tracePaneMap, panes } = usePaneState();
-  const { allKnownTraces } = useTraceState();
+  const { allKnownTraces, allTraces } = useTraceState();
   const { traceHueSlots, huePalette } = useUiState();
   const { markers } = useMarkerState();
   const { refLines } = useRefLineState();
@@ -262,6 +263,7 @@ function ExportStage({ job, onDone }: { job: Job; onDone: (id: number) => void }
   const colorTheme = colorThemeOf(theme);
   const names = useMemo(() => Object.entries(tracePaneMap).filter(([, ids]) => ids.includes(job.paneId)).map(([name]) => name), [tracePaneMap, job.paneId]);
   const { paneTraces } = usePaneData(names, null);
+  const paneMembers = useMemo(() => allTraces.filter(trace => names.includes(trace.name)), [allTraces, names]);
   const paperTone = !!job.document && geometry.paper;
   const color = useTraceColors(colorTheme, paperTone);
   const symbol = useTraceSymbols('always');
@@ -296,8 +298,8 @@ function ExportStage({ job, onDone }: { job: Job; onDone: (id: number) => void }
   const hostRef = useRef<HTMLDivElement>(null);
   const started = useRef(false);
   // The export reads the stores as they were when it started.
-  const snapshot = useRef({ paneTraces, color, symbol, markers, refLines, panes });
-  snapshot.current = { paneTraces, color, symbol, markers, refLines, panes };
+  const snapshot = useRef({ paneTraces, paneMembers, color, symbol, markers, refLines, panes });
+  snapshot.current = { paneTraces, paneMembers, color, symbol, markers, refLines, panes };
   const traceCount = paneTraces.length;
 
   useEffect(() => {
@@ -378,6 +380,7 @@ function ExportStage({ job, onDone }: { job: Job; onDone: (id: number) => void }
 
 interface StageSnapshot {
   readonly paneTraces: ReturnType<typeof usePaneData>['paneTraces'];
+  readonly paneMembers: ReturnType<typeof usePaneData>['paneTraces'];
   readonly color: ReturnType<typeof useTraceColors>;
   readonly symbol: ReturnType<typeof useTraceSymbols>;
   readonly markers: ReturnType<typeof useMarkerState>['markers'];
@@ -420,7 +423,10 @@ function buildLatex(job: Job, info: ExportPlotInfo | null, state: StageSnapshot,
   const first = state.paneTraces[0];
   const span = Math.max(xMax - xMin, 1e-12);
   const traceIndex = new Map(state.paneTraces.map((trace, index) => [trace.name, index]));
-  const displayTraces = state.paneTraces.map(trace => settings.axes?.phase === 'unwrapped' && isPhase(trace)
+  const gain = chartGainView(state.paneMembers, settings.axes?.gain);
+  const gainTraces = gain.traces === state.paneMembers ? state.paneTraces
+    : state.paneTraces.map(trace => gain.traces.find(item => item.name === trace.name) ?? trace);
+  const displayTraces = gainTraces.map(trace => settings.axes?.phase === 'unwrapped' && isPhase(trace)
     ? { ...trace, data: unwrapPhase(trace.data, /^rad/i.test(trace.units.y ?? '') ? 2 * Math.PI : 360) } : trace);
   return latexDocument({
     paneName: title,
@@ -434,13 +440,15 @@ function buildLatex(job: Job, info: ExportPlotInfo | null, state: StageSnapshot,
       if (at === undefined) return [];
       const display = displayTraces[at];
       const amplitude = display && display !== state.paneTraces[at] ? placeMarker(display, marker.freq).amp : marker.amp;
-      if ((info.xScale === 'log' && marker.freq <= 0) || (info.yScale === 'log' && amplitude <= 0)) return [];
+      if (!Number.isFinite(amplitude) || (info.xScale === 'log' && marker.freq <= 0) || (info.yScale === 'log' && amplitude <= 0)) return [];
       const value = formatAdaptiveXAxisValue(marker.freq, span, { domain: first?.domain ?? 'frequency', unit: first?.units.x ?? (first?.domain === 'time' ? 's' : 'Hz') });
       const id = `${marker.type === 'delta' ? 'DM' : 'M'}${index + 1}`;
       const tag = paperTags?.[id];
       return [{ label: tag?.text ?? `${id} ${value}`, x: marker.freq, y: amplitude, trace: at,
         shift: paperTags ? tag ? { x: tag.dx * 0.75, y: -tag.dy * 0.75 } : null : undefined }];
     }) : [],
-    lines: (options?.include.refLines ?? settings.showReferenceLines) ? state.refLines.filter(line => line.paneIds.includes(job.paneId)).map(line => ({ type: line.type, value: line.value, label: line.label ?? (line.type === 'v' ? 'V' : 'H') })) : [],
+    lines: (options?.include.refLines ?? settings.showReferenceLines) ? state.refLines.filter(line => line.paneIds.includes(job.paneId))
+      .map(line => ({ type: line.type, value: line.type === 'h' ? gain.toDisplay(line.value) : line.value, label: line.label ?? (line.type === 'v' ? 'V' : 'H') }))
+      .filter(line => Number.isFinite(line.value)) : [],
   }, options?.latex, prefix, job.latexSize);
 }
