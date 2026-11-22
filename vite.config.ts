@@ -70,6 +70,7 @@ function copyRuntimeAssets(): Plugin {
     "mergen-scope-preview.png",
     "_headers",
     "robots.txt",
+    "llms.txt",
     "sitemap.xml",
   ];
   const staticDirs = [
