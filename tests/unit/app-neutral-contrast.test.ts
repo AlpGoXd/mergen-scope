@@ -4,8 +4,9 @@ import { appNeutrals } from '../../src/components/settings/app-preferences';
 import { displayTraceColor } from '../../src/domain/trace-colors';
 import { CREATED_HUES, SOURCE_HUES } from '../../src/domain/trace-palette';
 
-const css = readFileSync(new URL('../../src/appearance-colours.css', import.meta.url), 'utf8');
-const spec = readFileSync(new URL('../../docs/design/colour-values.md', import.meta.url), 'utf8');
+// Normalize line endings: a Windows checkout (core.autocrlf) has CRLF, and the parsing below splits on '\n'.
+const css = readFileSync(new URL('../../src/appearance-colours.css', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
+const spec = readFileSync(new URL('../../docs/design/colour-values.md', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
 function tokens(rule: string): Record<string, string> {
   const bodies = Array.from(css.matchAll(/^([^\n]+) \{([^}]+)\}/gm))
     .filter(match => match[1] === rule);
