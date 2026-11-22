@@ -21,7 +21,7 @@
     "type": "git",
     "url": "git+https://github.com/AlpGoXd/mergen-scope.git"
   },
-  "keywords": [],
+  "keywords": ["oscilloscope", "spectrum-analyzer", "touchstone", "s-parameters", "smith-chart", "vna", "waveform-viewer", "rf"],
   "author": "",
   "license": "Apache-2.0",
   "bugs": {

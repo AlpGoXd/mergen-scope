@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Mergen Scope – spectrum analyzer, scope and S-parameter viewer in your browser</title>
-<meta name="description" content="Open spectrum analyzer, scope and S-parameter files in your browser. Compare traces, add markers and measure IP3, channel power and VSWR. Free, open source.">
+<title>Mergen Scope – Free Oscilloscope &amp; Spectrum Analyzer File Viewer</title>
+<meta name="description" content="Open oscilloscope CSV captures, spectrum analyzer traces and Touchstone (.s2p) files in your browser. Free, open source, nothing uploaded.">
 <meta name="author" content="Alp Gokalp">
 <meta name="robots" content="index, follow">
 <meta name="color-scheme" content="light dark">
@@ -12,12 +12,26 @@
 <link rel="sitemap" href="https://mergenscope.com/sitemap.xml">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://mergenscope.com/">
-<meta property="og:title" content="Mergen Scope – spectrum analyzer, scope and S-parameter viewer in your browser">
-<meta property="og:description" content="Open spectrum analyzer, scope and S-parameter files in your browser. Compare traces, add markers and measure IP3, channel power and VSWR. Free, open source.">
+<meta property="og:title" content="Mergen Scope – Free Oscilloscope &amp; Spectrum Analyzer File Viewer">
+<meta property="og:description" content="Open oscilloscope CSV captures, spectrum analyzer traces and Touchstone (.s2p) files in your browser. Free, open source, nothing uploaded.">
 <meta property="og:image" content="https://mergenscope.com/landing-assets/brand/icon-512.png">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="Mergen Scope – spectrum analyzer, scope and S-parameter viewer in your browser">
-<meta name="twitter:description" content="Open spectrum analyzer, scope and S-parameter files in your browser. Compare traces, add markers and measure IP3, channel power and VSWR. Free, open source.">
+<meta name="twitter:title" content="Mergen Scope – Free Oscilloscope &amp; Spectrum Analyzer File Viewer">
+<meta name="twitter:description" content="Open oscilloscope CSV captures, spectrum analyzer traces and Touchstone (.s2p) files in your browser. Free, open source, nothing uploaded.">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "Mergen Scope",
+  "url": "https://mergenscope.com/",
+  "applicationCategory": "EngineeringApplication",
+  "operatingSystem": "Web browser",
+  "offers": { "@type": "Offer", "price": 0, "priceCurrency": "USD" },
+  "license": "https://www.apache.org/licenses/LICENSE-2.0",
+  "codeRepository": "https://github.com/AlpGoXd/mergen-scope",
+  "description": "Browser-based viewer for oscilloscope, spectrum analyzer and Touchstone files."
+}
+</script>
 <meta name="twitter:url" content="https://mergenscope.com/">
 <meta name="twitter:image" content="https://mergenscope.com/landing-assets/brand/icon-512.png">
 <link rel="icon" href="favicon.ico?v=3" sizes="16x16 32x32 48x48">
@@ -53,7 +67,7 @@
 <div class="hero-top">
 <div class="intro">
 <span class="kicker mono">.dat · .s1p … .sNp · scope .csv · any columns</span>
-<h1>Open spectrum analyzer, scope and S-parameter files in your browser.</h1>
+<h1>Open spectrum analyzer, oscilloscope and S-parameter files in your browser.</h1>
 <p class="lead">Compare traces, drop markers and run measurements (IP3, channel power, occupied bandwidth, VSWR) in one workspace. Free, open source, and your files never leave your computer.</p>
 <p class="audience">For RF and measurement engineers, students and radio amateurs.</p>
 <div class="actions">
@@ -110,7 +124,7 @@ Detector;AUTOPEAK;</pre>
 <ul class="chips" aria-label="What the app reads"><li>Spectrum</li><li>centre 1.420405 GHz</li><li>span 1 MHz</li><li>RBW 3 kHz</li><li>AUTOPEAK</li><li>dBm</li></ul>
 </div>
 <div class="row">
-<div class="row-head"><span class="ext mono">.s1p … .sNp</span><h3>S-parameters from a VNA</h3><p>Touchstone with any number of ports. S, Y, Z, ABCD; dB, magnitude, phase; Smith chart.</p></div>
+<div class="row-head"><span class="ext mono">.s1p … .s16p</span><h3>S-parameters from a VNA</h3><p>Touchstone files, including .s1p and .s2p. S, Y, Z, ABCD; dB, magnitude, phase; Smith chart.</p></div>
 <pre class="raw">#  HZ   S   RI   R     50.00
 ! freq[Hz]  re:S11  im:S11  re:S21  im:S21 …
  1.000000000000000E4  1.062620232310890 …</pre>
@@ -118,7 +132,7 @@ Detector;AUTOPEAK;</pre>
 <ul class="chips" aria-label="What the app reads"><li>2 ports</li><li>201 points</li><li>10 kHz – 8.5 GHz</li><li>50 Ω</li><li>S11 S21 S12 S22</li></ul>
 </div>
 <div class="row">
-<div class="row-head"><span class="ext mono">.csv · .txt · .tsv</span><h3>Scope captures and columns</h3><p>Each channel against time, with real units. Any other columns too.</p></div>
+<div class="row-head"><span class="ext mono">.csv · .txt · .tsv</span><h3>Oscilloscope captures and columns</h3><p>Waveform exports in CSV, TXT or TSV: each channel against time, with real units. Any other columns too.</p></div>
 <pre class="raw">time,signal_1kHz,signal_5kHz
 0.000000,0.000000,0.000000
 0.000100,0.628319,0.951057
