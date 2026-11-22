@@ -5,6 +5,7 @@ import { ip3Tool } from './tools/ip3';
 import { peakTableTool } from './tools/peak-table';
 import { rangeStatsTool } from './tools/range-stats';
 import { bandwidthTool } from './tools/bandwidth';
+import { antennaFarFieldTool } from './tools/antenna-far-field';
 import { crossingsTool } from './tools/crossings';
 import { lineCrossingsTool } from './tools/line-crossings';
 import { rippleTool } from './tools/ripple';
@@ -20,7 +21,7 @@ import { fftTool } from './tools/fft';
 import { harmonicsTool } from './tools/harmonics';
 import { resampleTool } from './tools/resample';
 
-export const ANALYSIS_TOOLS = [noisePsdTool, ip3Tool, peakTableTool, rangeStatsTool, bandwidthTool, crossingsTool, lineCrossingsTool, rippleTool, occupiedBandwidthTool, channelPowerTool, reciprocityIsolationTool, stabilityTool, offsetScaleTool, smoothTool, traceMathTool, waveformTool, fftTool, harmonicsTool, resampleTool] as const;
+export const ANALYSIS_TOOLS = [noisePsdTool, ip3Tool, peakTableTool, rangeStatsTool, bandwidthTool, antennaFarFieldTool, crossingsTool, lineCrossingsTool, rippleTool, occupiedBandwidthTool, channelPowerTool, reciprocityIsolationTool, stabilityTool, offsetScaleTool, smoothTool, traceMathTool, waveformTool, fftTool, harmonicsTool, resampleTool] as const;
 export const ANALYSIS_TOOL_IDS: readonly string[] = ANALYSIS_TOOLS.map(tool => tool.meta.id);
 export function getAnalysisTool(id: string) { return ANALYSIS_TOOLS.find(tool => tool.meta.id === id); }
 
