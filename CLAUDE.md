@@ -2,7 +2,7 @@
 
 > Translation of the human's usual prompt: "refactor everything to TS, make no mistakes." Below is the version with actual instructions.
 
-Browser RF/signal analysis app (R&S `.dat`, CSV/TSV, Touchstone `.sNp`). React 19 + TypeScript 6 strict + Vite 7 (single-file build) + Recharts. Architecture, source layout, store order and parser pipeline are in `README.md` → "Architecture"; read it instead of re-deriving.
+Browser RF/signal analysis app (R&S `.dat`, CSV/TSV, Touchstone `.sNp`). React 19 + TypeScript 6 strict + Vite 7 (single-file build) + Recharts. Source layout and the main modules are in `README.md` → "Development" → "Codebase"; read it instead of re-deriving.
 
 ## Layout and boundaries
 

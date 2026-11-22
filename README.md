@@ -99,6 +99,8 @@ React 19, TypeScript 6 (strict), Vite 7 and Recharts 2. Tests use Vitest, Testin
 ```text
 index.html                  Static landing page
 app.html                    Application entry page
+guide/                      Static user guide pages (the source for mergenscope.com/guide/)
+llms.txt                    Plain-text summary for AI crawlers
 src/
   App.tsx                   Application shell and panel wiring
   components/
@@ -113,12 +115,17 @@ src/
   domain/
     parsers/                Format detection, R&S, tabular, and Touchstone parsing
     analysis/               Measurement functions and analysis tool registry
+    chart/                  Pixel/axis mapping, zoom and pan, marker hit testing, drag state machine
     smith/                  Smith geometry, hit testing, and readouts
     touchstone/             Network selections and ABCD conversion
-    workspace-*             Workspace serialization and migrations
+    workspace/              React-free workspace helpers (trace view, pane-removal plans)
+    workspace-migrate-*     Workspace migrations (v1-v4 -> v5)
+    open-file-read.ts       Classifying opened files (data, workspace, invalid, binary)
+    file-size-policy.ts     Large-file warn and refuse limits
     transaction-history.ts  Undo/redo history
   hooks/                    UI and domain integration
-  stores/                   Aggregate workspace state and React store adapters
+  stores/                   React store adapters; aggregate-workspace-store.tsx is the provider
+    workspace/              Aggregate workspace reducer, undo engine, snapshots, open-data
   types/                    Shared TypeScript data contracts
   demo/                     Demo workspace loading
 tests/
@@ -131,9 +138,10 @@ The aggregate workspace provider coordinates changes across files, traces, panes
 
 ### Current scope
 
-- Chart and Smith panes exist. Table, polar, eye and spectrogram views are marked as planned.
+- Chart, Table and Smith panes exist. Polar, eye and spectrogram views are marked as planned.
 - Network input is S-parameter Touchstone data. Stability and reciprocity/isolation are two-port only.
-- FFT, Waveform and Harmonics run on the main thread, so very large captures can be slow.
+- FFT, Waveform and Harmonics run on the main thread, so very large captures can be slow. Files over 50 MB ask before
+  opening, and files over 500 MB are refused.
 - Live instrument connections and PWA installation are not implemented.
 
 ### Contributing
