@@ -84,7 +84,7 @@
 .tool-zone__tools .split-btn > .split-btn__main.ui-btn,
 .tool-zone__tools .split-btn > .split-btn__main.ui-btn:hover:not(:disabled) { height: 100%; min-height: 0; padding: 0 7px; border: 0; border-radius: 0; background: transparent; font: inherit; }
 .split-btn__divider { flex: none; width: 1px; margin: 3px 0; background: var(--border); }
-.split-btn__more { appearance: none; border: 0; border-radius: 0; background: transparent; color: inherit; font: inherit; padding: 0 7px; cursor: pointer; }
+.split-btn__more { appearance: none; display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: 0; background: transparent; color: inherit; font: inherit; padding: 0 7px; cursor: pointer; }
 .split-btn > .split-btn__main:focus-visible, .split-btn > .split-btn__more:focus-visible { outline-offset: -2px; }
 .split-btn.is-open .split-btn__more { background: var(--on-fill); color: var(--on-ink); }
 .split-btn.is-armed, .split-btn.is-armed:hover { background: oklch(0.50 0.14 var(--armed-hue)); border-color: oklch(0.50 0.14 var(--armed-hue)); color: oklch(1 0 0); }

@@ -35,7 +35,7 @@ test('"+ Marker ▾" is one flat split button: main part, divider, ▾ part', as
   await expect(split).toHaveCount(1);
   await expect(face(page)).toHaveText('+ Marker');
   await expect(face(page)).toHaveAttribute('title', `Place a marker (${shortcutText('new-marker')})`);
-  await expect(more(page)).toHaveText('▾');
+  await expect(more(page).locator('svg')).toBeVisible();
   await expect(more(page)).toHaveAttribute('aria-haspopup', 'menu');
   await expect(more(page)).toHaveAttribute('aria-expanded', 'false');
   expect(await split.evaluate(el => {

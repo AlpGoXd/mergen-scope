@@ -1,6 +1,7 @@
 // Menu surface used by the file ⋯ menu, the interpolation menu, the "Show in" checklist and the delta reference menu.
 // Positioning, focus trapping and Escape are the app's shared popover (Phase 2); this is the presentation.
 import type { CSSProperties, ReactElement, ReactNode } from 'react';
+import { CheckIcon } from '../shared/Icons';
 
 export interface MenuItem {
   /** Stable identity when labels can repeat or change. */
@@ -54,7 +55,7 @@ export function Menu({ title, entries, checklist, footer, style, label }: MenuPr
             className={`lp-menu__item${e.danger ? ' lp-menu__item--danger' : ''}`}
             onClick={e.disabledReason ? undefined : e.onSelect}
           >
-            {checklist ? <span className="lp-menu__check">{e.checked ? '✓' : ''}</span> : null}
+            {checklist ? <span className="lp-menu__check">{e.checked ? <CheckIcon /> : null}</span> : null}
             <span className="lp-menu__body">
               <span>
                 {e.label}

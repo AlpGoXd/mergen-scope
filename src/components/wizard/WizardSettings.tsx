@@ -2,6 +2,7 @@ import { useId, useState } from 'react';
 import type { WizardConfig } from '../../types/file';
 import type { TraceDomain } from '../../types/trace';
 import { MessageBar, Segmented } from '../shared/Controls';
+import { CaretDownIcon } from '../shared/Icons';
 import { X_UNITS, Y_UNITS, unitLabel } from '../../domain/import-units';
 import type { ImportUnit } from '../../domain/import-units';
 import { hasCustomMultiplier, setDomain, setXUnit, setYUnit } from '../../domain/import-wizard';
@@ -135,7 +136,7 @@ function UnitField({ label, unit, units, custom: customMult, mult, onUnit, onCus
             {units.map(item => <option key={item.id} value={item.id}>{unitLabel(item)}</option>)}
             <option value={CUSTOM}>custom (×N)…</option>
           </select>
-          <span className="iw-caret" aria-hidden="true">▾</span>
+          <span className="iw-caret" aria-hidden="true"><CaretDownIcon /></span>
         </span>
       </div>
       {custom && (

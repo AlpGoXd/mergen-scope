@@ -4,6 +4,7 @@ import type { ColumnRole } from '../../domain/import-wizard';
 import type { Separators } from '../../domain/parsers/tabular-detect';
 import { splitCells } from '../../domain/parsers/tabular-detect';
 import { PopoverAt } from '../shared/Controls';
+import { CaretDownIcon } from '../shared/Icons';
 
 export const PREVIEW_ROWS = 8;
 
@@ -53,7 +54,7 @@ export function WizardPreviewTable({ lines, separators, skipRows, headers, names
                       onClick={event => { const at = event.currentTarget; setMenu(current => (current?.col === col ? null : { col, at })); }}
                     >
                       <span className="iw-chip-role">{ROLE_TEXT[role]}</span>
-                      <span aria-hidden="true">▾</span>
+                      <CaretDownIcon />
                     </button>
                   </div>
                 </th>

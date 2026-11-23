@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import type { Marker } from '../../types/marker';
 import type { Trace } from '../../types/trace';
 import { formatAdaptiveXAxisValue, formatScalarWithUnit } from '../../domain/format';
+import { CloseIcon } from '../shared/Icons';
 
 export interface MarkerItemProps {
   marker: Marker;
@@ -120,10 +121,11 @@ export function MarkerItem({
         </span>
         <span
           title="Remove Marker"
+          aria-label="Remove Marker"
           onClick={(e) => { e.stopPropagation(); onRemove(); }}
           style={{ cursor: 'pointer', color: 'var(--dim)', padding: '0 4px', fontSize: 'var(--font-label)', flexShrink: 0 }}
         >
-          ×
+          <CloseIcon />
         </span>
       </div>
 

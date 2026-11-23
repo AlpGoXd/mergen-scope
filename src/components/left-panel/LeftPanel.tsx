@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ReactElement, ReactNode } from 'react';
 import { IconOpen } from './icons';
+import { CaretDownIcon, ChevronRightIcon } from '../shared/Icons';
 
 export interface SectionProps {
   title: string;
@@ -36,7 +37,7 @@ export function Section(p: SectionProps): ReactElement {
     <section className="lp-section" aria-label={p.title}>
       <div ref={headRef} className={`lp-head${stuck ? ' is-stuck' : ''}`}>
         <button type="button" className="lp-head__toggle" aria-expanded={!p.collapsed} onClick={p.onToggle}>
-          <span className="lp-head__chev" aria-hidden="true">{p.collapsed ? '▸' : '▾'}</span>
+          <span className="lp-head__chev" aria-hidden="true">{p.collapsed ? <ChevronRightIcon size={10} /> : <CaretDownIcon size={10} />}</span>
           <span className="lp-head__title">{p.title}</span>
           <span className="lp-head__count">{p.count}</span>
         </button>

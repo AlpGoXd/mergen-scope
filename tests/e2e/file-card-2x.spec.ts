@@ -18,7 +18,7 @@ test('file card controls and typography reflect the reference', async ({ page })
   await expect(name).toHaveCSS('font-family', '"IBM Plex Sans", sans-serif');
   await expect(name).toHaveCSS('font-feature-settings', '"ss02"');
   await expect(name.locator('../..')).toContainText('10 kHz\u20138.5 GHz \u00b7 2\u00a0traces');
-  await expect(name.locator('..').getByTitle('Remove file', { exact: true })).toHaveText('\u00d7');
+  await expect(name.locator('..').getByTitle('Remove file', { exact: true })).toHaveAccessibleName('Remove cascaded chain.s2p');
   await page.getByRole('button', { name: 'Actions for cascaded chain.s2p' }).click();
   const menu = page.getByRole('menu');
   // Replace file\u2026 stays hidden until it is built.

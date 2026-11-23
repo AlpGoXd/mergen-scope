@@ -46,6 +46,7 @@ import { allocateTraceColors } from '../../domain/trace-palette';
 import { Btn } from '../shared/Btn';
 import { ChartHoverLegend } from './ChartHoverLegend';
 import { ChartReferenceEdgeTags } from './ChartReferenceEdgeTags';
+import { CloseIcon } from '../shared/Icons';
 import { ChartPanePlot } from './ChartPanePlot';
 import type { ChartMouseEvent } from './ChartPanePlot';
 import { useChartPaneAxes } from './use-chart-pane-axes';
@@ -1208,7 +1209,7 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
           <span className="ph-title t-card-title" title={paneName(panes, paneId)}>{paneName(panes, paneId)}</span>
           <span className="t-caption">Empty</span>
           <span className="ph-spacer" />
-          {panes.length > 1 && <button type="button" className="lp-icon-btn ph-close" aria-label={`Close ${paneName(panes, paneId)}`} onClick={event => { event.stopPropagation(); closePane(); }}>×</button>}
+          {panes.length > 1 && <button type="button" className="lp-icon-btn ph-close" aria-label={`Close ${paneName(panes, paneId)}`} onClick={event => { event.stopPropagation(); closePane(); }}><CloseIcon /></button>}
         </div>
       ) : (
         <PaneHeader data-testid={`chart-pane-header-${paneId}`} draggable onPointerDown={drag.pointerDown} onDragStart={drag.start} onDragEnd={drag.end} className={drag.dragging ? 'pane-header-dragging' : ''}

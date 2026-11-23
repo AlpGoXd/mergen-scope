@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Btn } from '../../shared/Btn';
+import { CloseIcon } from '../../shared/Icons';
 import { DEFAULT_DOCUMENT_OPTIONS, documentFileName, PAPER_HEIGHT_MM } from '../../../domain/export-document';
 import type { ExportDocumentOptions, ExportFormat, ExportScope } from '../../../domain/export-document';
 import { paneName } from '../../../domain/line-view';
@@ -173,7 +174,7 @@ export function ExportDocumentDialog({ paneId, format: requestedFormat = 'png', 
       <form onSubmit={event => { event.preventDefault(); void save(); }}>
         <header className="exd-head">
           <h2 className="t-title" id="export-dialog-title">Export · {named}</h2>
-          <Btn small aria-label="Close export" title="Close (Esc)" onClick={close} disabled={saving} data-enter-action="">×</Btn>
+          <Btn small aria-label="Close export" title="Close (Esc)" onClick={close} disabled={saving} data-enter-action=""><CloseIcon /></Btn>
         </header>
         <div className="exd-body">
           <section className="exd-preview" aria-label="Live preview" aria-busy={!result && !previewError}>

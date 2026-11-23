@@ -48,7 +48,7 @@
 .ln-edge:hover { border-style: solid; }
 .ln-edge.is-lit { border: 1px solid var(--accent); color: var(--accent); }
 .ln-edge:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.ln-edge__arrow { color: var(--text-muted); font-family: var(--font-sans); }
+.ln-edge__arrow { display: inline-flex; align-items: center; color: var(--text-muted); font-family: var(--font-sans); }
 .ln-edge.is-lit .ln-edge__arrow { color: inherit; }
 /* the app sets top/left; these keep the tag inside the plot by 6 px */
 .ln-edge--right { right: 6px; transform: translateY(-50%); }
