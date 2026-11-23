@@ -38,6 +38,7 @@ export interface LatexFigureInput {
   readonly grid?: boolean;
   readonly legend?: 'below' | 'inside' | 'off';
   readonly caption?: boolean;
+  readonly markerTags?: boolean;
   readonly linePt?: number;
   readonly textPt?: number;
 }
@@ -205,10 +206,13 @@ export function latexDocument(input: LatexFigureInput, options = DEFAULT_LATEX_O
       out.push(`      \\draw[gray, dashed, line width=0.5pt] (axis cs:${sx(x.min)},${sy(line.value)}) -- (axis cs:${sx(x.max)},${sy(line.value)}) node[pos=0.02, anchor=south west, font=\\scriptsize, text=black] {${label}};`);
     }
   }
+  const showMarkerTags = input.markerTags !== false;
   for (const [index, marker] of input.markers.entries()) {
     if (marker.x < x.min || marker.x > x.max || marker.y < y.min || marker.y > y.max) continue;
     const point = `(axis cs:${sx(marker.x)},${sy(marker.y)})`;
-    if (marker.shift === undefined) {
+    if (!showMarkerTags) {
+      out.push(`      \\node[circle, fill=${name(marker.trace)}, draw=black, inner sep=1.2pt] at ${point} {};`);
+    } else if (marker.shift === undefined) {
       out.push(`      \\node[circle, fill=${name(marker.trace)}, draw=black, inner sep=1.2pt, pin={[font=\\scriptsize, pin distance=7pt, pin edge={black, thin}]90:{${latexEscape(marker.label)}}}] at ${point} {};`);
     } else {
       if (marker.shift) {
