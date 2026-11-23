@@ -579,12 +579,13 @@ describe("tabular parser", () => {
   it("infers delimiter and units, offers the wizard for low confidence, and filters one-point traces", () => {
     const auto = parseTabularFile("Amplitude (dBm)\tFrequency (MHz)\n-5\t4\n-7\t2", "run.tsv", null);
     expect(auto.format).toBe("tabular");
-    expect(auto.suggestedConfig).toMatchObject({ xCol: 1, yCols: [0], delimiter: "\t", skipRows: 1, domain: "frequency" });
-    expect(auto.traces[0]?.units).toEqual({ x: "MHz", y: "dBm" });
-    expectPoints(auto.traces[0]?.data, [[2, -7], [4, -5]]);
+    expect(auto.suggestedConfig).toMatchObject({ xCol: 1, yCols: [0], delimiter: "\t", skipRows: 1, domain: "frequency", xUnit: "MHz", xMult: 1e6 });
+    expect(auto.traces[0]?.units).toEqual({ x: "Hz", y: "dBm" });
+    expectPoints(auto.traces[0]?.data, [[2e6, -7], [4e6, -5]]);
     const ambiguous = parseTabularFile(tabularText, "run.csv", null);
     expect(ambiguous.format).toBe("needs-import-wizard");
-    expect(ambiguous.suggestedConfig).toMatchObject({ delimiter: ";", skipRows: 2, xCol: 0, yCols: [1, 2], confidence: 0.5 });
+    expect(ambiguous.suggestedConfig).toMatchObject({ delimiter: ";", skipRows: 2, xCol: 0, yCols: [1, 2] });
+    expect(ambiguous.suggestedConfig?.confidence).toBeLessThan(0.55);
     expect(ambiguous.traces).toEqual([]);
     const single = parseTabularFile("Time (ms);Amp (mV);CH2\n1;10;7", "run.csv", wizard);
     expect(single).toMatchObject({ traces: [], datasets: [], displayTraces: [], columnIdentities: [] });

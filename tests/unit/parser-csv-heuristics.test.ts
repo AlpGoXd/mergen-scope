@@ -94,7 +94,7 @@ describe("penetrating CSV parser heuristics", () => {
     expect(parsed.suggestedConfig).toMatchObject({
       delimiter: ",",
       skipRows: 2,
-      headers: ["time (s)", "ch1 (v)"],
+      headers: ["Time (s)", "CH1 (V)"],
     });
     expect(parsed.traces).toHaveLength(1);
     expect(parsed.traces[0]?.dn).toBe("header-offset.csv ch1 (v)");

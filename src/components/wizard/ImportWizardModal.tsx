@@ -14,7 +14,7 @@ import { breaksFrequencyGaps } from '../../domain/sweep-bands';
 import { detectTabular } from '../../domain/parsers/tabular-detect';
 import {
   columnDisplayName, columnRole, hasColumnNames, importableYCols, listNames, matchPriorColumns, previewCaption,
-  overviewPlot, plotCaption, readNumericTable, setColumnRole, wizardBlocker, wizardLayout,
+  overviewPlot, plotCaption, previewRangeSummary, readNumericTable, setColumnRole, wizardBlocker, wizardLayout,
 } from '../../domain/import-wizard';
 import { useWizardTraceColors } from '../../hooks/use-wizard-trace-colors';
 import { Btn } from '../shared/Btn';
@@ -68,6 +68,7 @@ function WizardDialog({ entry, position, total, others, queue, priorFile }: Wiza
   const { allKnownTraces } = useTraceState();
   const { markers } = useMarkerState();
   const [config, setConfig] = useState<WizardConfig>(() => configFor(entry));
+  const [rowLimit, setRowLimit] = useState(PREVIEW_ROWS);
   const [applyToOthers, setApplyToOthers] = useState(false);
   const dialogRef = useRef<HTMLDivElement>(null);
   const editing = entry.mode === 'edit';
@@ -84,6 +85,7 @@ function WizardDialog({ entry, position, total, others, queue, priorFile }: Wiza
   const yColsKey = yCols.join(',');
   const splitBands = breaksFrequencyGaps(config);
   const plot = useMemo(() => overviewPlot(numericTable, config.xCol, yCols, PREVIEW_ROWS, undefined, splitBands), [numericTable, config.xCol, yColsKey, splitBands]);
+  const rangeText = useMemo(() => previewRangeSummary(plot, config), [plot, config.domain, config.xUnit, config.yUnit, config.xMult, config.yMult]);
 
   // Import settings on an open file: which existing trace each Y column continues, and which traces go away.
   const prior = useMemo(() => {
@@ -202,19 +204,27 @@ function WizardDialog({ entry, position, total, others, queue, priorFile }: Wiza
           <WizardSettings
             config={config}
             maxSkipRows={Math.max(0, layout.lines.length - 1)}
-            detected={{ domain: detection.config.domain, confidence: detection.domainConfidence }}
+            detected={{
+              xLabel: detection.detectedXLabel,
+              xUnit: detection.config.xUnit,
+              score: detection.config.confidence,
+              level: detection.confidenceLevel,
+              reasons: detection.confidenceReasons,
+            }}
             onChange={setConfig}
             onLayout={updateLayout}
           />
           <div className="iw-main">
             <div className="iw-preview-head">
               <h3 className="t-section">Preview</h3>
-              <span className="t-caption" data-testid="import-wizard-caption">{previewCaption(Math.min(PREVIEW_ROWS, Math.max(0, layout.lines.length - config.skipRows)), Math.max(0, layout.lines.length - config.skipRows), config.skipRows)}</span>
+              <span className="t-caption" data-testid="import-wizard-caption">{previewCaption(Math.min(rowLimit, Math.max(0, layout.lines.length - config.skipRows)), Math.max(0, layout.lines.length - config.skipRows), config.skipRows)}</span>
             </div>
             <WizardPreviewTable
               lines={layout.lines}
               separators={config}
               skipRows={config.skipRows}
+              rowLimit={rowLimit}
+              onShowMore={() => setRowLimit(prev => prev + PREVIEW_ROWS)}
               headers={headers}
               names={names}
               roles={roles}
@@ -223,6 +233,9 @@ function WizardDialog({ entry, position, total, others, queue, priorFile }: Wiza
               onRole={(col, role) => setConfig(prev => setColumnRole(prev, col, role))}
             />
             <WizardPreviewPlot plot={plot} colors={yColors} />
+            {rangeText && (
+              <div className="iw-plot-range t-readout" data-testid="import-wizard-range">{rangeText}</div>
+            )}
             <div className="iw-result-row">
               {blocker ? <span /> : (
                 <p className="iw-result t-caption" data-testid="import-wizard-summary">

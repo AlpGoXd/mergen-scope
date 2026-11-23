@@ -402,6 +402,40 @@ export function angleAxisUnit(unit: string | null | undefined): '°' | 'rad' | n
   return /^rad(?:ians?)?$/i.test(text) ? 'rad' : null;
 }
 
+/** True when an X axis was explicitly imported with no unit. */
+export function isUnitlessAxisUnit(unit: string | null | undefined): boolean {
+  return normalizeUnitName(unit) === 'unitless';
+}
+
+/** Axis quantity title (without unit suffix) for any stored X unit and domain. */
+export function xAxisQuantityName(unit: string | null | undefined, domain: 'frequency' | 'time'): string {
+  if (angleAxisUnit(unit)) return 'Angle';
+  if (isUnitlessAxisUnit(unit)) return 'X';
+  const raw = (unit ?? '').trim();
+  if (!raw) return domain === 'time' ? 'Time' : 'Frequency';
+  const norm = normalizeUnitName(raw);
+  if (norm === 's' || norm === 'sec' || norm === 'secs' || norm === 'second' || norm === 'seconds') return 'Time';
+  if (norm === 'hz') return 'Frequency';
+  if (norm === 'v' || norm === 'mv' || norm === 'µv' || norm === 'μv' || norm === 'dbv') return 'Voltage';
+  if (norm === 'a' || norm === 'ma' || norm === 'µa' || norm === 'μa') return 'Current';
+  if (norm === 'w' || norm === 'mw' || norm === 'dbm' || norm === 'dbw') return 'Power';
+  if (norm === 'ohm' || norm === 'ohms' || norm === 'ω' || norm === 'Ω') return 'Impedance';
+  if (norm === 'db') return 'Level';
+  return 'X';
+}
+
+/** Full axis label text for an X axis, e.g. "Frequency (Hz)", "Angle (°)", "Voltage (V)", "X". */
+export function xAxisLabelForUnit(unit: string | null | undefined, domain: 'frequency' | 'time'): string {
+  const angle = angleAxisUnit(unit);
+  if (angle) return `Angle (${angle})`;
+  if (isUnitlessAxisUnit(unit)) return 'X';
+  const raw = (unit ?? '').trim();
+  const effective = raw || (domain === 'time' ? 's' : 'Hz');
+  const displayUnit = /^ohm$/i.test(effective) ? 'Ω' : effective;
+  const quantity = xAxisQuantityName(effective, domain);
+  return `${quantity} (${displayUnit})`;
+}
+
 // ---------------------------------------------------------------------------
 // Physical dimension classification
 // ---------------------------------------------------------------------------

@@ -8,7 +8,7 @@
 // ---------------------------------------------------------------------------
 // Canonical scalar formatting and parsing live with the unit rules. Keep this
 // re-export as a convenient public surface for formatting callers.
-import { angleAxisUnit } from "./units";
+import { angleAxisUnit, isLogUnit, isUnitlessAxisUnit } from "./units";
 export { formatEng, parseEngInput } from "./units";
 export type {
   ParseEngInputFailureReason,
@@ -239,6 +239,20 @@ export function formatScalarWithUnit(
   return unitText ? `${base} ${unitText}` : base;
 }
 
+function isHzUnit(unit: string | null | undefined): boolean {
+  return String(unit ?? "").trim().toLowerCase() === "hz";
+}
+
+function prefixableXUnit(unit: string | null | undefined): string | null {
+  const raw = String(unit ?? "").trim();
+  if (!raw) return null;
+  if (isHzUnit(raw)) return "Hz";
+  if (isSecondUnit(raw)) return "s";
+  if (isOhmUnit(raw) || raw === "Ω" || raw === "Ω") return "Ω";
+  if (/^(V|A|W|F|H|S)$/.test(raw)) return raw;
+  return null;
+}
+
 export function formatAdaptiveXAxisValue(
   value: number,
   visibleSpan: number,
@@ -252,6 +266,25 @@ export function formatAdaptiveXAxisValue(
   const angle = angleAxisUnit(unit);
 
   if (angle) return formatFixedEngineeringValue(value, 1, getAdaptiveDecimalsForSpan(visibleSpan), angle === 'rad' ? ' rad' : angle);
+  if (isUnitlessAxisUnit(unit)) {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return "--";
+    return formatFixedEngineeringValue(n, 1, getAdaptiveDecimalsForSpan(visibleSpan), "");
+  }
+
+  const trimmedUnit = String(unit ?? "").trim();
+  if (trimmedUnit) {
+    if (isLogUnit(trimmedUnit)) {
+      const n = Number(value);
+      if (!Number.isFinite(n)) return "--";
+      return formatFixedEngineeringValue(n, 1, getAdaptiveDecimalsForSpan(visibleSpan), ` ${trimmedUnit}`);
+    }
+    const prefixable = prefixableXUnit(trimmedUnit);
+    if (prefixable) {
+      return formatAdaptiveEngineeringValue(value, prefixable, visibleSpan);
+    }
+    return formatScalarWithUnit(value, trimmedUnit, { digits: 3 });
+  }
 
   if (domain === "frequency") {
     return formatAdaptiveEngineeringValue(value, "Hz", visibleSpan);
@@ -298,21 +331,30 @@ export function formatAdaptiveXAxisTickLabels(
   const domain = options?.domain ?? null;
   const unit = options?.unit ?? null;
   const angle = angleAxisUnit(unit);
+  const unitless = isUnitlessAxisUnit(unit);
   const finiteValues = values.filter((value) => Number.isFinite(value));
   if (!finiteValues.length) {
     return values.map(() => "--");
   }
 
-  if (!angle && domain !== "frequency" && domain !== "time" && !isSecondUnit(unit)) {
+  const trimmedUnit = String(unit ?? "").trim();
+  const isLog = !angle && !unitless && trimmedUnit !== "" && isLogUnit(trimmedUnit);
+  const explicitPrefixable = !angle && !unitless && !isLog ? prefixableXUnit(trimmedUnit) : null;
+  const customNonPrefixable = !angle && !unitless && !isLog && trimmedUnit !== "" && !explicitPrefixable;
+
+  if (!angle && !unitless && !isLog && !explicitPrefixable && !customNonPrefixable && domain !== "frequency" && domain !== "time") {
     return values.map((value) => formatScalarWithUnit(value, unit, { digits: 3 }));
   }
 
-  const baseUnit = domain === "time" || isSecondUnit(unit) ? "s" : "Hz";
+  const baseUnit = explicitPrefixable ?? (domain === "time" ? "s" : "Hz");
   const reference = finiteValues.reduce((max, value) => Math.max(max, Math.abs(value)), Math.abs(visibleSpan));
-  const choice = angle ? { factor: 1, prefix: "" } : choosePrefixEntry(Math.max(reference, 1e-12));
-  const suffix = angle === 'rad' ? ' rad' : angle ?? (baseUnit === "Hz"
-    ? choice.prefix
-    : `${choice.prefix}${baseUnit}`);
+  const usePlainScale = Boolean(angle) || unitless || isLog || customNonPrefixable;
+  const choice = usePlainScale ? { factor: 1, prefix: "" } : choosePrefixEntry(Math.max(reference, 1e-12));
+  const suffix = angle === 'rad' ? ' rad'
+    : angle ? angle
+    : unitless || isLog || customNonPrefixable ? ""
+    : baseUnit === "s" ? `${choice.prefix}${baseUnit}`
+    : choice.prefix;
 
   let digits = getAdaptiveDecimalsForSpan(visibleSpan, choice.factor);
   let labels = finiteValues.map((value) => formatFixedEngineeringValue(value, choice.factor, digits, suffix));
