@@ -150,8 +150,12 @@ export interface RawFileRecord {
 
 /** Configuration for the tabular import wizard. */
 export interface WizardConfig {
-  /** Column delimiter. */
+  /** Separator after the first field, or between all fields when valueDelimiter is absent. */
   readonly delimiter: string;
+  readonly valueDelimiter?: "," | ";" | "\t" | " ";
+
+  /** Split plotted frequency traces at gaps between swept bands. */
+  readonly breakSweepGaps?: boolean;
 
   /** Number of header/skip rows before data starts. */
   readonly skipRows: number;

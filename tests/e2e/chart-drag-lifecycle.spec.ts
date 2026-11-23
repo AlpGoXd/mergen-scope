@@ -210,6 +210,47 @@ test('a right-click keeps both domains and a horizontal right-drag zooms X and f
   await expectDomain(page, 'y', [2.68, 7.32]);
 });
 
+test('a diagonal right-drag box-zooms X and Y together, zooms deeper while zoomed, and Escape cancels', async ({ page }) => {
+  const fitted = await plotView(page);
+  const from = pointAt(fitted.box, 0.2, 0.25);
+  const to = pointAt(fitted.box, 0.7, 0.75);
+  const xAt = (view: typeof fitted, p: Point) => view.x[0] + (p.x - view.box.x) / view.box.width * span(view.x);
+  const yAt = (view: typeof fitted, p: Point) => view.y[1] - (p.y - view.box.y) / view.box.height * span(view.y);
+
+  // Start a box drag, verify the rubber-band box appears, then cancel with Escape.
+  await page.mouse.move(from.x, from.y);
+  await page.mouse.down({ button: 'right' });
+  await page.mouse.move(to.x, to.y, { steps: 6 });
+  await expect(plot(page).getByTestId('chart-zoom-box')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(plot(page).getByTestId('chart-zoom-box')).toHaveCount(0);
+  await page.mouse.up({ button: 'right' });
+  await expectDomain(page, 'x', fitted.x);
+  await expectDomain(page, 'y', fitted.y);
+
+  // Commit a diagonal box zoom: sets both X and Y to the dragged rectangle.
+  await page.mouse.move(from.x, from.y);
+  await page.mouse.down({ button: 'right' });
+  await page.mouse.move(to.x, to.y, { steps: 6 });
+  await expect(plot(page).getByTestId('chart-zoom-box')).toBeVisible();
+  await page.mouse.up({ button: 'right' });
+  const expectedX1: Domain = [xAt(fitted, from), xAt(fitted, to)];
+  const expectedY1: Domain = [yAt(fitted, to), yAt(fitted, from)];
+  await expectDomain(page, 'x', expectedX1);
+  await expectDomain(page, 'y', expectedY1);
+
+  // A second diagonal right-drag while already zoomed in zooms deeper (does not pan).
+  const zoomed = await plotView(page);
+  const from2 = pointAt(zoomed.box, 0.25, 0.3);
+  const to2 = pointAt(zoomed.box, 0.75, 0.7);
+  await page.mouse.move(from2.x, from2.y);
+  await page.mouse.down({ button: 'right' });
+  await page.mouse.move(to2.x, to2.y, { steps: 6 });
+  await page.mouse.up({ button: 'right' });
+  await expectDomain(page, 'x', [xAt(zoomed, from2), xAt(zoomed, to2)]);
+  await expectDomain(page, 'y', [yAt(zoomed, to2), yAt(zoomed, from2)]);
+});
+
 test('Ctrl+drag clamps at both data edges and stops after an outside release', async ({ page }) => {
   const fitted = await plotView(page);
   await zoomX(page, 0.15, 0.85);

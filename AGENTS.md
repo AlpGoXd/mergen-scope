@@ -42,13 +42,17 @@ Don't run the full suites repeatedly "to be sure"; CI runs everything on pushes 
 
 - TypeScript strict: no `any`, no new `!` non-null assertions, `import type` for type-only imports, relative imports only.
 - `src/domain/` and `src/types/` stay React-free. Math goes in `domain/`, not in components.
-- `src/components/chart/ChartPane.tsx` is fragile: change it only when the task says so, in small steps, running the chart e2e specs after each one.
+- `src/components/chart/ChartPane.tsx` is no longer treated as fragile (2026-11-23). Run the chart e2e specs that cover what you touched, like any other change.
 - Workspace files are v5. A change to the saved shape needs a migration in `workspace-migrate-v5.ts` and a test in `tests/unit/workspace-v5.test.ts`.
 - Parsers read untrusted files: keep their input validation and bounds checks.
 
 ## Security
 
 - Do not read, print or commit secrets: `.env*`, `~/.codex/auth.json`, tokens.
+
+## Antigravity (`agy`) jobs
+
+Since 2026-11-23 some jobs run through the Antigravity CLI in their own worktree on an `agy/<slug>` branch. The rules are the same as for any agent job: the branch is already checked out, leave changes uncommitted, run typecheck and related unit tests, skip e2e, no installs, no extra worktrees. Details are in CLAUDE.md, "Working with Antigravity".
 
 ## AI and tool leftovers
 

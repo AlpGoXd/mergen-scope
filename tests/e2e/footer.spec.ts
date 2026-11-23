@@ -106,7 +106,7 @@ test('the mouse hints follow the pane type and the armed tool, and come from the
   await expect(page.getByTestId('footer-target')).toContainText('Pane 1');
   await expect(hints(page)).toHaveAttribute('data-context', 'chart');
   await expect(hints(page)).toHaveText(hintText('chart').join(''));
-  for (const text of ['Right-drag X zoom', 'Scroll Y scale', 'Ctrl+drag pan', 'Double-click fit']) await expect(hints(page)).toContainText(text);
+  for (const text of ['Right-drag box zoom', 'Scroll Y scale', 'Ctrl+drag pan', 'Double-click fit']) await expect(hints(page)).toContainText(text);
   await expect(hints(page)).not.toContainText('Middle');
 
   await toolGroups(page);

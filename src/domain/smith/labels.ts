@@ -5,14 +5,16 @@ import type { SmithGridKind } from './grid.ts';
 import { gammaToPoint } from './viewport.ts';
 
 export type SmithLabelMode = 'normalised' | 'ohms';
-export interface SmithLabel {
-  readonly key: string;
-  readonly text: string;
+export interface SmithLabelBox {
   /** Centre of the text box in screen pixels. Labels are never rotated. */
   readonly x: number;
   readonly y: number;
   readonly width: number;
   readonly height: number;
+}
+export interface SmithLabel extends SmithLabelBox {
+  readonly key: string;
+  readonly text: string;
   /** 'r' = constant-r (or g) circle, 'x' = constant-x (or b) arc, 'end' = the "0" and "∞" axis ends. */
   readonly kind: 'r' | 'x' | 'end';
   /** Normalised grid value; signed for reactance. */
@@ -56,7 +58,7 @@ const GAP_PX = 5;
 function boxOf(text: string, fontPx: number): { width: number; height: number } {
   return { width: Math.max(1, text.length) * fontPx * 0.62 + 2, height: fontPx * 1.25 };
 }
-function overlaps(a: SmithLabel, b: SmithLabel): boolean {
+function overlaps(a: SmithLabelBox, b: SmithLabelBox): boolean {
   return Math.abs(a.x - b.x) < (a.width + b.width) / 2 + 2 && Math.abs(a.y - b.y) < (a.height + b.height) / 2 + 1;
 }
 function fits(x: number, y: number, width: number, height: number, v: SmithViewport): boolean {
@@ -134,4 +136,40 @@ export function buildLabels(options: SmithLabelOptions): SmithLabel[] {
     if (!kept.some(other => overlaps(label, other))) kept.push(label);
   }
   return kept;
+}
+
+/**
+ * Place a trace start/end frequency label near its dot `at`, flipping or nudging to a nearby
+ * free spot when the default top-right box would overlap a grid label (or another obstacle).
+ */
+export function placeEndLabel(
+  at: SmithPoint,
+  text: string,
+  fontPx: number,
+  viewport: SmithViewport,
+  obstacles: readonly SmithLabelBox[],
+): SmithLabelBox {
+  const { width, height } = boxOf(text, fontPx);
+  const dx = 7 + width / 2;
+  const dy = 6 + height / 2;
+  const stepY = height + 4;
+  const candidates: readonly SmithLabelBox[] = [
+    { x: at.x + dx, y: at.y - dy, width, height },
+    { x: at.x + dx, y: at.y + dy, width, height },
+    { x: at.x - dx, y: at.y - dy, width, height },
+    { x: at.x - dx, y: at.y + dy, width, height },
+    { x: at.x, y: at.y - (7 + height / 2), width, height },
+    { x: at.x, y: at.y + (7 + height / 2), width, height },
+    { x: at.x + (8 + width / 2), y: at.y, width, height },
+    { x: at.x - (8 + width / 2), y: at.y, width, height },
+    { x: at.x + dx, y: at.y - dy - stepY, width, height },
+    { x: at.x + dx, y: at.y + dy + stepY, width, height },
+    { x: at.x - dx, y: at.y - dy - stepY, width, height },
+    { x: at.x - dx, y: at.y + dy + stepY, width, height },
+  ];
+  const free = (box: SmithLabelBox): boolean => !obstacles.some(other => overlaps(box, other));
+  const best = candidates.find(box => fits(box.x, box.y, box.width, box.height, viewport) && free(box))
+    ?? candidates.find(free)
+    ?? candidates.find(box => fits(box.x, box.y, box.width, box.height, viewport));
+  return best ?? { x: at.x + dx, y: at.y - dy, width, height };
 }

@@ -185,3 +185,39 @@ test('a marker drags along its own Smith trace as one undo step', async ({ page 
   await page.keyboard.press('Control+y');
   await expect(frequency).toHaveText(after);
 });
+
+test('Z + Y grid mode highlights both Z and Y curves on hover', async ({ page }) => {
+  await openNetwork(page);
+  const pane = await chooseSecondSmith(page);
+  await page.getByTestId('touchstone-cell-S11').click();
+  await expect(pane.getByTestId('smith-plot')).toBeVisible();
+
+  await page.getByTestId('chart-pane-header-pane-2').getByTitle('Pane settings').click();
+  const settings = page.locator('.ui-popover[aria-label="Pane 2 settings"]');
+  await settings.getByRole('button', { name: 'Z + Y', exact: true }).click();
+  await page.keyboard.press('Escape');
+
+  await expect(pane.getByTestId('smith-pane')).toHaveAttribute('data-grid', 'both');
+  await expect(pane.getByTestId('smith-grid-z')).toBeVisible();
+  await expect(pane.getByTestId('smith-grid-y')).toBeVisible();
+
+  const path = pane.locator('[data-testid^="smith-trace-"] path').first();
+  await expect(path).toBeAttached();
+  const point = await tracePoint(path);
+  await page.mouse.move(point.x, point.y);
+
+  const hoverZ = pane.getByTestId('smith-hover-grid-z');
+  const hoverY = pane.getByTestId('smith-hover-grid-y');
+  await expect(pane.getByTestId('smith-hover-grid')).toBeAttached();
+  await expect(hoverZ).toBeAttached();
+  await expect(hoverY).toBeAttached();
+  expect(await hoverZ.locator('path').count()).toBeGreaterThanOrEqual(1);
+  expect(await hoverY.locator('path').count()).toBeGreaterThanOrEqual(1);
+  const yDash = await hoverY.locator('path').first().evaluate(el => getComputedStyle(el).strokeDasharray);
+  expect(yDash).not.toBe('none');
+
+  const card = pane.getByTestId('smith-hover-card');
+  await expect(card.locator('[data-field="z"]')).toBeVisible();
+  await expect(card.locator('[data-field="y"]')).toBeVisible();
+  await expect(card.locator('[data-field="y"]')).toContainText('mS');
+});

@@ -1,6 +1,7 @@
 // File card (C03) with the Touchstone matrix (C04) and Info (C05) opening under the row.
 import type { ReactElement } from 'react';
 import type { FileRowProps, InfoProps, MatrixFamily, MatrixProps, MatrixView } from './types';
+import { CaretDownIcon, CaretUpIcon, CloseIcon } from '../shared/Icons';
 
 const BASE_VIEWS: Record<MatrixFamily, MatrixView[]> = {
   S: ['dB', 'Mag', 'Phase', 'Re', 'Im'],
@@ -41,7 +42,7 @@ export function Matrix(p: MatrixProps): ReactElement {
           style={moreAllowed ? undefined : { opacity: 0.6, cursor: 'not-allowed' }}
           aria-pressed={!BASE_VIEWS[p.family].includes(p.view)}
           onClick={(e) => p.onMore(e.currentTarget)}>
-          {BASE_VIEWS[p.family].includes(p.view) ? 'More' : p.view} ▾
+          {BASE_VIEWS[p.family].includes(p.view) ? 'More' : p.view} <CaretDownIcon />
         </button>}
       </div>
       {p.quickControl ?? (p.ports >= 3 && p.onQuickPick ? (
@@ -104,7 +105,7 @@ export function Info(p: InfoProps): ReactElement {
         </span>
         <span style={{ flex: 1 }} />
         <button type="button" className="lp-link" onClick={p.onCopy}>Copy</button>
-        <button type="button" className="lp-icon-btn" aria-label="Close info" onClick={p.onClose}>×</button>
+        <button type="button" className="lp-icon-btn" aria-label="Close info" onClick={p.onClose}><CloseIcon /></button>
       </div>
       {p.fields.length === 0 ? (
         <span className="lp-empty" style={{ padding: 0 }}>No header fields in this file</span>
@@ -133,16 +134,16 @@ export function FileRow(p: FileRowProps): ReactElement {
         {p.state === 'error' && p.onFix ? <button type="button" className="lp-file__fix" onClick={p.onFix}>Fix…</button> : null}
         {p.state === 'traceRemoved' && p.onPlot ? <button type="button" className="lp-toggle" style={{ fontWeight: 'var(--fw-semibold)', borderColor: 'var(--border-strong)' }} onClick={p.onPlot}>Plot</button> : null}
         {p.matrix && p.state === 'ready' ? (
-          <button type="button" className="lp-toggle" aria-label="Matrix" aria-pressed={open} aria-expanded={open} onClick={p.matrix.onToggle}>Matrix {open ? '▴' : '▾'}</button>
+          <button type="button" className="lp-toggle" aria-label="Matrix" aria-pressed={open} aria-expanded={open} onClick={p.matrix.onToggle}>Matrix {open ? <CaretUpIcon /> : <CaretDownIcon />}</button>
         ) : null}
         {p.columns && p.state === 'ready' ? (
-          <button type="button" className="lp-toggle" aria-label="Columns" aria-pressed={p.columns.open} aria-expanded={p.columns.open} onClick={p.columns.onToggle}>Columns {p.columns.open ? '▴' : '▾'}</button>
+          <button type="button" className="lp-toggle" aria-label="Columns" aria-pressed={p.columns.open} aria-expanded={p.columns.open} onClick={p.columns.onToggle}>Columns {p.columns.open ? <CaretUpIcon /> : <CaretDownIcon />}</button>
         ) : null}
         {p.state !== 'parsing' && p.state !== 'error' ? (
           p.menuControl ?? <button type="button" className="lp-icon-btn lp-icon-btn--more" aria-label={`More actions for ${p.name}`} aria-haspopup="menu" aria-expanded={Boolean(p.menuOpen)}
             onClick={(e) => p.onMenu(e.currentTarget)}>⋯</button>
         ) : null}
-        <button type="button" className="lp-icon-btn" aria-label={`Remove ${p.name}`} title="Remove file" onClick={p.onRemove}>×</button>
+        <button type="button" className="lp-icon-btn" aria-label={`Remove ${p.name}`} title="Remove file" onClick={p.onRemove}><CloseIcon /></button>
       </div>
       {p.state === 'parsing' ? <div className="lp-file__progress" style={{ width: `${p.progressPct ?? 0}%` }} /> : null}
       {open && p.summary ? <div className="lp-file__summary">{p.summary}</div> : null}

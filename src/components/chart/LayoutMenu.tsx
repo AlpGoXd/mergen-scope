@@ -5,6 +5,7 @@ import type { PresetId } from '../../domain/pane-layout';
 import { useAggregateWorkspace } from '../../stores/aggregate-workspace-store';
 import { Btn } from '../shared/Btn';
 import { PopoverAt } from '../shared/Controls';
+import { CaretDownIcon } from '../shared/Icons';
 import './pane-layout.css';
 
 const labels: Record<PresetId, string> = { rows: 'Rows', columns: 'Columns', grid: '2 × 2', 'one-side': '1 + side' };
@@ -34,7 +35,7 @@ export function LayoutMenu({ paneCount, limit, className }: { paneCount: number;
     const index = buttons.indexOf(document.activeElement as HTMLButtonElement);
     buttons[(index + direction + buttons.length) % buttons.length]?.focus();
   };
-  return <><Btn small {...(className ? { className } : {})} disabled={!paneCount} aria-haspopup="dialog" aria-expanded={!!anchor} onClick={event => setAnchor(anchor ? null : event.currentTarget)}>Layout: {labels[current]} ▾</Btn>
+  return <><Btn small {...(className ? { className } : {})} disabled={!paneCount} aria-haspopup="dialog" aria-expanded={!!anchor} onClick={event => setAnchor(anchor ? null : event.currentTarget)}>Layout: {labels[current]} <CaretDownIcon /></Btn>
     {anchor && <PopoverAt label="Layout" at={anchor} onClose={close}><div className="layout-menu" role="group" aria-label="Layout presets" onKeyDown={keyboard}>
       {options.map(option => <button type="button" key={option.preset} data-layout-tile data-autofocus={option.preset === current ? '' : undefined} className={`layout-menu__tile${option.preset === current ? ' is-selected' : ''}${!option.ok ? ' is-unavailable' : ''}`} aria-disabled={!option.ok} aria-pressed={option.preset === current} title={!option.ok ? option.reason : labels[option.preset]} onClick={() => { if (!option.ok) return; dispatch({ slice: 'layout', action: { type: 'SET_LAYOUT_PRESET', preset: option.preset, limit } }); close(); }}><Preview preset={option.preset} count={option.preset === 'grid' ? 4 : option.preset === 'one-side' ? Math.max(3, Math.min(4, paneCount)) : paneCount} /><span className="t-label">{labels[option.preset]}</span>{!option.ok && <span className="t-caption">{option.reason}</span>}</button>)}
     </div></PopoverAt>}</>;

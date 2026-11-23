@@ -14,6 +14,8 @@ import { ChartTypeTiles, PaneTypeMenu } from '../panes/PaneTypeMenu';
 import type { TypeChangePlan } from '../panes/PaneTypeMenu';
 import type { PickerTile, PickerTileId } from '../panes/PaneTypePicker';
 import { SlidersIcon } from './PaneHeader';
+import { AxisRangeControls } from './AxisRangeControls';
+import type { AxisRange } from '../../domain/chart/axis-range';
 import './pane-chrome.css';
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -81,6 +83,14 @@ export interface PaneAxes {
   /** "200 k/div". */
   readonly x: string;
   readonly y: string;
+  readonly xDomain: AxisRange | null;
+  readonly yDomain: AxisRange | null;
+  readonly xUnit: string | null;
+  readonly yUnit: string | null;
+  readonly effectiveXScale: AxisScale;
+  readonly effectiveYScale: AxisScale;
+  readonly onSetXRange: (range: AxisRange) => void;
+  readonly onSetYRange: (range: AxisRange) => void;
   readonly onFitX: () => void;
   readonly onFitY: () => void;
   readonly values: ChartAxesSettings;
@@ -281,9 +291,25 @@ export function PaneSettingsPopover({
                 {axes.hasPhase && <Row label="Phase">{(['wrapped', 'unwrapped'] as const).map(value =>
                   <Btn key={value} variant="slate" small active={axes.values.phase === value} aria-pressed={axes.values.phase === value}
                     onClick={() => axes.onChange({ ...axes.values, phase: value })}>{value === 'wrapped' ? 'Wrapped' : 'Unwrapped'}</Btn>)}</Row>}
-                <div className="pset-note t-caption">X range: {axes.xRange}<br />Fit, or right-drag on the chart.</div>
-                <Row label="X"><span className="t-readout pset-scale">{axes.x}</span><Btn small onClick={axes.onFitX}>Fit X</Btn></Row>
-                <Row label="Y"><span className="t-readout pset-scale">{axes.y}</span><Btn small onClick={axes.onFitY}>Fit Y</Btn></Row>
+                <AxisRangeControls
+                  x={{
+                    domain: axes.xDomain,
+                    scale: axes.effectiveXScale,
+                    unit: axes.xUnit,
+                    perDiv: axes.x,
+                    onSetRange: axes.onSetXRange,
+                    onFit: axes.onFitX,
+                  }}
+                  y={{
+                    domain: axes.yDomain,
+                    scale: axes.effectiveYScale,
+                    unit: axes.yUnit,
+                    perDiv: axes.y,
+                    onSetRange: axes.onSetYRange,
+                    onFit: axes.onFitY,
+                  }}
+                />
+                <div className="pset-note t-caption">Click any value to edit, or right-drag a box on the chart.</div>
               </> : onFit ? <Row label="View"><Btn small onClick={onFit}>Fit the unit circle</Btn></Row>
                 : <div className="pset-note t-caption">Add a trace to this pane to set its axes.</div>}
             </Section>}

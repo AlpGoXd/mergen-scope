@@ -1,3 +1,4 @@
+import { nearestBand, traceBands } from './sweep-bands';
 // ============================================================================
 // Mergen Scope - Marker Functions
 // ============================================================================
@@ -77,11 +78,12 @@ export interface MagneticSnapOptions {
 
 /** Resolve a marker location using the interpolation strategy associated with a trace. */
 export function placeMarker(
-  trace: Pick<Trace, "data" | "family" | "interpolation" | "isUniform">,
+  trace: Pick<Trace, "data" | "family" | "interpolation" | "isUniform"> & Partial<Pick<Trace, "parameters">>,
   targetFreq: number,
   magneticSnap?: MagneticSnapOptions,
 ): MarkerPlacement {
-  const traceData = trace.data ?? [];
+  const bands = traceBands(trace);
+  const traceData = bands.length > 1 ? nearestBand(bands, targetFreq) : trace.data ?? [];
   if (!traceData.length || !Number.isFinite(targetFreq)) {
     return { requestedFreq: targetFreq, freq: targetFreq, amp: 0, interpolated: false };
   }

@@ -52,7 +52,7 @@ test('high contrast makes matrix diagonals and incompatible Smith cells distinct
   const selected = page.getByTestId('touchstone-cell-S11');
   await expect(selected).toHaveAttribute('aria-selected', 'true');
   await expect(selected).toHaveCSS('background-color', 'oklch(1 0.001 255)');
-  await expect(selected.locator('.lp-cell__count')).toHaveCSS('background-color', 'oklch(0.12 0.007 255)');
+  await expect(selected.locator('.lp-cell__count')).toHaveCSS('background-color', 'oklch(0.35 0.115 255)');
   const blocked = page.getByTestId('touchstone-cell-S21');
   await expect(blocked).toBeDisabled();
   await expect(blocked).toHaveAttribute('title', /Smith/i);
@@ -60,5 +60,5 @@ test('high contrast makes matrix diagonals and incompatible Smith cells distinct
   await expect(blocked).toHaveCSS('border-top-style', 'dashed');
   await expect(blocked).toHaveCSS('text-decoration-line', 'line-through');
   await expect(page.getByTestId('chart-pane-pane-2').locator('..')).toHaveCSS('box-shadow', 'none');
-  await expect(page.getByTestId('chart-pane-header-pane-2')).toHaveCSS('background-color', 'oklch(0.12 0.007 255)');
+  await expect(page.getByTestId('chart-pane-header-pane-2')).toHaveCSS('background-color', 'oklch(0.35 0.115 255)');
 });

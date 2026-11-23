@@ -45,6 +45,7 @@ interface IntegrationResult {
 function integrateLinearArea(
   data: readonly DataPoint[],
   linearValueFn: (amp: number) => number | null,
+  breaks?: ReadonlySet<number>,
 ): IntegrationResult | null {
   const points = finiteData(data);
   if (points.length < 2) return null;
@@ -55,6 +56,7 @@ function integrateLinearArea(
   for (let i = 0; i < points.length - 1; i++) {
     const a = points[i]!;
     const b = points[i + 1]!;
+    if (breaks?.has(b.freq)) continue;
     const pa = linearValueFn(a.amp);
     const pb = linearValueFn(b.amp);
     if (!Number.isFinite(pa) || pa === null || !Number.isFinite(pb) || pb === null) continue;
@@ -105,6 +107,7 @@ export function computeOccupiedBandwidth(
   data: readonly DataPoint[],
   percent: number,
   yUnit: string,
+  breaks?: ReadonlySet<number>,
 ): OccupiedBandwidthResult {
   const norm = normalizeUnitName(yUnit);
   if (!(norm === "dbm" || norm === "dbw")) {
@@ -114,7 +117,7 @@ export function computeOccupiedBandwidth(
   let pct = Number(percent);
   if (!Number.isFinite(pct) || pct <= 0 || pct >= 100) pct = 99;
 
-  const integrated = integrateLinearArea(data, (amp) => logPowerToMilliwatts(amp, yUnit));
+  const integrated = integrateLinearArea(data, (amp) => logPowerToMilliwatts(amp, yUnit), breaks);
   if (!integrated) {
     return { supported: false, reason: "Not enough visible samples to estimate occupied bandwidth." };
   }
@@ -155,13 +158,14 @@ export interface ChannelPowerResult {
 export function computeChannelPower(
   data: readonly DataPoint[],
   yUnit: string,
+  breaks?: ReadonlySet<number>,
 ): ChannelPowerResult {
   const norm = normalizeUnitName(yUnit);
   if (!(norm === "dbm/hz" || norm === "dbmperhz" || norm === "dbw/hz" || norm === "dbwperhz")) {
     return { supported: false, reason: "Channel power is deferred unless the trace unit is explicit spectral power density such as dBm/Hz or dBW/Hz." };
   }
 
-  const integrated = integrateLinearArea(data, (amp) => spectralDensityToMilliwattsPerHz(amp, yUnit));
+  const integrated = integrateLinearArea(data, (amp) => spectralDensityToMilliwattsPerHz(amp, yUnit), breaks);
   if (!integrated) {
     return { supported: false, reason: "Not enough visible samples to integrate channel power." };
   }

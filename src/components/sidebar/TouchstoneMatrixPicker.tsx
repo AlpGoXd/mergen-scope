@@ -1,6 +1,7 @@
 ﻿import { Fragment, useState } from 'react';
 import type { TouchstoneFamily, TouchstoneView } from '../../types/touchstone';
 import { PopoverAt, Tooltip } from '../shared/Controls';
+import { CloseIcon } from '../shared/Icons';
 import type { MatrixTrace } from '../../domain/matrix-add';
 import { matrixCellTraces, planMatrixAdd } from '../../domain/matrix-add';
 
@@ -54,6 +55,6 @@ export function TouchstoneMatrixPicker({ portCount, family, onToggle, view, disa
       <button type="button" disabled={!!reason} title={reason} onClick={() => onToggle(row - 1, col - 1, view)}>+ Add</button>
       <button type="button" aria-expanded={gridAnchor !== null} onClick={event => setGridAnchor(gridAnchor ? null : event.currentTarget)}>Grid&#8230;</button>
     </div>
-    {gridAnchor && <PopoverAt label="Full parameter grid popup" at={gridAnchor} onClose={() => setGridAnchor(null)}><div role="dialog" aria-label="Full parameter grid" style={{ width: 'min(80vw, 600px)', maxHeight: 400, overflow: 'auto', padding: 8 }}><button type="button" onClick={() => setGridAnchor(null)} aria-label="Close grid">&times;</button>{grid}</div></PopoverAt>}
+    {gridAnchor && <PopoverAt label="Full parameter grid popup" at={gridAnchor} onClose={() => setGridAnchor(null)}><div role="dialog" aria-label="Full parameter grid" style={{ width: 'min(80vw, 600px)', maxHeight: 400, overflow: 'auto', padding: 8 }}><button type="button" onClick={() => setGridAnchor(null)} aria-label="Close grid"><CloseIcon /></button>{grid}</div></PopoverAt>}
   </div>;
 }

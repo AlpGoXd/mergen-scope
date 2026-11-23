@@ -77,4 +77,39 @@ describe('latexFigure', () => {
     expect(tex).toContain('(axis cs:0,-3) -- (axis cs:8.5,-3)');
     expect(tex).not.toContain('V2');
   });
+  it('omits only marker tag labels when markerTags is false, keeping marker symbols', () => {
+    const noPin = latexFigure(input({ markerTags: false }));
+    expect(noPin).toContain(String.raw`\node[circle, fill=msTraceA, draw=black, inner sep=1.2pt] at (axis cs:2.86,-10.2) {};`);
+    expect(noPin).not.toContain('pin=');
+    expect(noPin).not.toContain('msTag');
+    expect(noPin).not.toContain('M1 2.86 GHz');
+
+    const withShift = latexFigure(input({
+      markers: [{ label: 'M1 2.86 GHz', x: 2.86e9, y: -10.2, trace: 0, shift: { x: 8, y: 10 } }],
+      markerTags: true,
+    }));
+    expect(withShift).toContain('msTagpane-1');
+    expect(withShift).toContain('{M1 2.86 GHz}');
+    expect(withShift).toContain(String.raw`\node[circle, fill=msTraceA, draw=black, inner sep=1.2pt] at (axis cs:2.86,-10.2) {};`);
+
+    const noShiftTag = latexFigure(input({
+      markers: [{ label: 'M1 2.86 GHz', x: 2.86e9, y: -10.2, trace: 0, shift: { x: 8, y: 10 } }],
+      markerTags: false,
+    }));
+    expect(noShiftTag).toContain(String.raw`\node[circle, fill=msTraceA, draw=black, inner sep=1.2pt] at (axis cs:2.86,-10.2) {};`);
+    expect(noShiftTag).not.toContain('msTag');
+    expect(noShiftTag).not.toContain('M1 2.86 GHz');
+    expect(noShiftTag).not.toContain('black!45');
+
+    const smithNoTags = latexFigure(input({
+      smithGrid: 'z',
+      x: { min: -1.05, max: 1.05, label: '', unit: null },
+      y: { min: -1.05, max: 1.05, label: '' },
+      markers: [{ label: 'M1', x: 0.2, y: 0.3, trace: 0 }],
+      markerTags: false,
+    }));
+    expect(smithNoTags).toContain(String.raw`\node[circle, fill=msTraceA, draw=black, inner sep=1.2pt] at (axis cs:0.2,0.3) {};`);
+    expect(smithNoTags).not.toContain('pin=');
+    expect(smithNoTags).not.toContain('{M1}');
+  });
 });

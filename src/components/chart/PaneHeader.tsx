@@ -47,6 +47,9 @@ export interface PaneHeaderProps extends Omit<HTMLAttributes<HTMLDivElement>, 't
   readonly count: string | null;
   /** "X 200 k/div · Y 50/div", or null. */
   readonly scale: string | null;
+  /** Click handler for the scale readout (opens the X/Y axis range popover). */
+  readonly onScaleClick?: ((anchor: HTMLElement) => void) | null;
+  readonly scaleOpen?: boolean;
   /** The X link chip (chain icon + unit), or null when the pane has no X unit; `iconOnly` drops the unit on the narrowest step. */
   readonly link?: ((iconOnly: boolean) => ReactNode) | null;
   /** The Samples toggle; `iconOnly` is true on the narrowest step. */
@@ -60,7 +63,7 @@ export interface PaneHeaderProps extends Omit<HTMLAttributes<HTMLDivElement>, 't
  * It never wraps and never overlaps. A measured priority list decides what shows: after each change of
  * width or content the header starts from everything and drops one step at a time until its content fits.
  */
-export function PaneHeader({ name, target, chip, count, scale, link = null, samples, children, className = '', ...rest }: PaneHeaderProps) {
+export function PaneHeader({ name, target, chip, count, scale, onScaleClick = null, scaleOpen = false, link = null, samples, children, className = '', ...rest }: PaneHeaderProps) {
   const ref = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
   const [fit, setFit] = useState<{ key: string; level: number }>({ key: '', level: 0 });
@@ -88,7 +91,18 @@ export function PaneHeader({ name, target, chip, count, scale, link = null, samp
       {chip(chipFitForLevel(level))}
       {count && level < 2 && <span className="ph-count t-caption">{count}</span>}
       <span className="ph-spacer" />
-      {scale && level < 1 && <span className="ph-scale t-readout">{scale}</span>}
+      {scale && level < 1 && (onScaleClick ? (
+        <button
+          type="button"
+          className="ph-scale ph-scale--btn t-readout"
+          aria-haspopup="dialog"
+          aria-expanded={scaleOpen}
+          title="Edit X and Y axis ranges"
+          onClick={event => { event.stopPropagation(); onScaleClick(event.currentTarget); }}
+        >{scale}</button>
+      ) : (
+        <span className="ph-scale t-readout">{scale}</span>
+      ))}
       {link?.(level >= 5)}
       {samples?.(level >= 5)}
       {children}

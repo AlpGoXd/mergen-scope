@@ -488,3 +488,16 @@ describe('v5 migration boundary', () => {
 
 });
 
+
+it('restores legacy packed-trace separators and round-trips mixed separators', () => {
+  const base = migrateWorkspaceV5(fixture('workspace-v4-eight-pane-extension'));
+  if (!base?.files.length) throw new Error('Missing fixture files');
+  const config = { delimiter: 'tinySA', skipRows: 0, xCol: 0, yCols: [1, 2], xMult: 1, yMult: 1,
+    domain: 'frequency', confidence: 1, headers: ['Frequency', 'A', 'B'], xUnit: 'Hz', yUnit: 'dBm' };
+  const withConfig = (wizardConfig: unknown) => ({ ...base, files: base.files.map(file => ({ ...file, wizardConfig })) });
+  const saved = migrateWorkspaceV5(withConfig(config));
+  expect(saved?.files[0]?.wizardConfig).toEqual({ ...config, delimiter: ',', valueDelimiter: ' ', breakSweepGaps: true });
+  expect(migrateWorkspaceV5(saved)?.files[0]?.wizardConfig).toEqual(saved?.files[0]?.wizardConfig);
+  expect(migrateWorkspaceV5(withConfig({ ...config, delimiter: ';', valueDelimiter: ',' }))?.files[0]?.wizardConfig?.valueDelimiter).toBe(',');
+  expect(migrateWorkspaceV5(withConfig({ ...config, valueDelimiter: 'invalid' }))).toBeNull();
+});

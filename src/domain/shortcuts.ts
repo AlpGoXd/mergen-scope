@@ -92,7 +92,7 @@ export interface MouseHint {
  * ChartPane, SmithPane and the placement tools actually do; change a gesture and its row together.
  */
 export const MOUSE_HINTS: readonly MouseHint[] = [
-  { keys: [['Right-drag']], label: 'Zoom an X range; pan when zoomed in', footer: { chart: { action: 'Right-drag', effect: 'X zoom' } } },
+  { keys: [['Right-drag']], label: 'Box zoom X and Y (flat horizontal drag zooms X and fits Y)', footer: { chart: { action: 'Right-drag', effect: 'box zoom' } } },
   { keys: [['Scroll']], label: 'Y scale (Smith: zoom)', footer: { chart: { action: 'Scroll', effect: 'Y scale' }, smith: { action: 'Scroll', effect: 'zoom' }, polar: { action: 'Scroll', effect: 'radius zoom' } } },
   { keys: [['Shift', 'Scroll']], label: 'Y offset' },
   { keys: [['Ctrl', 'drag']], label: 'Pan the view (Smith: middle-drag also pans)', footer: { chart: { action: 'Ctrl+drag', effect: 'pan' }, smith: { action: 'Ctrl+drag', effect: 'pan' } } },

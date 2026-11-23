@@ -1,4 +1,6 @@
-﻿import type { Dataset, NetworkDataset } from '../types/dataset';
+﻿import { breaksFrequencyGaps } from './sweep-bands';
+import { splitHeader } from './parsers/tabular-detect';
+import type { Dataset, NetworkDataset } from '../types/dataset';
 import type { DisplayTrace } from '../types/display';
 import type { ColumnIdentity, ParsedFile, RawFileRecord, WizardConfig } from '../types/file';
 import type { OpenData, OpenTrace } from '../types/open-files-plan';
@@ -43,7 +45,7 @@ function legacyTabularColumns(prior: RawFileRecord | undefined, rawText?: string
   const config = prior.wizardConfig;
   if (!Number.isInteger(config.skipRows) || config.skipRows < 0 || config.yCols.length !== prior.traces.length || config.yCols.some(index => !Number.isInteger(index) || index < 0) || new Set(config.yCols).size !== config.yCols.length) return undefined;
   const lines = rawText?.split(/\r?\n/).filter(line => line.trim().length > 0) ?? [];
-  const headers = config.skipRows > 0 ? lines[config.skipRows - 1]?.split(config.delimiter).map(cell => cell.trim()) : undefined;
+  const headers = config.skipRows > 0 ? splitHeader(lines[config.skipRows - 1] ?? '', config, config.headers?.length ?? 0) : undefined;
   const actualHeaders = headers?.some(cell => cell !== '' && !Number.isFinite(Number(cell))) ? headers : undefined;
   return config.yCols.map(index => ({index,...(actualHeaders?.[index] ? {header:actualHeaders[index]} : {})}));
 }
@@ -85,9 +87,11 @@ export function prepareOpenInput(input: PrepareOpenInput): PreparedOpenInput {
   const columns = parsed.columnIdentities;
   const legacyColumns = prior?.displayTraces?.length ? undefined : legacyTabularColumns(prior,input.priorRawText);
   const priorColumns = prior?.columnIdentities ?? legacyColumns;
+  const suggested = parsed.suggestedConfig;
+  const wizardConfig = input.wizardConfig ?? (suggested?.valueDelimiter || suggested?.delimiter === ' ' || breaksFrequencyGaps(suggested) ? suggested : undefined);
   let file: RawFileRecord = { id: fileId, fileName, meta: parsed.meta, traces: [], format: parsed.format,
     ...(parsed.touchstoneNetwork ? { touchstoneNetwork: parsed.touchstoneNetwork } : {}),
-    ...(input.wizardConfig ? { wizardConfig: input.wizardConfig } : {}),
+    ...(wizardConfig ? { wizardConfig } : {}),
     ...(columns ? { columnIdentities: columns } : {}),
     ...(prior?.touchstoneControls ? { touchstoneControls: prior.touchstoneControls } : {}),
     ...(prior?.matrixOpen !== undefined ? { matrixOpen: prior.matrixOpen } : {}) };

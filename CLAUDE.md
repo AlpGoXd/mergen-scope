@@ -12,7 +12,7 @@ Browser RF/signal analysis app (R&S `.dat`, CSV/TSV, Touchstone `.sNp`). React 1
 - `src/hooks/` — bridge between stores/domain and components.
 - `src/components/` — UI only; put math in `domain/`, not in components.
 - `app.html` = SPA shell, `index.html` = static landing page. `dist/` is build output: never hand-edit it.
-- **Fragile:** `src/components/chart/ChartPane.tsx` (marker placement, drag zoom/pan, Y zoom, crosshair). Small, reversible steps; run the chart e2e specs after every change there (see "When to run what").
+- `src/components/chart/ChartPane.tsx` (marker placement, drag zoom/pan, Y zoom, crosshair) is no longer treated as fragile (2026-11-23). Run the chart e2e specs that cover what you touched, like any other change.
 - Workspace files are versioned: the app saves **v5** (`use-workspace-v5.ts`, `types/workspace-v5.ts`) and loads every older version through `workspace-migrate-v5.ts`, which calls `workspace-migrate-v4.ts` for v1–v4 files. Changing the saved shape needs a migration in `workspace-migrate-v5.ts` and a test in `tests/unit/workspace-v5.test.ts`. The v5 save path handles all new workspace exports.
 
 ## TypeScript conventions
@@ -81,6 +81,15 @@ npm with a committed `package-lock.json`. Ask before adding a dependency, and ne
 - Explore look and feel (palette, toolbar styling, layout mockups) in Claude Design first; once the user picks a direction, port the tokens/styles into `src/index.css` and the components.
 - Use the `frontend-design` plugin for UI changes. Visual changes still need the full `test:e2e` before merging, since styling can break chart interaction.
 - Codex is not the tool for visual taste; use it for review of interaction/logic changes only.
+
+## Working with Antigravity (`agy`, since 2026-11-23)
+
+For the beta 4 work the user chose the Antigravity CLI (`agy`, on PATH, already signed in) as the implementation agent, in parallel. The Codex rules below (branch, lock, one writer per folder, Claude reviews and verifies) apply unchanged, with these differences:
+
+- Models (`agy models`): `gemini-4-neon-{low,medium,high,xhigh}` and `gemini-4-argon-*` are the ones in use; Claude picks per job (neon-high for tracing/logic, neon-medium for small scoped work). Model IDs are passed with `--model`.
+- Run it from inside the job's folder: `agy --model gemini-4-neon-high --mode accept-edits --print-timeout 40m -p "$(cat prompt.txt)"`, in the background. Do not use `--dangerously-skip-permissions`.
+- Parallel jobs: one worktree and one branch per job under `gits/_worktrees/agy-<slug>` on `agy/<slug>`, each with its own `npm ci`, each with a writer lock. The user asked for this explicitly; remove the worktrees and branches after merging. Jobs that touch the same file go in the same job.
+- The prompt says: leave changes uncommitted, run typecheck and related unit tests, do not run e2e. Claude reads the diff, runs the e2e specs (distinct `PW_PORT` per worktree), commits on the job branch and merges into `dev`.
 
 ## Working with Codex
 

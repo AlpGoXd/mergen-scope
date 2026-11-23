@@ -5,6 +5,18 @@ import type { SymbolSetting } from '../../domain/trace-palette';
 export const appNeutrals = ['slate', 'stone', 'zinc', 'ocean', 'moss', 'purple', 'pink', 'ember'] as const;
 type AppNeutral = (typeof appNeutrals)[number];
 
+/** Display names for each neutral tint; stored ids stay stable for existing preferences. */
+export const appNeutralLabels: Readonly<Record<AppNeutral, string>> = {
+  slate: 'Storm',
+  stone: 'Sand',
+  zinc: 'Mist',
+  ocean: 'Ocean',
+  moss: 'Moss',
+  purple: 'Amethyst',
+  pink: 'Sakura',
+  ember: 'Ember',
+};
+
 export type AppPreferences = {
   size: AppSize;
   neutral: AppNeutral;

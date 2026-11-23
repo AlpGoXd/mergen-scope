@@ -1,15 +1,17 @@
 import { useState } from 'react';
 import type React from 'react';
 import type { ColumnRole } from '../../domain/import-wizard';
+import type { Separators } from '../../domain/parsers/tabular-detect';
 import { splitCells } from '../../domain/parsers/tabular-detect';
 import { PopoverAt } from '../shared/Controls';
+import { CaretDownIcon } from '../shared/Icons';
 
 export const PREVIEW_ROWS = 8;
 
 export interface WizardPreviewTableProps {
   /** Content lines of the file. */
   lines: readonly string[];
-  delimiter: string;
+  separators: Separators;
   skipRows: number;
   headers: readonly string[];
   /** Header text as shown (with the picked unit). */
@@ -25,9 +27,9 @@ const ROLE_TEXT: Record<ColumnRole, string> = { x: 'X', y: 'Y', skip: '— skip'
 const ROLE_NAME: Record<ColumnRole, string> = { x: 'X', y: 'Y', skip: 'Skip' };
 const ROLE_HINT: Record<ColumnRole, string> = { x: 'Horizontal axis', y: 'One trace', skip: 'Not imported' };
 
-export function WizardPreviewTable({ lines, delimiter, skipRows, headers, names, roles, colors, numeric, onRole }: WizardPreviewTableProps) {
+export function WizardPreviewTable({ lines, separators, skipRows, headers, names, roles, colors, numeric, onRole }: WizardPreviewTableProps) {
   const [menu, setMenu] = useState<{ col: number; at: HTMLElement } | null>(null);
-  const rows = lines.slice(skipRows, skipRows + PREVIEW_ROWS).map(line => splitCells(line, delimiter));
+  const rows = lines.slice(skipRows, skipRows + PREVIEW_ROWS).map(line => splitCells(line, separators));
   const close = () => setMenu(null);
   return (
     <div className="iw-table-wrap">
@@ -52,7 +54,7 @@ export function WizardPreviewTable({ lines, delimiter, skipRows, headers, names,
                       onClick={event => { const at = event.currentTarget; setMenu(current => (current?.col === col ? null : { col, at })); }}
                     >
                       <span className="iw-chip-role">{ROLE_TEXT[role]}</span>
-                      <span aria-hidden="true">▾</span>
+                      <CaretDownIcon />
                     </button>
                   </div>
                 </th>

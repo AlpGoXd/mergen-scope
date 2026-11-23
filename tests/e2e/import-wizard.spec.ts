@@ -16,7 +16,7 @@ test('imports a CSV through the one-screen wizard, and Import settings opens pre
   await expect(wizard).toBeVisible();
   await expect(page.getByTestId('import-wizard-detected')).toHaveText('Detected: time (high confidence)');
   await expect(page.getByTestId('import-wizard-caption')).toHaveText('first 8 of 20 rows · rows 1–3 skipped');
-  await expect(wizard.getByRole('radio', { name: 'Comma' })).toHaveAttribute('aria-checked', 'true');
+  await expect(wizard.getByRole('radiogroup', { name: 'First separator' }).getByRole('radio', { name: 'Comma' })).toHaveAttribute('aria-checked', 'true');
   await expect(page.getByTestId('wizard-chip-0')).toHaveAttribute('data-role', 'x');
   await expect(page.getByTestId('wizard-chip-2')).toHaveAttribute('data-role', 'y');
   await expect(page.getByTestId('import-wizard-summary')).toContainText('Will create 2 traces:');
@@ -94,4 +94,54 @@ test('Import settings follows how the file was read, not its extension', async (
   await page.getByRole('button', { name: 'Actions for cascaded chain.s2p' }).click();
   await expect(page.getByRole('menuitem', { name: 'Info', exact: true })).toBeVisible();
   await expect(page.getByRole('menuitem', { name: 'Import settings…' })).toHaveCount(0);
+});
+
+test('tinySA shows all four traces in two bands before and after import', async ({ page }) => {
+  const csv = Array.from({ length: 450 }, (_, i) => {
+    const hz = (i < 225 ? 880000000 : 925000000) + (i % 225) * 156250;
+    return [hz, [-110, -105, -100, -95].map(level => level + i % 5).join('  ')].join(',');
+  }).join('\n');
+  await page.goto('/app.html');
+  await page.getByTestId('app-open-input').setInputFiles({ name: 'multiband.csv', mimeType: 'text/csv', buffer: Buffer.from(csv) });
+  const wizard = page.getByTestId('import-wizard');
+  await expect(wizard.getByRole('radiogroup', { name: 'First separator' }).getByRole('radio', { name: 'Comma' })).toHaveAttribute('aria-checked', 'true');
+  await expect(wizard.getByRole('radiogroup', { name: 'Between remaining values' }).getByRole('radio', { name: 'Whitespace' })).toBeChecked();
+  await expect(wizard.getByTestId('import-wizard-preview').locator('th')).toHaveCount(5);
+  await expect(wizard.getByTestId('import-wizard-plot').locator('polyline')).toHaveCount(8);
+  const gaps = wizard.getByLabel('Break lines at sweep gaps');
+  await expect(gaps).toBeChecked();
+  await gaps.uncheck();
+  await expect(wizard.getByTestId('import-wizard-plot').locator('polyline')).toHaveCount(4);
+  await gaps.check();
+  await wizard.getByRole('button', { name: 'Add 4 traces' }).click();
+  const curves = page.locator('.trace-source .recharts-line-curve');
+  await expect(curves).toHaveCount(4);
+  await expect.poll(() => curves.evaluateAll(paths => paths.map(path => path.getAttribute('d')?.match(/M/g)?.length))).toEqual([2, 2, 2, 2]);
+  await page.getByRole('button', { name: 'Actions for multiband.csv' }).click();
+  await page.getByRole('menuitem', { name: 'Import settings…' }).click();
+  await expect(wizard.getByTestId('import-wizard-plot').locator('polyline')).toHaveCount(8);
+});
+
+test('edits both separators and remembers the chosen column layout', async ({ page }) => {
+  await page.goto('/app.html');
+  await page.getByTestId('app-open-input').setInputFiles({ name: 'channels.txt', mimeType: 'text/plain',
+    buffer: Buffer.from('Time (ms);Left (V),Right (V)\n0;1,2\n1;3,4\n2;5,6') });
+  const wizard = page.getByTestId('import-wizard');
+  const first = wizard.getByRole('radiogroup', { name: 'First separator' });
+  const values = wizard.getByRole('radiogroup', { name: 'Between remaining values' });
+  await expect(values.getByRole('radio')).toHaveCount(4);
+  await expect(first.getByRole('radio', { name: 'Semicolon' })).toHaveAttribute('aria-checked', 'true');
+  await expect(values.getByRole('radio', { name: 'Comma' })).toBeChecked();
+  await values.getByRole('radio', { name: 'Semicolon' }).click();
+  await expect(wizard.getByTestId('import-wizard-confirm')).toBeDisabled();
+  await first.getByRole('radio', { name: 'Tab' }).click();
+  await expect(values.getByRole('radio', { name: 'Tab' })).toBeChecked();
+  await first.getByRole('radio', { name: 'Semicolon' }).click();
+  await values.getByRole('radio', { name: 'Semicolon' }).press('Home');
+  await expect(wizard.getByTestId('import-wizard-preview').locator('tbody tr').first().locator('td')).toHaveText(['0', '1', '2']);
+  await wizard.getByRole('button', { name: 'Add 2 traces' }).click();
+  await page.getByRole('button', { name: 'Actions for channels.txt' }).click();
+  await page.getByRole('menuitem', { name: 'Import settings…' }).click();
+  await expect(values.getByRole('radio', { name: 'Comma' })).toBeChecked();
+  await expect(wizard.getByTestId('import-wizard-plot').locator('polyline')).toHaveCount(2);
 });

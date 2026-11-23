@@ -339,7 +339,12 @@ export function PopoverAt({ label, at, onClose, onEscape, keepAnchorVisible, chi
   }, [at]);
   useEffect(() => {
     const press = (e: PointerEvent) => { if (!popup.current?.contains(e.target as Node) && !(at instanceof HTMLElement && at.contains(e.target as Node))) onClose(); };
-    const key = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); (onEscape ?? onClose)(); } };
+    const key = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      // Let an inline EditableValue field cancel its own edit on the first Escape; the next Escape closes the popover.
+      if (e.target instanceof HTMLInputElement && e.target.classList.contains('ev-input')) return;
+      e.preventDefault(); e.stopPropagation(); (onEscape ?? onClose)();
+    };
     document.addEventListener('pointerdown', press, true); document.addEventListener('keydown', key, true);
     // An anchored popup follows its anchor; a pointer-placed one closes when the page moves under it.
     const move = (e: Event) => {

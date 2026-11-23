@@ -2,6 +2,7 @@ import { useId, useState } from 'react';
 import type { WizardConfig } from '../../types/file';
 import type { TraceDomain } from '../../types/trace';
 import { MessageBar, Segmented } from '../shared/Controls';
+import { CaretDownIcon } from '../shared/Icons';
 import { X_UNITS, Y_UNITS, unitLabel } from '../../domain/import-units';
 import type { ImportUnit } from '../../domain/import-units';
 import { hasCustomMultiplier, setDomain, setXUnit, setYUnit } from '../../domain/import-wizard';
@@ -11,6 +12,7 @@ const DELIMITERS: readonly { value: WizardDelimiter; label: string; ariaLabel: s
   { value: ',', label: ',', ariaLabel: 'Comma' },
   { value: ';', label: ';', ariaLabel: 'Semicolon' },
   { value: '\t', label: 'Tab', ariaLabel: 'Tab' },
+  { value: ' ', label: 'Space', ariaLabel: 'Whitespace' },
 ];
 const DOMAINS: readonly { value: TraceDomain; label: string }[] = [
   { value: 'frequency', label: 'Frequency' },
@@ -24,20 +26,31 @@ export interface WizardSettingsProps {
   maxSkipRows: number;
   detected: { domain: TraceDomain; confidence: 'high' | 'low' };
   onChange: (next: WizardConfig) => void;
-  onLayout: (delimiter: string, skipRows: number) => void;
+  onLayout: (delimiter: string, skipRows: number, valueDelimiter?: WizardDelimiter) => void;
 }
 
 export function WizardSettings({ config, maxSkipRows, detected, onChange, onLayout }: WizardSettingsProps) {
   const skipId = useId();
   const delimiter = DELIMITERS.some(item => item.value === config.delimiter) ? (config.delimiter as WizardDelimiter) : ',';
-  const setSkip = (value: number) => onLayout(config.delimiter, Math.max(0, Math.min(maxSkipRows, Math.floor(Number.isFinite(value) ? value : 0))));
+  const setSkip = (value: number) => onLayout(config.delimiter, Math.max(0, Math.min(maxSkipRows, Math.floor(Number.isFinite(value) ? value : 0))), config.valueDelimiter);
   return (
     <div className="iw-settings">
       <section className="iw-group" aria-label="Format">
         <h3 className="t-section">Format</h3>
         <div className="iw-line">
-          <span className="t-label t-muted">Delimiter</span>
-          <div className="iw-seg"><Segmented label="Delimiter" options={DELIMITERS} value={delimiter} onChange={value => onLayout(value, config.skipRows)} /></div>
+          <span className="t-label t-muted">First separator</span>
+          <div className="iw-seg"><Segmented label="First separator" options={DELIMITERS} value={delimiter} onChange={value => onLayout(value, config.skipRows, config.valueDelimiter === value ? undefined : config.valueDelimiter)} /></div>
+        </div>
+        <div className="iw-line">
+          <span className="t-label t-muted">Between remaining values</span>
+          <div className="iw-seg">
+            <Segmented
+              label="Between remaining values"
+              options={DELIMITERS}
+              value={config.valueDelimiter ?? delimiter}
+              onChange={value => onLayout(delimiter, config.skipRows, value === delimiter ? undefined : value)}
+            />
+          </div>
         </div>
         <div className="iw-line">
           <label className="t-label t-muted" htmlFor={skipId}>Skip rows</label>
@@ -52,6 +65,12 @@ export function WizardSettings({ config, maxSkipRows, detected, onChange, onLayo
           <div className="iw-seg"><Segmented label="Domain" options={DOMAINS} value={config.domain} onChange={value => onChange(setDomain(config, value))} /></div>
         </div>
         <span className="t-caption" data-testid="import-wizard-detected">Detected: {detected.domain} ({detected.confidence} confidence)</span>
+        {config.domain === 'frequency' && /^[kmg]?hz$/i.test(config.xUnit ?? 'Hz') && (
+          <label className="t-label">
+            <input type="checkbox" checked={config.breakSweepGaps ?? false}
+              onChange={event => onChange({ ...config, breakSweepGaps: event.target.checked })} /> Break lines at sweep gaps
+          </label>
+        )}
         {detected.confidence === 'low' && <MessageBar status="warning">No column name says time or frequency, so this is a guess from the numbers. Check it.</MessageBar>}
       </section>
 
@@ -117,7 +136,7 @@ function UnitField({ label, unit, units, custom: customMult, mult, onUnit, onCus
             {units.map(item => <option key={item.id} value={item.id}>{unitLabel(item)}</option>)}
             <option value={CUSTOM}>custom (×N)…</option>
           </select>
-          <span className="iw-caret" aria-hidden="true">▾</span>
+          <span className="iw-caret" aria-hidden="true"><CaretDownIcon /></span>
         </span>
       </div>
       {custom && (

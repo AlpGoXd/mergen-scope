@@ -421,6 +421,8 @@ const validControls = (v: unknown): boolean => object(v)
   );
 const validWizard = (v: unknown): boolean => object(v)
   && typeof v.delimiter === 'string'
+  && (v.valueDelimiter === undefined || typeof v.valueDelimiter === 'string' && [',', ';', '\t', ' '].includes(v.valueDelimiter))
+  && (v.breakSweepGaps === undefined || typeof v.breakSweepGaps === 'boolean')
   && Number.isInteger(v.skipRows)
   && Number(v.skipRows) >= 0
   && Number.isInteger(v.xCol)
@@ -853,7 +855,11 @@ export function linkLegacyPanes(snapshot: WorkspaceSnapshotV5): WorkspaceSnapsho
 /** Validate the package before using the permissive legacy normalizer. */
 export function migrateWorkspaceV5(raw: unknown): WorkspaceSnapshotV5 | null {
   const snapshot = migrateWorkspaceV5Body(raw);
-  return snapshot ? linkLegacyPanes(snapshot) : null;
+  if (!snapshot) return null;
+  const files = snapshot.files.map(file => file.wizardConfig?.delimiter === 'tinySA'
+    ? { ...file, wizardConfig: { ...file.wizardConfig, delimiter: ',', valueDelimiter: ' ' as const, breakSweepGaps: file.wizardConfig.xCol === 0 } }
+    : file);
+  return linkLegacyPanes({ ...snapshot, files });
 }
 
 function migrateWorkspaceV5Body(raw: unknown): WorkspaceSnapshotV5 | null {

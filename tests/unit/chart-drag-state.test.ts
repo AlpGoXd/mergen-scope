@@ -40,12 +40,27 @@ describe('chart drag state', () => {
     expect(dragReducer(state, { type: 'move', current: 20 })).toBe(state);
   });
 
-  it.each([starts[0], starts[1]])('ignores cancel during a $state.kind drag', ({ state }) => {
-    expect(dragReducer(state, { type: 'cancel' })).toBe(state);
+  it('ignores cancel during a pan drag', () => {
+    expect(dragReducer(starts[1].state, { type: 'cancel' })).toBe(starts[1].state);
   });
 
-  it.each([starts[2], starts[3]])('cancels a $state.kind drag', ({ state }) => {
+  it.each([starts[0], starts[2], starts[3]])('cancels a $state.kind drag', ({ state }) => {
     expect(dragReducer(state, { type: 'cancel' })).toBe(idleDragState);
+  });
+
+  it('tracks Y values and client Y during a box zoom drag', () => {
+    const started = dragReducer(idleDragState, { type: 'start-zoom', start: 10, startY: -20, startClientY: 100 });
+    expect(started).toEqual({
+      kind: 'zoom',
+      zoom: { start: 10, current: 10, startY: -20, currentY: -20, startClientY: 100, currentClientY: 100 },
+    });
+    const moved = dragReducer(started, { type: 'move', current: 30, currentY: -50, currentClientY: 160 });
+    expect(moved).toEqual({
+      kind: 'zoom',
+      zoom: { start: 10, current: 30, startY: -20, currentY: -50, startClientY: 100, currentClientY: 160 },
+    });
+    expect(dragReducer(moved, { type: 'move', current: 30, currentY: -50, currentClientY: 160 })).toBe(moved);
+    expect(dragReducer(moved, { type: 'cancel' })).toBe(idleDragState);
   });
 
   it.each([
@@ -89,8 +104,8 @@ describe('chart drag state', () => {
     expect(dragReducer(overlap, { type: 'cancel' })).toBe(idleDragState);
   });
 
-  it('ignores cancel while overlapping drags only affect the X domain', () => {
+  it('cancels overlapping drags when a zoom drag is active', () => {
     const overlap = dragReducer(starts[0].state, starts[1].event);
-    expect(dragReducer(overlap, { type: 'cancel' })).toBe(overlap);
+    expect(dragReducer(overlap, { type: 'cancel' })).toBe(idleDragState);
   });
 });

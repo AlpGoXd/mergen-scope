@@ -20,7 +20,7 @@ test('peak rows highlight triangles and place markers with bulk undo', async ({ 
   const first = card.getByTestId('peak-row-1');
   await first.getByRole('button', { name: '+ Marker' }).click();
   await expect(markers).toHaveCount(initial + 1);
-  await expect(first.getByRole('button', { name: '✓' })).toBeDisabled();
+  await expect(first.getByRole('button', { name: 'Already a marker here' })).toBeDisabled();
   await card.locator('.an-icon-btn[aria-label="Peak Table actions"]').click();
   await page.getByRole('menuitem', { name: 'Add all as markers' }).click();
   await expect(markers).toHaveCount(initial + await rows.count());

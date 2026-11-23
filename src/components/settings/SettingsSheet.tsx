@@ -9,8 +9,9 @@ import { useSheetFocus } from '../../hooks/use-sheet-focus';
 import { usePaneLimit } from '../../stores/pane-store';
 import { useThemePreference, useUiDispatch } from '../../stores/ui-store';
 import { FooterIcon } from '../layout/footer-icons';
+import { ChevronRightIcon, CloseIcon } from '../shared/Icons';
 import { applyAppSize } from './app-size';
-import { appNeutrals, appPreferencesKey, applyAppAppearance, defaultAppPreferences, readAppPreferences } from './app-preferences';
+import { appNeutralLabels, appNeutrals, appPreferencesKey, applyAppAppearance, defaultAppPreferences, readAppPreferences } from './app-preferences';
 import type { AppPreferences } from './app-preferences';
 
 export { defaultAppPreferences, readAppPreferences } from './app-preferences';
@@ -133,7 +134,7 @@ export function SettingsSheet({ onClose, onShowShortcuts, onAbout, onPreferences
           <h2 className="t-title" id="ss-title">App settings</h2>
           <p className="t-caption">All panes · saved in this browser</p>
         </div>
-        <button className="ss-close t-title" type="button" onClick={onClose} aria-label="Close settings">×</button>
+        <button className="ss-close t-title" type="button" onClick={onClose} aria-label="Close settings"><CloseIcon size={14} /></button>
       </header>
       <div className="ss-body">
         <section className="ss-section">
@@ -141,7 +142,7 @@ export function SettingsSheet({ onClose, onShowShortcuts, onAbout, onPreferences
           <SegmentRow label="Theme" value={preference} options={[['light', 'Light'], ['dark', 'Dark'], ['system', 'System']]} onChange={setPreference} />
           <SegmentRow label="Size" value={prefs.size} options={[['compact', 'Compact'], ['comfortable', 'Comfortable'], ['large', 'Large']]}
             onChange={size => update({ ...prefs, size })} caption="Compact 24 px controls, 26 px rows · Comfortable 28 / 30 · Large 32 / 34" />
-          <SegmentRow label="Neutral tint" value={prefs.neutral} options={appNeutrals.map(neutral => [neutral, neutral.charAt(0).toUpperCase() + neutral.slice(1)])} wrap
+          <SegmentRow label="Neutral tint" value={prefs.neutral} options={appNeutrals.map(neutral => [neutral, appNeutralLabels[neutral]])} wrap
             onChange={neutral => update({ ...prefs, neutral })} caption="Changes the greys of the whole app, not the trace or tool colours." />
           <SegmentRow label="Contrast" value={prefs.contrast} options={[['normal', 'Normal'], ['high', 'High']]}
             onChange={contrast => update({ ...prefs, contrast })} />
@@ -163,8 +164,8 @@ export function SettingsSheet({ onClose, onShowShortcuts, onAbout, onPreferences
           </SettingsRow>
         </section>
         <div className="ss-divider" aria-hidden="true" />
-        <button type="button" className="ss-link t-label" onClick={onShowShortcuts}>Keyboard shortcuts <span aria-hidden="true">›</span></button>
-        <button type="button" className="ss-link t-label" onClick={onAbout}>About <span aria-hidden="true">›</span></button>
+        <button type="button" className="ss-link t-label" onClick={onShowShortcuts}>Keyboard shortcuts <ChevronRightIcon /></button>
+        <button type="button" className="ss-link t-label" onClick={onAbout}>About <ChevronRightIcon /></button>
         <p className="ss-hint t-caption">Grid, markers, lines and Smith options are set per pane, with the sliders button in each pane header.</p>
       </div>
       <footer className="ss-foot">

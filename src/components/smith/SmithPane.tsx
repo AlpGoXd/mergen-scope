@@ -6,13 +6,13 @@ import type { Complex } from '../../types/touchstone';
 import { samplesPath, splitByBand } from '../../domain/smith/band';
 import { clipTraceToRange } from '../../domain/smith/range';
 import type { SmithBand } from '../../domain/smith/band';
-import { REAL_AXIS_PATH, UNIT_CIRCLE, buildGrid, circlePath, gridLevelForScale, gridThroughGamma, gridValues } from '../../domain/smith/grid';
+import { REAL_AXIS_PATH, UNIT_CIRCLE, buildGrid, circlePath, gridLevelForScale, gridValues, hoverGridsThroughGamma } from '../../domain/smith/grid';
 import { gammaAtFrequency, nearestSample, nearestTracePoint } from '../../domain/smith/hit';
-import { buildLabels } from '../../domain/smith/labels';
-import type { SmithLabelMode } from '../../domain/smith/labels';
+import { buildLabels, placeEndLabel } from '../../domain/smith/labels';
+import type { SmithLabelBox, SmithLabelMode } from '../../domain/smith/labels';
 import {
   SMITH_NO_VALUE, formatAdmittance, formatEquivalent, formatGammaPolar, formatImpedance, formatReturnLoss,
-  formatSmithFrequency, formatSmithFrequencyShort, formatVswr, smithReadout,
+  formatSmithFrequency, formatSmithFrequencyShort, formatReference, formatVswr, gammaHint, hoverImmittances, smithReadout,
 } from '../../domain/smith/readout';
 import type { SmithReadout } from '../../domain/smith/readout';
 import { directionChevrons, traceEnds } from '../../domain/smith/trace-decor';
@@ -23,6 +23,7 @@ import type { TraceSymbol as SymbolKind } from '../../domain/trace-palette';
 import { TraceSymbol } from '../shared/TraceSymbol';
 import './smith-pane.css';
 import { SmithRangeBar } from './SmithRangeBar';
+import { ChevronLeftIcon, ChevronRightIcon } from '../shared/Icons';
 import type { SmithRangeBarProps } from './SmithRangeBar';
 
 /** One reflection trace, already as Γ referred to `z0`. */
@@ -109,8 +110,6 @@ const HOVER_REACH_PX = 28;
 const CLICK_REACH_PX = 10;
 const MARKER_REACH_PX = 10;
 const CLICK_SLOP_PX = 4;
-const END_TEXT_DX = 7;
-const END_TEXT_DY = 8;
 const DEFAULT_READOUT: readonly SmithReadoutField[] = ['z', 'gamma', 'vswr'];
 const NO_MARKERS: readonly Marker[] = [];
 
@@ -223,22 +222,26 @@ export function SmithPane({
   })), [traces, band]);
 
   const labelZ0 = traces[0]?.z0 ?? 50;
-  // Start and end dots with their frequency text; a grid label under one of these gives way.
-  const endMarks = useMemo(() => (viewport && direction !== 'off' ? tracePaths.flatMap(({ trace, ends }) => {
-    if (!ends) return [];
-    return [{ sample: ends.start, hollow: true }, { sample: ends.end, hollow: false }].flatMap(({ sample, hollow }) => {
-      const at = gammaToPoint(sample.gamma, viewport);
-      if (!at) return [];
-      const text = formatSmithFrequencyShort(sample.frequencyHz);
-      return [{ key: `${trace.traceId}-${hollow ? 'start' : 'end'}`, trace, at, hollow, text, frequencyHz: sample.frequencyHz, textWidth: text.length * fontPx * 0.62 }];
-    });
-  }) : []), [viewport, direction, tracePaths, fontPx]);
-
   const gridLabels = useMemo(() => (viewport && labels !== 'off'
-    ? buildLabels({ grid: grid === 'y' ? 'y' : 'z', values, viewport, mode: labels, z0: labelZ0, fontPx }).filter(label => !endMarks.some(mark =>
-      label.x + label.width / 2 > mark.at.x - 4 && label.x - label.width / 2 < mark.at.x + END_TEXT_DX + mark.textWidth
-      && label.y + label.height / 2 > mark.at.y - END_TEXT_DY - fontPx && label.y - label.height / 2 < mark.at.y + 4))
-    : []), [viewport, labels, grid, values, labelZ0, fontPx, endMarks]);
+    ? buildLabels({ grid: grid === 'y' ? 'y' : 'z', values, viewport, mode: labels, z0: labelZ0, fontPx })
+    : []), [viewport, labels, grid, values, labelZ0, fontPx]);
+
+  // Start and end dots with their frequency text, placed to avoid grid labels.
+  const endMarks = useMemo(() => {
+    if (!viewport || direction === 'off') return [];
+    const obstacles: SmithLabelBox[] = [...gridLabels];
+    return tracePaths.flatMap(({ trace, ends }) => {
+      if (!ends) return [];
+      return [{ sample: ends.start, hollow: true }, { sample: ends.end, hollow: false }].flatMap(({ sample, hollow }) => {
+        const at = gammaToPoint(sample.gamma, viewport);
+        if (!at) return [];
+        const text = formatSmithFrequencyShort(sample.frequencyHz);
+        const label = placeEndLabel(at, text, fontPx, viewport, obstacles);
+        obstacles.push(label);
+        return [{ key: `${trace.traceId}-${hollow ? 'start' : 'end'}`, trace, at, hollow, text, frequencyHz: sample.frequencyHz, label }];
+      });
+    });
+  }, [viewport, direction, tracePaths, fontPx, gridLabels]);
 
   const chevrons = useMemo(() => (viewport && direction === 'chevrons'
     ? traces.map(trace => ({ trace, items: (band ? clipTraceToRange(trace.samples, { startHz: band.minHz, stopHz: band.maxHz }) : splitByBand(trace.samples).map(run => run.samples)).flatMap(run => directionChevrons(run, viewport)) }))
@@ -373,8 +376,8 @@ export function SmithPane({
   const hoverTrace = hover ? traces.find(trace => trace.traceId === hover.traceId) ?? null : null;
   const hoverPoint = hover && viewport ? gammaToPoint(hover.gamma, viewport) : null;
   const hoverValues = hover && hoverTrace ? smithReadout(hover.gamma, hoverTrace.z0, hover.frequencyHz) : null;
-  const hoverGrid = hover ? gridThroughGamma(hover.gamma, grid === 'y' ? 'y' : 'z') : null;
-  const showY = readout.includes('y') && !readout.includes('z');
+  const hoverGrids = hover ? hoverGridsThroughGamma(hover.gamma, grid) : [];
+  const hoverKinds = hoverImmittances(grid, readout);
 
   const transform = viewport
     ? `translate(${width / 2 - viewport.center.re * viewport.scale} ${height / 2 + viewport.center.im * viewport.scale}) scale(${viewport.scale})`
@@ -436,10 +439,14 @@ export function SmithPane({
               )}
               {showGrid && <path className="smith-axis" d={REAL_AXIS_PATH} />}
               <path className={`smith-rim${hasActive ? ' is-active' : ''}`} d={unitPath} />
-              {hoverGrid && (
+              {hoverGrids.length > 0 && (
                 <g className="smith-hover-grid" data-testid="smith-hover-grid">
-                  <path d={hoverGrid.circle.path} />
-                  {hoverGrid.arc && <path d={hoverGrid.arc.path} />}
+                  {hoverGrids.map(({ kind, through }) => (
+                    <g key={kind} className={`smith-hover-grid-${kind}`} data-testid={`smith-hover-grid-${kind}`}>
+                      <path d={through.circle.path} />
+                      {through.arc && <path d={through.arc.path} />}
+                    </g>
+                  ))}
                 </g>
               )}
               {tracePaths.map(({ trace, runs }) => (
@@ -476,7 +483,7 @@ export function SmithPane({
                 {mark.hollow
                   ? <circle className="smith-end-start" cx={mark.at.x} cy={mark.at.y} r={3} stroke={mark.trace.color} />
                   : <circle cx={mark.at.x} cy={mark.at.y} r={3} fill={mark.trace.color} />}
-                <text className="smith-label" x={mark.at.x + END_TEXT_DX} y={mark.at.y - END_TEXT_DY}>{mark.text}</text>
+                <text className="smith-label" x={mark.label.x} y={mark.label.y} textAnchor="middle" dominantBaseline="central">{mark.text}</text>
               </g>
             ))}
 
@@ -523,8 +530,9 @@ export function SmithPane({
           <div className="smith-card t-readout" data-testid="smith-hover-card" style={{ left: cardLeft, top: cardTop, transform: cardShift }}>
             <div className="smith-card-title"><i className="smith-swatch" style={{ background: hoverTrace.color }} />{hoverTrace.shortName ?? hoverTrace.name}</div>
             <div>{formatSmithFrequency(hoverValues.frequencyHz)}</div>
-            <div><span className="smith-key">{showY ? 'Y' : 'Z'}</span>{showY ? formatAdmittance(hoverValues.admittance) : formatImpedance(hoverValues.impedance)}</div>
-            <div><span className="smith-key">{'Γ'}</span>{formatGammaPolar(hoverValues.magnitude, hoverValues.angleDeg)}</div>
+            {hoverKinds.map(kind => <div key={kind} data-field={kind}><span className="smith-key">{kind === 'y' ? 'Y' : 'Z'}</span>{kind === 'y' ? formatAdmittance(hoverValues.admittance) : formatImpedance(hoverValues.impedance)}</div>)}
+            <div title={gammaHint(hoverValues.z0)}><span className="smith-key">{'Γ'}</span>{formatGammaPolar(hoverValues.magnitude, hoverValues.angleDeg)}</div>
+            <div data-field="z0"><span className="smith-key">{'Z₀'}</span>{formatReference(hoverValues.z0)}</div>
           </div>
         )}
       </div>
@@ -532,8 +540,8 @@ export function SmithPane({
       {rangeBar && traces.length > 0 && <SmithRangeBar {...rangeBar} />}
       {readout.length > 0 && (
         <div className="smith-strip t-readout" data-testid="smith-readout">
-          <button type="button" className="smith-step" aria-label="Previous marker" title="Previous marker" disabled={!onSelectMarker || paneMarkers.length < 2} onClick={() => stepMarker(-1)}>{'‹'}</button>
-          <button type="button" className="smith-step" aria-label="Next marker" title="Next marker" disabled={!onSelectMarker || paneMarkers.length < 2} onClick={() => stepMarker(1)}>{'›'}</button>
+          <button type="button" className="smith-step" aria-label="Previous marker" title="Previous marker" disabled={!onSelectMarker || paneMarkers.length < 2} onClick={() => stepMarker(-1)}><ChevronLeftIcon /></button>
+          <button type="button" className="smith-step" aria-label="Next marker" title="Next marker" disabled={!onSelectMarker || paneMarkers.length < 2} onClick={() => stepMarker(1)}><ChevronRightIcon /></button>
           {stripValues ? (
             <div className="smith-fields">
               <span className="smith-field" data-field="marker">
@@ -555,7 +563,8 @@ export function SmithPane({
                 <>
                   {readout.includes('z') && <span className="smith-field" data-field="z"><span className="smith-key">Z</span>{formatImpedance(stripValues.values.impedance)}</span>}
                   {readout.includes('y') && <span className="smith-field" data-field="y"><span className="smith-key">Y</span>{formatAdmittance(stripValues.values.admittance)}</span>}
-                  {readout.includes('gamma') && <span className="smith-field" data-field="gamma"><span className="smith-key">{'Γ'}</span>{formatGammaPolar(stripValues.values.magnitude, stripValues.values.angleDeg)}</span>}
+                  {readout.includes('gamma') && <span className="smith-field" data-field="gamma" title={gammaHint(stripValues.values.z0)}><span className="smith-key">{'Γ'}</span>{formatGammaPolar(stripValues.values.magnitude, stripValues.values.angleDeg)}</span>}
+                  {readout.includes('gamma') && <span className="smith-field" data-field="z0"><span className="smith-key">{'Z₀'}</span>{formatReference(stripValues.values.z0)}</span>}
                   {readout.includes('z') && stripValues.values.equivalent.kind === 'value' && <span className="smith-field" data-field="equivalent"><span className="smith-key">{stripValues.values.equivalent.value.kind}</span>{formatEquivalent(stripValues.values.equivalent)}</span>}
                   {readout.includes('return-loss') && <span className="smith-field" data-field="return-loss"><span className="smith-key">RL</span>{formatReturnLoss(stripValues.values.returnLossDb)}</span>}
                   {readout.includes('vswr') && <span className="smith-field" data-field="vswr"><span className="smith-key">VSWR</span>{formatVswr(stripValues.values.vswr)}</span>}
