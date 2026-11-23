@@ -6,7 +6,6 @@ What is planned for Mergen Scope. Done work is not listed here; see the release 
 
 The empty-pane picker already shows Polar and Spectrogram as greyed tiles ("later" or "needs data").
 
-- [ ] Log axes (log X and log Y on charts)
 - [ ] Polar pane (parked on purpose; registry entry exists, renderer not built)
 - [ ] Spectrogram / waterfall pane, with its "spectrum series" data kind (parked on purpose)
 - [ ] IQ spectrum view
@@ -23,7 +22,7 @@ The empty-pane picker already shows Polar and Spectrogram as greyed tiles ("late
 
 ## Markers, tables and analysis
 
-- [ ] Marker tags avoid each other in narrow panes (touches the fragile `ChartPane.tsx`: small steps, e2e after each)
+- [ ] Marker tags avoid each other in narrow panes (touches `ChartPane.tsx`: run the chart e2e specs after the change)
 - [ ] Marker right-click menu: Add Δ, Move to peak, Delete (Help must list it once it works)
 - [ ] Expression card in Analysis
 - [ ] Analysis card reorder

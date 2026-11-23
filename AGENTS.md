@@ -42,7 +42,7 @@ Don't run the full suites repeatedly "to be sure"; CI runs everything on pushes 
 
 - TypeScript strict: no `any`, no new `!` non-null assertions, `import type` for type-only imports, relative imports only.
 - `src/domain/` and `src/types/` stay React-free. Math goes in `domain/`, not in components.
-- `src/components/chart/ChartPane.tsx` is fragile: change it only when the task says so, in small steps, running the chart e2e specs after each one.
+- `src/components/chart/ChartPane.tsx` is no longer treated as fragile (2026-11-23). Run the chart e2e specs that cover what you touched, like any other change.
 - Workspace files are v5. A change to the saved shape needs a migration in `workspace-migrate-v5.ts` and a test in `tests/unit/workspace-v5.test.ts`.
 - Parsers read untrusted files: keep their input validation and bounds checks.
 
