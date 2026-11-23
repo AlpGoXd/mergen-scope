@@ -11,6 +11,7 @@ const DELIMITERS: readonly { value: WizardDelimiter; label: string; ariaLabel: s
   { value: ',', label: ',', ariaLabel: 'Comma' },
   { value: ';', label: ';', ariaLabel: 'Semicolon' },
   { value: '\t', label: 'Tab', ariaLabel: 'Tab' },
+  { value: 'tinySA', label: 'tinySA', ariaLabel: 'tinySA packed traces' },
 ];
 const DOMAINS: readonly { value: TraceDomain; label: string }[] = [
   { value: 'frequency', label: 'Frequency' },

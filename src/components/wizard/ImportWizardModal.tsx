@@ -10,6 +10,7 @@ import { useTraceState } from '../../stores/trace-store';
 import { useMarkerState } from '../../stores/marker-store';
 import type { OpenChoice } from '../../types/open-files-plan';
 import type { WizardConfig } from '../../types/file';
+import { isPackedFrequencySweep } from '../../domain/sweep-bands';
 import { detectTabular } from '../../domain/parsers/tabular-detect';
 import {
   columnDisplayName, columnRole, hasColumnNames, importableYCols, listNames, matchPriorColumns, previewCaption,
@@ -81,7 +82,8 @@ function WizardDialog({ entry, position, total, others, queue, priorFile }: Wiza
   const numericTable = useMemo(() => readNumericTable(layout.lines, config.delimiter, config.skipRows, layout.headers.length), [layout, config.delimiter, config.skipRows]);
   // yCols is a fresh array each render; compare it by content.
   const yColsKey = yCols.join(',');
-  const plot = useMemo(() => overviewPlot(numericTable, config.xCol, yCols, PREVIEW_ROWS), [numericTable, config.xCol, yColsKey]);
+  const splitBands = isPackedFrequencySweep(config);
+  const plot = useMemo(() => overviewPlot(numericTable, config.xCol, yCols, PREVIEW_ROWS, undefined, splitBands), [numericTable, config.xCol, yColsKey, splitBands]);
 
   // Import settings on an open file: which existing trace each Y column continues, and which traces go away.
   const prior = useMemo(() => {

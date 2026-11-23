@@ -5,9 +5,10 @@
 // ============================================================================
 
 import type { ColumnIdentity, WizardConfig } from "../types/file.ts";
+import { sweepBands } from './sweep-bands';
 import type { TraceDomain } from "../types/trace.ts";
 import { baseXUnit, findXUnit, findYUnit } from "./import-units.ts";
-import { columnHeaders, contentLines, numericColumns } from "./parsers/tabular-detect.ts";
+import { columnHeaders, contentLines, numericColumns, splitCells } from "./parsers/tabular-detect.ts";
 import { normalizeTraceData } from "./parsers/helpers.ts";
 import { decimateMinMax } from "./trace-math.ts";
 import type { DataPoint } from "../types/trace.ts";
@@ -150,7 +151,7 @@ export function readNumericTable(lines: readonly string[], delimiter: string, sk
   for (let row = 0; row < count; row++) {
     const line = lines[start + row * stride];
     if (line === undefined) continue;
-    const cells = line.split(delimiter);
+    const cells = splitCells(line, delimiter);
     for (let col = 0; col < columns.length; col++) {
       const cell = cells[col]?.trim();
       const column = columns[col];
@@ -163,8 +164,8 @@ export function readNumericTable(lines: readonly string[], delimiter: string, sk
 }
 
 export interface OverviewPlot {
-  /** One polyline per Y column in 0–1 plot coordinates (y = 0 at the top), on one shared Y scale. */
-  readonly series: readonly (readonly { x: number; y: number }[])[];
+  /** One polyline per measured band, grouped by Y column, on a shared normalized scale. */
+  readonly series: readonly (readonly (readonly { x: number; y: number }[])[])[];
   /** Where the rows shown in the table sit along X (0–1), or null without data. */
   readonly band: { readonly from: number; readonly to: number } | null;
 }
@@ -173,7 +174,7 @@ export interface OverviewPlot {
  * The whole file as the importer will read it (sorted by X, duplicate X → last value), reduced to the
  * lowest and highest point per bucket so spikes and the overall shape both survive.
  */
-export function overviewPlot(table: NumericTable, xCol: number, yCols: readonly number[], tableRows: number, buckets = PLOT_BUCKETS): OverviewPlot {
+export function overviewPlot(table: NumericTable, xCol: number, yCols: readonly number[], tableRows: number, buckets = PLOT_BUCKETS, splitBands = false): OverviewPlot {
   const xs = table.columns[xCol];
   if (!xs) return { series: yCols.map(() => []), band: null };
   const data = yCols.map((col) => {
@@ -189,9 +190,9 @@ export function overviewPlot(table: NumericTable, xCol: number, yCols: readonly 
     if (last && last.freq > x1) x1 = last.freq;
   }
   if (!Number.isFinite(x0) || !Number.isFinite(x1)) return { series: yCols.map(() => []), band: null };
-  const reduced = data.map((line) => decimateMinMax(line, x0, x1, buckets));
+  const reduced = data.map(line => (splitBands ? sweepBands(line) : [line]).map(run => decimateMinMax(run, x0, x1, buckets)));
   let y0 = Infinity; let y1 = -Infinity;
-  for (const line of reduced) for (const point of line) { if (point.amp < y0) y0 = point.amp; if (point.amp > y1) y1 = point.amp; }
+  for (const bands of reduced) for (const line of bands) for (const point of line) { if (point.amp < y0) y0 = point.amp; if (point.amp > y1) y1 = point.amp; }
   const sx = (x: number) => (x1 > x0 ? (x - x0) / (x1 - x0) : 0.5);
   const sy = (y: number) => (y1 > y0 ? 1 - (y - y0) / (y1 - y0) : 0.5);
 
@@ -205,7 +206,7 @@ export function overviewPlot(table: NumericTable, xCol: number, yCols: readonly 
     if (x > to) to = x;
   }
   const band = Number.isFinite(from) && Number.isFinite(to) ? { from: sx(from), to: sx(to) } : null;
-  return { series: reduced.map((line) => line.map((point) => ({ x: sx(point.freq), y: sy(point.amp) }))), band };
+  return { series: reduced.map(bands => bands.map(line => line.map(point => ({ x: sx(point.freq), y: sy(point.amp) })))), band };
 }
 
 /** "all 9 998 rows" or "every 4th of 2 000 000 rows". */

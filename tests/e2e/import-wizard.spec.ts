@@ -95,3 +95,23 @@ test('Import settings follows how the file was read, not its extension', async (
   await expect(page.getByRole('menuitem', { name: 'Info', exact: true })).toBeVisible();
   await expect(page.getByRole('menuitem', { name: 'Import settings…' })).toHaveCount(0);
 });
+
+test('tinySA shows all four traces in two bands before and after import', async ({ page }) => {
+  const csv = Array.from({ length: 450 }, (_, i) => {
+    const hz = (i < 225 ? 880000000 : 925000000) + (i % 225) * 156250;
+    return [hz, [-110, -105, -100, -95].map(level => level + i % 5).join('  ')].join(',');
+  }).join('\n');
+  await page.goto('/app.html');
+  await page.getByTestId('app-open-input').setInputFiles({ name: 'multiband.csv', mimeType: 'text/csv', buffer: Buffer.from(csv) });
+  const wizard = page.getByTestId('import-wizard');
+  await expect(wizard.getByRole('radio', { name: 'tinySA packed traces' })).toHaveAttribute('aria-checked', 'true');
+  await expect(wizard.getByTestId('import-wizard-preview').locator('th')).toHaveCount(5);
+  await expect(wizard.getByTestId('import-wizard-plot').locator('polyline')).toHaveCount(8);
+  await wizard.getByRole('button', { name: 'Add 4 traces' }).click();
+  const curves = page.locator('.trace-source .recharts-line-curve');
+  await expect(curves).toHaveCount(4);
+  await expect.poll(() => curves.evaluateAll(paths => paths.map(path => path.getAttribute('d')?.match(/M/g)?.length))).toEqual([2, 2, 2, 2]);
+  await page.getByRole('button', { name: 'Actions for multiband.csv' }).click();
+  await page.getByRole('menuitem', { name: 'Import settings…' }).click();
+  await expect(wizard.getByTestId('import-wizard-plot').locator('polyline')).toHaveCount(8);
+});

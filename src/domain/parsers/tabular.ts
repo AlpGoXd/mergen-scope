@@ -7,12 +7,13 @@
 import type { DataPoint, RawTrace, TraceDomain } from "../../types/trace.ts";
 import type { ParsedFile, WizardConfig } from "../../types/file.ts";
 import type { ScalarDisplayTrace } from "../../types/display.ts";
+import { isPackedFrequencySweep } from '../sweep-bands';
 import { makeTrace } from "../trace-model.ts";
 import { buildScalarDisplayTraceFromSeriesDataset, buildSeriesDatasetFromTrace } from "../dataset-builders.ts";
 import { incrementFileCounter } from "./rs-dat.ts";
 import { normalizeTraceData } from "./helpers.ts";
 import { baseXUnit, detectXUnit, findXUnit, storedYUnit } from "../import-units.ts";
-import { isNumber } from "./tabular-detect.ts";
+import { detectTabular, hasPackedSweep, isNumber, splitCells } from "./tabular-detect.ts";
 
 // ---------------------------------------------------------------------------
 // Wizard preview summary
@@ -32,7 +33,7 @@ export function summarizeTabularPreview(lines: readonly string[], config: Pick<W
   let xMin = Infinity;
   let xMax = -Infinity;
   for (let i = start; i < lines.length; i++) {
-    const cell = lines[i]?.split(config.delimiter)[config.xCol];
+    const cell = splitCells(lines[i] ?? "", config.delimiter)[config.xCol];
     if (cell === undefined || cell.trim() === "") continue;
     const x = Number(cell);
     if (!Number.isFinite(x)) continue;
@@ -56,11 +57,12 @@ export function parseTabularFile(
   const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
 
   let config = explicitConfig;
+  if (!config && hasPackedSweep(lines)) config = detectTabular(text).config;
   let sourceHeaders: string[] | undefined;
   const ext = String(fileName ?? "").split(".").pop()?.toLowerCase() ?? "";
   const isDat = ext === "dat";
 
-  const splitRow = (line: string, delimiter: string) => line.split(delimiter).map((s) => s.trim());
+  const splitRow = splitCells;
   const isNumericRow = (parts: readonly string[]) => (
     parts.length >= 2
     && parts.every((part) => part !== "" && Number.isFinite(Number(part)))
@@ -173,7 +175,7 @@ export function parseTabularFile(
 
   // Use the physical source header rather than possibly stale wizard labels.
   const firstDataRow = Math.max(0, Math.floor(Number.isFinite(config.skipRows) ? config.skipRows : 0));
-  const headerRow = firstDataRow > 0 ? lines[firstDataRow - 1]?.split(config.delimiter).map(cell => cell.trim()) : undefined;
+  const headerRow = firstDataRow > 0 ? splitCells(lines[firstDataRow - 1] ?? '', config.delimiter) : undefined;
   const physicalHeaders = headerRow?.some(cell => cell !== '' && !Number.isFinite(Number(cell))) ? headerRow : undefined;
   if (physicalHeaders) sourceHeaders = physicalHeaders;
   const traces: { trace: RawTrace; column: number }[] = [];
@@ -190,7 +192,7 @@ export function parseTabularFile(
   for (let i = firstDataRow; i < lines.length; i++) {
     const line = lines[i];
     if (line === undefined) continue;
-    const row = line.split(config.delimiter);
+    const row = splitCells(line, config.delimiter);
     const xCell = row[config.xCol];
     if (xCell === undefined || !isNumber(xCell)) continue;
     const xVal = Number(xCell) * (config.xMult || 1);
@@ -211,6 +213,7 @@ export function parseTabularFile(
       ...makeTrace(`${fileName} `, fileName, String(name), incrementFileCounter()),
       domain: config.domain,
       family: datasetFamily,
+      ...(isPackedFrequencySweep(config) ? { parameters: { sweepFormat: "tinySA" } } : {}),
       dn: `${fileName} ${name.toLowerCase()}`,
       units: {
         x: xUnit,

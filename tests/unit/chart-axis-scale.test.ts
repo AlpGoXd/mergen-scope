@@ -1,3 +1,7 @@
+import { computeOccupiedBandwidth, computeChannelPower } from '../../src/domain/analysis/channel-power';
+import { placeMarker } from '../../src/domain/markers';
+import { getVisibleTraceData } from '../../src/domain/trace-math';
+import { sweepBands, sweepBreaks } from '../../src/domain/sweep-bands';
 import { expect, it } from 'vitest';
 import { chartAxisData, logTickLabel, logTicks, logXReason, logYReason, suggestLog, unwrapPhase } from '../../src/domain/chart/axis-scale';
 import { panXDomain, pixelToAxisValue, wheelAxisDomain } from '../../src/domain/chart/plot-coords';
@@ -43,4 +47,31 @@ it('suggests log across three positive decades and explains incompatible axes', 
   expect(logYReason([makeTestTrace({ units: { x: 'Hz', y: 's' }, parameters: { metric: 'group-delay' } })])).toBe("Group delay can't be shown on a log axis");
   expect(logYReason([makeTestTrace({ units: { x: 's', y: 'V' } })])).toBeUndefined();
   expect(logYReason([makeTestTrace({ units: { x: 'Hz', y: null } })])).toBe('Y needs a linear unit');
+});
+
+it('breaks multiband spectra at measured endpoints, including zoom windows wholly inside the gap', () => {
+  const points = [880, 881, 882, 913, 915, 917].map(freq => ({ freq, amp: 1 }));
+  const trace = makeTestTrace({ name: 'sweep', data: points, parameters: { sweepFormat: 'tinySA' }, units: { x: 'Hz', y: 'V' } });
+  for (const y of ['linear', 'log'] as const) {
+    const settings = { x: 'linear' as const, y, phase: 'wrapped' as const };
+    const rows = chartAxisData([trace], settings, null).byTrace.get('sweep') ?? [];
+    expect(rows.map(row => row.sweep)).toEqual([1, 1, 1, undefined, 1, 1, 1]);
+    const gap = { left: 890, right: 910 };
+    expect(chartAxisData([trace], settings, gap).byTrace.get('sweep')).toEqual([]);
+    expect(getVisibleTraceData(trace, gap)).toEqual([]);
+  }
+  expect(sweepBands([1, 10, 100, 1000, 10000].map(freq => ({ freq, amp: 0 })))).toHaveLength(1);
+  expect(sweepBands([0, 1, 2, 12, 22, 32].map(freq => ({ freq, amp: 0 })))).toHaveLength(1);
+  expect(placeMarker({ ...trace, interpolation: 'linear' }, 890)).toMatchObject({ freq: 882, interpolated: false });
+  const ordinary = makeTestTrace({ ...trace, parameters: null });
+  expect(getVisibleTraceData(ordinary, { left: 890, right: 910 })).toHaveLength(2);
+  const time = makeTestTrace({ ...ordinary, domain: 'time', family: 'waveform', units: { x: 's', y: 'V' } });
+  expect(getVisibleTraceData(time, { left: 890, right: 910 })).toHaveLength(2);
+});
+
+it('integrates measured bandwidth without adding power from the unswept interval', () => {
+  const trace = makeTestTrace({ parameters: { sweepFormat: 'tinySA' }, data: [0, 1, 2, 100, 101, 102].map(freq => ({ freq, amp: 0 })) });
+  const breaks = sweepBreaks(trace);
+  expect(computeChannelPower(trace.data, 'dBm/Hz', breaks).powerDbm).toBeCloseTo(10 * Math.log10(4));
+  expect(computeOccupiedBandwidth(trace.data, 50, 'dBm', breaks)).toMatchObject({ lower: 1, upper: 101 });
 });

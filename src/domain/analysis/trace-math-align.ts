@@ -1,3 +1,4 @@
+import { nearestBand, traceBands } from '../sweep-bands';
 import type { Trace, DataPoint } from '../../types/trace';
 import type { BinaryOp } from '../trace-ops';
 import { isUniformDataPoints, isUniformScalarPoints, resolveComplex, resolveValue } from '../interpolation';
@@ -47,7 +48,13 @@ function sampler(trace: Trace, fill: MathFill): (x: number) => number {
   }
   // Unsupported network projections and missing complex samples use their scalar data.
   const uniform = isUniformDataPoints(trace.data);
-  return x => resolveValue(trace.data, x, fill, uniform).y;
+  const bands = traceBands(trace);
+  if (bands.length === 1) return x => resolveValue(trace.data, x, fill, uniform).y;
+  return x => {
+    const band = nearestBand(bands, x);
+    if (x < (band[0]?.freq ?? Infinity) || x > (band.at(-1)?.freq ?? -Infinity)) return NaN;
+    return resolveValue(band, x, fill, uniform).y;
+  };
 }
 
 export function alignAndCompute(a: Trace, b: Trace, operation: BinaryOp, points: MathPoints | undefined, fill: MathFill | undefined): { data: DataPoint[] } | { reason: string } {

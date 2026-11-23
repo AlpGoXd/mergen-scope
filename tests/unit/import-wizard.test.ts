@@ -189,13 +189,13 @@ describe('whole-file preview plot', () => {
     expect(table.total).toBe(20000);
     expect(table.stride).toBe(1);
     expect(plotCaption(table)).toBe('Plot: all 20 000 rows');
-    expect(plot.series[0]!.length).toBeLessThanOrEqual(2 * 600 + 4);
-    expect(plot.series[0]!.length).toBeGreaterThan(600);
+    expect(plot.series[0]?.[0]?.length).toBeLessThanOrEqual(2 * 600 + 4);
+    expect(plot.series[0]?.[0]?.length).toBeGreaterThan(600);
   });
 
   it('keeps a single-sample spike far beyond the first rows', () => {
     const { plot } = plotOf(csv(20000, (i) => (i === 15321 ? 50 : 0)));
-    const line = plot.series[0]!;
+    const line = plot.series[0]?.[0] ?? [];
     // The spike sets the top of the shared scale (y = 0) and sits about 77 % along X.
     const top = line.find((point) => point.y === 0);
     expect(top?.x).toBeCloseTo(15321 / 19999, 3);
@@ -211,11 +211,50 @@ describe('whole-file preview plot', () => {
     const { table, plot } = plotOf(csv(2000, (i) => i), 500);
     expect(table.stride).toBe(4);
     expect(plotCaption(table)).toBe('Plot: every 4th of 2 000 rows');
-    expect(plot.series[0]!.at(-1)?.x).toBe(1);
+    expect(plot.series[0]?.[0]?.at(-1)?.x).toBe(1);
   });
 
   it('plots unsorted X the way the importer will read it', () => {
     const { plot } = plotOf('x,y\n3,30\n1,10\n2,20\n');
-    expect(plot.series[0]).toEqual([{ x: 0, y: 1 }, { x: 0.5, y: 0.5 }, { x: 1, y: 0 }]);
+    expect(plot.series[0]?.[0]).toEqual([{ x: 0, y: 1 }, { x: 0.5, y: 0.5 }, { x: 1, y: 0 }]);
+  });
+});
+
+describe('tinySA packed multi-trace sweeps', () => {
+  const text = [
+    '880000000,-114.313 -114.813  -105.250  -104.313',
+    '880156250,-112.313\t-116.813 -104.813 -104.813',
+    '880312500,-1 -2 -3 -4',
+    '925000000,-5 -6 -7 -8',
+    '925156250,-9 -10 -11 -12',
+    '925312500,-13 -14 -15 -16',
+  ].join('\r\n');
+
+  it('uses the signature with any filename, keeps channel identities and reopens selected channels', () => {
+    const config = parseForImport(text, 'renamed.txt').suggestedConfig;
+    if (!config) throw Error('Missing wizard config');
+    expect(config).toMatchObject({ delimiter: 'tinySA', skipRows: 0, domain: 'frequency', xUnit: 'Hz', yUnit: 'dBm', yCols: [1, 2, 3, 4] });
+    const parsed = parseTabularFile(text, 'renamed.txt', { ...config, yCols: [2, 4] });
+    expect(parsed.columnIdentities).toEqual([{ index: 2 }, { index: 4 }]);
+    expect(parsed.traces.map(t => [t.units, t.data.length, t.data[0]?.amp, t.data.at(-1)?.amp])).toEqual([
+      [{ x: 'Hz', y: 'dBm' }, 6, -114.813, -14],
+      [{ x: 'Hz', y: 'dBm' }, 6, -104.313, -16],
+    ]);
+    expect(parseTabularFile(text, 'renamed.txt', null).traces).toHaveLength(4);
+    const layout = wizardLayout(text, config);
+    const table = readNumericTable(layout.lines, config.delimiter, 0, layout.headers.length);
+    expect(overviewPlot(table, 0, config.yCols, 8, 600, true).series.map(bands => bands.map(run => run.length)))
+      .toEqual([[3, 3], [3, 3], [3, 3], [3, 3]]);
+  });
+
+  it('keeps blanks and invalid readings out of their channel without shifting later values', () => {
+    const parsed = parseTabularFile(text + '\n925468750,-17 NaN -19 -20\n925625000,', 'scope.csv', detectTabular(text).config);
+    expect(parsed.traces.map(t => t.data.at(-1)?.amp)).toEqual([-17, -14, -19, -20]);
+  });
+
+  it('keeps ordinary CSV, TSV and text fields with embedded spaces on their existing paths', () => {
+    expect(detectTabular('Time (ms),Measured voltage (V)\n0,1\n1,2').config.delimiter).toBe(',');
+    expect(detectTabular('0\t1\t2\n1\t2\t3').config.delimiter).toBe('\t');
+    expect(detectTabular('0,run one\n1,run two').config.delimiter).toBe(',');
   });
 });

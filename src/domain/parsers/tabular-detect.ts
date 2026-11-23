@@ -9,7 +9,7 @@ import type { TraceDomain } from "../../types/trace.ts";
 import type { WizardConfig } from "../../types/file.ts";
 import { baseXUnit, detectXUnit, detectYUnit, findXUnit, findYUnit } from "../import-units.ts";
 
-export type WizardDelimiter = "," | ";" | "\t";
+export type WizardDelimiter = "," | ";" | "\t" | "tinySA";
 export const WIZARD_DELIMITERS: readonly WizardDelimiter[] = [",", ";", "\t"];
 
 /** Lines that hold content; the wizard counts rows over these, like parseTabularFile. */
@@ -18,6 +18,12 @@ export function contentLines(text: string): string[] {
 }
 
 export function splitCells(line: string, delimiter: string): string[] {
+  if (delimiter === "tinySA") {
+    const fields = line.split(",");
+    if (fields.length !== 2) return [];
+    const levels = fields[1]?.trim();
+    return [fields[0]?.trim() ?? "", ...(levels ? levels.split(/\s+/) : [])];
+  }
   return line.split(delimiter).map((cell) => cell.trim());
 }
 
@@ -40,8 +46,24 @@ function isDataRow(cells: readonly string[]): boolean {
 
 const SAMPLE_LINES = 60;
 
+/** Headerless tinySA multitrace records have one frequency, a comma, then a list of levels. */
+export function hasPackedSweep(lines: readonly string[]): boolean {
+  const sample = lines.slice(0, SAMPLE_LINES);
+  const widths = new Map<number, number>();
+  let matching = 0;
+  for (const line of sample) {
+    const cells = splitCells(line, "tinySA");
+    if (cells.length < 3 || !cells.every(isNumber) || Number(cells[0]) < 0) continue;
+    const count = (widths.get(cells.length) ?? 0) + 1;
+    widths.set(cells.length, count);
+    matching = Math.max(matching, count);
+  }
+  return matching >= 2 && matching >= sample.length * 0.8;
+}
+
 /** The delimiter that turns the most sample lines into numeric data rows; ties go to the most columns. */
 export function detectDelimiter(lines: readonly string[]): WizardDelimiter {
+  if (hasPackedSweep(lines)) return "tinySA";
   const sample = lines.slice(0, SAMPLE_LINES);
   let best: WizardDelimiter = ",";
   let bestScore = -1;
@@ -74,6 +96,9 @@ export function detectSkipRows(lines: readonly string[], delimiter: string): num
 /** Column names from the row just above the data; without a text row there, columns are numbered. */
 export function columnHeaders(lines: readonly string[], delimiter: string, skipRows: number): string[] {
   const width = Math.max(0, ...lines.slice(skipRows, skipRows + 20).map((line) => splitCells(line, delimiter).length));
+  if (delimiter === "tinySA" && skipRows === 0) {
+    return Array.from({ length: width }, (_, i) => i === 0 ? "Frequency (Hz)" : `Trace ${i}`);
+  }
   const row = skipRows > 0 ? lines[skipRows - 1] : undefined;
   const cells = row !== undefined ? splitCells(row, delimiter) : [];
   const named = cells.some((cell) => cell !== "" && !isNumber(cell));
@@ -128,7 +153,7 @@ export function detectTabular(text: string): TabularDetection {
 
   // X: the first numeric column named like time/frequency, else the first numeric column.
   let xCol = numeric[0] ?? 0;
-  let domain: TraceDomain | null = null;
+  let domain: TraceDomain | null = delimiter === "tinySA" ? "frequency" : null;
   if (hasNames) {
     for (const col of numeric) {
       const found = domainFromHeader(headers[col] ?? "");
@@ -145,7 +170,7 @@ export function detectTabular(text: string): TabularDetection {
   const xUnit = findXUnit(domain, xFound?.domain === domain ? xFound.unit : undefined) ?? { id: baseXUnit(domain), factor: 1, base: baseXUnit(domain), name: baseXUnit(domain) };
   const yFound = hasNames ? yCols.map((col) => detectYUnit(headers[col] ?? "")).find((unit) => unit !== null) : undefined;
   // Time-domain captures are almost always voltages; frequency data keeps "no unit" unless named.
-  const yUnit = findYUnit(yFound ?? (domain === "time" ? "V" : "")) ?? { id: "", factor: 1, base: "", name: "no unit" };
+  const yUnit = findYUnit(yFound ?? (delimiter === "tinySA" ? "dBm" : domain === "time" ? "V" : "")) ?? { id: "", factor: 1, base: "", name: "no unit" };
 
   return {
     domainConfidence,

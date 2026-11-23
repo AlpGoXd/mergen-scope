@@ -3,6 +3,7 @@ import type { DataPoint, Trace } from '../../types/trace';
 import { formatEngineeringValue } from '../format';
 import { makeNiceTicks, NICE_TICK_COUNT } from '../trace-math';
 import { isLogUnit } from '../units';
+import { traceBands } from '../sweep-bands';
 import { mergePaneData } from '../pane-data';
 import type { MergedPaneRow } from '../pane-data';
 
@@ -76,18 +77,31 @@ export function chartAxisData(traces: Trace[], settings: ChartAxesSettings, rang
   let min = Infinity;
   let max = -Infinity;
   let omitted = 0;
-  if (settings.y === 'log') for (const trace of displayTraces) {
-    const rows = mergePaneData([trace], range, false);
-    for (const row of rows) {
-      const value = row[trace.name];
-      if (value !== undefined && value > 0) {
-        min = Math.min(min, value);
-        max = Math.max(max, value);
-      } else {
-        delete row[trace.name];
+  const logY = settings.y === 'log';
+  for (const trace of displayTraces) {
+    const bands = traceBands(trace);
+    if (!logY && bands.length === 1) continue;
+    const rows: MergedPaneRow[] = [];
+    for (const band of bands) {
+      const samples = mergePaneData([{ name: trace.name, data: band }], range, !logY);
+      const previous = rows.at(-1);
+      const first = samples[0];
+      if (previous && first) {
+        const gap = previous.freq + (first.freq - previous.freq) / 2;
+        rows.push({ freq: gap, fs: gap });
+      }
+      for (const row of samples) {
+        if (logY) {
+          const value = row[trace.name];
+          if (value !== undefined && value > 0) {
+            min = Math.min(min, value);
+            max = Math.max(max, value);
+          } else delete row[trace.name];
+        }
+        rows.push(row);
       }
     }
-    omitted += trace.data.filter(point => (!range || point.freq >= range.left && point.freq <= range.right) && !logSample(point, settings.x, settings.y)).length;
+    if (logY) omitted += trace.data.filter(point => (!range || point.freq >= range.left && point.freq <= range.right) && !logSample(point, settings.x, settings.y)).length;
     byTrace.set(trace.name, rows);
   }
   return { displayTraces, byTrace, omitted, logYFit: positiveDomain(min, max) ?? { min: 1, max: 10 } };

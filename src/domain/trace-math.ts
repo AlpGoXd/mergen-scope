@@ -6,6 +6,7 @@
 // ============================================================================
 
 import type { DataPoint, Trace } from "../types/trace.ts";
+import { traceBands } from './sweep-bands';
 import type { ZoomWindow } from "../types/marker.ts";
 import type { YDomain } from "../types/pane.ts";
 
@@ -125,8 +126,12 @@ export function getVisibleTraceData(
   if (!zoom || !Number.isFinite(zoom.left) || !Number.isFinite(zoom.right) || zoom.right <= zoom.left) {
     return data;
   }
-  if (!data.length) return [];
+  if (!tr || !data.length) return [];
+  const bands = traceBands(tr);
+  return bands.length === 1 ? visibleBandData(data, zoom) : bands.flatMap(band => visibleBandData(band, zoom));
+}
 
+function visibleBandData(data: readonly DataPoint[], zoom: ZoomWindow): DataPoint[] {
   const left = zoom.left;
   const right = zoom.right;
 

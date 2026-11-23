@@ -124,7 +124,7 @@ export function ChartPanePlot({
           data={logRows.get(trace.name)}
           dot={settings.showSampleDots && traceSymbol(trace.id) === null && plotView
             && sampleDotsVisible(visibleSampleCount(trace.data, plotView.x), plotView.plot.width)
-            ? <MeasuredSampleDot data={trace.data} /> : false} activeDot={false} isAnimationActive={false} connectNulls={!logY} strokeWidth={exportView?.paper ? ptToCssPx(appearance?.paperLine ?? PAPER_LINE_PT) : colorAssignments.get(trace.id) ? traceWidth(colorAssignments.get(trace.id) as NonNullable<ReturnType<typeof colorAssignments.get>>) : 1.5} />
+            ? <MeasuredSampleDot data={trace.data} /> : false} activeDot={false} isAnimationActive={false} connectNulls={!logRows.has(trace.name)} strokeWidth={exportView?.paper ? ptToCssPx(appearance?.paperLine ?? PAPER_LINE_PT) : colorAssignments.get(trace.id) ? traceWidth(colorAssignments.get(trace.id) as NonNullable<ReturnType<typeof colorAssignments.get>>) : 1.5} />
       ))}
       {crosshairX != null && <ReferenceLine x={crosshairX} stroke="color-mix(in oklch, var(--accent) 60%, var(--plot))" strokeDasharray="4 4" strokeWidth={1} />}
       {ghostCrosshairX != null && <ReferenceLine className="x-ghost-crosshair" x={ghostCrosshairX} stroke="color-mix(in oklch, var(--accent) 60%, var(--plot))" strokeDasharray="4 4" strokeWidth={1} />}

@@ -1,3 +1,4 @@
+import { traceBands } from '../../../domain/sweep-bands';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { createPortal } from 'react-dom';
@@ -434,7 +435,11 @@ function buildLatex(job: Job, info: ExportPlotInfo | null, state: StageSnapshot,
     x: { min: xMin, max: xMax, label: info.xLabel, unit: info.xUnit, scale: options ? info.autoX : undefined, ticks: info.xTicks, logarithmic: info.xScale === 'log' },
     y: { min: yMin, max: yMax, label: info.yLabel, scale: options ? info.autoY : undefined, ticks: info.yTicks, logarithmic: info.yScale === 'log' },
     grid: options?.grid, legend, caption: options?.include.title, linePt: options?.paperLine, textPt: options?.paperText,
-    traces: displayTraces.map(trace => ({ name: named(trace), color: cssColorToRgb(state.color(trace), host), symbol: state.symbol(trace.id), data: trace.data })),
+    traces: displayTraces.map(trace => {
+      const bands = traceBands(trace);
+      const runs = bands.length > 1 ? bands.map(band => band.filter(p => p.freq >= xMin && p.freq <= xMax)).filter(band => band.length) : undefined;
+      return { name: named(trace), color: cssColorToRgb(state.color(trace), host), symbol: state.symbol(trace.id), data: trace.data, runs };
+    }),
     markers: settings.showMarkers && options?.include.markerTags !== false ? state.markers.flatMap((marker, index) => {
       const at = traceIndex.get(marker.trace);
       if (at === undefined) return [];
