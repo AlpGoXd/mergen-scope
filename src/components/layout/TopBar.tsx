@@ -59,13 +59,13 @@ export function TopBar({ embed = false, onOpen, onExport }: TopBarProps = {}) {
   // so a wrapped second line of groups does not move them. The divider before the groups stretches with the bar
   // (by layout, not by measuring), so it spans both lines when the groups wrap, with the same inset above and
   // below that centres a 20 px divider on one line. (Clear workspace… lives in the Files ⋯ menu.)
-  const brandStyle = { display: 'inline-flex', alignItems: 'center', gap: '0.4em', whiteSpace: 'nowrap', fontSize: 'var(--font-title)', fontWeight: 'var(--fw-semibold)', marginRight: 8, color: 'inherit', textDecoration: 'none' } as const;
-  const brand = <><BrandMark /><span>Mergen <span style={{ color: 'var(--accent)' }}>Scope</span></span></>;
+  const brandStyle = { display: 'inline-flex', alignItems: 'center', gap: '0.4em', whiteSpace: 'nowrap', fontSize: 'var(--font-title)', fontWeight: 'var(--fw-semibold)', marginRight: 8, color: 'var(--text)', textDecoration: 'none' } as const;
+  const brand = <><BrandMark /><span>Mergen <span className="topbar-brand-scope">Scope</span></span></>;
   const cluster = { display: 'flex', alignItems: 'center', alignSelf: 'flex-start', gap: 4, height: 'var(--top-row-height)', flex: 'none' } as const;
   return <div style={{ minHeight: 'var(--top-row-height)', display: 'flex', alignItems: 'stretch', gap: 4, padding: '0 8px', background: 'var(--panel)', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
     <style>{'@media (max-width: 1279px) { .topbar-action-label { display: none; } } .ui-btn.topbar-panel-toggle { height: var(--control-height); min-height: 0; gap: 5px; }'}</style>
     <div style={cluster}>
-    {embed ? <a href="/" target="_top" data-testid="topbar-brand-link" style={brandStyle}>{brand}</a> : <span style={brandStyle}>{brand}</span>}
+    {embed ? <a className="topbar-brand" href="/" target="_top" data-testid="topbar-brand-link" style={brandStyle}>{brand}</a> : <span className="topbar-brand" style={brandStyle}>{brand}</span>}
     {/* Embed mode keeps the brand and the tool groups only: the panels and file actions do nothing in the landing frame. */}
     {!embed && <>
     <Btn variant="chip" tone="left" active={ui.showSidebar} className="topbar-panel-toggle" title="Toggle left panel" onClick={() => toggle('showSidebar', ui.showSidebar)}>{panelIcon('M3 4h18v16H3zM9 4v16')}Left</Btn>

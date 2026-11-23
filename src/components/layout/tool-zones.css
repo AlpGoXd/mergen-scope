@@ -86,7 +86,7 @@
 .split-btn__divider { flex: none; width: 1px; margin: 3px 0; background: var(--border); }
 .split-btn__more { appearance: none; border: 0; border-radius: 0; background: transparent; color: inherit; font: inherit; padding: 0 7px; cursor: pointer; }
 .split-btn > .split-btn__main:focus-visible, .split-btn > .split-btn__more:focus-visible { outline-offset: -2px; }
-.split-btn.is-open .split-btn__more { background: var(--slate-fill); color: var(--slate-ink); }
+.split-btn.is-open .split-btn__more { background: var(--on-fill); color: var(--on-ink); }
 .split-btn.is-armed, .split-btn.is-armed:hover { background: oklch(0.50 0.14 var(--armed-hue)); border-color: oklch(0.50 0.14 var(--armed-hue)); color: oklch(1 0 0); }
 .split-btn.is-armed .split-btn__divider { background: oklch(1 0 0 / 0.4); }
 .theme-dark .split-btn.is-armed, .theme-dark .split-btn.is-armed:hover { background: oklch(0.78 0.12 var(--armed-hue)); border-color: oklch(0.78 0.12 var(--armed-hue)); color: oklch(0.15 0 0); }

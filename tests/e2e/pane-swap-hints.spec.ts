@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { resolve } from 'path';
 import { acceptImport } from './import-helpers';
+import { addAnalysis } from './analysis-helpers';
 
 const fixture = resolve(process.cwd(), 'test files/cascade_ip3_-12dBm.DAT');
 const frequencyCsv = 'Frequency (Hz),Magnitude (dBm)\n100,1\n200,2\n300,3\n';
@@ -90,19 +91,16 @@ test('trace and file drags describe each destination and refuse incompatible dro
   await expect(frequency).toContainText('P1');
   const transfer = await page.evaluateHandle(() => new DataTransfer());
   await frequency.dispatchEvent('dragstart', { dataTransfer: transfer });
-  await pane(page, 1).dispatchEvent('dragover', { dataTransfer: transfer });
   await expect(pane(page, 1).locator('.pane-drag-overlay--already')).toHaveText('Already in Pane 1');
-  await pane(page, 1).dispatchEvent('dragleave', { dataTransfer: transfer });
-  await expect(pane(page, 1).locator('.pane-drag-overlay')).toHaveCount(0);
-  await pane(page, 2).dispatchEvent('dragover', { dataTransfer: transfer });
   await expect(pane(page, 2).locator('.pane-drag-overlay--move')).toHaveText('Move to Pane 2');
+  await expect(pane(page, 3).locator('.pane-drag-overlay--refused')).toHaveText('Hz trace, this pane is s');
   await frequency.dispatchEvent('dragend', { dataTransfer: transfer });
   await expect(pane(page, 2).locator('.pane-drag-overlay')).toHaveCount(0);
 
   const timeTransfer = await page.evaluateHandle(() => new DataTransfer());
   await time.dispatchEvent('dragstart', { dataTransfer: timeTransfer });
   await pane(page, 2).dispatchEvent('dragover', { dataTransfer: timeTransfer });
-  await expect(pane(page, 2).locator('.pane-drag-overlay--refused')).toHaveText("It's a time capture and Pane 2 shows frequency. Drop it on a time pane, an empty pane or + New pane.");
+  await expect(pane(page, 2).locator('.pane-drag-overlay--refused')).toHaveText('s trace, this pane is Hz');
   await expect(page.getByRole('alert')).toHaveCount(0);
   await pane(page, 2).dispatchEvent('drop', { dataTransfer: timeTransfer });
   await time.dispatchEvent('dragend', { dataTransfer: timeTransfer });
@@ -115,4 +113,58 @@ test('trace and file drags describe each destination and refuse incompatible dro
   await expect(pane(page, 1).locator('.pane-drag-overlay--open')).toHaveText('Open in Pane 1');
   await pane(page, 1).dispatchEvent('dragleave', { dataTransfer: fileTransfer });
   await expect(pane(page, 1).locator('.pane-drag-overlay')).toHaveCount(0);
+});
+
+test('a trace row moves between matching panes, keeps visibility, and can be added or undone', async ({ page }) => {
+  await threePanes(page);
+  await dropCsv(page, 2, 'frequency.csv', frequencyCsv);
+  await dropCsv(page, 3, 'time.csv', timeCsv);
+  const trace = page.locator('[data-testid^="trace-row-"]').first();
+  const badge = trace.locator('.lp-pane-trigger__face');
+  const handle = trace.locator('.lp-trace__handle');
+  const checkbox = trace.getByRole('checkbox');
+
+  await expect(badge).toHaveText('P1');
+  await expect(handle).toHaveCSS('opacity', '0');
+  await trace.locator('.lp-name').hover();
+  await expect(handle).toHaveCSS('opacity', '1');
+  const glyph = await handle.evaluate(element => {
+    const style = getComputedStyle(element, '::before');
+    return { content: style.content, fontSize: style.fontSize };
+  });
+  expect(glyph).toEqual({ content: '"⠿"', fontSize: '11px' });
+  await checkbox.hover();
+  await expect(handle).toHaveCSS('opacity', '0');
+  await checkbox.uncheck();
+  await trace.focus();
+  await expect(handle).toHaveCSS('opacity', '1');
+  await handle.dragTo(pane(page, 2).locator('.ph-title'));
+  await expect(badge).toHaveText('P2');
+  await expect(checkbox).not.toBeChecked();
+
+  await trace.locator('.lp-name').dragTo(pane(page, 3).locator('.ph-title'));
+  await expect(badge).toHaveText('P2');
+  await page.keyboard.press('Control+z');
+  await expect(badge).toHaveText('P1');
+  await expect(checkbox).not.toBeChecked();
+
+  await page.keyboard.down('Alt');
+  await handle.dragTo(pane(page, 2).locator('.ph-title'));
+  await page.keyboard.up('Alt');
+  await expect(badge).toHaveText('P1P2');
+  await expect(checkbox).not.toBeChecked();
+});
+
+test('dragging a created trace leaves its parent in place', async ({ page }) => {
+  await threePanes(page);
+  await dropCsv(page, 2, 'frequency.csv', frequencyCsv);
+  const parent = page.locator('[data-testid^="trace-row-"]').first();
+  await parent.locator('.lp-row').click({ position: { x: 2, y: 8 } });
+  const card = await addAnalysis(page, 'Smooth');
+  await card.getByRole('button', { name: 'Create trace' }).click();
+  const created = page.locator('[data-testid^="trace-row-"]').filter({ has: page.locator('.lp-trace__fx') });
+  await expect(created.locator('.lp-pane-trigger__face')).toHaveText('P1');
+  await created.locator('.lp-trace__handle').dragTo(pane(page, 2).locator('.ph-title'));
+  await expect(created.locator('.lp-pane-trigger__face')).toHaveText('P2');
+  await expect(parent.locator('.lp-pane-trigger__face')).toHaveText('P1');
 });

@@ -53,7 +53,9 @@ export function computeInstance(instance: AnalysisInstance, inputs: AnalysisInpu
   if (!primary && instance.toolId !== 'line-crossings' && instance.toolId !== 'ip3') return { reason: 'Select a source trace.' };
   if (instance.source.secondTraceId && !second) return { reason: 'Select a second source trace.' };
   const selected = instance.toolId === 'line-crossings' ? inputs.traces : [primary, second].filter((trace): trace is Trace => trace !== undefined);
-  const resolved: AnalysisInputs = { ...inputs, traces: selected, lineId: instance.source.lineId };
+  // IP3 role markers (F1, F2, IM3L, IM3U) belong to one trace each, so a card only reads the markers on its own source.
+  const markers = instance.toolId === 'ip3' && primary && inputs.markers ? inputs.markers.filter(marker => marker.trace === primary.name) : inputs.markers;
+  const resolved: AnalysisInputs = { ...inputs, traces: selected, lineId: instance.source.lineId, ...(markers ? { markers } : {}) };
   if (primary) { const capability = tool.appliesTo(primary); if (!capability.allowed) return { reason: capability.reason }; }
   const capability = tool.appliesToInputs?.(resolved, validated.values);
   if (capability && !capability.allowed) return { reason: capability.reason };

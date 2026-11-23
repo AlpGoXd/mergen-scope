@@ -55,6 +55,27 @@ test('Copy image puts a 2× PNG of the pane on the clipboard, from the pane menu
   await expect.poll(clipboardImageWidth).toBeGreaterThan(0);
 });
 
+test('Copy image uses the last theme chosen in the Export dialog', async ({ page, context }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  await openS21(page);
+  await page.getByRole('button', { name: /^Export/ }).click();
+  const dialog = page.getByRole('dialog', { name: /Export/ });
+  const theme = dialog.getByRole('group', { name: 'Theme' });
+  await expect(theme.getByRole('button', { name: 'Print', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await theme.getByRole('button', { name: 'Dark', exact: true }).click();
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
+  await openS21(page);
+  await page.getByTestId('chart-plot-pane-1').click({ position: { x: 5, y: 5 } });
+  await page.keyboard.press('Control+Shift+C');
+  await expect(page.locator('.ui-toast')).toContainText('Pane 1 copied as image');
+  const fill = await page.evaluate(markup => {
+    const svg = new DOMParser().parseFromString(markup, 'image/svg+xml').documentElement;
+    return Array.from(svg.children).find(element => element.localName === 'rect')?.getAttribute('fill');
+  }, await lastSvg(page));
+  expect(fill).toMatch(/^oklch\(0\.17(?:0)? 0\.016 255\)$/);
+});
+
 test('Download image saves {file}_{pane}_{date}.png at 2× pane size, and at 1050 px for 1 IEEE column at 300 dpi', async ({ page }) => {
   await openS21(page);
   const width = await paneWidth(page, 1);

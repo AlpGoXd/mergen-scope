@@ -1,12 +1,13 @@
-import "@testing-library/jest-dom/vitest";
 import { afterEach, vi } from "vitest";
-import { cleanup } from "@testing-library/react";
 
-afterEach(() => {
-  cleanup();
-});
-
+// Tests run in node by default; a test file that needs the DOM opts in with "// @vitest-environment jsdom".
 if (typeof window !== "undefined") {
+  await import("@testing-library/jest-dom/vitest");
+  const { cleanup } = await import("@testing-library/react");
+  afterEach(() => {
+    cleanup();
+  });
+
   window.matchMedia ??= vi.fn().mockImplementation((query: string) => ({
     matches: false,
     media: query,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { orderTracesForList } from '../../src/domain/trace-order';
+import { groupTracesForList, orderTracesForList } from '../../src/domain/trace-order';
 import { createDerivedTrace } from '../../src/domain/trace-model';
 import { makeTestTrace } from './helpers';
 
@@ -15,5 +15,17 @@ describe('trace list order', () => {
   });
   it('preserves order without derived traces', () => {
     expect(orderTracesForList([b, a])).toEqual([b, a]);
+  });
+  it('preserves manual order and places newly created traces with their source', () => {
+    const c = makeTestTrace({ id: 'c' });
+    expect(orderTracesForList([a, b, child, nested, c], ['missing', 'b', 'a']).map(trace => trace.id))
+      .toEqual(['b', 'a', 'child', 'nested', 'c']);
+    expect(orderTracesForList([a, b, child], ['child', 'b', 'a']).map(trace => trace.id))
+      .toEqual(['b', 'a', 'child']);
+  });
+  it('regroups split saved orders and includes descendants in the root block', () => {
+    const groups = groupTracesForList([a, b, child, math, nested, orphan], ['a', 'b', 'math', 'nested', 'child']);
+    expect(groups.map(group => group.traces.map(trace => trace.id)))
+      .toEqual([['a', 'math', 'child', 'nested'], ['b'], ['orphan']]);
   });
 });

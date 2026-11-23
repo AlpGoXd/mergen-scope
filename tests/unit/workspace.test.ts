@@ -1,10 +1,14 @@
-import { describe, expect, it } from "vitest";
+// @vitest-environment jsdom
+import { describe, expect, it, vi } from "vitest";
+import { act, renderHook } from "@testing-library/react";
 import { readFileSync } from "node:fs";
-import { buildPanes } from "../../src/domain/pane-math";
-import { buildExportPackage, buildSnapshot, restoreSnapshot } from "../../src/domain/workspace-serialize";
+import { buildScalarDisplayTraceFromSeriesDataset, buildSeriesDatasetFromTrace } from "../../src/domain/dataset-builders";
+import { useWorkspaceV5 } from "../../src/hooks/use-workspace-v5";
+import { StoreRoot } from "../../src/stores/StoreRoot";
+import type { WorkspaceSnapshotV5 } from "../../src/types/workspace-v5";
 import { makeTestTrace } from "./helpers";
 import { defaultPaneState, paneReducer } from '../../src/stores/pane-store';
-import { initialWorkspaceState, snapshotFromWorkspace, workspaceFromSnapshot, workspaceReducer } from '../../src/stores/aggregate-workspace-store';
+import { initialWorkspaceState, snapshotFromWorkspace, traceView, useAggregateWorkspace, workspaceFromSnapshot, workspaceReducer } from '../../src/stores/aggregate-workspace-store';
 import { migrateWorkspaceV5 } from '../../src/domain/workspace-migrate-v5';
 
 it('round trips saved layout sizes and defaults old layouts', () => {
@@ -23,121 +27,164 @@ it('new panes copy outside choice but reset the Smith range', () => {
   expect(paneReducer(state, { type: 'SET_PANE_COUNT', payload: 2 }).panes[1]?.settings.smith).toMatchObject({ range: null, outside: 'faint' });
 });
 
-describe("workspace serialization", () => {
-  it("round-trips a minimal static workspace snapshot", () => {
-    const trace = makeTestTrace();
-    const panes = buildPanes(1).map(pane => ({ ...pane, settings: { ...pane.settings, smith: { ...pane.settings.smith, range: { startHz: 2, stopHz: 5 }, outside: 'faint' as const } } }));
-    const snapshot = buildSnapshot({
-      files: [{
-        id: "file-1",
-        fileName: "fixture.dat",
-        meta: {},
-        traces: [trace],
-        format: "rs-dat",
-      }],
-      datasets: [],
-      displayTraces: [],
-      derivedTraces: [],
-      vis: { [trace.name]: true },
-      paneMode: 1,
-      panes,
-      paneRenderModes: {},
-      activePaneId: "pane-1",
-      traceAssignments: { [trace.name]: "pane-1" },
-      paneActiveTraceMap: { "pane-1": trace.name },
-      xZoomState: { zoomAll: true, sharedZoom: null, paneXZooms: {} },
-      yZoomState: { paneYZooms: {} },
-      ui: {
-        showSidebar: true,
-        showDetailedFiles: true,
-        showRightPanel: false,
-        showDots: false,
-        showMeta: true,
-        showTouchstoneControls: false,
-        showMarkers: true,
-        showMarkerTools: true,
-        showPaneTools: true,
-        showSearchTools: true,
-        showLineTools: true,
-        showViewTools: true,
-        theme: "dark",
-        searchDirection: "right",
-        newMarkerArmed: false,
-        markerTrace: "__auto__",
-        selectedMkrIdx: -1,
-        dRef: null,
-        refMode: null,
-        selectedRefLineId: null,
-        traceOpsOpenSections: { offset: false, scale: false, smoothing: false, subtract: false },
-        noiseFilter: "gaussian",
-        noiseSource: null,
-        ip3Gain: "",
-        dtTrace: null,
-        traceColors: {},
-        traceInterpolations: {},
-      },
-      markers: [{ trace: trace.name, requestedFreq: 10, freq: 10, amp: 10, type: "normal", label: null, refIdx: null, interpolated: false }],
-      refLines: [{ id: 1, type: "v", value: 10, paneIds: ["pane-1"], label: "V1" }],
-      savedNoise: [],
-      savedIP3: [],
-      analysisOpenState: {},
-      selectedTraceName: trace.name,
+async function downloadWorkspace(snapshot: WorkspaceSnapshotV5): Promise<string> {
+  const { result, unmount } = renderHook(useWorkspaceV5, { wrapper: StoreRoot });
+  let download: Blob | undefined;
+  const createUrl = vi.spyOn(URL, 'createObjectURL').mockImplementation((blob) => {
+    download = blob;
+    return 'blob:workspace-test';
+  });
+  const revokeUrl = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
+  const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+  try {
+    act(() => result.current.restore(snapshot));
+    result.current.downloadWorkspace();
+    if (!download) throw new Error('Expected a workspace download');
+    const blob = download;
+    return await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = () => reject(reader.error);
+      reader.readAsText(blob);
     });
+  } finally {
+    click.mockRestore();
+    revokeUrl.mockRestore();
+    createUrl.mockRestore();
+    unmount();
+  }
+}
 
-    const pkg = buildExportPackage(snapshot, "test");
-    const restored = restoreSnapshot(JSON.stringify(pkg));
-
-    expect(pkg.kind).toBe("mergen-scope-workspace");
-    expect(restored?.files).toEqual(snapshot.files);
-    expect(restored?.files[0]?.traces).toEqual(snapshot.files[0]?.traces);
-    expect(restored?.datasets).toEqual(snapshot.datasets);
-    expect(restored?.displayTraces).toEqual(snapshot.displayTraces);
-    expect(restored?.markers).toHaveLength(1);
-    expect(restored?.refLines).toHaveLength(1);
-    expect(restored?.traceAssignments[trace.name]).toBe("pane-1");
-    expect(restored?.panes[0]?.settings.smith.labels).toBe('normalised');
-    expect(restored?.panes[0]?.settings.smith).toMatchObject({ range: { startHz: 2, stopHz: 5 }, outside: 'faint' });
+describe("workspace serialization", () => {
+  it.each([
+    ['legacy grid disabled', { showGrid: false }, undefined, false],
+    ['explicit major grid enabled', { showGrid: false }, { gridMajor: true }, true],
+    ['grid defaults', {}, undefined, true],
+  ])('restores %s via the v4 loader', (_label, legacy, settings, expected) => {
+    const snapshot = { version: 4, files: [], panes: [{ id: 'pane-1', ...legacy, settings }] };
+    const migrated = migrateWorkspaceV5(JSON.parse(JSON.stringify(snapshot)));
+    if (!migrated) throw new Error('Expected a migrated v4 workspace');
+    const restored = workspaceFromSnapshot(initialWorkspaceState(), migrated, true);
+    expect(restored?.panes.panes[0]?.settings.gridMajor).toBe(expected);
+    expect(restored?.panes.panes[0]).not.toHaveProperty('showGrid');
   });
 
-  it("restores duplicated v4 data and writes a substantially smaller snapshot", () => {
-    const trace = { ...makeTestTrace(), data: Array.from({ length: 500 }, (_, i) => ({ freq: i * 1000, amp: i / 7 })) };
-    const legacy = restoreSnapshot(JSON.stringify({ files: [{ id: "file-1", fileName: "sample.dat", meta: {}, traces: [trace] }] }));
-    expect(legacy).not.toBeNull();
-    if (!legacy) return;
-    const file = legacy.files[0];
-    expect(file).toBeDefined();
-    if (!file) return;
-    const duplicatedFile = { ...file, datasets: legacy.datasets, displayTraces: legacy.displayTraces };
-    const duplicated = { ...legacy, files: [duplicatedFile] };
-    const oldJson = JSON.stringify({ kind: "mergen-scope-workspace", snapshot: duplicated }, null, 2);
-    const oldRestored = restoreSnapshot(oldJson);
-    expect(oldRestored?.files).toEqual(duplicated.files);
-    expect(oldRestored?.datasets).toEqual(duplicated.datasets);
-    expect(oldRestored?.displayTraces).toEqual(duplicated.displayTraces);
+  it("round-trips a minimal static workspace snapshot", async () => {
+    const trace = makeTestTrace();
+    const state = initialWorkspaceState();
+    const pane = state.panes.panes[0];
+    if (!pane) throw new Error('Expected a pane');
+    const smith = { ...pane.settings.smith, range: { startHz: 2, stopHz: 5 }, outside: 'faint' as const };
+    const snapshot = snapshotFromWorkspace({
+      ...state,
+      files: {
+        ...state.files,
+        files: [{ id: 'file-1', fileName: 'fixture.dat', meta: {}, traces: [trace], format: 'rs-dat' }],
+      },
+      traces: { ...state.traces, vis: { [trace.name]: true } },
+      panes: {
+        ...state.panes,
+        panes: [{ ...pane, settings: { ...pane.settings, smith } }],
+        tracePaneMap: { [trace.name]: [pane.id] },
+        paneActiveTraceMap: { [pane.id]: trace.name },
+      },
+      markers: {
+        ...state.markers,
+        markers: [{ id: 'marker-1', trace: trace.name, requestedFreq: 10, freq: 10, amp: 10, type: 'normal', label: null, refId: null, interpolated: false }],
+      },
+      lines: {
+        ...state.lines,
+        refLines: [{ id: 1, type: 'v', value: 10, paneIds: [pane.id], label: 'V1' }],
+      },
+      ui: { ...state.ui, selectedTraceName: trace.name },
+    });
+    if (!snapshot) throw new Error('Expected a saved workspace');
 
-    const json = JSON.stringify(buildExportPackage(duplicated, "test"));
-    const restored = restoreSnapshot(json);
-    expect(restored?.files).toEqual(duplicated.files);
-    expect(restored?.datasets).toEqual(duplicated.datasets);
-    expect(restored?.displayTraces).toEqual(duplicated.displayTraces);
+    const pkg = JSON.parse(await downloadWorkspace(snapshot));
+    const reloaded = migrateWorkspaceV5(pkg);
+    if (!reloaded) throw new Error('Expected a migrated workspace download');
+    const restored = workspaceFromSnapshot(initialWorkspaceState(), reloaded);
+    if (!restored) throw new Error('Expected a restored workspace');
+
+    const view = traceView(restored.files, restored.traces);
+    expect(pkg.kind).toBe("mergen-scope-workspace");
+    expect(restored.files.files).toEqual(snapshot.files);
+    expect(restored.files.files[0]?.traces).toEqual(snapshot.files[0]?.traces);
+    expect(view.allDatasets).toEqual(snapshot.datasets);
+    expect(view.allDisplayTraces).toEqual(snapshot.displayTraces);
+    expect(restored.markers.markers).toHaveLength(1);
+    expect(restored.lines.refLines).toHaveLength(1);
+    expect(restored.panes.tracePaneMap[trace.name]).toEqual(["pane-1"]);
+    expect(restored.panes.panes[0]?.settings.smith.labels).toBe('normalised');
+    expect(restored.panes.panes[0]?.settings.smith).toMatchObject({ range: { startHz: 2, stopHz: 5 }, outside: 'faint' });
+  });
+
+  it("restores duplicated v4 data and writes a substantially smaller snapshot", async () => {
+    const trace = { ...makeTestTrace(), data: Array.from({ length: 500 }, (_, i) => ({ freq: i * 1000, amp: i / 7 })) };
+    const dataset = buildSeriesDatasetFromTrace(trace, 'spectrum', 'file-1', 'sample.dat');
+    const series = dataset.series[0];
+    if (!series) throw new Error('Expected a source series');
+    const legacyDataset = { ...dataset, series: [{ ...series, id: trace.id }] };
+    const display = { ...buildScalarDisplayTraceFromSeriesDataset(dataset, { ...series, id: trace.id }, trace), id: trace.id };
+    const datasets = [legacyDataset];
+    const displayTraces = [display];
+    const files = [{ id: 'file-1', fileName: 'sample.dat', meta: {}, traces: [trace], datasets, displayTraces }];
+    const legacy = { version: 4, files, datasets, displayTraces };
+    const oldJson = JSON.stringify({ kind: "mergen-scope-workspace", snapshot: legacy }, null, 2);
+    const oldRestored = migrateWorkspaceV5(JSON.parse(oldJson));
+    expect(oldRestored?.files).toEqual(files);
+    expect(oldRestored?.datasets).toEqual(datasets);
+    expect(oldRestored?.displayTraces).toEqual(displayTraces);
+    if (!oldRestored) throw new Error('Expected a migrated v4 workspace');
+
+    const json = await downloadWorkspace(oldRestored);
+    const restored = migrateWorkspaceV5(JSON.parse(json));
+    expect(restored?.files).toEqual(files);
+    expect(restored?.datasets).toEqual(datasets);
+    expect(restored?.displayTraces).toEqual(displayTraces);
     expect(json.length).toBeLessThan(oldJson.length / 2);
   });
 
-  it("returns null for invalid workspace JSON instead of throwing", () => {
-    expect(restoreSnapshot("{not json")).toBeNull();
+  it("rejects malformed workspace JSON without changing the open workspace", async () => {
+    const { result } = renderHook(() => ({
+      loadFromFile: useWorkspaceV5().loadFromFile,
+      workspace: useAggregateWorkspace(),
+    }), { wrapper: StoreRoot });
+    const trace = makeTestTrace();
+    act(() => result.current.workspace.dispatch({
+      slice: 'files',
+      action: {
+        type: 'ADD_PARSED_FILE',
+        payload: { id: 'file-1', fileName: 'fixture.dat', text: '', parsed: { format: 'rs-dat', meta: {}, traces: [trace] } },
+      },
+    }));
+    const before = result.current.workspace.state.files.files;
+    expect(before).toHaveLength(1);
+
+    const file = new File(['{not json'], 'broken.json');
+    Object.defineProperty(file, 'text', { value: async () => '{not json' });
+    await act(async () => result.current.loadFromFile(file));
+
+    expect(result.current.workspace.state.files.importErrors).toContainEqual(expect.objectContaining({
+      fileName: 'broken.json',
+      message: 'Not a valid workspace. The current workspace was left unchanged.',
+    }));
+    expect(result.current.workspace.state.files.files).toEqual(before);
   });
 });
 
 
 describe("legacy marker identifiers", () => {
   it("allocates missing IDs around explicit IDs before resolving index references", () => {
-    const source = {version: 4, files: [], markers: [
+    const source = {version: 4, files: [{ id: "file-1", fileName: "fixture.dat", meta: {}, traces: [makeTestTrace({ name: "a" })] }], markers: [
       {id: "marker-2", type: "normal", trace: "a", freq: 1, amp: 2},
       {type: "delta", trace: "a", freq: 3, amp: 4, refIdx: 0},
     ]};
-    const result = restoreSnapshot(JSON.stringify(source));
-    expect(result?.markers.map(m => m.id)).toEqual(["marker-2", "marker-1"]);
-    expect(result?.markers[1]?.refId).toBe("marker-2");
+    const migrated = migrateWorkspaceV5(JSON.parse(JSON.stringify(source)));
+    if (!migrated) throw new Error('Expected a migrated v4 workspace');
+    const result = workspaceFromSnapshot(initialWorkspaceState(), migrated, true);
+    expect(result?.markers.markers.map(m => m.id)).toEqual(["marker-2", "marker-1"]);
+    expect(result?.markers.markers[1]?.refId).toBe("marker-2");
   });
 });
 

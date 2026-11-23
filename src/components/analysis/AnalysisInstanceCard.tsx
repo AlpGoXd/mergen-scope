@@ -6,6 +6,7 @@ import type { CSSProperties } from 'react';
 import './kit/analysis.css';
 import './peak-rows.css';
 import { AnalysisCard, CardMsg, CreateRow, CrossingsList, KeyValues, Params, Result, Results } from './kit/Analysis';
+import type { AnalysisCardProps } from './kit/types';
 import type { ParamField } from './kit/types';
 import { Menu as KitMenu } from '../left-panel/Menu';
 import { PopoverAt } from '../shared/Controls';
@@ -34,7 +35,21 @@ import type { Trace } from '../../types/trace';
 import type { TraceMathOp } from '../../domain/trace-math-units';
 
 const NO_SOURCE_PICKER = new Set(['line-crossings', 'reciprocity-isolation', 'stability', 'ip3']);
-const SEGMENT_LABELS: Record<string, string> = { visible: 'Visible', all: 'All', add: '+', subtract: '−', multiply: '×', divide: '÷', gaussian: 'Gaussian', flattop: 'Flat top', fivepole: 'Five-pole', dbv: 'dBV', v: 'V', dbm: 'dBm 50 Ω', auto: 'Auto' };
+const SEGMENT_LABELS: Record<string, string> = {
+  visible: 'Visible',
+  all: 'All',
+  add: '+',
+  subtract: '−',
+  multiply: '×',
+  divide: '÷',
+  gaussian: 'Gaussian',
+  flattop: 'Flat top',
+  fivepole: 'Five-pole',
+  dbv: 'dBV',
+  v: 'V',
+  dbm: 'dBm 50 Ω',
+  auto: 'Auto'
+};
 const LABELS: Record<string, string> = {
   'moving-average': 'Moving average', 'median-filter': 'Median filter', 'savitzky-golay': 'Savitzky–Golay', none: 'None',
   hann: 'Hann', rectangular: 'Rectangular', hamming: 'Hamming', blackman: 'Blackman', 'blackman-harris': 'Blackman-Harris',
@@ -44,12 +59,26 @@ const LABELS: Record<string, string> = {
   h5: 'H2–H5', h10: 'H2–H10', near: 'Near',
 };
 
-const labelOf = (value: string): string => ({ a: "A's", b: "B's", both: 'Both', linear: 'Linear', cubic: 'Cubic', nearest: 'Nearest', previous: 'Previous', next: 'Next', sinc: 'Sinc', '': 'Choose…' } as Record<string, string>)[value] ?? SEGMENT_LABELS[value] ?? LABELS[value] ?? value;
+const labelOf = (value: string): string => ({
+  a: "A's",
+  b: "B's",
+  both: 'Both',
+  linear: 'Linear',
+  cubic: 'Cubic',
+  nearest: 'Nearest',
+  previous: 'Previous',
+  next: 'Next',
+  sinc: 'Sinc',
+  '': 'Choose…'
+} as Record<string, string>)[value]
+  ?? SEGMENT_LABELS[value]
+  ?? LABELS[value]
+  ?? value;
 const traceLabel = (trace: Trace): string => trace.dn || trace.name;
 
 interface SelectState { anchor: HTMLElement; title: string; options: { value: string; label: string }[]; value: string; onPick: (value: string) => void }
 
-export function AnalysisInstanceCard({ instance }: { instance: AnalysisInstance }) {
+export function AnalysisInstanceCard({ instance, dropTarget, dragHandle }: { instance: AnalysisInstance } & Pick<AnalysisCardProps, 'dropTarget' | 'dragHandle'>) {
   const ctx = useAnalysisContext();
   const analysisDispatch = useAnalysisDispatch();
   const { analyses, highlightedPeak } = useAnalysisState();
@@ -73,7 +102,12 @@ export function AnalysisInstanceCard({ instance }: { instance: AnalysisInstance 
   const line = instance.source.lineId != null ? ctx.refLines.find(item => item.id === instance.source.lineId) : undefined;
   // A Math tool that also reads values (FFT) keeps computing after it has made its trace.
   const hasNumbers = tool?.outputs.some(item => item.type === 'numbers') ?? false;
-  const result = useMemo<InstanceResult>(() => tool?.kind === 'measure' || (tool?.kind === 'math' && (!instance.outputTraceId || hasNumbers)) ? computeInstance(instance, ctx.inputs) : { outputs: [] }, [instance, ctx.inputs, tool, hasNumbers]);
+  const result = useMemo<InstanceResult>(
+    () => tool?.kind === 'measure' || (tool?.kind === 'math' && (!instance.outputTraceId || hasNumbers))
+      ? computeInstance(instance, ctx.inputs)
+      : { outputs: [] },
+    [instance, ctx.inputs, tool, hasNumbers]
+  );
   const units: CardUnits = { x: source?.units.x ?? ctx.targetTrace?.units.x ?? 'Hz', y: source?.units.y ?? ctx.targetTrace?.units.y };
   const paneTitle = (paneId: string): string => paneName(ctx.panes, paneId);
   const paneBadge = (paneId: string): string => `P${ctx.panes.findIndex(pane => pane.id === paneId) + 1}`;
@@ -90,10 +124,20 @@ export function AnalysisInstanceCard({ instance }: { instance: AnalysisInstance 
   const firstPane = source ? ctx.tracePaneMap[source.name]?.[0] : undefined;
   const sourceText = isLine
     ? `${line?.label ?? ''} · ${lineValue}`
-    : source ? [traceLabel(source), source.file, firstPane ? paneTitle(firstPane) : null].filter(Boolean).join(' · ') : ctx.target.trace && NO_SOURCE_PICKER.has(instance.toolId) ? [ctx.target.traceLabel, ctx.target.trace.file].filter(Boolean).join(' · ') : 'No trace selected';
+    : source
+      ? [traceLabel(source), source.file, firstPane ? paneTitle(firstPane) : null].filter(Boolean).join(' · ')
+      : ctx.target.trace && NO_SOURCE_PICKER.has(instance.toolId)
+        ? [ctx.target.traceLabel, ctx.target.trace.file].filter(Boolean).join(' · ')
+        : 'No trace selected';
 
   const traceOptions = ctx.visibleTraces.map(trace => ({ value: trace.id, label: traceLabel(trace) }));
-  const openSelect = (anchor: HTMLElement, label: string, options: SelectState['options'], value: string, onPick: (value: string) => void) => setSelect({ anchor, title: label, options, value, onPick });
+  const openSelect = (
+    anchor: HTMLElement,
+    label: string,
+    options: SelectState['options'],
+    value: string,
+    onPick: (value: string) => void
+  ) => setSelect({ anchor, title: label, options, value, onPick });
   const setSource = (patch: Partial<AnalysisInstance['source']>) => analysisDispatch({ type: 'SET_ANALYSIS_SOURCE', payload: { id: instance.id, source: { ...instance.source, ...patch } } });
   const setParam = (key: string, value: ParameterValue) => analysisDispatch({ type: 'SET_ANALYSIS_PARAMS', payload: { id: instance.id, params: { ...instance.params, [key]: value } } });
 
@@ -114,10 +158,32 @@ export function AnalysisInstanceCard({ instance }: { instance: AnalysisInstance 
   const fields: ParamField[] = [];
   const stimulus = instance.toolId === 'trace-math' && source && second ? describeStimulus(source, second) : null;
   if (!NO_SOURCE_PICKER.has(instance.toolId)) {
-    fields.push({ id: 'source', label: instance.toolId === 'trace-math' ? 'Trace A' : 'Trace', control: { type: 'select', value: source ? traceLabel(source) : 'Pick a trace', ...(source ? { hue: hueOf(source.name) } : {}), onOpen: anchor => openSelect(anchor, 'Trace', traceOptions, source?.id ?? '', value => setSource({ traceId: value })) } });
+    fields.push(
+      {
+        id: 'source',
+        label: instance.toolId === 'trace-math' ? 'Trace A' : 'Trace',
+        control: {
+          type: 'select',
+          value: source ? traceLabel(source) : 'Pick a trace',
+          ...(source ? { hue: hueOf(source.name) } : {}),
+          onOpen: anchor => openSelect(anchor, 'Trace', traceOptions, source?.id ?? '', value => setSource({ traceId: value }))
+        }
+      }
+    );
   }
   if (instance.toolId === 'trace-math') {
-    fields.push({ id: 'second', label: 'Trace B', control: { type: 'select', value: second ? traceLabel(second) : 'Pick a trace', ...(second ? { hue: hueOf(second.name) } : {}), onOpen: anchor => openSelect(anchor, 'Trace B', traceOptions, second?.id ?? '', value => setSource({ secondTraceId: value })) } });
+    fields.push(
+      {
+        id: 'second',
+        label: 'Trace B',
+        control: {
+          type: 'select',
+          value: second ? traceLabel(second) : 'Pick a trace',
+          ...(second ? { hue: hueOf(second.name) } : {}),
+          onOpen: anchor => openSelect(anchor, 'Trace B', traceOptions, second?.id ?? '', value => setSource({ secondTraceId: value }))
+        }
+      }
+    );
   }
   for (const [key, field] of Object.entries(tool.params)) {
     // A setting of one choice only (Kaiser β, Impedance for dBm …) shows while that choice is picked.
@@ -129,30 +195,114 @@ export function AnalysisInstanceCard({ instance }: { instance: AnalysisInstance 
     if (instance.toolId === 'trace-math' && (key === 'points' || key === 'fill')) {
       if (!stimulus || stimulus.identical || stimulus.domainMismatch || !stimulus.overlap || field.kind !== 'choice') continue;
       const value = String(instance.params[key] ?? '');
-      fields.push({ id: key, label: field.title, control: { type: 'select', value: labelOf(value), onOpen: anchor => openSelect(anchor, field.title, field.options.filter(option => option !== '').map(option => ({ value: option, label: labelOf(option) })), value, next => setParam(key, next)) } });
+      fields.push(
+        {
+          id: key,
+          label: field.title,
+          control: {
+            type: 'select',
+            value: labelOf(value),
+            onOpen: anchor => openSelect(
+              anchor,
+              field.title,
+              field.options.filter(option => option !== '').map(option => ({ value: option, label: labelOf(option) })),
+              value,
+              next => setParam(key, next)
+            )
+          }
+        }
+      );
       continue;
     }
     if (instance.toolId === 'smooth' && ((key === 'window' && instance.params['method'] === 'none') || (key === 'sgOrder' && instance.params['method'] !== 'savitzky-golay'))) continue;
     const current = instance.params[key];
     if (field.kind === 'number') {
       const unit = unitFor(key);
-      fields.push({ id: key, label: field.title, control: { type: 'number', value: String(current ?? field.defaultValue), ...(unit ? { unit } : {}), invalid: invalidKey === key, onCommit: text => commitNumber(key, field, text) } });
+      fields.push(
+        {
+          id: key,
+          label: field.title,
+          control: {
+            type: 'number',
+            value: String(current ?? field.defaultValue),
+            ...(unit ? { unit } : {}),
+            invalid: invalidKey === key,
+            onCommit: text => commitNumber(key, field, text)
+          }
+        }
+      );
     } else if (field.kind === 'choice') {
       const value = String(current ?? field.defaultValue);
       const pointsUsed = key === 'points' ? result.outputs?.find(item => item.type === 'numbers') : undefined;
       if (pointsUsed?.type === 'numbers' && value === 'auto' && Number.isFinite(pointsUsed.values['points'])) {
-        fields.push({ id: key, label: field.title, control: { type: 'select', value: `Auto · ${pointsUsed.values['points']}`, title: 'Largest power of two that fits the samples in range', onOpen: anchor => openSelect(anchor, field.title, field.options.map(option => ({ value: option, label: labelOf(option) })), value, next => setParam(key, next)) } });
+        fields.push(
+          {
+            id: key,
+            label: field.title,
+            control: {
+              type: 'select',
+              value: `Auto · ${pointsUsed.values['points']}`,
+              title: 'Largest power of two that fits the samples in range',
+              onOpen: anchor => openSelect(
+                anchor,
+                field.title,
+                field.options.map(option => ({ value: option, label: labelOf(option) })),
+                value,
+                next => setParam(key, next)
+              )
+            }
+          }
+        );
         continue;
       }
       if (field.options.length <= 4 && field.options.every(option => labelOf(option).length <= 9)) {
-        fields.push({ id: key, label: field.title, control: { type: 'segmented', value, options: field.options.map(option => ({ value: option, label: labelOf(option) })), onChange: next => setParam(key, next) } });
+        fields.push(
+          {
+            id: key,
+            label: field.title,
+            control: {
+              type: 'segmented',
+              value,
+              options: field.options.map(option => ({ value: option, label: labelOf(option) })),
+              onChange: next => setParam(key, next)
+            }
+          }
+        );
       } else {
-        fields.push({ id: key, label: field.title, control: { type: 'select', value: labelOf(value), onOpen: anchor => openSelect(anchor, field.title, field.options.map(option => ({ value: option, label: labelOf(option) })), value, next => setParam(key, next)) } });
+        fields.push(
+          {
+            id: key,
+            label: field.title,
+            control: {
+              type: 'select',
+              value: labelOf(value),
+              onOpen: anchor => openSelect(
+                anchor,
+                field.title,
+                field.options.map(option => ({ value: option, label: labelOf(option) })),
+                value,
+                next => setParam(key, next)
+              )
+            }
+          }
+        );
       }
     }
   }
 
-  const view = tool.kind === 'measure' || hasNumbers ? describeInstance(instance, result, units, { paneOrder: ctx.panes.map(pane => pane.id), paneId: firstPane ?? ctx.activePaneId ?? 'pane-1', traceName: source?.name ?? '', ...(line ? { lineType: line.type } : {}) }) : null;
+  const view = tool.kind === 'measure' || hasNumbers
+    ? describeInstance(
+      instance,
+      result,
+      units,
+      {
+        paneOrder: ctx.panes.map(pane => pane.id),
+        paneId: firstPane ?? ctx.activePaneId ?? 'pane-1',
+        traceName: source?.name ?? '',
+        ...(line ? { lineType: line.type } : {})
+      }
+    )
+    : null;
   const { numbers = null, crossings = null, valueLabel = 'X' } = view ?? {};
   const shortName = (name: string): string => { const trace = ctx.allKnownTraces.find(item => item.name === name); return trace ? traceLabel(trace) : name; };
   const crossingGroups = crossings?.groups.map(group => ({
@@ -174,7 +324,13 @@ export function AnalysisInstanceCard({ instance }: { instance: AnalysisInstance 
   const summary = numbers?.summary ?? (crossings ? `${crossings.total} crossing${crossings.total === 1 ? '' : 's'}` : output ? `→ ${traceLabel(output)}` : undefined);
 
   const peakTable = instance.toolId === 'peak-table' ? result.outputs?.find(item => item.type === 'table') : undefined;
-  const peakRows = peakTable?.type === 'table' ? peakTable.rows.flatMap(row => typeof row[0] === 'number' && typeof row[1] === 'number' && typeof row[2] === 'number' ? [{ n: row[0], x: row[1], y: row[2] }] : []) : [];
+  const peakRows = peakTable?.type === 'table'
+    ? peakTable.rows.flatMap(
+      row => typeof row[0] === 'number' && typeof row[1] === 'number' && typeof row[2] === 'number'
+        ? [{ n: row[0], x: row[1], y: row[2] }]
+        : []
+    )
+    : [];
   const hasMarker = (x: number) => !!source && ctx.markers.some(marker => marker.trace === source.name && marker.freq === x);
   const missingPeaks = peakRows.filter(row => !hasMarker(row.x));
   const addMarker = (x: number) => { if (source && !hasMarker(x)) markerDispatch({ type: 'PLACE_MARKER', payload: { trace: source, targetFreq: x } }); };
@@ -209,27 +365,84 @@ export function AnalysisInstanceCard({ instance }: { instance: AnalysisInstance 
 
   return (
     <>
-      <AnalysisCard id={instance.id} kind={tool.kind === 'math' ? 'math' : 'measure'} title={title} source={sourceText} {...(source ? { sourceHue: hueOf(source.name) } : {})} collapsed={instance.collapsed}
-        {...(hasOverlay ? { overlay: { on: instance.overlay !== false, onToggle: () => analysisDispatch({ type: 'SET_ANALYSIS_OVERLAY', payload: { id: instance.id, overlay: instance.overlay === false } }) } } : {})}
+      <AnalysisCard
+        id={instance.id}
+        dropTarget={dropTarget}
+        dragHandle={dragHandle}
+        kind={tool.kind === 'math' ? 'math' : 'measure'}
+        title={title}
+        source={sourceText}
+        {...(source ? { sourceHue: hueOf(source.name) } : {})}
+        collapsed={instance.collapsed}
+        {...(hasOverlay
+          ? {
+            overlay: {
+              on: instance.overlay !== false,
+              onToggle: () => analysisDispatch({ type: 'SET_ANALYSIS_OVERLAY', payload: { id: instance.id, overlay: instance.overlay === false } })
+            }
+          }
+          : {})}
         {...(summary ? { summary } : {})} menuOpen={menu !== null}
         onToggle={() => analysisDispatch({ type: 'SET_ANALYSIS_COLLAPSED', payload: { id: instance.id, collapsed: !instance.collapsed } })}
         onMenu={anchor => setMenu(anchor)} onRemove={remove}>
         {fields.length > 0 && !isLine ? <Params cardId={instance.id} fields={fields} /> : null}
         <Results>
         {numbers?.facts ? <div className="an-result__note" data-testid="analysis-facts">{numbers.facts}</div> : null}
-        {instance.toolId === 'fft' && result.reason === UNEVEN_SAMPLES && source ? <CardMsg tone="info" text="Resample makes an evenly spaced copy of this trace." action={{ label: 'Add Resample', onClick: () => analysisDispatch({ type: 'ADD_ANALYSIS', payload: { toolId: 'resample', source: { traceId: source.id } } }) }} /> : null}
-        {stimulus && !stimulus.identical && !stimulus.domainMismatch && source && second ? <CardMsg tone="warning" text={`Stimulus mismatch. A: ${stimulus.aCount} points, ${formatCrossingValue(stimulus.aRange[0], source.units.x, significantStep(stimulus.aRange[0], 6))} to ${formatCrossingValue(stimulus.aRange[1], source.units.x, significantStep(stimulus.aRange[1], 6))}. B: ${stimulus.bCount} points, ${formatCrossingValue(stimulus.bRange[0], second.units.x, significantStep(stimulus.bRange[0], 6))} to ${formatCrossingValue(stimulus.bRange[1], second.units.x, significantStep(stimulus.bRange[1], 6))}.`} /> : null}
+        {instance.toolId === 'fft' && result.reason === UNEVEN_SAMPLES && source
+          ? <CardMsg
+            tone="info"
+            text="Resample makes an evenly spaced copy of this trace."
+            action={{
+              label: 'Add Resample',
+              onClick: () => analysisDispatch({ type: 'ADD_ANALYSIS', payload: { toolId: 'resample', source: { traceId: source.id } } })
+            }}
+          />
+          : null}
+        {stimulus && !stimulus.identical && !stimulus.domainMismatch && source && second
+          ? <CardMsg
+            tone="warning"
+            text={`Stimulus mismatch. A: ${stimulus.aCount} points, ${formatCrossingValue(
+              stimulus.aRange[0], source.units.x, significantStep(stimulus.aRange[0], 6)
+            )} to ${formatCrossingValue(
+              stimulus.aRange[1], source.units.x, significantStep(stimulus.aRange[1], 6)
+            )}. B: ${stimulus.bCount} points, ${formatCrossingValue(
+              stimulus.bRange[0], second.units.x, significantStep(stimulus.bRange[0], 6)
+            )} to ${formatCrossingValue(
+              stimulus.bRange[1], second.units.x, significantStep(stimulus.bRange[1], 6)
+            )}.`}
+          />
+          : null}
         {mathWarning ? <CardMsg tone="warning" text={mathWarning} /> : null}
         {ip3Note ? <CardMsg tone="warning" text={ip3Note} /> : null}
         {(view?.message ?? result.reason) && !(createNote && !output)
-          ? <CardMsg tone="warning" text={view?.message ?? result.reason ?? ''} {...(instance.toolId === 'ip3' && source ? { action: { label: 'Auto-place markers', onClick: autoPlaceIp3 } } : {})} {...(!NO_SOURCE_PICKER.has(instance.toolId) && !source ? { action: { label: 'Pick a trace', onClick: () => { const button = document.querySelector<HTMLElement>(`[data-testid="analysis-card-${instance.id}"] .an-select`); if (button) pickTrace(button); } } } : {})} />
+          ? <CardMsg
+            tone="warning"
+            text={view?.message ?? result.reason ?? ''}
+            {...(instance.toolId === 'ip3' && source ? { action: { label: 'Auto-place markers', onClick: autoPlaceIp3 } } : {})}
+            {...(!NO_SOURCE_PICKER.has(instance.toolId) && !source
+              ? {
+                action: {
+                  label: 'Pick a trace',
+                  onClick: () => {
+                    const button = document.querySelector<HTMLElement>(`[data-testid="analysis-card-${instance.id}"] .an-select`);
+                    if (button) pickTrace(button);
+                  }
+                }
+              }
+              : {})}
+          />
           : null}
         {!result.reason && numbers?.result ? <Result {...numbers.result} /> : null}
         {!result.reason && instance.toolId === 'peak-table' && peakRows.length ? <div className="an-peak-rows">{peakRows.map(row => {
           const selected = highlightedPeak?.analysisId === instance.id && highlightedPeak.n === row.n;
           const exists = hasMarker(row.x);
           return <div key={row.n} className="an-peak-row" data-testid={`peak-row-${row.n}`}>
-            <button type="button" className="an-peak-row__select" aria-pressed={selected} onClick={() => analysisDispatch({ type: 'SET_HIGHLIGHTED_PEAK', payload: selected ? null : { analysisId: instance.id, n: row.n } })}>
+            <button
+              type="button"
+              className="an-peak-row__select"
+              aria-pressed={selected}
+              onClick={() => analysisDispatch({ type: 'SET_HIGHLIGHTED_PEAK', payload: selected ? null : { analysisId: instance.id, n: row.n } })}
+            >
               <span>#{row.n} · {formatCrossingValue(row.x, units.x, significantStep(row.x, 6))}</span><span>{formatCrossingValue(row.y, units.y, significantStep(row.y, 6))}</span>
             </button>
             <button type="button" className="an-btn" disabled={exists} title={exists ? 'Already a marker here' : 'Add marker'} onClick={() => addMarker(row.x)}>{exists ? '✓' : '+ Marker'}</button>
@@ -243,28 +456,94 @@ export function AnalysisInstanceCard({ instance }: { instance: AnalysisInstance 
         {tool.kind === 'math' ? (
           output
             ? <div className="an-output" tabIndex={0} onKeyDown={event => { if (event.key === 'F2') { event.preventDefault(); event.stopPropagation(); setEditingOutput(true); } }}>
-                <span className="an-output__arrow" aria-hidden="true">→</span><span className="an-output__swatch is-created" style={{ '--h': hueOf(output.name) } as CSSProperties} /><span className="an-output__fx" aria-hidden="true">ƒ</span>
-                {editingOutput ? <input className="an-output__name" aria-label="Trace name" data-testid="trace-name-input" defaultValue={traceLabel(output)} ref={el => { if (el && document.activeElement !== el) { el.focus(); el.select(); } }} onBlur={event => { renameOutput(event.currentTarget.value); setEditingOutput(false); }} onKeyDown={event => { event.stopPropagation(); if (event.key === 'Enter') event.currentTarget.blur(); if (event.key === 'Escape') { event.preventDefault(); setEditingOutput(false); } }} /> : <span className="an-output__name" onDoubleClick={() => setEditingOutput(true)}>{traceLabel(output)}</span>}
+                <span className="an-output__arrow" aria-hidden="true">→</span><span
+                  className="an-output__swatch is-created"
+                  style={{ '--h': hueOf(output.name) } as CSSProperties}
+                /><span className="an-output__fx" aria-hidden="true">ƒ</span>
+                {editingOutput
+                  ? <input
+                    className="an-output__name"
+                    aria-label="Trace name"
+                    data-testid="trace-name-input"
+                    defaultValue={traceLabel(output)}
+                    ref={el => {
+                      if (el && document.activeElement !== el) { el.focus(); el.select(); }
+                    }}
+                    onBlur={event => {
+                      renameOutput(event.currentTarget.value);
+                      setEditingOutput(false);
+                    }}
+                    onKeyDown={event => {
+                      event.stopPropagation();
+                      if (event.key === 'Enter') event.currentTarget.blur();
+                      if (event.key === 'Escape') { event.preventDefault(); setEditingOutput(false); }
+                    }}
+                  />
+                  : <span className="an-output__name" onDoubleClick={() => setEditingOutput(true)}>
+                    {traceLabel(output)}
+                  </span>}
                 {(ctx.tracePaneMap[output.name] ?? []).map(paneBadge).map(pane => <span key={pane} className="an-pane-badge">{pane}</span>)}<span className="an-output__note">follows inputs</span>
               </div>
-            : <CreateRow {...(disabledReason ? { disabledReason } : {})} {...createNote} onCreate={() => analysisDispatch({ type: 'CREATE_ANALYSIS_OUTPUT', payload: { id: instance.id, paneLimit } })} />
+            : <CreateRow
+              {...(disabledReason ? { disabledReason } : {})}
+              {...createNote}
+              onCreate={() => analysisDispatch({ type: 'CREATE_ANALYSIS_OUTPUT', payload: { id: instance.id, paneLimit } })}
+            />
         ) : null}
         </Results>
       </AnalysisCard>
       {select ? (
         <PopoverAt label={select.title} at={select.anchor} onClose={() => setSelect(null)}>
           <KitMenu label={select.title} title={select.title} checklist style={{ width: 220 }}
-            entries={select.options.length ? select.options.map(option => ({ id: option.value, label: option.label, checked: option.value === select.value, onSelect: () => { select.onPick(option.value); setSelect(null); } })) : [{ label: 'No visible traces', disabledReason: 'Load or show a trace first' }]} />
+            entries={select.options.length
+              ? select.options.map(
+                option => ({
+                  id: option.value,
+                  label: option.label,
+                  checked: option.value === select.value,
+                  onSelect: () => { select.onPick(option.value); setSelect(null); }
+                })
+              )
+              : [{ label: 'No visible traces', disabledReason: 'Load or show a trace first' }]} />
         </PopoverAt>
       ) : null}
       {menu ? (
         <PopoverAt label={`${title} actions`} at={menu} onClose={() => setMenu(null)}>
           <KitMenu label={`${title} actions`} entries={[
             ...(instance.toolId === 'ip3' ? [{ label: 'Auto-place markers', ...(!source ? { disabledReason: 'Pick a trace first' } : {}), onSelect: autoPlaceIp3 }] : []),
-            ...(instance.toolId === 'peak-table' ? [{ label: 'Add all as markers', ...(!missingPeaks.length || !source ? { disabledReason: 'All peaks already have markers' } : {}), onSelect: addAllMarkers }] : []),
-            ...(tool.kind === 'math' && output ? [{ label: 'Freeze as a copy', onSelect: () => { setMenu(null); analysisDispatch({ type: 'FREEZE_ANALYSIS_COPY', payload: { id: instance.id } }); } }] : []),
+            ...(instance.toolId === 'peak-table'
+              ? [
+                {
+                  label: 'Add all as markers',
+                  ...(!missingPeaks.length || !source ? { disabledReason: 'All peaks already have markers' } : {}),
+                  onSelect: addAllMarkers
+                }
+              ]
+              : []),
+            ...(tool.kind === 'math' && output
+              ? [
+                {
+                  label: 'Freeze as a copy',
+                  onSelect: () => {
+                    setMenu(null);
+                    analysisDispatch({ type: 'FREEZE_ANALYSIS_COPY', payload: { id: instance.id } });
+                  }
+                }
+              ]
+              : []),
             ...(output && instance.autoName !== undefined && output.dn !== instance.autoName ? [{ label: 'Reset name', onSelect: () => { setMenu(null); renameOutput(''); } }] : []),
-            ...(tool.kind === 'measure' || output ? [{ label: 'Copy results', onSelect: () => { setMenu(null); copy(crossings ? crossingsCsv(crossings.groups, paneBadge, valueLabel) : resultsText(title, numbers)); } }, 'separator' as const] : []),
+            ...(tool.kind === 'measure' || output
+              ? [
+                {
+                  label: 'Copy results',
+                  onSelect: () => {
+                    setMenu(null);
+                    copy(crossings ? crossingsCsv(crossings.groups, paneBadge, valueLabel) : resultsText(title, numbers));
+                  }
+                },
+                'separator' as const
+              ]
+              : []),
             { label: 'Remove', danger: true, onSelect: () => { setMenu(null); remove(); } },
           ]} />
         </PopoverAt>

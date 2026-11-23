@@ -78,8 +78,9 @@ export function computeVerticalIntersections(
   const results: LineIntersection[] = [];
   for (const trace of traces) {
     if (!trace.data?.length) continue;
-    const first = trace.data[0]!;
-    const last = trace.data[trace.data.length - 1]!;
+    const first = trace.data[0];
+    const last = trace.data[trace.data.length - 1];
+    if (!first || !last) continue;
     if (value < Math.min(first.freq, last.freq) || value > Math.max(first.freq, last.freq)) continue;
     // placeMarker respects trace interpolation strategy:
     // snap → snaps to nearest sample; linear/sinc → interpolates at value
@@ -106,8 +107,9 @@ export function computeHorizontalIntersections(
     const data = trace.data;
     if (!data?.length) continue;
     for (let i = 0; i < data.length - 1; i++) {
-      const a = data[i]!;
-      const b = data[i + 1]!;
+      const a = data[i];
+      const b = data[i + 1];
+      if (!a || !b) continue;
       const ya = a.amp - value;
       const yb = b.amp - value;
       // Sign change (or exact hit)
@@ -123,8 +125,8 @@ export function computeHorizontalIntersections(
       }
     }
     // Check last point
-    const last = data[data.length - 1]!;
-    if (last.amp === value) {
+    const last = data[data.length - 1];
+    if (last && last.amp === value) {
       results.push({ traceName: trace.name, paneId, freq: last.freq, amp: value });
     }
   }

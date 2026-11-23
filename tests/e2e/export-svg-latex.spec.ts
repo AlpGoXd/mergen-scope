@@ -2,12 +2,16 @@ import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import type { ExportImageOptions } from '../../src/domain/export-image';
 
 const pane = (page: Page, n: number) => page.getByTestId(`chart-pane-pane-${n}`);
 const header = (page: Page, n: number) => page.getByTestId(`chart-pane-header-pane-${n}`);
 const settingsOf = (page: Page, n: number) => page.locator(`.ui-popover[aria-label="Pane ${n} settings"]`);
 const lastSvg = (page: Page) => page.evaluate(() => window.__mergenLastExportSvg ?? '');
-const setOptions = (page: Page, options: object) => page.evaluate(value => localStorage.setItem('mergen-export-image-options', JSON.stringify(value)), options);
+const setOptions = (page: Page, options: ExportImageOptions) => page.evaluate(({ theme, ...size }) => {
+  localStorage.setItem('mergen-export-image-options', JSON.stringify(size));
+  localStorage.setItem('mergen-export-document-options', JSON.stringify({ theme }));
+}, options);
 
 async function openS21(page: Page) {
   await page.goto('/app.html');
@@ -100,6 +104,17 @@ test('This pane uses the active pane and the dialog shows its custom name', asyn
 test('paper sizes scale symbols, dots, marker glyphs and tags with the 8 pt text; pane size keeps screen sizes', async ({ page }) => {
   await openS21(page);
   await placeMarker(page);
+  // The one-column plot is too narrow for dots at full range. Zoom around the marker.
+  const plot = page.getByTestId('chart-plot-pane-1');
+  const box = await plot.boundingBox();
+  if (!box) throw new Error('Chart plot has no box');
+  const lines = plot.getByTestId('lines-layer');
+  const fullRange = await lines.getAttribute('data-x-domain');
+  await page.mouse.move(box.x + 240, box.y + 120);
+  await page.mouse.down({ button: 'right' });
+  await page.mouse.move(box.x + 350, box.y + 120, { steps: 8 });
+  await page.mouse.up({ button: 'right' });
+  await expect(lines).not.toHaveAttribute('data-x-domain', fullRange ?? '');
   await page.getByTestId('chart-pane-pane-1').getByTestId('samples-toggle').click();
   const measure = async () => page.evaluate(markup => {
     const doc = new DOMParser().parseFromString(markup, 'image/svg+xml');
@@ -152,7 +167,7 @@ test('Print and Dark exports use the same trace colours as the app, whatever the
 
   await setAppTheme('Dark');
   const dark = await screenStrokes(page);
-  const darkBackground = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--bg').trim());
+  const darkBackground = 'oklch(0.170 0.016 255)';
   expect(dark).not.toEqual(light);
   const darkFromDarkApp = await exportWith('dark');
   expect(await svgStrokes(page, darkFromDarkApp)).toEqual(dark);

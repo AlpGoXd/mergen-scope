@@ -36,7 +36,7 @@ export function useKeyboard() {
     const now = Date.now();
     let history = pruneZoomHistory(zoomHistory.current, panes.map(pane => pane.id));
     for (const pane of panes) {
-      const zoom: PaneZoom = { x: paneXZooms[pane.id] ?? null, y: paneYZooms[pane.id] ?? null };
+      const zoom: PaneZoom = { x: pane.renderMode === 'polar' ? null : paneXZooms[pane.id] ?? null, y: paneYZooms[pane.id] ?? null };
       const expected = restoring.current.get(pane.id);
       const isRestore = !!expected && sameZoom(expected, zoom);
       if (isRestore) restoring.current.delete(pane.id);
@@ -63,19 +63,32 @@ export function useKeyboard() {
   useShortcut('escape', () => { cancel(); });
   useShortcut('fit-pane', () => {
     if (!targetPaneId) return false;
-    paneDispatch({ type: 'SET_PANE_ZOOM', payload: { paneId: targetPaneId, zoom: null } });
-    paneDispatch({ type: 'SET_PANE_Y_ZOOM', payload: { paneId: targetPaneId, zoom: null } });
-    // Smith panes keep their own view; ChartPane fits it on this event.
+    if (panes.find(pane => pane.id === targetPaneId)?.renderMode !== 'polar') {
+      paneDispatch({ type: 'SET_PANE_ZOOM', payload: { paneId: targetPaneId, zoom: null } });
+      paneDispatch({ type: 'SET_PANE_Y_ZOOM', payload: { paneId: targetPaneId, zoom: null } });
+    }
     window.dispatchEvent(new CustomEvent('mergen-fit-pane', { detail: { paneId: targetPaneId } }));
   });
-  useShortcut('previous-zoom', () => {
-    if (!targetPaneId) return false;
-    const step = takePreviousZoom(zoomHistory.current, targetPaneId);
+  const previousZoom = (paneId: string | null) => {
+    if (!paneId) return false;
+    if (panes.find(pane => pane.id === paneId)?.renderMode === 'polar') {
+      if (window.dispatchEvent(new CustomEvent('mergen-previous-polar-view', { detail: paneId, cancelable: true }))) return false;
+      return;
+    }
+    const step = takePreviousZoom(zoomHistory.current, paneId);
     if (!step) return false;
     zoomHistory.current = step.history;
-    restoring.current.set(targetPaneId, step.zoom);
-    paneDispatch({ type: 'SET_PANE_ZOOM', payload: { paneId: targetPaneId, zoom: step.zoom.x } });
-    paneDispatch({ type: 'SET_PANE_Y_ZOOM', payload: { paneId: targetPaneId, zoom: step.zoom.y } });
+    restoring.current.set(paneId, step.zoom);
+    paneDispatch({ type: 'SET_PANE_ZOOM', payload: { paneId, zoom: step.zoom.x } });
+    paneDispatch({ type: 'SET_PANE_Y_ZOOM', payload: { paneId, zoom: step.zoom.y } });
+  };
+  useShortcut('previous-zoom', () => previousZoom(targetPaneId));
+  useEffect(() => {
+    const restore = (event: Event) => {
+      if (event instanceof CustomEvent && typeof event.detail === 'string') previousZoom(event.detail);
+    };
+    window.addEventListener('mergen-previous-zoom', restore);
+    return () => window.removeEventListener('mergen-previous-zoom', restore);
   });
   useShortcut('delete', () => {
     if (selected) { markerDispatch({ type: 'REMOVE_MARKER', payload: selectedMkrIdx }); return; }

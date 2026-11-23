@@ -19,7 +19,7 @@ import { latexMarkerTable, latexPaneLayout } from '../../../domain/export-latex'
 import type { LatexDocument } from '../../../domain/export-latex';
 import type { ExportedPane } from './ExportImageProvider';
 import { exportThemeClass, exportTokens, resolveExportTheme } from './export-theme';
-import { readAppPreferences } from '../../settings/app-preferences';
+import { rememberedExportTheme } from './export-theme-storage';
 import { svgToPng } from './export-png';
 import type { ExportPlotInfo } from './export-context';
 
@@ -73,7 +73,7 @@ export function useDocumentExport(renderPane: RenderExportPane) {
           const linked = linkedPeers(panes, pane.id).find(id => panes.find(item => item.id === id)?.renderMode === 'cartesian');
           const local = paneXZooms[pane.id];
           const peer = linked ? paneXZooms[linked] : null;
-          const manual = !linked && type === 'smith' ? pane.settings.smith.range : null;
+          const manual = linked ? null : type === 'smith' ? pane.settings.smith.range : type === 'polar' ? pane.settings.polar?.range : null;
           const zoom = local || peer;
           const range = options.csvRange === 'full' ? null : paneViews[pane.id]?.x ?? (zoom
             ? [zoom.left, zoom.right] as const : manual ? [manual.startHz, manual.stopHz] as const : null);
@@ -87,7 +87,7 @@ export function useDocumentExport(renderPane: RenderExportPane) {
       const paper = options.preset === 'ieee-1' || options.preset === 'ieee-2';
       const latex = format === 'latex';
       const appearance = pdf || latex ? { ...options, paperFont: 'serif' as const } : options;
-      const theme = paper || pdf ? 'print' : resolveExportTheme(options.theme ?? readAppPreferences().exportTheme, appTheme);
+      const theme = paper || pdf ? 'print' : resolveExportTheme(options.theme ?? rememberedExportTheme(), appTheme);
       const image: ExportImageOptions = { size: options.preset === 'ieee-1' || options.preset === 'ieee-2' ? options.preset : 'pane', dpi: options.dpi, theme: theme === 'print' ? 'print' : options.theme };
       const bounds = boundingBox(entries.map(entry => entry.box));
       const base = documentGeometry(options, bounds);

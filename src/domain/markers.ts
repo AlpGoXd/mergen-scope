@@ -39,11 +39,14 @@ export function nearestIndexByFreq(
   data: readonly DataPoint[],
   freq: number,
 ): number {
-  if (!data.length || !Number.isFinite(freq)) return -1;
+  const first = data[0];
+  if (!first || !Number.isFinite(freq)) return -1;
   let bestIdx = 0;
-  let bestDf = Math.abs(data[0]!.freq - freq);
+  let bestDf = Math.abs(first.freq - freq);
   for (let i = 1; i < data.length; i++) {
-    const df = Math.abs(data[i]!.freq - freq);
+    const point = data[i];
+    if (!point) continue;
+    const df = Math.abs(point.freq - freq);
     if (df < bestDf) {
       bestDf = df;
       bestIdx = i;
@@ -57,7 +60,9 @@ function hasExactSample(traceData: readonly DataPoint[], targetFreq: number): bo
   let hi = traceData.length - 1;
   while (lo <= hi) {
     const mid = (lo + hi) >> 1;
-    const value = traceData[mid]!.freq;
+    const point = traceData[mid];
+    if (!point) return false;
+    const value = point.freq;
     if (value === targetFreq) return true;
     if (value < targetFreq) lo = mid + 1;
     else hi = mid - 1;
@@ -84,7 +89,7 @@ export function placeMarker(
   const isUniform = trace.isUniform ?? false;
   const strategy = getResolvedInterpolationStrategy(trace.family, trace.interpolation, isUniform);
   const nearestIndex = nearestIndexByFreq(traceData, targetFreq);
-  const nearestPoint = nearestIndex >= 0 ? traceData[nearestIndex]! : null;
+  const nearestPoint = nearestIndex >= 0 ? traceData[nearestIndex] : undefined;
   const shouldMagnetSnap = (strategy === "snap" || strategy === "exact")
     || (
       nearestPoint != null
@@ -161,9 +166,10 @@ export function buildExtrema(
 
   const out: DataPoint[] = [];
   for (let i = 1; i < finite.length - 1; i++) {
-    const prev = finite[i - 1]!;
-    const cur = finite[i]!;
-    const next = finite[i + 1]!;
+    const prev = finite[i - 1];
+    const cur = finite[i];
+    const next = finite[i + 1];
+    if (!prev || !cur || !next) continue;
     if (kind === "max") {
       if (cur.amp >= prev.amp && cur.amp >= next.amp && (cur.amp > prev.amp || cur.amp > next.amp)) {
         out.push(cur);
@@ -213,13 +219,13 @@ export function findNextLocalExtremum(
   const extrema = buildExtrema(data, kind); // left-to-right order
   if (!extrema.length) return null;
   if (fromFreq === null) {
-    return direction === 'right' ? extrema[0]! : extrema[extrema.length - 1]!;
+    return (direction === 'right' ? extrema[0] : extrema[extrema.length - 1]) ?? null;
   }
   if (direction === 'right') {
     return extrema.find(p => p.freq > fromFreq) ?? null;
   } else {
     const before = extrema.filter(p => p.freq < fromFreq);
-    return before.length ? before[before.length - 1]! : null;
+    return before[before.length - 1] ?? null;
   }
 }
 

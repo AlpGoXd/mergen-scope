@@ -7,7 +7,7 @@ import type { DerivedTrace } from "../../src/types/trace";
 import { parseMeasurementFile } from "../../src/domain/parsers/parse-file";
 import { resetParserFileCounter } from "../../src/domain/parsers/rs-dat";
 import { summarizeTabularPreview } from "../../src/domain/parsers/tabular";
-import { restoreSnapshot } from "../../src/domain/workspace-serialize";
+import { migrateWorkspaceV5 } from "../../src/domain/workspace-migrate-v5";
 import { defaultFileState, fileReducer } from "../../src/stores/file-store";
 
 const TWO_TRACE_DAT = [
@@ -178,10 +178,10 @@ describe("import robustness", () => {
   });
 
   it("rejects JSON that is not a workspace", () => {
-    expect(restoreSnapshot("{}")).toBeNull();
-    expect(restoreSnapshot("[]")).toBeNull();
-    expect(restoreSnapshot("null")).toBeNull();
-    expect(restoreSnapshot('{"name":"package.json"}')).toBeNull();
-    expect(restoreSnapshot('{"version":1}')).toBeNull();
+    expect(migrateWorkspaceV5(JSON.parse("{}"))).toBeNull();
+    expect(migrateWorkspaceV5(JSON.parse("[]"))).toBeNull();
+    expect(migrateWorkspaceV5(JSON.parse("null"))).toBeNull();
+    expect(migrateWorkspaceV5(JSON.parse('{"name":"package.json"}'))).toBeNull();
+    expect(migrateWorkspaceV5(JSON.parse('{"version":1}'))).toBeNull();
   });
 });

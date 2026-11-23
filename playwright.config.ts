@@ -10,6 +10,9 @@ export default defineConfig({
     timeout: 10_000,
   },
   fullyParallel: true,
+  // Locally, half the cores: a full run (one Chromium per worker plus the dev server) should not take over the machine.
+  workers: process.env.CI ? undefined : "50%",
+  retries: process.env.CI ? 2 : 0,
   reporter: [["list"], ["html", { open: "never" }]],
   use: {
     baseURL: `http://127.0.0.1:${port}`,

@@ -1,0 +1,8 @@
+.polar-pane { display: flex; flex-direction: column; width: 100%; height: 100%; min-height: 0; background: var(--plot); color: var(--text); }
+.polar-plot { flex: 1; position: relative; min-height: 0; overflow: hidden; touch-action: none; cursor: crosshair; }
+.polar-plot:focus-visible { outline: 2px solid var(--border-strong); outline-offset: -2px; }
+.polar-svg { display: block; position: absolute; inset: 0; }
+.polar-label, .polar-tag { font-family: var(--font-mono); font-size: var(--font-caption); }
+.polar-label { fill: var(--text-muted); stroke: var(--plot); stroke-width: 3px; paint-order: stroke; pointer-events: none; }
+.polar-marker { cursor: grab; }
+.polar-readout { white-space: nowrap; text-overflow: ellipsis; overflow: hidden; }

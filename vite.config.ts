@@ -58,6 +58,15 @@ function lazyPaperPdf(): Plugin {
   };
 }
 
+// Version the landing page's cacheable assets against their contents.
+function versionLandingAssets(html: string): string {
+  return html.replace(/"(landing-assets\/(?:landing\.(?:css|js)|img\/[\w.-]+))"/g,
+    (_match, asset: string) => {
+      const revision = createHash("sha256").update(readFileSync(resolve(__dirname, asset))).digest("hex").slice(0, 12);
+      return `"${asset}?v=${revision}"`;
+    });
+}
+
 // Copies the static pages and runtime assets into dist/ after the build.
 // Only needed in production since dev serves everything from the root.
 function copyRuntimeAssets(): Plugin {
@@ -70,6 +79,7 @@ function copyRuntimeAssets(): Plugin {
     "mergen-scope-preview.png",
     "_headers",
     "robots.txt",
+    "llms.txt",
     "sitemap.xml",
   ];
   const staticDirs = [
@@ -92,13 +102,7 @@ function copyRuntimeAssets(): Plugin {
             const { version } = JSON.parse(readFileSync(resolve(__dirname, "package.json"), "utf8")) as { version: string };
             // Landing assets retain a long cache lifetime. A release must use
             // the stylesheet, script and examples that belong to its HTML.
-            const html = readFileSync(src, "utf8").replace(
-              /"(landing-assets\/(?:landing\.(?:css|js)|img\/[\w.-]+))"/g,
-              (_match, asset: string) => {
-                const revision = createHash("sha256").update(readFileSync(resolve(__dirname, asset))).digest("hex").slice(0, 12);
-                return `"${asset}?v=${revision}"`;
-              },
-            );
+            const html = versionLandingAssets(readFileSync(src, "utf8"));
             // Every <span data-version> (hero and footer) shows the package version.
             const versionSpan = /(<span\b[^>]*\bdata-version\b[^>]*>)[^<]*(<\/span>)/g;
             if (versionSpan.test(html)) {
@@ -116,6 +120,9 @@ function copyRuntimeAssets(): Plugin {
           }
         }
       }
+      // The design review lives with the design docs but is also published on the site.
+      const designReview = resolve(__dirname, "docs/design/design-review.html");
+      if (existsSync(designReview)) copyFileSync(designReview, resolve(outputDir, "design-review.html"));
       for (const dir of staticDirs) {
         const src = resolve(__dirname, dir);
         if (existsSync(src)) {

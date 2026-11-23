@@ -14,6 +14,10 @@ describe('trace math units (decisions 2026-11-10)', () => {
     ['V', 'V', 'multiply', 'V²'],
     ['V', 'V', 'divide', ''],
     ['', '', 'add', ''],
+    ['dBV', 'dB', 'add', 'dBV'],
+    ['dBV', 'dB', 'subtract', 'dBV'],
+    ['dBV', 'dBV', 'subtract', 'dB'],
+    ['dBmV', 'dBmV', 'subtract', 'dB'],
   ] as const)('%s %s %s → %s', (a, b, op, unit) => {
     const r = traceMathUnit(a, b, op);
     expect(r.unit).toBe(unit);
@@ -28,6 +32,9 @@ describe('trace math units (decisions 2026-11-10)', () => {
     ['V', 'A', 'add', 'no meaningful unit'],
     ['dBm', 'dBW', 'subtract', 'different references'],
     ['V', '', 'add', 'no unit'],
+    ['dBV', 'dBV', 'add', 'convert to linear'],
+    ['dBV', 'dBV', 'multiply', 'not multiplied'],
+    ['dBV', 'dBm', 'subtract', 'different references'],
   ] as const)('%s %s %s warns and has no unit', (a, b, op, text) => {
     const r = traceMathUnit(a, b, op);
     expect(r.unit).toBeNull();

@@ -2,6 +2,13 @@ import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { resolve } from 'node:path';
 
+async function waitForToolGroups(page: Page) {
+  await page.locator('.tool-groups').evaluate(async groups => {
+    await document.fonts.ready;
+    await Promise.allSettled(groups.getAnimations({ subtree: true }).map(animation => animation.finished));
+  });
+}
+
 async function openApp(page: Page, width: number) {
   await page.setViewportSize({ width, height: 900 });
   await page.goto('/app.html');
@@ -10,7 +17,9 @@ async function openApp(page: Page, width: number) {
   for (const name of ['Markers', 'Search', 'Lines', 'Pane']) {
     const chip = page.getByRole('button', { name, exact: true });
     if (await chip.getAttribute('aria-expanded') !== 'true') await chip.click();
+    await expect(chip).toHaveAttribute('aria-expanded', 'true');
   }
+  await waitForToolGroups(page);
 }
 
 const rows = (page: Page) => page.locator('.tool-zone').evaluateAll(zones => new Set(zones.map(zone => Math.round(zone.getBoundingClientRect().y))).size);
@@ -122,8 +131,7 @@ test('Trace is one control with its label inside it, and a group chip keeps the 
   const open = await read();
   await chip.click();
   await expect(chip).toHaveAttribute('aria-expanded', 'false');
-  // Let the chevron's 200 ms turn and the colour transitions finish.
-  await expect.poll(async () => (await read()).flipped).toBe(false);
+  await waitForToolGroups(page);
   const closed = await read();
   expect(open.box[3]).toBe(control);
   expect(closed).toMatchObject({ box: open.box, label: open.label, chevron: open.chevron, padding: open.padding, fontSize: open.fontSize, borderWidth: open.borderWidth, radius: await token('--radius-control') });
@@ -352,6 +360,7 @@ test('pressing a group chip moves nothing: not the chip, nothing to its left; th
   // And opening it again brings them back without moving the chip.
   await chip.click();
   await expect(chip).toHaveAttribute('aria-expanded', 'true');
+  await waitForToolGroups(page);
   expect((await snapshot()).chip).toEqual(open.chip);
 });
 

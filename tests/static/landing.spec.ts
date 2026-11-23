@@ -3,7 +3,7 @@ import type { Page } from '@playwright/test';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 
-const ORIGIN = 'http://127.0.0.1:4173';
+const ORIGIN = `http://127.0.0.1:${process.env.PW_STATIC_PORT ?? 4173}`;
 const { version } = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')) as { version: string };
 
 function watchOrigins(page: Page) {
@@ -70,5 +70,43 @@ test('the landing uses content-versioned URLs for its cacheable assets', async (
     const contents = readFileSync(new URL(`../../dist${url.pathname}`, import.meta.url));
     const revision = createHash('sha256').update(contents).digest('hex').slice(0, 12);
     expect(url.searchParams.get('v'), url.pathname).toBe(revision);
+  }
+});
+
+
+test('structured FAQ matches the visible questions and answers', async ({ page }) => {
+  await page.goto('/');
+  const blocks = await page.locator('head script[type="application/ld+json"]').allTextContents();
+  expect(blocks).toHaveLength(2);
+  const structured = blocks.map(block => JSON.parse(block) as { '@type': string; mainEntity?: { name: string; acceptedAnswer: { text: string } }[] });
+  const faq = structured.find(block => block['@type'] === 'FAQPage');
+  expect(faq?.mainEntity).toBeDefined();
+  const visible = await page.locator('#faq .pfacts > div').evaluateAll(items => items.map(item => ({
+    name: item.querySelector('h3')?.textContent?.trim(),
+    answer: item.querySelector('p')?.textContent?.trim(),
+  })));
+  expect(visible.length).toBeGreaterThanOrEqual(6);
+  expect(visible).toEqual(faq?.mainEntity?.map(item => ({ name: item.name, answer: item.acceptedAnswer.text })));
+});
+
+test('serves llms.txt', async ({ request }) => {
+  const response = await request.get('/llms.txt');
+  expect(response.status()).toBe(200);
+  expect(await response.text()).toMatch(/^# Mergen Scope(?:\r?\n|$)/);
+});
+
+test('internal landing links resolve', async ({ page, request }) => {
+  const links = new Set<string>();
+  for (const path of ['/']) {
+    await page.goto(path);
+    const urls = await page.locator('a[href]').evaluateAll(nodes => nodes.map(node => (node as HTMLAnchorElement).href));
+    for (const href of urls) {
+      const url = new URL(href);
+      if (url.origin === ORIGIN) { url.hash = ''; links.add(url.href); }
+    }
+  }
+  for (const url of links) {
+    const response = await request.get(url);
+    expect(response.status(), url).toBeLessThan(400);
   }
 });

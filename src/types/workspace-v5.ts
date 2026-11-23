@@ -49,6 +49,7 @@ export interface WorkspaceSnapshotV5 extends Omit<WorkspaceSnapshot, 'version' |
   readonly files: readonly WorkspaceFileV5[];
   readonly panes: readonly WorkspacePaneV5[];
   readonly traceAssignments: Readonly<Record<string, readonly string[]>>;
+  readonly traceListOrder?: readonly string[];
   readonly analysisResults: {
     readonly noiseResults: Readonly<Record<string, DataPoint[]>>;
     readonly ip3Results: Readonly<Record<string, IP3Result | null>>;

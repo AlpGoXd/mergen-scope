@@ -21,8 +21,10 @@ export function splitCells(line: string, delimiter: string): string[] {
   return line.split(delimiter).map((cell) => cell.trim());
 }
 
-function isNumber(cell: string): boolean {
-  return cell !== "" && Number.isFinite(Number(cell));
+/** A cell is a number only if, once trimmed, it is non-empty and finite (Number("") is 0, so it needs the guard). */
+export function isNumber(cell: string): boolean {
+  const trimmed = cell.trim();
+  return trimmed !== "" && Number.isFinite(Number(trimmed));
 }
 
 /** A data row: at least two numeric cells, and every non-empty cell numeric. */

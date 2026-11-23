@@ -2,7 +2,7 @@
 
 > Translation of the human's usual prompt: "refactor everything to TS, make no mistakes." Below is the version with actual instructions.
 
-Browser RF/signal analysis app (R&S `.dat`, CSV/TSV, Touchstone `.sNp`). React 19 + TypeScript 6 strict + Vite 7 (single-file build) + Recharts. Architecture, source layout, store order and parser pipeline are in `README.md` → "Architecture"; read it instead of re-deriving.
+Browser RF/signal analysis app (R&S `.dat`, CSV/TSV, Touchstone `.sNp`). React 19 + TypeScript 6 strict + Vite 7 (single-file build) + Recharts. Source layout and the main modules are in `README.md` → "Development" → "Codebase"; read it instead of re-deriving.
 
 ## Layout and boundaries
 
@@ -12,8 +12,8 @@ Browser RF/signal analysis app (R&S `.dat`, CSV/TSV, Touchstone `.sNp`). React 1
 - `src/hooks/` — bridge between stores/domain and components.
 - `src/components/` — UI only; put math in `domain/`, not in components.
 - `app.html` = SPA shell, `index.html` = static landing page. `dist/` is build output: never hand-edit it.
-- **Fragile:** `src/components/chart/ChartPane.tsx` (marker placement, drag zoom/pan, Y zoom, crosshair). Small, reversible steps; run e2e after every change there.
-- Workspace snapshots are versioned (v4). Changing the saved shape needs a migration in `workspace-migrate-v4.ts` and a test in `tests/unit/workspace.test.ts`.
+- **Fragile:** `src/components/chart/ChartPane.tsx` (marker placement, drag zoom/pan, Y zoom, crosshair). Small, reversible steps; run the chart e2e specs after every change there (see "When to run what").
+- Workspace files are versioned: the app saves **v5** (`use-workspace-v5.ts`, `types/workspace-v5.ts`) and loads every older version through `workspace-migrate-v5.ts`, which calls `workspace-migrate-v4.ts` for v1–v4 files. Changing the saved shape needs a migration in `workspace-migrate-v5.ts` and a test in `tests/unit/workspace-v5.test.ts`. The v5 save path handles all new workspace exports.
 
 ## TypeScript conventions
 
@@ -27,12 +27,27 @@ Browser RF/signal analysis app (R&S `.dat`, CSV/TSV, Touchstone `.sNp`). React 1
 |---|---|
 | Dev server (port 5173) | `npm run dev` |
 | Type-check | `npm run typecheck` |
-| Unit tests (Vitest, jsdom, `tests/unit/`) | `npm run test:unit` |
-| Browser smoke (Playwright, `tests/e2e/`, starts dev server) | `npm run test:e2e` |
+| Unit tests (Vitest, `tests/unit/`, node by default) | `npm run test:unit` |
+| Only the unit tests related to changed files | `npx vitest related <file> [<file>…] --run` |
+| Browser tests (Playwright, `tests/e2e/`, starts dev server) | `npm run test:e2e` |
+| A few e2e specs | `npx playwright test tests/e2e/<a>.spec.ts tests/e2e/<b>.spec.ts` |
 | Build (`tsc` + Vite → `dist/`) | `npm run build` |
 | Built-bundle smoke (`tests/static/`, port 4173) | `npm run build && npm run test:static` |
 
-There is no linter; `typecheck` is the static gate. Minimum for any code change is `typecheck` + `test:unit`. Add `test:e2e` for UI/chart/interaction changes, and `build` + `test:static` for build or asset changes. CI (`.github/workflows/deploy-pages.yml`) runs all of these on push to `main`.
+There is no linter; `typecheck` is the static gate. Unit tests run in node; a test file that needs the DOM starts with `// @vitest-environment jsdom`. Locally both Vitest and Playwright use half the CPU cores (`maxWorkers` / `workers: "50%"`); CI uses all of them.
+
+### When to run what
+
+Run tests to catch a break right after the change that caused it, but scale the run to the change. The full e2e suite is about 280 browser tests; don't run it after every edit.
+
+| When | Run |
+|---|---|
+| While iterating | `typecheck` + the related unit tests (`vitest related`) + the 1–3 e2e specs that cover what you touched |
+| Before merging a branch into `dev`, or calling work done | `typecheck` + full `test:unit` + full `test:e2e`, **once**. Add `build` + `test:static` for build or asset changes |
+| After merging into `dev` | `typecheck` + `test:unit` + the specs the branch touched. The full e2e suite only if the merge had conflicts or touched shared code beyond what the branch was verified with |
+| Proving a flaky test is fixed | `--repeat-each=N` on that spec only, not repeated full runs |
+
+Don't run full suites in a loop or several times "to be sure": that is what CI is for. CI (`.github/workflows/ci.yml`) runs typecheck, unit, e2e, build and static on every push and pull request to `main` and `dev`, with 2 e2e retries.
 
 ## Dependencies
 
@@ -43,10 +58,14 @@ npm with a committed `package-lock.json`. Ask before adding a dependency, and ne
 - `main` is the released line and the only branch that deploys. Don't commit on it.
 - Day-to-day work happens on the long-lived integration branch `dev`, in the single folder `gits/mergen-scope`. It is always branched from `main`; after a release, bring it back up to date with `git merge main`. Small changes are committed straight on `dev`; larger features get their own branch and are merged into it.
 - Branch names are `type/kebab-slug`: `feat/` for features, `fix/` for bug fixes, `chore/` for housekeeping, `codex/` for Codex jobs.
-- **Adding a feature:** branch from `dev` (`git switch -c feat/<slug> dev`), commit there, then merge it back with `git merge --no-ff feat/<slug>` and delete it with `git branch -d feat/<slug>`. Run typecheck, unit and e2e on `dev` after each merge.
+- **Adding a feature:** branch from `dev` (`git switch -c feat/<slug> dev`), commit there, then merge it back with `git merge --no-ff feat/<slug>` and delete it with `git branch -d feat/<slug>`. Verify before and after the merge as in "When to run what".
 - **Releasing:** bump the version in `package.json`, merge `dev` into `main`, tag `v<version>` (for example `v1.0.0-beta.3`). The user pushes.
 - **One folder, no worktrees.** Do not create worktrees or extra copies of the repo under `gits/`. Switch branches in `gits/mergen-scope` instead, and keep the working tree clean before switching. Only one writer (Claude or a Codex job) edits the tree at a time. Create a worktree only if the user explicitly asks for parallel work, and remove it after the merge.
-- **No duplicate `node_modules`:** install once, in `gits/mergen-scope`. If a task changes `package-lock.json`, say so in the report.
+- **Parallel mode** (the user asked for it on 2026-11-22): each writer owns one folder. `gits/mergen-scope` belongs to the user's agent; Claude and its Codex jobs use `gits/_worktrees/claude-dev` (with its own `npm ci` install), which normally has `dev` checked out. Only Claude merges into `dev`, from that worktree. Never write in the other writer's folder. Playwright in the worktree always runs with `PW_PORT=5183` (and `test:static` with `PW_STATIC_PORT=4183`), because e2e reuses whatever dev server already runs on its port, and 5173 belongs to the main folder. Before every write job, run `ListAgents` and `git worktree list`; if another writer could be in the folder, ask the user first.
+- **Writer lock** (`.githooks/pre-commit`): while a job runs, Claude writes `$(git rev-parse --git-dir)/mergen-writer.lock` in that folder (`owner=`, `branch=`, `paths=`). The hook then refuses commits on any other branch, or commits with staged files outside `paths`. Claude also runs a watcher that kills the job if the folder's branch changes. Remove the lock when the job ends. The hook is shared by all worktrees and is a no-op without a lock.
+- **Codex in the worktree can't commit or run e2e.** Its sandbox only writes inside the folder, but a worktree's git data lives in `gits/mergen-scope/.git/worktrees/`, and it may not spawn the dev server (`spawn EPERM`). So the Codex prompt says: leave the changes uncommitted, run typecheck and unit tests, and skip e2e. Claude then reviews, runs the e2e specs and commits on the job branch.
+- **No duplicate `node_modules`:** one install per folder: `gits/mergen-scope`, plus `gits/_worktrees/claude-dev` in parallel mode (its own `npm ci`). Never junctions or a shared install. There is no shared install in `gits/`: an old `gits/node_modules` from an earlier policy may still exist, and Node falls back to it from any folder under `gits/` that lacks its own install, so a worktree without `node_modules` silently gets the wrong packages. If a task changes `package-lock.json`, say so in the report.
+- `AGENTS.md` holds the same rules for Codex and other agents. Keep the two files in agreement when either changes.
 - **Never `git push`** (blocked by a deny rule in `.claude/settings.local.json`). Commit only when the user asks; the user pushes. Task branches never need pushing: merge them locally.
 - Commit style: short imperative subject, optional scope prefix (`refactor(ts): …`, `design-sync: …`).
 - `dist/` is build output and is not tracked (it is in `.gitignore`; CI and Cloudflare Pages build it from source). Never force-add it.
@@ -60,21 +79,22 @@ npm with a committed `package-lock.json`. Ask before adding a dependency, and ne
 ## Visual design work
 
 - Explore look and feel (palette, toolbar styling, layout mockups) in Claude Design first; once the user picks a direction, port the tokens/styles into `src/index.css` and the components.
-- Use the `frontend-design` plugin for UI changes. Visual changes still need `test:e2e`, since styling can break chart interaction.
+- Use the `frontend-design` plugin for UI changes. Visual changes still need the full `test:e2e` before merging, since styling can break chart interaction.
 - Codex is not the tool for visual taste; use it for review of interaction/logic changes only.
 
 ## Working with Codex
 
 Claude is the coordinator: it plans, decides, integrates, and does the final verification. Codex (OpenAI Codex CLI via the `codex@openai-codex` plugin, ChatGPT login) is an independent collaborator. Claude stays accountable for everything Codex produces.
 
-### Models (verified 2026-11-06 with live runs)
+### Models (terra/luna verified 2026-11-06, sol 6.2 verified 2026-11-22 with live runs)
 
 | Model ID | Use for |
 |---|---|
+| `gpt-6.2-sol` | The user's current choice for implementation jobs (2026-11-22). Pick `--effort` per task: `medium` for small scoped fixes, `high` for `ChartPane`, migrations and analysis math |
 | `gpt-6.1-terra` | Complex implementation, hard debugging, architecture, independent code review |
 | `gpt-6-luna` | Small fixes, writing tests, straightforward coding, focused analysis |
 
-Always pass `--model` explicitly; the Codex default (`gpt-6-sol` in `~/.codex/config.toml`) is not what we want. The plugin's `--effort` accepts only `none|minimal|low|medium|high|xhigh` (not `max`/`ultra`). If a model is rejected, say so and name the model that actually ran. Don't claim the preferred one was used.
+Always pass `--model` explicitly; the Codex default (`gpt-6-sol` in `~/.codex/config.toml`, the older Sol) is not what we want. The CLI rejects an unknown model ID with "model is not supported", so a run without that error used the model you named. The plugin's `--effort` accepts only `none|minimal|low|medium|high|xhigh` (not `max`/`ultra`). If a model is rejected, say so and name the model that actually ran. Don't claim the preferred one was used.
 
 ### How to invoke
 
@@ -109,8 +129,9 @@ Don't delegate trivial edits, one-file fixes Claude can verify in a minute, or a
 
 ### Rules
 
-- **One writer per file.** Never let Claude and Codex (or two Codex jobs) edit the same files at the same time. Write-capable Codex runs happen in the main folder on their own branch (`git switch -c codex/<task> dev`, tree clean first), and Claude does not edit until the job finishes; then merge the branch into `dev` and delete it. Read-only runs may use the tree at any time.
-- Give Codex a self-contained prompt: goal, files involved, constraints from this file, and the verification command to run.
+- **One writer per file.** Never let Claude and Codex (or two Codex jobs) edit the same files at the same time. Write-capable Codex runs happen in the main folder on their own branch, and Claude does not edit until the job finishes; then merge the branch into `dev` and delete it. Read-only runs may use the tree at any time.
+- **Claude creates the branch, Codex doesn't.** Before a write job, Claude makes sure the tree is clean and runs `git switch -c codex/<task> dev` itself (in parallel mode, inside `gits/_worktrees/claude-dev`), then writes the writer lock and starts the branch watcher. The prompt says the branch is already checked out, and that Codex must not create worktrees, copies of the repo, or a `node_modules` install. Codex has made worktrees on its own before (following an older AGENTS.md); after each job, check `git worktree list` and clean up anything it made.
+- Give Codex a self-contained prompt: goal, files involved, constraints from this file, and the verification to run, scaled per "When to run what" (targeted while iterating, the full e2e suite once at the end).
 - Treat Codex output as a proposal. Claude reads the diff, rejects what doesn't fit, merges the rest, then runs the verification commands above itself. Codex reporting "tests pass" is not enough.
 - Tell the user which model did what and what was accepted or rejected. Delete task branches once merged or abandoned.
 

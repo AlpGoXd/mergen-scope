@@ -9,6 +9,7 @@ import type { ParsedFile, FileMetadata, MetadataEntry } from "../../types/file.t
 import { makeTrace } from "../trace-model.ts";
 import { buildScalarDisplayTraceFromSeriesDataset, buildSeriesDatasetFromTrace } from "../dataset-builders.ts";
 import { normalizeTraceData, dedupeParsedTraces } from "./helpers.ts";
+import { isNumber } from "./tabular-detect.ts";
 
 // ---------------------------------------------------------------------------
 // Module-level file counter
@@ -25,6 +26,18 @@ export function incrementFileCounter(): number { return ++_fc; }
 // R&S DAT parser
 // ---------------------------------------------------------------------------
 
+/** Cells of a ";" row without the trailing blanks that a closing ";" leaves. */
+function withoutTrailingBlanks(parts: readonly string[]): string[] {
+  let end = parts.length;
+  while (end > 0 && parts[end - 1] === "") end--;
+  return parts.slice(0, end);
+}
+
+/** A cell that reads as a number word or blank (including NaN and Infinity), so its row is a data row even if it is a bad one. */
+function isNumberLike(cell: string): boolean {
+  return cell === "" || !Number.isNaN(Number(cell)) || /^[+-]?NaN$/i.test(cell);
+}
+
 /** Parse a Rohde & Schwarz DAT file. */
 export function parseRSDat(text: string, fileName: string): ParsedFile {
   _fc++;
@@ -32,8 +45,10 @@ export function parseRSDat(text: string, fileName: string): ParsedFile {
   const lines = text.split(/\r?\n/);
   const meta: Record<string, MetadataEntry> = {};
   const traces: RawTrace[] = [];
-  let cur: { trace: RawTrace; data: DataPoint[] } | null = null;
-  const blocks: { trace: RawTrace; data: DataPoint[] }[] = [];
+  // Rows are kept by shape: "pairs" are frequency;amplitude, "singles" are amplitude only.
+  // A block with any pairs is a two-column block, so its single-value rows are rows with a missing cell (e.g. "2;").
+  let cur: { trace: RawTrace; pairs: DataPoint[]; singles: DataPoint[] } | null = null;
+  const blocks: { trace: RawTrace; pairs: DataPoint[]; singles: DataPoint[] }[] = [];
   let inData = false;
   let hadTraceDecl = false;
 
@@ -43,13 +58,13 @@ export function parseRSDat(text: string, fileName: string): ParsedFile {
     const parts = trimmed.split(";").map((s) => s.trim());
 
     if (inData && cur) {
-      const nums = parts.filter((s) => s !== "").map(Number);
-      if (nums.length >= 2 && nums.every((n) => !isNaN(n))) {
-        cur.data.push({ freq: nums[0]!, amp: nums[1]! });
-        continue;
-      }
-      if (nums.length === 1 && !isNaN(nums[0]!)) {
-        cur.data.push({ freq: 0, amp: nums[0]! }); // freq filled later
+      const cells = withoutTrailingBlanks(parts);
+      if (cells.length > 0 && cells.every(isNumberLike)) {
+        // A blank cell before the last value, or a non-finite number, is a bad row: skip it, the block goes on.
+        if (!cells.every(isNumber)) continue;
+        // One value is an amplitude only; its frequency is filled in later from Start/Stop.
+        if (cells.length >= 2) cur.pairs.push({ freq: Number(cells[0]), amp: Number(cells[1]) });
+        else cur.singles.push({ freq: 0, amp: Number(cells[0]) });
         continue;
       }
       inData = false;
@@ -58,7 +73,7 @@ export function parseRSDat(text: string, fileName: string): ParsedFile {
     if (/^Trace$/i.test(parts[0] ?? "") && parts[1] && /^\d+$/.test(parts[1])) {
       hadTraceDecl = true;
       const trace = makeTrace(prefix, fileName, `Tr${parts[1]}`, _fc);
-      cur = { trace, data: [] };
+      cur = { trace, pairs: [], singles: [] };
       blocks.push(cur);
       traces.push(trace);
       continue;
@@ -75,15 +90,15 @@ export function parseRSDat(text: string, fileName: string): ParsedFile {
       inData = true;
       if (!cur) {
         const trace = makeTrace(prefix, fileName, `Tr${traces.length + 1}`, _fc);
-        cur = { trace, data: [] };
-      blocks.push(cur);
+        cur = { trace, pairs: [], singles: [] };
+        blocks.push(cur);
         traces.push(trace);
       }
       continue;
     }
     if (parts.length >= 2 && /^[a-zA-Z]/.test(parts[0] ?? "")) {
       const nv = parseFloat(parts[1] ?? "");
-      meta[parts[0]!] = !isNaN(nv) && parts[1] !== ""
+      meta[parts[0]!] = Number.isFinite(nv) && parts[1] !== ""
         ? { value: nv, unit: parts[2] ?? "" }
         : (parts[1] ?? "");
     }
@@ -94,27 +109,27 @@ export function parseRSDat(text: string, fileName: string): ParsedFile {
     const trace = makeTrace(prefix, fileName, "Tr1", _fc);
     const fallbackData: DataPoint[] = [];
     for (const line of lines) {
-      const p = line.trim().split(";").filter((s) => s.trim() !== "").map(Number);
-      if (p.length >= 2 && p.every((n) => !isNaN(n))) {
-        fallbackData.push({ freq: p[0]!, amp: p[1]! });
+      const cells = withoutTrailingBlanks(line.trim().split(";").map((part) => part.trim()));
+      if (cells.length >= 2 && cells.every(isNumber)) {
+        fallbackData.push({ freq: Number(cells[0]), amp: Number(cells[1]) });
       }
     }
     if (fallbackData.length > 0) {
-      (trace as unknown as { data: DataPoint[] }).data = fallbackData;
-      traces.push(trace);
+      traces.push({ ...trace, data: fallbackData });
     }
   }
 
   // Copy each block's data to its own trace (multi-trace files have one block per "Trace;N")
-  for (const block of blocks) {
-    (block.trace as unknown as { data: DataPoint[] }).data = block.data;
-  }
+  const withData: RawTrace[] = traces.map((tr) => {
+    const block = blocks.find((item) => item.trace === tr);
+    return block ? { ...tr, data: block.pairs.length > 0 ? block.pairs : block.singles } : tr;
+  });
 
   const sf = (meta["Start"] && typeof meta["Start"] === "object" && "value" in meta["Start"]) ? meta["Start"].value : 0;
   const ef = (meta["Stop"] && typeof meta["Stop"] === "object" && "value" in meta["Stop"]) ? meta["Stop"].value : 0;
 
   const finalTraces = dedupeParsedTraces(
-    traces.filter((t) => t.data.length > 0).map((tr) => {
+    withData.filter((t) => t.data.length > 0).map((tr) => {
       let data = [...tr.data] as DataPoint[];
       if (data.length > 0 && data[0]!.freq === 0 && data.every((d) => d.freq === 0)) {
         const n = data.length;

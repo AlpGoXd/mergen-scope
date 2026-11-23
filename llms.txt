@@ -1,0 +1,55 @@
+# Mergen Scope
+
+> Mergen Scope is a free, open-source browser workspace for viewing and analyzing spectrum analyzer, oscilloscope and S-parameter files. It is intended for RF and measurement engineers, students and radio amateurs.
+
+## Supported files
+
+- R&S spectrum `.dat`: spectrum traces with span, RBW and detector metadata. Tabular `.dat` files can also contain time or frequency columns.
+- Touchstone `.s1p` through `.s16p`: S-parameter networks. Views include S, Y, Z and, for two-port networks, ABCD; a Smith chart is available.
+- `.csv`, `.txt` and `.tsv`: waveform and other time or frequency column data, using comma, semicolon or tab delimiters. The import wizard can map columns and units.
+- Workspace `.json`: saved data, panes, markers, lines and analyses.
+
+Not tied to one instrument brand: any waveform or measurement that an oscilloscope, spectrum analyzer, VNA or other instrument (or a script) exports as a text table (CSV, TXT or TSV with comma, semicolon or tab delimiters) can be opened. The import wizard picks the X column, one or more Y columns, units and multipliers. Proprietary binary formats are not read; export the data as CSV or text first.
+
+## Analysis tools
+
+Noise PSD, IP3, Peak Table, Range Statistics, Bandwidth, Antenna far field (beamwidth, peak bearing, front-to-back ratio and secondary lobes on a gain cut against angle), Threshold crossings, Line crossings, Ripple, Occupied bandwidth, Channel power, Reciprocity / Isolation, Stability, Offset / Scale, Smooth, Trace math, Waveform, FFT, Harmonics and Resample. Tools have data requirements; for example, Stability and Reciprocity / Isolation require a two-port network.
+
+## Views
+
+Chart panes (linear or logarithmic axes), Table panes, Smith chart panes and Polar panes (magnitude against angle, for example an antenna gain cut). Up to four panes, with linked X axes. Traces can be dragged onto panes, and traces and analysis cards can be reordered by dragging.
+
+## Export
+
+PNG, SVG, PDF, LaTeX (TikZ) and CSV. PDF export works on mergenscope.com; a copy of the built app opened directly from disk (file://) needs a local web server for PDF. A workspace can also be saved as JSON.
+
+## Privacy
+
+Files are read and processed locally in the browser and are not uploaded. There are no cookies, trackers or account. Preferences such as the theme, export options, recent analysis tools and some interface settings are stored in the browser; a workspace is saved when downloaded. Files attached to a GitHub issue are public.
+
+## Limits
+
+Mergen Scope is beta. Generic tables may need manual column and unit mapping which can done on internal wizzard.
+
+## How to use
+
+[Open the app](https://mergenscope.com/app.html) and drop a file into the workspace, or [try the demo](https://mergenscope.com/app.html?demo=1).
+
+## Guides
+
+- [User guide](https://github.com/AlpGoXd/mergen-scope/blob/main/docs/guide/README.md): Workspace overview and guide index.
+- [Oscilloscope CSV](https://github.com/AlpGoXd/mergen-scope/blob/main/docs/guide/oscilloscope-csv.md): Import and analyze waveform columns.
+- [Touchstone and Smith chart](https://github.com/AlpGoXd/mergen-scope/blob/main/docs/guide/touchstone-and-smith-chart.md): Network views and analysis.
+- [R&S DAT](https://github.com/AlpGoXd/mergen-scope/blob/main/docs/guide/rs-spectrum-analyzer-dat.md): Open spectrum analyzer exports.
+- [Trace math](https://github.com/AlpGoXd/mergen-scope/blob/main/docs/guide/trace-math.md): Trace alignment and unit rules.
+- [Analysis tools](https://github.com/AlpGoXd/mergen-scope/blob/main/docs/guide/analysis-tools.md): Tool inputs, settings and outputs.
+
+## Design
+
+The full design specification is one self-contained page: [Design review](https://mergenscope.com/design-review.html). It covers the rules, colours and themes, the panels, every pane type, the toolbar, the import flows and the landing page. Source and notes: [docs/design](https://github.com/AlpGoXd/mergen-scope/blob/main/docs/design/README.md).
+
+## Links
+
+- [Source on GitHub](https://github.com/AlpGoXd/mergen-scope)
+- [License: Apache-2.0](https://www.apache.org/licenses/LICENSE-2.0)
+- [Feedback](https://github.com/AlpGoXd/mergen-scope/issues/new/choose)

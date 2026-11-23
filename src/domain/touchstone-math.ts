@@ -78,7 +78,7 @@ export function cloneComplexMatrix(matrix: ComplexMatrix): Complex[][] {
 export function matrixIdentity(portCount: number): Complex[][] {
   const n = Math.max(1, Math.floor(Number(portCount) || 0));
   const matrix = makeComplexMatrix(n);
-  for (let i = 0; i < n; i++) matrix[i]![i] = cx(1, 0);
+  for (const [i, row] of matrix.entries()) row[i] = cx(1, 0);
   return matrix;
 }
 
@@ -86,13 +86,22 @@ export function matrixIdentity(portCount: number): Complex[][] {
 // Matrix arithmetic
 // ---------------------------------------------------------------------------
 
+function requireMatrixRow<Row>(matrix: readonly Row[], index: number): Row {
+  const row = matrix[index];
+  if (row === undefined) throw new TypeError("Matrix row is missing.");
+  return row;
+}
+
 /** Add two complex matrices element-wise. */
 export function matrixAdd(a: ComplexMatrix, b: ComplexMatrix): Complex[][] {
   const n = a?.length ?? 0;
   const out = makeComplexMatrix(n);
   for (let row = 0; row < n; row++) {
+    const outRow = requireMatrixRow(out, row);
+    const aRow = requireMatrixRow(a, row);
+    const bRow = requireMatrixRow(b, row);
     for (let col = 0; col < n; col++) {
-      out[row]![col] = add(a[row]![col]!, b[row]![col]!);
+      outRow[col] = add(aRow[col] ?? null, bRow[col] ?? null);
     }
   }
   return out;
@@ -103,8 +112,11 @@ export function matrixSubtract(a: ComplexMatrix, b: ComplexMatrix): Complex[][] 
   const n = a?.length ?? 0;
   const out = makeComplexMatrix(n);
   for (let row = 0; row < n; row++) {
+    const outRow = requireMatrixRow(out, row);
+    const aRow = requireMatrixRow(a, row);
+    const bRow = requireMatrixRow(b, row);
     for (let col = 0; col < n; col++) {
-      out[row]![col] = sub(a[row]![col]!, b[row]![col]!);
+      outRow[col] = sub(aRow[col] ?? null, bRow[col] ?? null);
     }
   }
   return out;
@@ -115,12 +127,14 @@ export function matrixMultiply(a: ComplexMatrix, b: ComplexMatrix): Complex[][] 
   const n = a?.length ?? 0;
   const out = makeComplexMatrix(n);
   for (let row = 0; row < n; row++) {
+    const outRow = requireMatrixRow(out, row);
+    const aRow = requireMatrixRow(a, row);
     for (let col = 0; col < n; col++) {
       let sum = cx(0, 0);
       for (let k = 0; k < n; k++) {
-        sum = add(sum, mul(a[row]![k]!, b[k]![col]!));
+        sum = add(sum, mul(aRow[k] ?? null, requireMatrixRow(b, k)[col] ?? null));
       }
-      out[row]![col] = sum;
+      outRow[col] = sum;
     }
   }
   return out;
@@ -134,47 +148,61 @@ export function matrixInverse(matrix: ComplexMatrix): Complex[][] | null {
   // Build augmented matrix [A | I]
   const aug: Complex[][] = [];
   for (let row = 0; row < n; row++) {
+    const source = requireMatrixRow(matrix, row);
     const line: Complex[] = [];
-    for (let col = 0; col < n; col++) line.push(cloneComplex(matrix[row]![col]!));
+    for (let col = 0; col < n; col++) line.push(cloneComplex(source[col]));
     for (let j = 0; j < n; j++) line.push(j === row ? cx(1, 0) : cx(0, 0));
     aug.push(line);
   }
 
   for (let pivotCol = 0; pivotCol < n; pivotCol++) {
-    let pivotRow = pivotCol;
-    let pivotMag = abs(aug[pivotRow]![pivotCol]!);
+    const currentRow = aug[pivotCol];
+    const currentPivot = currentRow?.[pivotCol];
+    if (currentRow === undefined || currentPivot === undefined) return null;
+    let pivotIndex = pivotCol;
+    let pivotRow = currentRow;
+    let pivot = currentPivot;
+    let pivotMag = abs(pivot);
     for (let row2 = pivotCol + 1; row2 < n; row2++) {
-      const mag = abs(aug[row2]![pivotCol]!);
-      if (mag > pivotMag) { pivotMag = mag; pivotRow = row2; }
+      const candidate = aug[row2];
+      const entry = candidate?.[pivotCol];
+      if (candidate === undefined || entry === undefined) return null;
+      const mag = abs(entry);
+      if (mag > pivotMag) {
+        pivotMag = mag;
+        pivotIndex = row2;
+        pivotRow = candidate;
+        pivot = entry;
+      }
     }
     if (!Number.isFinite(pivotMag) || pivotMag <= 1e-15) return null;
-    if (pivotRow !== pivotCol) {
-      const tmp = aug[pivotCol]!;
-      aug[pivotCol] = aug[pivotRow]!;
-      aug[pivotRow] = tmp;
+    if (pivotIndex !== pivotCol) {
+      aug[pivotCol] = pivotRow;
+      aug[pivotIndex] = currentRow;
     }
-    const pivot = aug[pivotCol]![pivotCol]!;
     for (let col2 = 0; col2 < 2 * n; col2++) {
-      const normalized = div(aug[pivotCol]![col2]!, pivot);
+      const normalized = div(pivotRow[col2] ?? null, pivot);
       if (normalized === null) return null;
-      aug[pivotCol]![col2] = normalized;
+      pivotRow[col2] = normalized;
     }
     for (let row3 = 0; row3 < n; row3++) {
       if (row3 === pivotCol) continue;
-      const factor = aug[row3]![pivotCol]!;
+      const row = aug[row3];
+      const factor = row?.[pivotCol];
+      if (row === undefined || factor === undefined) return null;
       if (abs(factor) <= 1e-15) {
-        aug[row3]![pivotCol] = cx(0, 0);
+        row[pivotCol] = cx(0, 0);
         continue;
       }
       for (let col3 = 0; col3 < 2 * n; col3++) {
-        aug[row3]![col3] = sub(aug[row3]![col3]!, mul(factor, aug[pivotCol]![col3]!));
+        row[col3] = sub(row[col3] ?? null, mul(factor, pivotRow[col3] ?? null));
       }
     }
   }
 
   const inverse: Complex[][] = [];
-  for (let row4 = 0; row4 < n; row4++) {
-    inverse.push(aug[row4]!.slice(n, 2 * n).map(cloneComplex));
+  for (const row of aug) {
+    inverse.push(row.slice(n, 2 * n).map(cloneComplex));
   }
   return inverse;
 }
@@ -193,12 +221,13 @@ export function normalizeReferenceArray(
 
   if (Array.isArray(referenceOhms)) {
     const refs = referenceOhms.map(Number);
-    if (!refs.length) return null;
+    const first = refs[0];
+    if (first === undefined) return null;
     for (const ref of refs) {
       if (!Number.isFinite(ref) || ref <= 0) return null;
     }
     if (hasPortCount && refs.length === 1) {
-      return Array.from({ length: n }, () => refs[0]!);
+      return Array.from({ length: n }, () => first);
     }
     if (hasPortCount && refs.length !== n) return null;
     return refs;
@@ -225,12 +254,11 @@ export function expandOrderedValuesToMatrix(
   if (!Array.isArray(values) || values.length !== order.length) return null;
 
   const matrix = makeComplexMatrix(n);
-  for (let i = 0; i < order.length; i++) {
-    const entry = order[i]!;
-    const value = cloneComplex(values[i]!);
-    matrix[entry.row]![entry.col] = value;
-    if (matrixFormat !== "full" && entry.row !== entry.col) {
-      matrix[entry.col]![entry.row] = cloneComplex(value);
+  for (const [i, { row, col }] of order.entries()) {
+    const value = cloneComplex(values[i]);
+    requireMatrixRow(matrix, row)[col] = value;
+    if (matrixFormat !== "full" && row !== col) {
+      requireMatrixRow(matrix, col)[row] = cloneComplex(value);
     }
   }
   return matrix;
@@ -269,8 +297,10 @@ export function convertSMatrixToZMatrix(
   if (!minusInv) return null;
 
   const left = makeComplexMatrix(n);
-  for (let i = 0; i < n; i++) {
-    left[i]![i] = cx(Math.sqrt(refs[i]!), 0);
+  for (const [i, row] of left.entries()) {
+    const ref = refs[i];
+    if (ref === undefined) return null;
+    row[i] = cx(Math.sqrt(ref), 0);
   }
 
   return matrixMultiply(matrixMultiply(left, matrixMultiply(plus, minusInv)), left);
@@ -293,8 +323,10 @@ export function convertSMatrixToYMatrix(
   if (!plusInv) return null;
 
   const invLeft = makeComplexMatrix(n);
-  for (let i = 0; i < n; i++) {
-    invLeft[i]![i] = cx(1 / Math.sqrt(refs[i]!), 0);
+  for (const [i, row] of invLeft.entries()) {
+    const ref = refs[i];
+    if (ref === undefined) return null;
+    row[i] = cx(1 / Math.sqrt(ref), 0);
   }
 
   return matrixMultiply(matrixMultiply(invLeft, matrixMultiply(minus, plusInv)), invLeft);
@@ -307,12 +339,14 @@ export function convertSMatrixToYMatrix(
 /** Compute two-port stability factors (K, μ₁, μ₂). */
 export function computeTwoPortStability(sMatrix: ComplexMatrix): StabilityResult | null {
   if (!Array.isArray(sMatrix) || sMatrix.length !== 2) return null;
-  if (!Array.isArray(sMatrix[0]) || !Array.isArray(sMatrix[1])) return null;
+  const first = sMatrix[0];
+  const second = sMatrix[1];
+  if (!Array.isArray(first) || !Array.isArray(second)) return null;
 
-  const s11 = sMatrix[0]![0] ?? cx(0, 0);
-  const s12 = sMatrix[0]![1] ?? cx(0, 0);
-  const s21 = sMatrix[1]![0] ?? cx(0, 0);
-  const s22 = sMatrix[1]![1] ?? cx(0, 0);
+  const s11 = first[0] ?? cx(0, 0);
+  const s12 = first[1] ?? cx(0, 0);
+  const s21 = second[0] ?? cx(0, 0);
+  const s22 = second[1] ?? cx(0, 0);
 
   const delta = sub(mul(s11, s22), mul(s12, s21));
   const deltaAbs = abs(delta);

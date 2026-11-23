@@ -2,6 +2,7 @@
 import { MOUSE_HINTS, SHORTCUTS } from '../../domain/shortcuts';
 import { APP_VERSION } from './shortcuts';
 import './help-sheet.css';
+import { useSheetFocus } from '../../hooks/use-sheet-focus';
 import { useCenteredDialog } from '../../hooks/use-centered-dialog';
 
 /** Feedback destinations shared by the footer menu, the Help sheet and About. */
@@ -31,13 +32,13 @@ function HelpList({ items, label }: { items: readonly { readonly keys: readonly 
  * `focus="keyboard"` (App settings › Keyboard shortcuts) opens it scrolled to the Keyboard section.
  */
 export function HelpSheet({ onClose, onAbout, focus = 'top' }: { onClose: () => void; onAbout: () => void; focus?: 'top' | 'keyboard' }) {
-  const dialog = useCenteredDialog();
+  const dialog = useSheetFocus();
   const body = useRef<HTMLDivElement>(null);
   const keyboard = useRef<HTMLElement>(null);
   useLayoutEffect(() => {
     if (focus === 'keyboard' && body.current && keyboard.current) body.current.scrollTop = keyboard.current.offsetTop - body.current.offsetTop;
   }, [focus]);
-  return <dialog ref={dialog} className="ui-dialog help-sheet" role="dialog" aria-modal="true" aria-label="Help" data-testid="help-sheet" onCancel={event => { event.preventDefault(); onClose(); }}>
+  return <div ref={dialog} className="help-sheet" role="dialog" aria-label="Help" data-testid="help-sheet" tabIndex={-1}>
     <header className="help-sheet__head"><span className="t-title">Help</span><button type="button" className="help-close" onClick={onClose} aria-label="Close help">×</button></header>
     <div className="help-sheet__body" ref={body}>
       <section className="help-sheet__section" aria-labelledby="help-mouse"><h3 id="help-mouse" className="t-section">Mouse</h3><HelpList items={MOUSE_HINTS} label="Mouse" /></section>
@@ -49,7 +50,7 @@ export function HelpSheet({ onClose, onAbout, focus = 'top' }: { onClose: () => 
       <FeedbackLinks /><span aria-hidden="true">·</span>
       <span>{PRIVACY}</span>
     </footer>
-  </dialog>;
+  </div>;
 }
 
 /** About: name, version, licence, GitHub link, the feedback links and the privacy sentence. */

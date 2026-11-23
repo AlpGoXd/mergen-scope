@@ -1,6 +1,8 @@
+import { readFileSync } from 'node:fs';
 import { expect, it } from 'vitest';
-import { allocateColourBlindCreated, displayTraceColor } from '../../src/domain/trace-colors';
-import { traceColor, traceWidth } from '../../src/domain/trace-palette';
+import { allocateColourBlindCreated, displayTraceColor, forcesHollowTraceSymbol, traceDisplaySymbol } from '../../src/domain/trace-colors';
+import { planDotsAndSymbols } from '../../src/domain/dots-and-symbols';
+import { symbolFor, traceColor, traceWidth } from '../../src/domain/trace-palette';
 import { initialWorkspaceEngine, workspaceEngineReducer } from '../../src/stores/aggregate-workspace-store';
 import { makeTestTrace } from './helpers';
 import type { Trace } from '../../src/types/trace';
@@ -10,7 +12,7 @@ it('maps source colours without changing slots on a palette switch', () => {
   const child = makeTestTrace({ id: 'child', name: 'child', kind: 'derived', operationType: 'derived', sourceTraceIds: ['1'] } as Partial<Trace>);
   const slots = Object.fromEntries(allocateColourBlindCreated([...traces, child], new Map()));
   const second = slots['1']; if (!second) throw new Error('missing assignment');
-  expect(displayTraceColor(second, 'light', 'colour-blind')).toContain(' 135)');
+  expect(displayTraceColor(second, 'light', 'colour-blind')).toBe('oklch(0.379 0.102 48)');
   const base = initialWorkspaceEngine();
   const engine = { ...base, present: { ...base.present, traces: { ...base.present.traces, derivedTraces: [...traces, child] }, ui: { ...base.present.ui, huePalette: 'standard' as const, traceHueSlots: slots } } };
   const switched = workspaceEngineReducer(engine, { type: 'change', command: { slice: 'ui', action: { type: 'SET', payload: { key: 'huePalette', value: 'colour-blind' } } } });
@@ -18,25 +20,36 @@ it('maps source colours without changing slots on a palette switch', () => {
   expect(switched.history).toBe(engine.history);
 });
 
-it('allocates colour-blind children around parents and keeps surviving choices', () => {
-  const source = makeTestTrace({ id: 'source' });
-  const child = (id: string, parent = 'source') => makeTestTrace({ id, kind: 'derived', operationType: 'derived', sourceTraceIds: [parent] } as Partial<Trace>);
-  const a = child('a'), b = child('b'), c = child('c');
-  const initial = allocateColourBlindCreated([source, a, b, c], new Map());
-  expect([initial.get('a')?.cbIndex, initial.get('b')?.cbIndex, initial.get('c')?.cbIndex]).toEqual([1, 7, 2]);
-  const chain = allocateColourBlindCreated([source, a, child('nested', 'a')], initial);
-  expect(chain.get('nested')?.cbIndex).toBe(2);
-  const next = allocateColourBlindCreated([source, b, c, child('new')], initial);
-  expect(next.get('b')?.cbIndex).toBe(7); expect(next.get('c')?.cbIndex).toBe(2); expect(next.get('new')?.cbIndex).toBe(1);
-  const slot = initial.get('a'); if (!slot) throw new Error('missing slot');
-  expect(displayTraceColor(slot, 'light', 'colour-blind')).toMatch(/^oklch\(0\.46 /);
-  expect(displayTraceColor(slot, 'dark', 'colour-blind')).toMatch(/^oklch\(0\.84 /);
-  expect(traceWidth(slot)).toBe(2);
-  expect(displayTraceColor(slot, 'light', 'standard')).toBe(traceColor(slot, 'light'));
-  const many = Array.from({ length: 9 }, (_, index) => child(`repeat-${index}`));
-  const repeated = allocateColourBlindCreated([source, ...many], new Map());
-  expect(new Set(many.slice(0, 8).map(trace => repeated.get(trace.id)?.cbIndex)).size).toBe(8);
-  expect(repeated.get('repeat-8')?.cbIndex).toBe(1);
+it('assigns Palette A in next-free order, with the parent colour and a forced hollow symbol for created traces', () => {
+  const spec = readFileSync(new URL('../../docs/design/colour-values.md', import.meta.url), 'utf8');
+  const rows = Array.from(spec.matchAll(/^  \d\. (oklch\([^)]+\)) -> (oklch\([^)]+\))$/gm));
+  expect(rows).toHaveLength(16);
+  const sources = Array.from({ length: 9 }, (_, index) => makeTestTrace({ id: `source-${index}` }));
+  const child = makeTestTrace({ id: 'child', kind: 'derived', operationType: 'derived', sourceTraceIds: ['source-1'] });
+  const nested = makeTestTrace({ id: 'nested', kind: 'derived', operationType: 'derived', sourceTraceIds: ['child'] });
+  const slots = allocateColourBlindCreated([...sources, child, nested], new Map());
+  const childSlot = slots.get('child');
+  const nestedSlot = slots.get('nested');
+  if (!childSlot || !nestedSlot) throw new Error('Missing created trace assignment');
+  expect(childSlot.cbIndex).toBe(1);
+  expect(nestedSlot.cbIndex).toBe(1);
+  for (const [theme, offset] of [['light', 0], ['dark', 8]] as const) {
+    for (const [index, source] of sources.entries()) {
+      const slot = slots.get(source.id);
+      if (!slot) throw new Error('Missing source trace assignment');
+      expect(displayTraceColor(slot, theme, 'colour-blind')).toBe(rows[offset + index % 8]?.[1]);
+    }
+    expect(displayTraceColor(childSlot, theme, 'colour-blind')).toBe(rows[offset + 1]?.[2]);
+    expect(displayTraceColor(nestedSlot, theme, 'colour-blind')).toBe(rows[offset + 1]?.[2]);
+  }
+  expect(traceWidth(childSlot)).toBe(2);
+  expect(displayTraceColor(childSlot, 'light', 'standard')).toBe(traceColor(childSlot, 'light'));
+  expect(traceDisplaySymbol(childSlot, 'off', 'colour-blind')).toBe(symbolFor(childSlot, 'always'));
+  expect(traceDisplaySymbol(childSlot, 'off', 'standard')).toBeNull();
+  const plan = planDotsAndSymbols({ points: [{ x: 0, y: 0 }], showDots: false,
+    showSymbols: true, forceHollow: forcesHollowTraceSymbol(child.kind, 'colour-blind') });
+  expect(plan.hollow).toBe(true);
+  expect(plan.symbols).toHaveLength(1);
 });
 
 it('keeps surviving assignments when a file is removed through the engine', () => {

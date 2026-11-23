@@ -71,6 +71,7 @@ export function App() {
     window.history.replaceState(window.history.state, '', url.href);
     void loadDemo();
   }, [loadDemo]);
+  const workspaceRef = useRef<HTMLDivElement>(null);
   const sidebarFileInput = useRef<HTMLInputElement>(null);
   const { downloadWorkspace } = useWorkspace();
   // In embed mode these actions have no button; the handler still takes the key so the browser does not act on it.
@@ -243,7 +244,7 @@ export function App() {
       <TopBar embed={embed} />
 
       <LineCrossingsContext.Provider value={{ listCrossings }}>
-      <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minWidth: 0 }}>
+      <div ref={workspaceRef} style={{ position: 'relative', flex: 1, display: 'flex', overflow: 'hidden', minWidth: 0 }}>
         {/* Always mounted (renders nothing when hidden): it owns the Touchstone trace reconciliation. */}
         <input data-testid="app-open-input" ref={sidebarFileInput} type="file" accept={DATA_FILE_ACCEPT} multiple hidden onChange={event => { if (event.target.files?.length) void importFiles(event.target.files); event.target.value = ''; }} />
         <Sidebar hidden={embed} width={leftPanelWidth} onLoadDemo={() => void loadDemo()} onOpenFiles={() => sidebarFileInput.current?.click()} onThresholdCrossings={listCrossings} />
@@ -254,7 +255,7 @@ export function App() {
       </div>
       </LineCrossingsContext.Provider>
 
-      <FooterBar />
+      <FooterBar workspaceRef={workspaceRef} />
       </ExportImageProvider>
 
       <ImportWizardModal />

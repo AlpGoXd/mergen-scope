@@ -13,7 +13,7 @@ describe('pane type registry', () => {
     expect(registry.table.status).toBe('available');
     expect(registry.smith.status).toBe('available');
     expect(registry.smith.appliesTo(makeTestTrace())).toEqual({ allowed: false, reason: 'Smith shows reflections (S11, S22 …)' });
-    expect(selectableTypes(registry).map(type => type.id)).toEqual(['chart', 'table', 'smith']);
+    expect(selectableTypes(registry).map(type => type.id)).toEqual(['chart', 'table', 'smith', 'polar']);
     expect(Object.values(registry).filter(type => type.status === 'later').every(type => type.laterReason)).toBe(true);
   });
   it('maps legacy modes and checks capabilities', () => {

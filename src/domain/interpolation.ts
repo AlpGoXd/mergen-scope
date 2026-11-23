@@ -64,8 +64,8 @@ function lanczosKernel(distance: number, a = LANCZOS_A): number {
 
 function resolveLinearScalar(points: readonly DataPoint[], targetX: number): { x: number; y: number } {
   const leftIndex = findBracketIndex(points, targetX);
-  const left = points[leftIndex]!;
-  const right = points[leftIndex + 1]!;
+  const left = points[leftIndex];
+  const right = points[leftIndex + 1];
   if (!left || !right || right.freq === left.freq) {
     return { x: left?.freq ?? targetX, y: left?.amp ?? 0 };
   }
@@ -78,8 +78,8 @@ function resolveLinearScalar(points: readonly DataPoint[], targetX: number): { x
 
 function resolveLinearComplex(points: readonly ComplexDisplayPoint[], targetX: number): { x: number; re: number; im: number } {
   const leftIndex = findBracketIndex(points.map((point) => ({ freq: point.x })), targetX);
-  const left = points[leftIndex]!;
-  const right = points[leftIndex + 1]!;
+  const left = points[leftIndex];
+  const right = points[leftIndex + 1];
   if (!left || !right || right.x === left.x) {
     return { x: left?.x ?? targetX, re: left?.re ?? 0, im: left?.im ?? 0 };
   }
@@ -92,12 +92,15 @@ function resolveLinearComplex(points: readonly ComplexDisplayPoint[], targetX: n
 }
 
 function resolveSincScalar(points: readonly DataPoint[], targetX: number): { x: number; y: number } {
-  const dx = points[1]!.freq - points[0]!.freq;
+  const first = points[0];
+  const second = points[1];
+  if (first === undefined || second === undefined) return resolveLinearScalar(points, targetX);
+  const dx = second.freq - first.freq;
   if (!Number.isFinite(dx) || dx === 0) {
     return resolveLinearScalar(points, targetX);
   }
 
-  const baseIndex = (targetX - points[0]!.freq) / dx;
+  const baseIndex = (targetX - first.freq) / dx;
   const center = Math.round(baseIndex);
   let sum = 0;
   let weightSum = 0;
@@ -105,8 +108,9 @@ function resolveSincScalar(points: readonly DataPoint[], targetX: number): { x: 
   for (let offset = -LANCZOS_A; offset <= LANCZOS_A; offset += 1) {
     const sampleIndex = center + offset;
     if (sampleIndex < 0 || sampleIndex >= points.length) continue;
-    const sample = points[sampleIndex]!;
-    const samplePosition = (sample.freq - points[0]!.freq) / dx;
+    const sample = points[sampleIndex];
+    if (sample === undefined) continue;
+    const samplePosition = (sample.freq - first.freq) / dx;
     const weight = lanczosKernel(baseIndex - samplePosition);
     if (weight === 0) continue;
     sum += sample.amp * weight;
@@ -121,12 +125,15 @@ function resolveSincScalar(points: readonly DataPoint[], targetX: number): { x: 
 }
 
 function resolveSincComplex(points: readonly ComplexDisplayPoint[], targetX: number): { x: number; re: number; im: number } {
-  const dx = points[1]!.x - points[0]!.x;
+  const first = points[0];
+  const second = points[1];
+  if (first === undefined || second === undefined) return resolveLinearComplex(points, targetX);
+  const dx = second.x - first.x;
   if (!Number.isFinite(dx) || dx === 0) {
     return resolveLinearComplex(points, targetX);
   }
 
-  const baseIndex = (targetX - points[0]!.x) / dx;
+  const baseIndex = (targetX - first.x) / dx;
   const center = Math.round(baseIndex);
   let reSum = 0;
   let imSum = 0;
@@ -135,8 +142,9 @@ function resolveSincComplex(points: readonly ComplexDisplayPoint[], targetX: num
   for (let offset = -LANCZOS_A; offset <= LANCZOS_A; offset += 1) {
     const sampleIndex = center + offset;
     if (sampleIndex < 0 || sampleIndex >= points.length) continue;
-    const sample = points[sampleIndex]!;
-    const samplePosition = (sample.x - points[0]!.x) / dx;
+    const sample = points[sampleIndex];
+    if (sample === undefined) continue;
+    const samplePosition = (sample.x - first.x) / dx;
     const weight = lanczosKernel(baseIndex - samplePosition);
     if (weight === 0) continue;
     reSum += sample.re * weight;
@@ -154,25 +162,49 @@ function resolveSincComplex(points: readonly ComplexDisplayPoint[], targetX: num
 // Natural cubic spline with zero curvature at the endpoints.
 function cubicValue(points: readonly { x: number; y: number }[], target: number): number {
   const n = points.length;
-  const lower = new Array<number>(n).fill(0), diag = new Array<number>(n).fill(1), upper = new Array<number>(n).fill(0), rhs = new Array<number>(n).fill(0);
+  const lower = new Array<number>(n).fill(0);
+  const diag = new Array<number>(n).fill(1);
+  const upper = new Array<number>(n).fill(0);
+  const rhs = new Array<number>(n).fill(0);
+
   for (let i = 1; i < n - 1; i++) {
-    const a = points[i - 1]!, b = points[i]!, c = points[i + 1]!;
-    const left = b.x - a.x, right = c.x - b.x;
+    const a = points[i - 1];
+    const b = points[i];
+    const c = points[i + 1];
+    if (a === undefined || b === undefined || c === undefined) return points[0]?.y ?? 0;
+
+    const left = b.x - a.x;
+    const right = c.x - b.x;
     if (left <= 0 || right <= 0) {
       const rightIndex = points.findIndex(point => point.x >= target);
-      const lo = points[Math.max(0, rightIndex - 1)]!, hi = points[Math.max(0, rightIndex)]!;
+      const lo = points[Math.max(0, rightIndex - 1)];
+      const hi = points[Math.max(0, rightIndex)];
+      if (lo === undefined || hi === undefined) return lo?.y ?? 0;
       return hi.x > lo.x ? lo.y + (hi.y - lo.y) * (target - lo.x) / (hi.x - lo.x) : lo.y;
     }
-    lower[i] = left; diag[i] = 2 * (left + right); upper[i] = right;
+    lower[i] = left;
+    diag[i] = 2 * (left + right);
+    upper[i] = right;
     rhs[i] = 6 * ((c.y - b.y) / right - (b.y - a.y) / left);
   }
-  for (let i = 1; i < n; i++) { const factor = lower[i]! / diag[i - 1]!; diag[i] = diag[i]! - factor * upper[i - 1]!; rhs[i] = rhs[i]! - factor * rhs[i - 1]!; }
+  for (let i = 1; i < n; i++) {
+    const factor = (lower[i] ?? NaN) / (diag[i - 1] ?? NaN);
+    diag[i] = (diag[i] ?? NaN) - factor * (upper[i - 1] ?? NaN);
+    rhs[i] = (rhs[i] ?? NaN) - factor * (rhs[i - 1] ?? NaN);
+  }
   const second = new Array<number>(n).fill(0);
-  for (let i = n - 2; i >= 0; i--) second[i] = (rhs[i]! - upper[i]! * second[i + 1]!) / diag[i]!;
-  const rightIndex = points.findIndex(p => p.x >= target), i = Math.max(0, rightIndex - 1);
-  const a = points[i]!, b = points[i + 1]!, h = b.x - a.x;
-  const u = (b.x - target) / h, v = (target - a.x) / h;
-  return u * a.y + v * b.y + ((u ** 3 - u) * second[i]! + (v ** 3 - v) * second[i + 1]!) * h * h / 6;
+  for (let i = n - 2; i >= 0; i--) {
+    second[i] = ((rhs[i] ?? NaN) - (upper[i] ?? NaN) * (second[i + 1] ?? NaN)) / (diag[i] ?? NaN);
+  }
+  const rightIndex = points.findIndex(p => p.x >= target);
+  const i = Math.max(0, rightIndex - 1);
+  const a = points[i];
+  const b = points[i + 1];
+  if (a === undefined || b === undefined) return a?.y ?? 0;
+  const h = b.x - a.x;
+  const u = (b.x - target) / h;
+  const v = (target - a.x) / h;
+  return u * a.y + v * b.y + ((u ** 3 - u) * (second[i] ?? NaN) + (v ** 3 - v) * (second[i + 1] ?? NaN)) * h * h / 6;
 }
 
 export function isUniformSpacing(
@@ -185,7 +217,7 @@ export function isUniformSpacing(
 
   const deltas: number[] = [];
   for (let index = 1; index < xs.length; index += 1) {
-    const delta = xs[index]! - xs[index - 1]!;
+    const delta = (xs[index] ?? NaN) - (xs[index - 1] ?? NaN);
     if (!Number.isFinite(delta) || delta <= 0) {
       return false;
     }
@@ -261,28 +293,28 @@ export function resolveValue(
   if (!points.length || !Number.isFinite(targetX)) {
     return { x: targetX, y: 0 };
   }
-  if (points.length === 1) {
-    return { x: points[0]!.freq, y: points[0]!.amp };
+  const first = points[0];
+  if (first === undefined) return { x: targetX, y: 0 };
+  if (points.length === 1 || targetX <= first.freq) {
+    return { x: first.freq, y: first.amp };
   }
-  if (targetX <= points[0]!.freq) {
-    return { x: points[0]!.freq, y: points[0]!.amp };
-  }
-  if (targetX >= points[points.length - 1]!.freq) {
-    const last = points[points.length - 1]!;
+  const last = points[points.length - 1];
+  if (last !== undefined && targetX >= last.freq) {
     return { x: last.freq, y: last.amp };
   }
 
   const exactIndex = findExactIndex(points, targetX);
   if (exactIndex >= 0) {
-    const exact = points[exactIndex]!;
-    return { x: exact.freq, y: exact.amp };
+    const exact = points[exactIndex];
+    if (exact !== undefined) return { x: exact.freq, y: exact.amp };
   }
 
   const resolvedStrategy = strategy === 'auto' || (strategy === 'sinc' && !isUniform) ? 'linear' : strategy;
   if (resolvedStrategy === 'snap' || resolvedStrategy === 'exact' || resolvedStrategy === 'nearest' || resolvedStrategy === 'previous' || resolvedStrategy === 'next') {
     const insertionIndex = findLowerBound(points, targetX);
-    const right = points[Math.min(points.length - 1, insertionIndex)]!;
-    const left = points[Math.max(0, insertionIndex - 1)]!;
+    const right = points[Math.min(points.length - 1, insertionIndex)];
+    const left = points[Math.max(0, insertionIndex - 1)];
+    if (left === undefined || right === undefined) return resolveLinearScalar(points, targetX);
     const nearest =
       Math.abs(targetX - left.freq) <= Math.abs(right.freq - targetX)
         ? left
@@ -308,30 +340,28 @@ export function resolveComplex(
   if (!points.length || !Number.isFinite(targetX)) {
     return { x: targetX, re: 0, im: 0 };
   }
-  if (points.length === 1) {
-    const point = points[0]!;
-    return { x: point.x, re: point.re, im: point.im };
-  }
-  if (targetX <= points[0]!.x) {
-    const first = points[0]!;
+  const first = points[0];
+  if (first === undefined) return { x: targetX, re: 0, im: 0 };
+  if (points.length === 1 || targetX <= first.x) {
     return { x: first.x, re: first.re, im: first.im };
   }
-  if (targetX >= points[points.length - 1]!.x) {
-    const last = points[points.length - 1]!;
+  const last = points[points.length - 1];
+  if (last !== undefined && targetX >= last.x) {
     return { x: last.x, re: last.re, im: last.im };
   }
 
   const exactIndex = findExactIndex(points.map((point) => ({ freq: point.x })), targetX);
   if (exactIndex >= 0) {
-    const exact = points[exactIndex]!;
-    return { x: exact.x, re: exact.re, im: exact.im };
+    const exact = points[exactIndex];
+    if (exact !== undefined) return { x: exact.x, re: exact.re, im: exact.im };
   }
 
   const resolvedStrategy = strategy === 'auto' || (strategy === 'sinc' && !isUniform) ? 'linear' : strategy;
   if (resolvedStrategy === 'snap' || resolvedStrategy === 'exact' || resolvedStrategy === 'nearest' || resolvedStrategy === 'previous' || resolvedStrategy === 'next') {
     const insertionIndex = findLowerBound(points.map((point) => ({ freq: point.x })), targetX);
-    const right = points[Math.min(points.length - 1, insertionIndex)]!;
-    const left = points[Math.max(0, insertionIndex - 1)]!;
+    const right = points[Math.min(points.length - 1, insertionIndex)];
+    const left = points[Math.max(0, insertionIndex - 1)];
+    if (left === undefined || right === undefined) return resolveLinearComplex(points, targetX);
     const nearest =
       Math.abs(targetX - left.x) <= Math.abs(right.x - targetX)
         ? left

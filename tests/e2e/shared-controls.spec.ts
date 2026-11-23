@@ -19,11 +19,63 @@ test('active and danger hover retain their roles and toast undo stays legible', 
 });
 
 test('long menus stay visible and track their anchor on resize and scroll', async ({page}) => {
- await page.goto('/tests/fixtures/phase2/'); const trigger=page.getByRole('button',{name:'Long menu'}); await trigger.click(); const menu=page.getByRole('menu'); await expect(menu).toBeVisible();
- let box=await menu.boundingBox(); expect(box).not.toBeNull(); expect(box!.height).toBeLessThanOrEqual(712); expect(box!.y).toBeGreaterThanOrEqual(0);
- await page.setViewportSize({width:800,height:500}); await expect.poll(async () => { const b=await menu.boundingBox(); return b!.height <= 492 && b!.y+b!.height <= 500; }).toBe(true);
- await trigger.evaluate(el => { (el as HTMLElement).style.transform='translateX(100px)'; window.dispatchEvent(new Event('scroll')); }); const triggerBox=await trigger.boundingBox(); box=await menu.boundingBox(); expect(Math.abs(box!.x-triggerBox!.x)).toBeLessThan(2);
- for (const y of [-1000, 2000]) { await trigger.evaluate((el, top) => { const e=el as HTMLElement; e.style.position='fixed'; e.style.top=`${top}px`; window.dispatchEvent(new Event('scroll')); },y); box=await menu.boundingBox(); expect(box!.y).toBeGreaterThanOrEqual(0); expect(box!.y+box!.height).toBeLessThanOrEqual(500); }
+  await page.goto('/tests/fixtures/phase2/');
+  const trigger = page.getByRole('button', { name: 'Long menu' });
+  await expect(trigger).toBeVisible();
+  await page.evaluate(async () => { await document.fonts.ready; });
+  await trigger.click();
+
+  const menu = page.getByRole('menu');
+  // The menu effect positions the popup and installs its listeners before focusing the first item.
+  await expect(menu.getByRole('menuitem', { name: 'Item 0', exact: true })).toBeFocused();
+  await menu.evaluate(async element => {
+    await document.fonts.ready;
+    await Promise.all(element.getAnimations().map(animation => animation.finished));
+  });
+
+  const anchor = await trigger.elementHandle();
+  if (!anchor) throw new Error('Long menu trigger disappeared');
+  const expectMenuLayout = async (width: number, height: number) => {
+    await expect.poll(() => menu.evaluate(async (element, viewport) => {
+      const measure = () => {
+        const { x, y, width, height } = element.getBoundingClientRect();
+        const { x: anchorX, y: anchorY } = viewport.anchor.getBoundingClientRect();
+        return { x, y, width, height, anchorX, anchorY };
+      };
+      const previous = measure();
+      await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+      const current = measure();
+      return {
+        stable: JSON.stringify(current) === JSON.stringify(previous),
+        fitsViewport: current.x >= 0 && current.x + current.width <= viewport.width
+          && current.y >= 0 && current.y + current.height <= viewport.height
+          && current.height <= viewport.height - 8,
+        followsAnchor: Math.abs(current.x - current.anchorX) < 2,
+      };
+    }, { width, height, anchor })).toEqual({ stable: true, fitsViewport: true, followsAnchor: true });
+  };
+
+  await expectMenuLayout(1280, 720);
+  await page.setViewportSize({ width: 800, height: 500 });
+  await expectMenuLayout(800, 500);
+
+  await trigger.evaluate(el => {
+    (el as HTMLElement).style.transform = 'translateX(100px)';
+    window.dispatchEvent(new Event('scroll'));
+  });
+  await expectMenuLayout(800, 500);
+
+  for (const position of [{ top: -1000, left: 100 }, { top: 2000, left: 200 }]) {
+    await trigger.evaluate((el, { top, left }) => {
+      const button = el as HTMLElement;
+      button.style.position = 'fixed';
+      button.style.top = `${top}px`;
+      // The capped menu fits at the same Y for either edge. Change X to observe each re-anchor.
+      button.style.left = `${left}px`;
+      window.dispatchEvent(new Event('scroll'));
+    }, position);
+    await expectMenuLayout(800, 500);
+  }
 });
 
 test('disabled menu item retains neutral background on hover', async ({page}) => { await page.goto('/tests/fixtures/phase2/'); await page.getByRole('button',{name:'Actions'}).click(); const item=page.getByRole('menuitem',{name:'Export'}); const before=await item.evaluate(el=>getComputedStyle(el).backgroundColor); await item.hover(); await expect(item).toHaveCSS('background-color',before); });

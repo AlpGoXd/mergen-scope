@@ -8,6 +8,7 @@
 // ---------------------------------------------------------------------------
 // Canonical scalar formatting and parsing live with the unit rules. Keep this
 // re-export as a convenient public surface for formatting callers.
+import { angleAxisUnit } from "./units";
 export { formatEng, parseEngInput } from "./units";
 export type {
   ParseEngInputFailureReason,
@@ -248,6 +249,9 @@ export function formatAdaptiveXAxisValue(
 ): string {
   const domain = options?.domain ?? null;
   const unit = options?.unit ?? null;
+  const angle = angleAxisUnit(unit);
+
+  if (angle) return formatFixedEngineeringValue(value, 1, getAdaptiveDecimalsForSpan(visibleSpan), angle === 'rad' ? ' rad' : angle);
 
   if (domain === "frequency") {
     return formatAdaptiveEngineeringValue(value, "Hz", visibleSpan);
@@ -293,21 +297,22 @@ export function formatAdaptiveXAxisTickLabels(
 ): string[] {
   const domain = options?.domain ?? null;
   const unit = options?.unit ?? null;
+  const angle = angleAxisUnit(unit);
   const finiteValues = values.filter((value) => Number.isFinite(value));
   if (!finiteValues.length) {
     return values.map(() => "--");
   }
 
-  if (domain !== "frequency" && domain !== "time" && !isSecondUnit(unit)) {
+  if (!angle && domain !== "frequency" && domain !== "time" && !isSecondUnit(unit)) {
     return values.map((value) => formatScalarWithUnit(value, unit, { digits: 3 }));
   }
 
   const baseUnit = domain === "time" || isSecondUnit(unit) ? "s" : "Hz";
   const reference = finiteValues.reduce((max, value) => Math.max(max, Math.abs(value)), Math.abs(visibleSpan));
-  const choice = choosePrefixEntry(Math.max(reference, 1e-12));
-  const suffix = baseUnit === "Hz"
+  const choice = angle ? { factor: 1, prefix: "" } : choosePrefixEntry(Math.max(reference, 1e-12));
+  const suffix = angle === 'rad' ? ' rad' : angle ?? (baseUnit === "Hz"
     ? choice.prefix
-    : `${choice.prefix}${baseUnit}`;
+    : `${choice.prefix}${baseUnit}`);
 
   let digits = getAdaptiveDecimalsForSpan(visibleSpan, choice.factor);
   let labels = finiteValues.map((value) => formatFixedEngineeringValue(value, choice.factor, digits, suffix));

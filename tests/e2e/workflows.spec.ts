@@ -47,7 +47,7 @@ test("rejecting a trace drop onto another domain shows a warning", async ({ page
   await timeRow.dispatchEvent("dragstart", { dataTransfer: transfer });
   await target.dispatchEvent("dragover", { dataTransfer: transfer });
   const refusal = target.locator(".pane-drag-overlay--refused");
-  await expect(refusal).toContainText("It's a time capture and Pane 2 shows frequency. Drop it on a time pane, an empty pane or + New pane.");
+  await expect(refusal).toHaveText('s trace, this pane is Hz');
   await expect(page.getByRole("alert")).toHaveCount(0);
   await target.dispatchEvent("drop", { dataTransfer: transfer });
   await timeRow.dispatchEvent("dragend", { dataTransfer: transfer });
@@ -199,7 +199,12 @@ test("four empty panes fit without covering each other's headers", async ({ page
     await expect(header.getByText("Empty", { exact: true })).toBeVisible();
     await expect(header.getByRole("button", { name: `Close ${name}` })).toBeVisible();
     await header.getByText(name, { exact: true }).click({ timeout: 5000 });
-    await expect(header).toHaveCSS('border-left-color', /^(?!rgba\(0, 0, 0, 0\)).+/);
+    await expect(header).toHaveCSS('border-left-width', '0px');
+    await expect(header.getByText(name, { exact: true })).toHaveCSS('font-weight', '700');
+    const frame = page.getByTestId(`chart-pane-${paneId}`).locator('..');
+    await expect(frame).toHaveCSS('box-shadow', 'none');
+    await expect(frame).toHaveCSS('border-top-width', '2px');
+    await expect(header).toHaveCSS('background-color', 'oklch(0.92 0.035 255)');
   }
 });
 

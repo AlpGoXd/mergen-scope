@@ -17,7 +17,7 @@ import {
 import type { SmithReadout } from '../../domain/smith/readout';
 import { directionChevrons, traceEnds } from '../../domain/smith/trace-decor';
 import type { SmithDirectionMode } from '../../domain/smith/trace-decor';
-import { fitViewport, gammaToPoint, panBy, pointToGamma, zoomAt } from '../../domain/smith/viewport';
+import { fitViewport, gammaToPoint, panBy, pointToGamma, wheelZoomFactor, zoomRelativeAt } from '../../domain/smith/viewport';
 import { DOT_RADIUS, planDotsAndSymbols } from '../../domain/dots-and-symbols';
 import type { TraceSymbol as SymbolKind } from '../../domain/trace-palette';
 import { TraceSymbol } from '../shared/TraceSymbol';
@@ -38,6 +38,7 @@ export interface SmithPaneTrace {
   readonly created?: boolean;
   /** The trace's symbol when colours repeat (or symbols are always on); null or absent for none. */
   readonly symbol?: SymbolKind | null;
+  readonly hollowSymbol?: boolean;
   /** Frequencies of the measured samples. When given, dots and symbols skip any other point (interpolated range edges). */
   readonly measured?: ReadonlySet<number>;
   /** Reference impedance in ohms that Γ is referred to (per file, usually 50). */
@@ -104,8 +105,6 @@ interface View { readonly center: Complex; readonly zoom: number }
 interface Hover { readonly traceId: string; readonly frequencyHz: number; readonly gamma: Complex }
 
 const FIT_VIEW: View = { center: { re: 0, im: 0 }, zoom: 1 };
-const MIN_ZOOM = 0.5;
-const MAX_ZOOM = 400;
 const HOVER_REACH_PX = 28;
 const CLICK_REACH_PX = 10;
 const MARKER_REACH_PX = 10;
@@ -194,9 +193,7 @@ export function SmithPane({
   const zoomBy = useCallback((anchor: SmithPoint, factor: number) => {
     const { viewport: current, fitScale } = live.current;
     if (!current || !(fitScale > 0)) return;
-    const zoom = current.scale / fitScale;
-    const clamped = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom * factor));
-    const next = zoomAt(current, anchor, clamped / zoom);
+    const next = zoomRelativeAt(current, fitScale, anchor, factor);
     if (next) setView({ center: next.center, zoom: next.scale / fitScale });
   }, []);
 
@@ -207,8 +204,7 @@ export function SmithPane({
     const onWheel = (event: WheelEvent): void => {
       event.preventDefault();
       const rect = el.getBoundingClientRect();
-      const pixels = event.deltaMode === 1 ? event.deltaY * 33 : event.deltaY;
-      zoomBy({ x: event.clientX - rect.left, y: event.clientY - rect.top }, Math.max(0.5, Math.min(2, Math.exp(-pixels * 0.0015))));
+      zoomBy({ x: event.clientX - rect.left, y: event.clientY - rect.top }, wheelZoomFactor(event.deltaY, event.deltaMode));
     };
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
@@ -256,7 +252,7 @@ export function SmithPane({
       const at = gammaToPoint(sample.gamma, viewport);
       return at && (!trace.measured || trace.measured.has(sample.frequencyHz)) && at.x >= 0 && at.x <= viewport.width && at.y >= 0 && at.y <= viewport.height ? at : { x: Number.NaN, y: Number.NaN };
     });
-    return [{ trace, points, plan: planDotsAndSymbols({ points, showDots: showSamples, showSymbols }) }];
+    return [{ trace, points, plan: planDotsAndSymbols({ points, showDots: showSamples, showSymbols, forceHollow: trace.hollowSymbol }) }];
   }) : []), [traces, viewport, showSamples]);
 
   // ---- Markers ----
@@ -447,7 +443,7 @@ export function SmithPane({
                 </g>
               )}
               {tracePaths.map(({ trace, runs }) => (
-                <g key={trace.traceId} className="smith-trace" data-testid={`smith-trace-${trace.traceId}`} stroke={trace.color} strokeWidth={traceLineWidth ?? (trace.created ? 2 : 1.5)}>
+                <g key={trace.traceId} className={`smith-trace ${trace.created ? 'trace-created' : 'trace-source'}`} data-testid={`smith-trace-${trace.traceId}`} stroke={trace.color} strokeWidth={traceLineWidth ?? (trace.created ? 2 : 1.5)}>
                   {runs.map((run, index) => <path key={index} className={run.inBand ? undefined : 'is-faint'} d={run.path} />)}
                 </g>
               ))}

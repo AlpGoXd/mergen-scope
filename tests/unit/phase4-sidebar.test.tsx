@@ -1,4 +1,5 @@
-﻿import React from 'react';
+﻿// @vitest-environment jsdom
+import React from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { TouchstoneMatrixPicker } from '../../src/components/sidebar/TouchstoneMatrixPicker';

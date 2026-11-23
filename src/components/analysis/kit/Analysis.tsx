@@ -52,10 +52,11 @@ export function AnalysisCard(p: AnalysisCardProps): ReactElement {
   const cls = `an-card${p.collapsed ? ' is-collapsed' : ''}${p.selected ? ' is-selected' : ''}`;
   const bodyId = `an-card-body-${p.id}`;
   return (
-    <article className={cls} aria-label={p.title} data-testid={`analysis-card-${p.id}`}>
+    <article {...p.dropTarget} className={cls} aria-label={p.title} data-testid={`analysis-card-${p.id}`}>
       <div className="an-card__head" role="button" tabIndex={0} aria-expanded={!p.collapsed} aria-controls={bodyId}
         onClick={p.onToggle}
         onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); p.onToggle?.(); } }}>
+        {p.dragHandle}
         <span className="an-card__kind" title={p.kind === 'math' ? 'Math: makes a trace' : 'Measure: reads values'}><KindIcon kind={p.kind} /></span>
         <span className="an-card__title">{p.title}</span>
         <span className="an-card__source" title={p.source}>

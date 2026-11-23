@@ -378,12 +378,28 @@ export function isDbRatioUnit(unit: string | null | undefined): boolean {
 /** Whether the unit is a logarithmic level (dB with a reference). */
 export function isLogLevelUnit(unit: string | null | undefined): boolean {
   const u = normalizeUnitName(unit);
-  return ["dbm", "dbw", "dbuv", "db\u00b5v", "db\u03bcv", "dbmv"].includes(u);
+  return ["dbm", "dbw", "dbv", "dbuv", "db\u00b5v", "db\u03bcv", "dbmv"].includes(u);
 }
 
 /** Whether the unit uses a logarithmic scale (dB-based). */
 export function isLogUnit(unit: string | null | undefined): boolean {
   return isDbRatioUnit(unit) || isLogLevelUnit(unit);
+}
+
+/** Antenna pattern gain reported as a decibel ratio or referenced antenna gain. */
+export function isDecibelGain(xUnit: string | null | undefined, yUnit: string | null | undefined): boolean {
+  return angleAxisUnit(xUnit) !== null && /^db(?:i|d)?$/i.test(yUnit?.trim() ?? '');
+}
+
+export function isLinearGain(xUnit: string | null | undefined, yUnit: string | null | undefined): boolean {
+  return angleAxisUnit(xUnit) !== null && /^(?:unitless|linear|ratio|1)$/i.test(yUnit?.trim() ?? '');
+}
+
+/** Degree and radian spellings can be normalized without changing the data values. */
+export function angleAxisUnit(unit: string | null | undefined): '°' | 'rad' | null {
+  const text = unit?.trim() ?? '';
+  if (/^(?:°|deg(?:rees?)?)$/i.test(text)) return '°';
+  return /^rad(?:ians?)?$/i.test(text) ? 'rad' : null;
 }
 
 // ---------------------------------------------------------------------------

@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import React, { useEffect } from "react";
 import { describe, expect, it } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";

@@ -41,7 +41,7 @@ export function normalizePaneRenderMode(
   let mode = String(renderMode ?? "cartesian").trim().toLowerCase()
     .replace(/\s+/g, "-").replace(/_/g, "-");
   if (mode === "smithinverted") mode = "smith-inverted";
-  if (mode !== "smith" && mode !== "smith-inverted" && mode !== "cartesian" && mode !== "table") mode = "cartesian";
+  if (mode !== "smith" && mode !== "smith-inverted" && mode !== "cartesian" && mode !== "table" && mode !== "polar") mode = "cartesian";
   return mode as PaneRenderMode;
 }
 
@@ -60,7 +60,7 @@ export function clonePane(pane: Pane | null | undefined, _index: number): Pane |
     settings: {
       ...defaultPaneSettings(),
       ...(pane.settings ?? {}),
-      gridMajor: pane.settings?.gridMajor ?? (pane as any)?.showGrid ?? true,
+      gridMajor: pane.settings?.gridMajor ?? true,
     },
   };
 }
@@ -93,8 +93,7 @@ export function buildPanes(
       settings: {
         ...defaultPaneSettings(),
         ...(prev?.settings ?? {}),
-        // migrate legacy showGrid field from Phase 2
-        gridMajor: prev?.settings?.gridMajor ?? (prev as any)?.showGrid ?? true,
+        gridMajor: prev?.settings?.gridMajor ?? true,
       },
     });
   }
@@ -134,7 +133,7 @@ export function normalizePanes(
       settings: {
         ...defaultPaneSettings(),
         ...(prev?.settings ?? pane.settings ?? {}),
-        gridMajor: prev?.settings?.gridMajor ?? (prev as any)?.showGrid ?? pane.settings?.gridMajor ?? true,
+        gridMajor: prev?.settings?.gridMajor ?? pane.settings?.gridMajor ?? true,
       },
     };
   });

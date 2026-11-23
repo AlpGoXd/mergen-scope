@@ -4,7 +4,7 @@ import { makeTestTrace } from './helpers';
 
 describe('analysis registry', () => {
   it('has unique tool IDs and excludes matrix views', () => {
-    expect(new Set(ANALYSIS_TOOL_IDS).size).toBe(19);
+    expect(new Set(ANALYSIS_TOOL_IDS).size).toBe(20);
     expect(ANALYSIS_TOOL_IDS).not.toContain('vswr');
     expect(ANALYSIS_TOOL_IDS).not.toContain('return-loss');
     expect(ANALYSIS_TOOL_IDS).not.toContain('group-delay');
