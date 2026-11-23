@@ -78,3 +78,31 @@ test('an H line menu has only Edit value, List crossings and Delete', async ({ p
   await menu.getByRole('menuitem', { name: /^Delete H1/ }).click();
   await expect(page.locator('[data-testid^="ref-line-row-"]')).toHaveCount(0);
 });
+
+// Linux and macOS fire contextmenu while the right button is still down, after the chart has started its right-drag
+// zoom. The zoom indicators must not cover the line label, or the line menu never opens (CI on Linux caught this).
+test('a line menu opens when contextmenu fires before mouseup, as on Linux and macOS', async ({ page }) => {
+  await loaded(page);
+  await page.getByRole('button', { name: 'V-Line' }).click();
+  const plot = page.getByTestId('chart-plot-pane-1');
+  await plot.click({ position: { x: 260, y: 60 } });
+  const label = plot.locator('.ln-label');
+  const box = await label.boundingBox();
+  if (!box) throw new Error('The line label has no box');
+  const x = box.x + box.width / 2;
+  const y = box.y + box.height / 2;
+  const indicators = plot.locator('.recharts-reference-line');
+  const before = await indicators.count();
+  await page.mouse.move(x, y);
+  await page.mouse.down({ button: 'right' });
+  await expect.poll(() => indicators.count()).toBeGreaterThan(before);
+  const hitLabel = await page.evaluate(({ px, py }) => {
+    const target = document.elementFromPoint(px, py);
+    target?.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2, clientX: px, clientY: py }));
+    return target?.closest('.ln-label') !== null && target?.closest('.ln-label') !== undefined;
+  }, { px: x, py: y });
+  expect(hitLabel).toBe(true);
+  await expect(page.getByRole('menu', { name: 'V1 line' })).toBeVisible();
+  await page.mouse.up({ button: 'right' });
+  await expect(page.getByRole('menu', { name: 'V1 line' })).toBeVisible();
+});

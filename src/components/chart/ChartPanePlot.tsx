@@ -302,8 +302,9 @@ export function ChartPanePlot({
           return intersections.map((ix, i) => ({ key: `rl-${line.id}-ix-${i}`, x: ix.freq, y: ix.amp, color: resolveTraceColor(ix.traceName) }));
         })} />} />
       )}
-      {dragStart !== null && dragCurrent !== null && <ReferenceLine x={dragStart} stroke="var(--accent)" strokeWidth={1} />}
-      {dragStart !== null && dragCurrent !== null && <ReferenceLine x={dragCurrent} stroke="var(--accent)" strokeWidth={1} />}
+      {/* Zoom indicators ignore the pointer: on Linux and macOS contextmenu fires while the right button is down, and it must reach the line label underneath. */}
+      {dragStart !== null && dragCurrent !== null && <ReferenceLine x={dragStart} stroke="var(--accent)" strokeWidth={1} pointerEvents="none" />}
+      {dragStart !== null && dragCurrent !== null && <ReferenceLine x={dragCurrent} stroke="var(--accent)" strokeWidth={1} pointerEvents="none" />}
       {!logY && <ReferenceLine y={0} stroke="var(--dim)" strokeWidth={0.5} />}
       {exportView?.print && <Customized component={<ExportFrame />} />}
     </LineChart>
