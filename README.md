@@ -24,12 +24,13 @@ No file at hand? [Load the demo workspace](https://mergenscope.com/app.html?demo
 
 | Format | What you get | Tested with |
 | --- | --- | --- |
-| R&S `.dat` | Spectrum traces with span, RBW and detector metadata. Amplitude-only exports rebuild the X axis from Start/Stop. | R&S FSVA3044 exports (`cascade_ip3_*.DAT`) |
-| `.csv`, `.tsv`, `.txt`, tabular `.dat` | Time or frequency traces. An import wizard maps delimiter, header rows, X/Y columns, multipliers and units. | Oscilloscope CSVs (`scope_1khz_sine_100ksps.csv`) |
-| Touchstone `.s1p` to `.s16p` (1.x and 2.0) | S-parameter networks in RI, MA or dB/angle form, with S, Y, Z and (two-port) ABCD views, VSWR, return loss, group delay and a Smith chart. | `cascaded chain.s2p` |
+| Rohde &amp; Schwarz (R&amp;S) `.dat` | Spectrum traces with span, RBW and detector metadata. Amplitude-only exports rebuild the X axis from Start/Stop. | R&amp;S FSVA3044 exports (`cascade_ip3_*.DAT`) |
+| Touchstone `.s1p` to `.s16p` (1.x and 2.0) | S-parameter networks from lab VNAs or NanoVNA in RI, MA or dB/angle form, with S, Y, Z and (two-port) ABCD views, VSWR, return loss, group delay and a Z/Y Smith chart. | `cascaded chain.s2p`, NanoVNA `.s1p`/`.s2p` |
+| tinySA `.csv` | Packed tinySA spectrum traces with sweep gaps preserved. | tinySA exports |
+| `.csv`, `.tsv`, `.txt`, tabular `.dat` | Time or frequency traces from oscilloscopes (Rigol, Siglent, Keysight, Tektronix, R&amp;S) or scripts. An import wizard maps delimiter (including mixed separators), header rows, X/Y columns, multipliers and units. | Oscilloscope CSVs (`scope_1khz_sine_100ksps.csv`) |
 | Workspace `.json` | A saved session: data, panes, markers, lines and analyses. | Round trip in the unit tests |
 
-R&S `.dat` is the primary tested instrument path. Generic tables may need manual column and unit mapping.
+Rohde &amp; Schwarz `.dat` is the primary tested spectrum instrument path. Generic tables may need manual column and unit mapping. Format-specific guides: [R&amp;S `.dat` viewer](https://mergenscope.com/rs-dat-viewer/) · [Touchstone &amp; Smith chart viewer](https://mergenscope.com/touchstone-s2p-viewer/) · [NanoVNA &amp; tinySA viewer](https://mergenscope.com/nanovna-tinysa-viewer/) · [Oscilloscope CSV &amp; FFT viewer](https://mergenscope.com/oscilloscope-csv-viewer/).
 
 ## Features
 

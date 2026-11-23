@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en" class="no-js">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Free Online Touchstone (.s1p–.s16p) &amp; Smith Chart Viewer – No Upload | Mergen Scope</title>
+<meta name="description" content="Open Touchstone .s1p, .s2p, .s3p, .s4p through .s16p VNA S-parameter files in your browser with interactive Z/Y Smith chart, S/Y/Z/ABCD views, VSWR, group delay, stability (K, μ), and IEEE LaTeX export. Free, open source, nothing uploaded.">
+<meta name="author" content="Alp Gokalp">
+<meta name="robots" content="index, follow">
+<meta name="color-scheme" content="light dark">
+<link rel="canonical" href="https://mergenscope.com/touchstone-s2p-viewer/">
+<link rel="alternate" type="text/plain" href="https://mergenscope.com/llms.txt" title="LLM Summary">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://mergenscope.com/touchstone-s2p-viewer/">
+<meta property="og:title" content="Free Online Touchstone (.s1p–.s16p) &amp; Smith Chart Viewer – No Upload | Mergen Scope">
+<meta property="og:description" content="Client-side Touchstone .s1p–.s16p viewer with Z/Y/Z+Y Smith chart, S/Y/Z/ABCD matrices, VSWR, return loss, group delay and stability K/μ. Zero uploads.">
+<meta property="og:image" content="https://mergenscope.com/mergen-scope-preview.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Free Online Touchstone (.s1p–.s16p) &amp; Smith Chart Viewer – Mergen Scope">
+<meta name="twitter:description" content="Client-side Touchstone .s1p–.s16p viewer with Z/Y/Z+Y Smith chart, S/Y/Z/ABCD matrices, VSWR, return loss, group delay and stability K/μ. Zero uploads.">
+<meta name="twitter:image" content="https://mergenscope.com/mergen-scope-preview.png">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "Mergen Scope – Touchstone S-Parameter & Smith Chart Viewer",
+  "url": "https://mergenscope.com/touchstone-s2p-viewer/",
+  "applicationCategory": "EngineeringApplication",
+  "operatingSystem": "Web browser (offline single-file HTML supported)",
+  "offers": {
+    "@type": "Offer",
+    "price": 0,
+    "priceCurrency": "USD"
+  },
+  "license": "https://www.apache.org/licenses/LICENSE-2.0",
+  "codeRepository": "https://github.com/AlpGoXd/mergen-scope",
+  "description": "Free, open-source, zero-upload browser viewer for Touchstone 1.x and 2.0 (.s1p through .s16p) S-parameter files with interactive Smith chart, network conversions and RF stability analysis.",
+  "featureList": [
+    "Touchstone 1.x and 2.0 support from .s1p through .s16p in RI, MA and dB/angle formats",
+    "Interactive Smith chart with Z, Y and combined Z+Y grids plus cursor Z, Y, Gamma and VSWR readouts",
+    "S, Y, Z and two-port ABCD parameter views in dB, magnitude and phase",
+    "VSWR, return loss and group delay views with complex-domain trace interpolation",
+    "Two-port stability (Rollett K, mu, mu', |Delta|) and reciprocity / isolation analysis",
+    "Linked multi-pane layout and IEEE-ready SVG, PDF and LaTeX (pgfplots/TikZ) export"
+  ],
+  "isAccessibleForFree": true,
+  "keywords": "Touchstone viewer, s2p viewer online, s1p viewer, s4p viewer, s16p viewer, Smith chart online, S-parameter plotter, VNA viewer, Rollett K stability, VSWR, group delay, no upload"
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position": 1,
+      "name": "Mergen Scope",
+      "item": "https://mergenscope.com/"
+    },
+    {
+      "@type": "ListItem",
+      "position": 2,
+      "name": "Touchstone & Smith Chart Viewer",
+      "item": "https://mergenscope.com/touchstone-s2p-viewer/"
+    }
+  ]
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "How many ports do Touchstone files support in Mergen Scope?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Mergen Scope opens Touchstone 1.x and 2.0 files from 1-port (.s1p) through 16-port (.s16p) in RI, MA or dB/angle formats with arbitrary reference impedance Z0."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Does the Smith chart show both impedance (Z) and admittance (Y)?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. You can switch between Z, Y and combined Z+Y grids. In Z+Y mode, hovering highlights constant-resistance/reactance and dashed constant-conductance/susceptance arcs and displays Z, Y, reflection coefficient Gamma (with Z0) and VSWR."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Can I compute Rollett K stability and reciprocity from an .s2p file?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. For any two-port Touchstone file, the Stability card reports minimum K, minimum mu and mu', |Delta| bounds and unstable point counts, while Reciprocity / Isolation reports worst and average |S21 - S12| error and worst-case isolation."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Is my .s2p file safe for confidential or NDA RF designs?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. All parsing and math run locally in your browser with zero uploads and zero trackers. You can also save the single-file app.html build and run it completely offline."
+      }
+    }
+  ]
+}
+</script>
+<link rel="icon" href="../favicon.ico?v=3" sizes="16x16 32x32 48x48">
+<link rel="icon" href="../landing-assets/brand/favicon.svg?v=4" type="image/svg+xml">
+<link rel="apple-touch-icon" href="../landing-assets/brand/apple-touch-icon.png?v=3">
+<script>try{var t=localStorage.getItem('mergen-theme-preference');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t;}catch(e){}</script>
+<link rel="stylesheet" href="../landing-assets/landing.css">
+<script src="../landing-assets/landing.js" defer></script>
+</head>
+<body>
+
+<header class="bar">
+<div class="wrap bar-row">
+<a class="brand" href="../"><svg class="brand-mark" width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path class="m" d="M0.75 21.05 L3.75 20.29 L5.25 19.05 L6.75 14.61 L8.06 6.93 L10.03 12.22 L12 14.88 L13.97 12.22 L15.94 6.93 L17.25 14.61 L18.75 19.05 L20.25 20.29 L23.25 21.05" fill="none" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round"/><path class="k" d="M5.75 1.3 L10.25 1.3 L8 4.99Z" stroke-width="0.8" stroke-linejoin="round"/></svg>Mergen Scope</a>
+<span class="pill">beta</span>
+<span class="grow"></span>
+<nav aria-label="Site" class="nav">
+<a href="../">Home</a>
+<a href="../rs-dat-viewer/">R&amp;S .dat</a>
+<a href="../nanovna-tinysa-viewer/">NanoVNA &amp; tinySA</a>
+<a href="../oscilloscope-csv-viewer/">Scope CSV</a>
+<a href="https://github.com/AlpGoXd/mergen-scope">GitHub</a>
+<button type="button" class="theme-switch" data-theme-switch aria-label="Switch light or dark">Dark</button>
+<a class="btn btn-sm" href="../app.html">Open the app</a>
+</nav>
+</div>
+</header>
+
+<main>
+<section class="hero wrap">
+<div class="intro">
+<span class="kicker mono">Touchstone 1.x &amp; 2.0 · .s1p … .s16p · Smith chart · zero upload</span>
+<h1>View Touchstone S-parameter files and Smith charts offline in your browser.</h1>
+<p class="lead">Drop <span class="mono">.s1p</span> through <span class="mono">.s16p</span> files from any VNA or NanoVNA into Mergen Scope. Inspect S, Y, Z and ABCD parameters, Z/Y/Z+Y Smith charts, VSWR, group delay and two-port stability (K, μ) side by side—then export vector SVG, PDF or IEEE LaTeX (<span class="mono">pgfplots</span>) with zero server uploads.</p>
+<div class="actions">
+<div class="buttons">
+<a class="btn" href="../app.html">Open an .s2p file</a>
+<a class="btn btn-2" href="../app.html?demo=1">Try the S2P + Smith demo</a>
+</div>
+<span class="fine">Apache-2.0 open source · Complex-domain interpolation · No account</span>
+</div>
+</div>
+</section>
+
+<section class="section wrap" aria-labelledby="touchstone-title">
+<div class="sub">
+<h2 id="touchstone-title">Full multi-port Touchstone parsing and complex math</h2>
+<p class="body">Touchstone traces are interpolated on their complex values before converting to dB or phase, avoiding unwrap glitches when aligning or comparing two VNA files on different frequency grids.</p>
+</div>
+<div class="rows">
+<div class="row">
+<div class="row-head"><span class="ext mono">.s1p … .s16p</span><h3>Touchstone 1.x &amp; 2.0</h3><p>Supports RI, MA and dB/angle formats, arbitrary Z₀, and multi-file comparison across linked frequency panes.</p></div>
+<pre class="raw">#  HZ   S   RI   R     50.00
+! freq[Hz]  re:S11  im:S11  re:S21  im:S21 …
+ 1.000000000000000E4  1.062620232310890 …</pre>
+<svg class="arrow" width="28" height="16" viewBox="0 0 28 16" aria-hidden="true"><path d="M2 8h22M18 3l6 5-6 5"/></svg>
+<ul class="chips" aria-label="Supported views"><li>1 to 16 ports</li><li>S / Y / Z / ABCD</li><li>Z / Y / Z+Y Smith</li><li>VSWR</li><li>Return loss</li><li>Group delay</li></ul>
+</div>
+</div>
+<div class="after">
+<a href="https://github.com/AlpGoXd/mergen-scope/blob/main/docs/guide/touchstone-and-smith-chart.md">Read the Touchstone &amp; Smith chart guide</a>
+<a href="https://github.com/AlpGoXd/mergen-scope/tree/main/test%20files">Download sample .s1p and .s2p files</a>
+<span>Link Cartesian and Smith panes so frequency ranges and markers stay aligned as you zoom.</span>
+</div>
+</section>
+
+<section class="band" aria-labelledby="network-title">
+<div class="section wrap">
+<div class="sub">
+<h2 id="network-title">Network analysis built for RF benches and papers</h2>
+<p class="body">Every measurement card updates live with your visible zoom range and states its exact input requirement whenever a calculation does not apply.</p>
+</div>
+<div class="groups">
+<div><h3>Smith chart pane</h3><p>Z, Y and combined Z+Y grids · Frequency range bar · Live Z, Y, Γ (with Z₀) and VSWR readouts under the cursor</p></div>
+<div><h3>Two-port RF metrics</h3><p>Rollett K, μ, μ′ and |Δ| stability · Reciprocity error (|S21 − S12|) and isolation · 3 dB bandwidth and passband ripple</p></div>
+<div><h3>Paper-ready export</h3><p>Redrawn print figures with trace symbols · IEEE single-column PNG/SVG/PDF · Copyable LaTeX pgfplots/TikZ code</p></div>
+</div>
+</div>
+</section>
+
+<section id="faq" class="section wrap" aria-labelledby="faq-title">
+<div class="sub"><h2 id="faq-title">Frequently asked questions</h2></div>
+<div class="pfacts">
+<div><h3>How many ports do Touchstone files support in Mergen Scope?</h3><p>Mergen Scope opens Touchstone 1.x and 2.0 files from 1-port (.s1p) through 16-port (.s16p) in RI, MA or dB/angle formats with arbitrary reference impedance Z0.</p></div>
+<div><h3>Does the Smith chart show both impedance (Z) and admittance (Y)?</h3><p>Yes. You can switch between Z, Y and combined Z+Y grids. In Z+Y mode, hovering highlights constant-resistance/reactance and dashed constant-conductance/susceptance arcs and displays Z, Y, reflection coefficient Gamma (with Z0) and VSWR.</p></div>
+<div><h3>Can I compute Rollett K stability and reciprocity from an .s2p file?</h3><p>Yes. For any two-port Touchstone file, the Stability card reports minimum K, minimum mu and mu', |Delta| bounds and unstable point counts, while Reciprocity / Isolation reports worst and average |S21 - S12| error and worst-case isolation.</p></div>
+<div><h3>Is my .s2p file safe for confidential or NDA RF designs?</h3><p>Yes. All parsing and math run locally in your browser with zero uploads and zero trackers. You can also save the single-file app.html build and run it completely offline.</p></div>
+</div>
+</section>
+
+<section class="closing wrap" aria-labelledby="closing-title">
+<div class="closing-text">
+<h2 id="closing-title">Drop your .s1p or .s2p file straight into the browser.</h2>
+<p class="body">No Python setup, no license server, and zero data leaves your computer.</p>
+</div>
+<div class="closing-side">
+<div class="buttons">
+<a class="btn" href="../app.html">Open the app</a>
+<a class="btn btn-2" href="../app.html?demo=1">Try the demo</a>
+</div>
+</div>
+</section>
+</main>
+
+<footer class="foot">
+<div class="wrap foot-row">
+<span>Mergen Scope <span data-version>v1.0.0-beta.4</span> · open source, Apache-2.0</span>
+<span class="grow"></span>
+<nav aria-label="Footer" class="foot-nav">
+<a href="../">Home</a>
+<a href="../rs-dat-viewer/">R&amp;S .dat viewer</a>
+<a href="../nanovna-tinysa-viewer/">NanoVNA &amp; tinySA</a>
+<a href="../oscilloscope-csv-viewer/">Oscilloscope CSV</a>
+<a href="https://github.com/AlpGoXd/mergen-scope">Source on GitHub</a>
+</nav>
+</div>
+</footer>
+
+</body>
+</html>

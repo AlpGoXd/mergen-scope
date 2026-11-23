@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en" class="no-js">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Free Browser Viewer for NanoVNA (.s1p, .s2p) &amp; tinySA (.csv) Files | Mergen Scope</title>
+<meta name="description" content="Open NanoVNA .s1p and .s2p files on an interactive Smith chart alongside tinySA packed CSV spectrum traces (with sweep gaps preserved) in one free, offline, zero-upload browser workspace.">
+<meta name="author" content="Alp Gokalp">
+<meta name="robots" content="index, follow">
+<meta name="color-scheme" content="light dark">
+<link rel="canonical" href="https://mergenscope.com/nanovna-tinysa-viewer/">
+<link rel="alternate" type="text/plain" href="https://mergenscope.com/llms.txt" title="LLM Summary">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://mergenscope.com/nanovna-tinysa-viewer/">
+<meta property="og:title" content="Free Browser Viewer for NanoVNA (.s1p, .s2p) &amp; tinySA (.csv) Files | Mergen Scope">
+<meta property="og:description" content="View NanoVNA S11/S21 Smith charts and VSWR together with tinySA CSV spectrum sweeps and antenna polar plots—free, open source and 100% local in your browser.">
+<meta property="og:image" content="https://mergenscope.com/mergen-scope-preview.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="NanoVNA &amp; tinySA Browser Viewer – Mergen Scope">
+<meta name="twitter:description" content="View NanoVNA S11/S21 Smith charts and VSWR together with tinySA CSV spectrum sweeps—free, open source and offline.">
+<meta name="twitter:image" content="https://mergenscope.com/mergen-scope-preview.png">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "Mergen Scope – NanoVNA & tinySA Browser Viewer",
+  "url": "https://mergenscope.com/nanovna-tinysa-viewer/",
+  "applicationCategory": "EngineeringApplication",
+  "operatingSystem": "Web browser (offline single-file HTML supported)",
+  "offers": {
+    "@type": "Offer",
+    "price": 0,
+    "priceCurrency": "USD"
+  },
+  "license": "https://www.apache.org/licenses/LICENSE-2.0",
+  "codeRepository": "https://github.com/AlpGoXd/mergen-scope",
+  "description": "Free, open-source browser workspace for inspecting NanoVNA (.s1p, .s2p) VNA sweeps and tinySA (.csv) spectrum analyzer captures together with Smith charts, VSWR, antenna polar plots and RF measurements.",
+  "featureList": [
+    "NanoVNA .s1p and .s2p Touchstone import with Z/Y/Z+Y Smith chart, VSWR, return loss and group delay",
+    "tinySA packed CSV spectrum trace parser that preserves sweep gaps",
+    "Antenna far-field polar pane with beamwidth, peak bearing, front-to-back ratio and sidelobe metrics",
+    "Spectrum measurements: IP3, occupied bandwidth, channel power, peak table, 3 dB bandwidth and harmonics",
+    "Unit-aware trace math to compare before/after antenna tuning or filter sweeps",
+    "Zero upload, offline single-file HTML, SVG/PNG/PDF/LaTeX export"
+  ],
+  "isAccessibleForFree": true,
+  "keywords": "NanoVNA viewer online, NanoVNA s1p viewer, NanoVNA s2p Smith chart, tinySA CSV viewer, tinySA Ultra spectrum viewer, amateur radio RF tool, antenna polar plot browser"
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position": 1,
+      "name": "Mergen Scope",
+      "item": "https://mergenscope.com/"
+    },
+    {
+      "@type": "ListItem",
+      "position": 2,
+      "name": "NanoVNA & tinySA Viewer",
+      "item": "https://mergenscope.com/nanovna-tinysa-viewer/"
+    }
+  ]
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "How do I open a NanoVNA .s1p or .s2p file in Mergen Scope?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Open the app and drag your NanoVNA .s1p or .s2p file into the workspace. Mergen Scope plots S11/S21 magnitude, phase, VSWR, return loss and group delay, and displays reflections on an interactive Z/Y Smith chart."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Does Mergen Scope handle tinySA CSV exports cleanly?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. Packed tinySA CSV traces are parsed directly and gaps in the sweep are preserved rather than connected with misleading straight lines. Mixed-separator and custom column files open through the import wizard."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Can I compare NanoVNA antenna tuning sweeps side by side?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. Drop multiple .s1p or .s2p files into the same workspace to overlay S11 return loss or VSWR curves, view both traces on the Smith chart, or compute differences with trace math."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Does Mergen Scope connect directly to my NanoVNA or tinySA over USB?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "No. Mergen Scope is an offline file viewer and analysis workspace—capture files on the instrument SD card or with NanoVNA-Saver / tinySA-App, then drop them into Mergen Scope for analysis and clean figure export."
+      }
+    }
+  ]
+}
+</script>
+<link rel="icon" href="../favicon.ico?v=3" sizes="16x16 32x32 48x48">
+<link rel="icon" href="../landing-assets/brand/favicon.svg?v=4" type="image/svg+xml">
+<link rel="apple-touch-icon" href="../landing-assets/brand/apple-touch-icon.png?v=3">
+<script>try{var t=localStorage.getItem('mergen-theme-preference');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t;}catch(e){}</script>
+<link rel="stylesheet" href="../landing-assets/landing.css">
+<script src="../landing-assets/landing.js" defer></script>
+</head>
+<body>
+
+<header class="bar">
+<div class="wrap bar-row">
+<a class="brand" href="../"><svg class="brand-mark" width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path class="m" d="M0.75 21.05 L3.75 20.29 L5.25 19.05 L6.75 14.61 L8.06 6.93 L10.03 12.22 L12 14.88 L13.97 12.22 L15.94 6.93 L17.25 14.61 L18.75 19.05 L20.25 20.29 L23.25 21.05" fill="none" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round"/><path class="k" d="M5.75 1.3 L10.25 1.3 L8 4.99Z" stroke-width="0.8" stroke-linejoin="round"/></svg>Mergen Scope</a>
+<span class="pill">beta</span>
+<span class="grow"></span>
+<nav aria-label="Site" class="nav">
+<a href="../">Home</a>
+<a href="../rs-dat-viewer/">R&amp;S .dat</a>
+<a href="../touchstone-s2p-viewer/">Touchstone .s2p</a>
+<a href="../oscilloscope-csv-viewer/">Scope CSV</a>
+<a href="https://github.com/AlpGoXd/mergen-scope">GitHub</a>
+<button type="button" class="theme-switch" data-theme-switch aria-label="Switch light or dark">Dark</button>
+<a class="btn btn-sm" href="../app.html">Open the app</a>
+</nav>
+</div>
+</header>
+
+<main>
+<section class="hero wrap">
+<div class="intro">
+<span class="kicker mono">NanoVNA (.s1p, .s2p) · tinySA (.csv) · Antenna polar plots · offline</span>
+<h1>Analyze NanoVNA and tinySA files together in one browser workspace.</h1>
+<p class="lead">Inspect NanoVNA antenna return loss, VSWR and Smith charts next to tinySA spectrum captures and antenna radiation patterns. Built originally for a DIY 21 cm hydrogen-line radio telescope—free, open source, and everything stays on your computer.</p>
+<div class="actions">
+<div class="buttons">
+<a class="btn" href="../app.html">Open your files</a>
+<a class="btn btn-2" href="../app.html?demo=1">Try the horn antenna demo</a>
+</div>
+<span class="fine">Zero uploads · No Python install · Works offline</span>
+</div>
+</div>
+</section>
+
+<section class="section wrap" aria-labelledby="combo-title">
+<div class="sub">
+<h2 id="combo-title">One workspace for your whole RF bench</h2>
+<p class="body">Instead of juggling separate utilities for NanoVNA Touchstone captures, tinySA CSV sweeps and antenna gain cuts, open them in linked panes and save the whole session as a portable JSON workspace.</p>
+</div>
+<div class="rows">
+<div class="row">
+<div class="row-head"><span class="ext mono">NanoVNA .s1p · .s2p</span><h3>Antenna &amp; filter sweeps</h3><p>Check resonant dip, 2:1 VSWR bandwidth, S21 filter insertion loss, group delay and impedance trajectories on a Z/Y Smith chart.</p></div>
+<ul class="chips" aria-label="NanoVNA tools"><li>Smith chart (Z / Y / Z+Y)</li><li>VSWR</li><li>Return loss</li><li>3 dB bandwidth</li><li>Before/after overlay</li></ul>
+</div>
+<div class="row">
+<div class="row-head"><span class="ext mono">tinySA .csv</span><h3>Packed spectrum traces</h3><p>Reads packed tinySA sweeps cleanly while keeping sweep gaps intact. Measure harmonics, spurs, occupied bandwidth and IP3.</p></div>
+<ul class="chips" aria-label="tinySA tools"><li>Sweep gaps kept</li><li>Peak table</li><li>Harmonics &amp; SFDR</li><li>IP3 / TOI</li><li>Noise PSD</li></ul>
+</div>
+<div class="row">
+<div class="row-head"><span class="ext mono">Polar pane</span><h3>Antenna far-field patterns</h3><p>Plot gain against angle in a polar pane and compute half-power beamwidth, peak bearing, front-to-back ratio and secondary lobes.</p></div>
+<ul class="chips" aria-label="Antenna tools"><li>Polar chart</li><li>Beamwidth (HPBW)</li><li>Front-to-back ratio</li><li>Sidelobes</li></ul>
+</div>
+</div>
+</section>
+
+<section id="faq" class="band" aria-labelledby="faq-title">
+<div class="section wrap">
+<div class="sub"><h2 id="faq-title">Frequently asked questions</h2></div>
+<div class="pfacts">
+<div><h3>How do I open a NanoVNA .s1p or .s2p file in Mergen Scope?</h3><p>Open the app and drag your NanoVNA .s1p or .s2p file into the workspace. Mergen Scope plots S11/S21 magnitude, phase, VSWR, return loss and group delay, and displays reflections on an interactive Z/Y Smith chart.</p></div>
+<div><h3>Does Mergen Scope handle tinySA CSV exports cleanly?</h3><p>Yes. Packed tinySA CSV traces are parsed directly and gaps in the sweep are preserved rather than connected with misleading straight lines. Mixed-separator and custom column files open through the import wizard.</p></div>
+<div><h3>Can I compare NanoVNA antenna tuning sweeps side by side?</h3><p>Yes. Drop multiple .s1p or .s2p files into the same workspace to overlay S11 return loss or VSWR curves, view both traces on the Smith chart, or compute differences with trace math.</p></div>
+<div><h3>Does Mergen Scope connect directly to my NanoVNA or tinySA over USB?</h3><p>No. Mergen Scope is an offline file viewer and analysis workspace—capture files on the instrument SD card or with NanoVNA-Saver / tinySA-App, then drop them into Mergen Scope for analysis and clean figure export.</p></div>
+</div>
+</div>
+</section>
+
+<section class="closing wrap" aria-labelledby="closing-title">
+<div class="closing-text">
+<h2 id="closing-title">Try it with your NanoVNA or tinySA export.</h2>
+<p class="body">Drop an .s1p, .s2p or .csv file into the workspace, or load the demo containing a measured 21 cm horn antenna.</p>
+</div>
+<div class="closing-side">
+<div class="buttons">
+<a class="btn" href="../app.html">Open the app</a>
+<a class="btn btn-2" href="../app.html?demo=1">Try the demo</a>
+</div>
+</div>
+</section>
+</main>
+
+<footer class="foot">
+<div class="wrap foot-row">
+<span>Mergen Scope <span data-version>v1.0.0-beta.4</span> · open source, Apache-2.0</span>
+<span class="grow"></span>
+<nav aria-label="Footer" class="foot-nav">
+<a href="../">Home</a>
+<a href="../rs-dat-viewer/">R&amp;S .dat viewer</a>
+<a href="../touchstone-s2p-viewer/">Touchstone viewer</a>
+<a href="../oscilloscope-csv-viewer/">Oscilloscope CSV</a>
+<a href="https://github.com/AlpGoXd/mergen-scope">Source on GitHub</a>
+</nav>
+</div>
+</footer>
+
+</body>
+</html>

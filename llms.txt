@@ -1,51 +1,58 @@
 # Mergen Scope
 
-> Mergen Scope (mergenscope.com) is a free, open-source browser workspace for viewing and analyzing spectrum analyzer, oscilloscope and S-parameter files. It is intended for RF and measurement engineers, students and radio amateurs.
+> Mergen Scope (mergenscope.com) is a free, open-source (Apache-2.0), zero-upload browser workspace for viewing and analyzing Rohde & Schwarz (.dat) spectrum analyzer traces, Touchstone (.s1p–.s16p) VNA and NanoVNA files, tinySA CSV sweeps, and oscilloscope CSV/TSV/TXT captures. Built for RF and measurement engineers, students, researchers and radio amateurs.
+
+## Dedicated format guides and landing pages
+
+- [Rohde & Schwarz .dat spectrum viewer](https://mergenscope.com/rs-dat-viewer/): Open ASCII R&S FSV / FSVA spectrum analyzer `.dat` files offline in your browser with span, RBW and detector metadata.
+- [Touchstone .s1p–.s16p & Smith chart viewer](https://mergenscope.com/touchstone-s2p-viewer/): View S, Y, Z and two-port ABCD parameters, Z/Y/Z+Y Smith chart, VSWR, return loss, group delay, stability (K, μ) and reciprocity/isolation.
+- [NanoVNA & tinySA browser viewer](https://mergenscope.com/nanovna-tinysa-viewer/): Open NanoVNA `.s1p`/`.s2p` Touchstone files and tinySA packed `.csv` traces (preserving sweep gaps) in one offline workspace.
+- [Oscilloscope CSV waveform & FFT viewer](https://mergenscope.com/oscilloscope-csv-viewer/): Open Rigol, Siglent, Keysight, Tektronix or custom CSV/TSV/TXT waveforms with import wizard, waveform measurements, 14-window FFT and harmonics.
+- [Full LLM reference](https://mergenscope.com/llms-full.txt): Detailed feature matrix, analysis tool formulas and requirements, privacy guarantees and comparison notes.
 
 ## Supported files
 
-- R&S spectrum `.dat`: spectrum traces with span, RBW and detector metadata. Tabular `.dat` files can also contain time or frequency columns.
-- Touchstone `.s1p` through `.s16p`: S-parameter networks. Views include S, Y, Z and, for two-port networks, ABCD; a Smith chart is available.
-- `.csv`, `.txt` and `.tsv`: waveform and other time or frequency column data, using comma, semicolon or tab delimiters. The import wizard can map columns and units.
-- Workspace `.json`: saved data, panes, markers, lines and analyses.
+- Rohde & Schwarz (R&S) spectrum `.dat`: spectrum traces with span, RBW and detector metadata (tested with FSVA3044 exports; amplitude-only exports rebuild the X axis from Start/Stop). Tabular `.dat` files can also contain time or frequency columns.
+- Touchstone `.s1p` through `.s16p` (1.x and 2.0): S-parameter networks from lab VNAs or NanoVNA in RI, MA or dB/angle form. Views include S, Y, Z and, for two-port networks, ABCD; VSWR, return loss, group delay and an interactive Z/Y/Z+Y Smith chart.
+- tinySA `.csv`: packed tinySA spectrum traces are read with sweep gaps preserved.
+- `.csv`, `.txt` and `.tsv`: oscilloscope waveforms (Rigol, Siglent, Keysight, Tektronix, R&S or script exports) and other time or frequency column data, using comma, semicolon, tab or mixed delimiters via the built-in import wizard.
+- Workspace `.json`: saved session containing data, panes, markers, lines and analyses (version 5 with migration from v1–v4).
 
-Not tied to one instrument brand: any waveform or measurement that an oscilloscope, spectrum analyzer, VNA or other instrument (or a script) exports as a text table (CSV, TXT or TSV with comma, semicolon or tab delimiters) can be opened. The import wizard picks the X column, one or more Y columns, units and multipliers. Proprietary binary formats are not read; export the data as CSV or text first.
+Not tied to one instrument brand: any waveform or measurement exported as a text table (CSV, TXT or TSV) can be opened. Proprietary binary formats are not read; export as ASCII CSV, text or Touchstone first.
 
 ## Analysis tools
 
-Noise PSD, IP3, Peak Table, Range Statistics, Bandwidth, Antenna far field (beamwidth, peak bearing, front-to-back ratio and secondary lobes on a gain cut against angle), Threshold crossings, Line crossings, Ripple, Occupied bandwidth, Channel power, Reciprocity / Isolation, Stability, Offset / Scale, Smooth, Trace math, Waveform, FFT, Harmonics and Resample. Tools have data requirements; for example, Stability and Reciprocity / Isolation require a two-port network.
+- Spectrum and RF: Peak Table, Range Statistics, Bandwidth (N dB), Ripple, Threshold crossings, Line crossings, Noise PSD, Channel power, Occupied bandwidth (OBW), IP3 / TOI, Harmonics (THD, SFDR; plus THD+N, SNR, SINAD, ENOB on FFT spectra created by the app).
+- Time domain: Waveform (frequency, period, peak-to-peak, max, min, mean, RMS, rise/fall time, overshoot, duty cycle), Resample (linear, cubic), FFT (14 windows, averaging, max hold, detrend, dBV/V/dBm/density scales).
+- Networks (two-port Touchstone): Stability (Rollett K, μ, μ′, |Δ|), Reciprocity / Isolation.
+- Antennas: Antenna far-field analysis (beamwidth / HPBW, peak bearing, front-to-back ratio, secondary lobes) on Polar panes.
+- Trace transforms: Offset / Scale, Smooth (moving average, median, Savitzky-Golay), Unit-aware Trace math (A ± B, A × B, A ÷ B with gap filling and dBm-addition warnings).
 
-## Views
+## Views and export
 
-Chart panes (linear or logarithmic axes), Table panes, Smith chart panes and Polar panes (magnitude against angle, for example an antenna gain cut). Up to four panes, with linked X axes. Traces can be dragged onto panes, and traces and analysis cards can be reordered by dragging.
+- Views: Chart panes (linear/log axes, box zoom, editable axis ranges), Smith chart panes (Z, Y, Z+Y grids with Z, Y, Γ and VSWR hover readouts), Polar panes, and Table panes. Up to four panes (plus experimental eight-pane layout) with linked X axes.
+- Export: Publication-ready PNG, SVG, PDF, IEEE-column LaTeX (`pgfplots`/TikZ) figures, and CSV data. Clipboard copy for images and LaTeX code.
 
-## Export
+## Privacy and offline use
 
-PNG, SVG, PDF, LaTeX (TikZ) and CSV. PDF export works on mergenscope.com; a copy of the built app opened directly from disk (file://) needs a local web server for PDF. A workspace can also be saved as JSON.
-
-## Privacy
-
-Files are read and processed locally in the browser and are not uploaded. There are no cookies, trackers or account. Preferences such as the theme, export options, recent analysis tools and some interface settings are stored in the browser; a workspace is saved when downloaded. Files attached to a GitHub issue are public.
-
-## Limits
-
-Mergen Scope is beta. Generic tables may need manual column and unit mapping which can be done in the built-in import wizard.
+Files are read and processed locally in the browser and are never uploaded (0 bytes transferred). No cookies, trackers or account. The production build is a single self-contained `app.html` with no CDN dependencies, so a local copy opened from disk works offline in air-gapped or NDA-restricted labs (only PDF export needs a local web server).
 
 ## How to use
 
-[Open the app](https://mergenscope.com/app.html) and drop a file into the workspace, or [try the demo](https://mergenscope.com/app.html?demo=1).
+[Open the app](https://mergenscope.com/app.html) and drop a file into the workspace, or [try the interactive demo](https://mergenscope.com/app.html?demo=1).
 
-## Guides
+## User guide (GitHub)
 
-- [User guide](https://github.com/AlpGoXd/mergen-scope/blob/main/docs/guide/README.md): Workspace overview and guide index.
-- [Oscilloscope CSV](https://github.com/AlpGoXd/mergen-scope/blob/main/docs/guide/oscilloscope-csv.md): Import and analyze waveform columns.
-- [Touchstone and Smith chart](https://github.com/AlpGoXd/mergen-scope/blob/main/docs/guide/touchstone-and-smith-chart.md): Network views and analysis.
-- [R&S DAT](https://github.com/AlpGoXd/mergen-scope/blob/main/docs/guide/rs-spectrum-analyzer-dat.md): Open spectrum analyzer exports.
-- [Trace math](https://github.com/AlpGoXd/mergen-scope/blob/main/docs/guide/trace-math.md): Trace alignment and unit rules.
-- [Analysis tools](https://github.com/AlpGoXd/mergen-scope/blob/main/docs/guide/analysis-tools.md): Tool inputs, settings and outputs.
+- [User guide index](https://github.com/AlpGoXd/mergen-scope/blob/main/docs/guide/README.md)
+- [Oscilloscope CSV guide](https://github.com/AlpGoXd/mergen-scope/blob/main/docs/guide/oscilloscope-csv.md)
+- [Touchstone and Smith chart guide](https://github.com/AlpGoXd/mergen-scope/blob/main/docs/guide/touchstone-and-smith-chart.md)
+- [Rohde & Schwarz .DAT guide](https://github.com/AlpGoXd/mergen-scope/blob/main/docs/guide/rs-spectrum-analyzer-dat.md)
+- [Trace math guide](https://github.com/AlpGoXd/mergen-scope/blob/main/docs/guide/trace-math.md)
+- [Analysis tools reference](https://github.com/AlpGoXd/mergen-scope/blob/main/docs/guide/analysis-tools.md)
 
 ## Links
 
+- [Website](https://mergenscope.com/)
 - [Source on GitHub](https://github.com/AlpGoXd/mergen-scope)
 - [License: Apache-2.0](https://www.apache.org/licenses/LICENSE-2.0)
-- [Feedback](https://github.com/AlpGoXd/mergen-scope/issues/new/choose)
+- [Feedback & Issues](https://github.com/AlpGoXd/mergen-scope/issues/new/choose)
