@@ -39,6 +39,14 @@
 .ph[data-level="5"] > .ph-title { flex: 0 1 auto; min-width: 3ch; }
 .ph > .ph-spacer { flex: 1 1 0; min-width: 0; }
 .ph > .ph-scale { color: var(--text-muted); padding: 0 var(--space-1); }
+.ph > .ph-scale--btn {
+  border: 0; border-radius: var(--radius-input); background: transparent; cursor: pointer;
+  text-decoration: underline dotted transparent; text-underline-offset: 2px;
+}
+.ph > .ph-scale--btn:hover,
+.ph > .ph-scale--btn[aria-expanded="true"] {
+  text-decoration-color: currentColor;
+}
 .ph .ph-settings, .ph .ph-samples.is-icon, .ph .ph-link.is-icon { width: var(--control-sm-height); padding: 0; justify-content: center; }
 /* X link chip: neutral when unlinked, tinted in the Pane hue when linked (Btn chip + tone pane). */
 .ph .ph-link { padding: 0 var(--space-1); }
@@ -68,3 +76,14 @@
 .pset-actions__gap { flex: 1; }
 .pset .pset-close:not(:disabled) { color: var(--danger-ink); }
 .pset .pset-close:hover:not(:disabled) { background: var(--danger-fill); border-color: var(--danger-line); }
+
+/* ---------- Editable axis range controls ---------- */
+.axis-range-stack { display: flex; flex-direction: column; gap: var(--space-2); }
+.axis-range-group { display: flex; flex-direction: column; gap: var(--space-1); }
+.axis-range-row { display: flex; align-items: center; gap: var(--space-2); min-height: var(--control-sm-height); }
+.axis-range-label { flex: none; width: 64px; color: var(--text-muted); }
+.pset .axis-range-label { width: 92px; }
+.axis-range-fields { display: flex; flex: 1; flex-wrap: wrap; align-items: center; gap: var(--space-1); min-width: 0; }
+.axis-range-arrow { color: var(--text-muted); }
+.axis-pop { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-2); min-width: 280px; }
+.axis-pop-actions { display: flex; flex-wrap: wrap; gap: var(--space-1); padding-top: var(--space-1); border-top: 1px solid var(--border); }

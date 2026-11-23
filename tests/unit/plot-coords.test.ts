@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
   axisValueToPixel,
+  BOX_ZOOM_MIN_Y_PX,
   centerXDomain,
   centerYDomain,
+  dragZoomBox,
   dragZoomXDomain,
+  dragZoomYDomain,
+  isBoxZoomGesture,
   paddedYDomain,
   panXDomain,
   panYDomain,
@@ -96,6 +100,30 @@ describe('X drag domains', () => {
     expect(dragZoomXDomain(right, left)).toEqual({ left, right });
     expect(panXDomain({ left, right }, left, right, { min, max: min + 16 * step }))
       .toEqual({ left: min + 4 * step, right: left });
+  });
+
+  it('resolves diagonal box zoom for X and Y, and falls back to X-only on flat horizontal drags', () => {
+    expect(isBoxZoomGesture(100, 100 + BOX_ZOOM_MIN_Y_PX - 1)).toBe(false);
+    expect(isBoxZoomGesture(100, 100 + BOX_ZOOM_MIN_Y_PX)).toBe(true);
+    expect(dragZoomYDomain(-10, -40)).toEqual({ min: -40, max: -10 });
+    expect(dragZoomYDomain(-10, 5, 'log')).toBeNull();
+    expect(dragZoomYDomain(1, 10, 'log')).toEqual({ min: 1, max: 10 });
+
+    // Flat horizontal drag: Y is null so caller fits Y.
+    expect(dragZoomBox(100, 200, -10, -15, 100, 104)).toEqual({ x: { left: 100, right: 200 }, y: null });
+    // Diagonal drag in any quadrant: returns sorted X and Y.
+    expect(dragZoomBox(200, 100, -40, -10, 180, 120)).toEqual({
+      x: { left: 100, right: 200 },
+      y: { min: -40, max: -10 },
+    });
+    // Zero-width drag returns null.
+    expect(dragZoomBox(100, 100, -40, -10, 180, 120)).toBeNull();
+    // Log scale rejects non-positive bounds.
+    expect(dragZoomBox(-10, 20, 1, 10, 180, 120, 'log', 'log')).toBeNull();
+    expect(dragZoomBox(10, 100, 1, 10, 180, 120, 'log', 'log')).toEqual({
+      x: { left: 10, right: 100 },
+      y: { min: 1, max: 10 },
+    });
   });
 });
 

@@ -62,7 +62,7 @@ describe('footer mouse hints', () => {
   const text = (context: Parameters<typeof footerHints>[0]) => footerHints(context).map(hint => `${hint.action} ${hint.effect}`);
 
   it('are 3–4 per pane type, and short while armed or with no file', () => {
-    expect(text('chart')).toEqual(['Right-drag X zoom', 'Scroll Y scale', 'Ctrl+drag pan', 'Double-click fit']);
+    expect(text('chart')).toEqual(['Right-drag box zoom', 'Scroll Y scale', 'Ctrl+drag pan', 'Double-click fit']);
     expect(text('smith')).toEqual(['Scroll zoom', 'Ctrl+drag pan', 'Double-click fit']);
     expect(text('armed')).toEqual(['Click place', 'Esc cancel']);
     expect(text('empty')).toEqual(['Drop files anywhere', 'Ctrl+O open']);

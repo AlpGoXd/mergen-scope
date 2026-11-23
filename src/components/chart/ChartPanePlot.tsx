@@ -75,6 +75,7 @@ interface ChartPanePlotProps {
   colors: ThemeColors | null;
   dragStart: number | null;
   dragCurrent: number | null;
+  dragBoxY: readonly [number, number] | null;
 }
 
 /** Non-color glyph shape per marker type (normal = circle, delta = diamond, peak = triangle). */
@@ -93,7 +94,7 @@ export function ChartPanePlot({
   paneId, plotData, plotView, lineChartRef, mouseEvents, settings, exportView, axisInfo, xAxis, yAxis,
   paneTraces, activePaneTrace, visibleXSpan, resolveTraceColor, traceSymbol, colorAssignments,
   crosshairX, ghostCrosshairX, paneMarkers, selectedMkrIdx, linesLayer, overlays, paneRefLines,
-  vDeltaPairs, hDeltaPairs, colors, dragStart, dragCurrent, axisSettings, displayTraces, logRows,
+  vDeltaPairs, hDeltaPairs, colors, dragStart, dragCurrent, dragBoxY, axisSettings, displayTraces, logRows,
 }: ChartPanePlotProps) {
   const isExport = exportView !== undefined;
   const appearance = exportView?.appearance;
@@ -303,8 +304,36 @@ export function ChartPanePlot({
         })} />} />
       )}
       {/* Zoom indicators ignore the pointer: on Linux and macOS contextmenu fires while the right button is down, and it must reach the line label underneath. */}
-      {dragStart !== null && dragCurrent !== null && <ReferenceLine x={dragStart} stroke="var(--accent)" strokeWidth={1} pointerEvents="none" />}
-      {dragStart !== null && dragCurrent !== null && <ReferenceLine x={dragCurrent} stroke="var(--accent)" strokeWidth={1} pointerEvents="none" />}
+      {dragStart !== null && dragCurrent !== null && dragBoxY !== null && dragStart !== dragCurrent && (
+        <ReferenceArea
+          x1={Math.min(dragStart, dragCurrent)}
+          x2={Math.max(dragStart, dragCurrent)}
+          y1={Math.min(dragBoxY[0], dragBoxY[1])}
+          y2={Math.max(dragBoxY[0], dragBoxY[1])}
+          ifOverflow="hidden"
+          shape={(props: { x?: number; y?: number; width?: number; height?: number }) => {
+            const x = Number(props.x), y = Number(props.y), w = Number(props.width), h = Number(props.height);
+            if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(w) || !Number.isFinite(h)) return <g />;
+            return (
+              <rect
+                data-testid="chart-zoom-box"
+                x={w < 0 ? x + w : x}
+                y={h < 0 ? y + h : y}
+                width={Math.abs(w)}
+                height={Math.abs(h)}
+                fill="var(--accent)"
+                fillOpacity={0.14}
+                stroke="var(--accent)"
+                strokeWidth={1.25}
+                strokeDasharray="4 2"
+                pointerEvents="none"
+              />
+            );
+          }}
+        />
+      )}
+      {dragStart !== null && dragCurrent !== null && dragBoxY === null && <ReferenceLine x={dragStart} stroke="var(--accent)" strokeWidth={1} pointerEvents="none" />}
+      {dragStart !== null && dragCurrent !== null && dragBoxY === null && <ReferenceLine x={dragCurrent} stroke="var(--accent)" strokeWidth={1} pointerEvents="none" />}
       {!logY && <ReferenceLine y={0} stroke="var(--dim)" strokeWidth={0.5} />}
       {exportView?.print && <Customized component={<ExportFrame />} />}
     </LineChart>

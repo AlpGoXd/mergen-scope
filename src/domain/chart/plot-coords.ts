@@ -33,11 +33,49 @@ export function refLineYTolerance(domain: YDomain, plotHeight: number): number {
   return (span / plotHeight) * 8;
 }
 
+/** Minimum vertical pointer travel (px) before a right-drag switches from X-only zoom to an X+Y box zoom. */
+export const BOX_ZOOM_MIN_Y_PX = 12;
+
 /** A horizontal drag creates a window at any positive span. */
 export function dragZoomXDomain(start: number, end: number): ZoomWindow | null {
   const left = Math.min(start, end);
   const right = Math.max(start, end);
   return right - left > 0 ? { left, right } : null;
+}
+
+/** A vertical drag creates a Y domain at any positive span (and strictly positive on log axes). */
+export function dragZoomYDomain(start: number, end: number, scale: AxisScale = 'linear'): YDomain | null {
+  if (!Number.isFinite(start) || !Number.isFinite(end)) return null;
+  const min = Math.min(start, end);
+  const max = Math.max(start, end);
+  if (!(max > min)) return null;
+  if (scale === 'log' && !(min > 0)) return null;
+  return { min, max };
+}
+
+/** True once the pointer has moved far enough vertically to count as a 2D box zoom rather than an X band. */
+export function isBoxZoomGesture(startClientY: number | undefined, currentClientY: number | undefined): boolean {
+  return startClientY !== undefined && currentClientY !== undefined
+    && Number.isFinite(startClientY) && Number.isFinite(currentClientY)
+    && Math.abs(currentClientY - startClientY) >= BOX_ZOOM_MIN_Y_PX;
+}
+
+/**
+ * Resolve a right-drag zoom gesture into X and optional Y target domains.
+ * Flat horizontal drags return `y: null` so the caller fits Y; diagonal drags return both X and Y.
+ */
+export function dragZoomBox(
+  startX: number, endX: number,
+  startY: number | null | undefined, endY: number | null | undefined,
+  startClientY: number | undefined, endClientY: number | undefined,
+  xScale: AxisScale = 'linear', yScale: AxisScale = 'linear',
+): { readonly x: ZoomWindow; readonly y: YDomain | null } | null {
+  const x = dragZoomXDomain(startX, endX);
+  if (!x || (xScale === 'log' && !(x.left > 0))) return null;
+  if (!isBoxZoomGesture(startClientY, endClientY) || startY == null || endY == null) {
+    return { x, y: null };
+  }
+  return { x, y: dragZoomYDomain(startY, endY, yScale) };
 }
 
 /** Shift by the difference of two values on the starting domain, then constrain the window to the data. */

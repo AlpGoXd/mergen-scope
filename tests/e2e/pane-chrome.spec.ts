@@ -23,11 +23,68 @@ test('the header reads Pane N, chart type, trace count, scale, X link, Samples, 
   await expect(first.getByTestId('x-link-chip-pane-1')).toHaveText('Hz');
   await expect(first.locator('.ph-count')).toHaveText('2 traces');
   await expect(first.locator('.ph-scale')).toHaveText(/^X .+\/div · Y .+\/div$/);
-  await expect(first.getByRole('button')).toHaveCount(4);
+  await expect(first.getByRole('button')).toHaveCount(5);
   for (const name of ['Move Here', 'Set Target', 'Fit', 'Pane actions']) await expect(first.getByRole('button', { name, exact: true })).toHaveCount(0);
   // Smith has Samples too, and no X/Y scale text.
   await expect(header(page, 2).getByTestId('samples-toggle')).toBeVisible();
   await expect(header(page, 2).locator('.ph-scale')).toHaveCount(0);
+});
+
+test('clicking the pane header scale edits X min/max, Y min/max and X/div · Y/div with validation', async ({ page }) => {
+  await page.goto('/app.html');
+  await page.getByTestId('app-open-input').setInputFiles(resolve('test files/cascaded chain.s2p'));
+  await page.getByTestId('touchstone-cell-S21').click();
+  const plot = page.getByTestId('chart-plot-pane-1');
+  const layer = plot.getByTestId('lines-layer');
+  await expect(layer).toHaveAttribute('data-x-domain', /,/);
+
+  // Open the axis range popover by clicking the X/div · Y/div readout in the header.
+  await header(page, 1).locator('.ph-scale').click();
+  const pop = page.locator('.ui-popover[aria-label="Pane 1 axes"]');
+  await expect(pop).toBeVisible();
+
+  // Edit X min and X max with engineering units.
+  const xMin = pop.getByTestId('axis-x-min');
+  await xMin.click();
+  await xMin.fill('1 GHz');
+  await xMin.press('Enter');
+  const xMax = pop.getByTestId('axis-x-max');
+  await xMax.click();
+  await xMax.fill('4 GHz');
+  await xMax.press('Enter');
+  await expect(layer).toHaveAttribute('data-x-domain', '1000000000,4000000000');
+
+  // Invalid min >= max refuses and keeps the old domain.
+  await xMin.click();
+  await xMin.fill('5 GHz');
+  await xMin.press('Enter');
+  await expect(pop.getByTestId('axis-x-min-message')).toHaveText('Min must be less than max');
+  await xMin.press('Escape');
+  await expect(layer).toHaveAttribute('data-x-domain', '1000000000,4000000000');
+
+  // Edit Y min and Y max.
+  const yMin = pop.getByTestId('axis-y-min');
+  await yMin.click();
+  await yMin.fill('-20 dB');
+  await yMin.press('Enter');
+  const yMax = pop.getByTestId('axis-y-max');
+  await yMax.click();
+  await yMax.fill('40 dB');
+  await yMax.press('Enter');
+  await expect(layer).toHaveAttribute('data-y-domain', '-20,40');
+
+  // Edit Y/div: center stays 10 dB, span becomes 6 * 5 = 30 dB -> [-5, 25].
+  const yDiv = pop.getByTestId('axis-y-div');
+  await yDiv.click();
+  await yDiv.fill('5');
+  await yDiv.press('Enter');
+  await expect(layer).toHaveAttribute('data-y-domain', '-5,25');
+  await expect(header(page, 1).locator('.ph-scale')).toContainText('Y 5/div');
+
+  // Fit both restores auto ranges.
+  await pop.getByRole('button', { name: 'Fit both' }).click();
+  await expect(layer).not.toHaveAttribute('data-x-domain', '1000000000,4000000000');
+  await expect(layer).not.toHaveAttribute('data-y-domain', '-5,25');
 });
 
 test('clicking anywhere in a pane makes it the target', async ({ page }) => {
