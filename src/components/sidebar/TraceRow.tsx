@@ -1,4 +1,5 @@
 import type { Trace } from '../../types/trace';
+import { CloseIcon } from '../shared/Icons';
 
 export interface TraceRowProps {
 	trace: Trace;
@@ -56,8 +57,8 @@ export function TraceRow(props: TraceRowProps) {
 					</button>
 				)}
 				{onRemove && (
-					<button type="button" onClick={(event) => { event.stopPropagation(); onRemove(); }}>
-						×
+					<button type="button" aria-label={`Remove ${trace.dn || trace.name}`} onClick={(event) => { event.stopPropagation(); onRemove(); }}>
+						<CloseIcon />
 					</button>
 				)}
 			</div>

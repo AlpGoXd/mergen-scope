@@ -6,6 +6,7 @@ import { markerDisplayName } from '../../domain/footer-state';
 import { shortcutText } from '../../domain/shortcuts';
 import { Btn } from '../shared/Btn';
 import { PopoverAt } from '../shared/Controls';
+import { CaretDownIcon } from '../shared/Icons';
 import { Menu } from '../left-panel/Menu';
 import type { MenuEntry } from '../left-panel/Menu';
 import '../left-panel/left-panel.css';
@@ -63,7 +64,7 @@ export function MarkerSplitButton() {
   return <span className={`zone-tool split-btn${armed ? ' is-armed' : ''}${anchor ? ' is-open' : ''}`} style={{ '--armed-hue': 'var(--marker-hue)' } as React.CSSProperties}>
     <Btn small variant="armed" tone="marker" active={!!armed} aria-pressed={!!armed} aria-label="New Marker" title={`Place a marker (${shortcutText('new-marker')})`} className="split-btn__main" onClick={selectNormal}>{face}</Btn>
     <span className="split-btn__divider" aria-hidden="true" />
-    <button type="button" ref={more} className="split-btn__more" aria-label="Choose marker type" title="Choose marker type" aria-haspopup="menu" aria-expanded={anchor !== null} onClick={event => setAnchor(anchor ? null : event.currentTarget)}>▾</button>
+    <button type="button" ref={more} className="split-btn__more" aria-label="Choose marker type" title="Choose marker type" aria-haspopup="menu" aria-expanded={anchor !== null} onClick={event => setAnchor(anchor ? null : event.currentTarget)}><CaretDownIcon /></button>
     {anchor && <PopoverAt label="Marker type" at={anchor} onClose={() => close(false)} onEscape={() => close(true)}>
       <div className="marker-menu" onKeyDown={onMenuKeys}><Menu label="Marker type" entries={entries} /></div>
     </PopoverAt>}

@@ -23,6 +23,7 @@ import type { TraceSymbol as SymbolKind } from '../../domain/trace-palette';
 import { TraceSymbol } from '../shared/TraceSymbol';
 import './smith-pane.css';
 import { SmithRangeBar } from './SmithRangeBar';
+import { ChevronLeftIcon, ChevronRightIcon } from '../shared/Icons';
 import type { SmithRangeBarProps } from './SmithRangeBar';
 
 /** One reflection trace, already as Γ referred to `z0`. */
@@ -538,8 +539,8 @@ export function SmithPane({
       {rangeBar && traces.length > 0 && <SmithRangeBar {...rangeBar} />}
       {readout.length > 0 && (
         <div className="smith-strip t-readout" data-testid="smith-readout">
-          <button type="button" className="smith-step" aria-label="Previous marker" title="Previous marker" disabled={!onSelectMarker || paneMarkers.length < 2} onClick={() => stepMarker(-1)}>{'‹'}</button>
-          <button type="button" className="smith-step" aria-label="Next marker" title="Next marker" disabled={!onSelectMarker || paneMarkers.length < 2} onClick={() => stepMarker(1)}>{'›'}</button>
+          <button type="button" className="smith-step" aria-label="Previous marker" title="Previous marker" disabled={!onSelectMarker || paneMarkers.length < 2} onClick={() => stepMarker(-1)}><ChevronLeftIcon /></button>
+          <button type="button" className="smith-step" aria-label="Next marker" title="Next marker" disabled={!onSelectMarker || paneMarkers.length < 2} onClick={() => stepMarker(1)}><ChevronRightIcon /></button>
           {stripValues ? (
             <div className="smith-fields">
               <span className="smith-field" data-field="marker">

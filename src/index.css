@@ -228,6 +228,7 @@ table {
 :root[data-size="large"] { --font-caption: 13px; --font-label: 14px; --font-body: 14px; --font-emphasis: 14px; --font-title: 16px; --font-display: 16px; --lh-caption: 16px; --lh-label: 18px; --lh-body: 19px; --lh-title: 21px; --top-row-height: 40px; --tool-row-height: 40px; --pane-header-height: 32px; --footer-height: 28px; --control-height: 32px; --control-sm-height: 24px; --row-height: 34px; --gap: 8px; --panel-padding: 14px; --input-height: 26px; }
 
 /* Phase 2 shared controls */
+.ui-icon { display: inline-block; vertical-align: middle; flex: none; }
 .ui-btn { min-height: var(--control-height); padding: 0 8px; display: inline-flex; align-items: center; justify-content: center; gap: 4px; border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--raised); color: var(--text); font: inherit; cursor: pointer; white-space: nowrap; transition: background 120ms, border-color 120ms, color 120ms; }
 .ui-btn:hover:not(:disabled) { background: var(--raised); border-color: var(--border-strong); }
 .ui-btn.is-small { min-height: var(--control-sm-height); }

@@ -104,7 +104,7 @@
   font: inherit; font-size: var(--font-caption); white-space: nowrap; cursor: pointer;
 }
 .an-select__text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.an-select__arrow { color: var(--text-muted); }
+.an-select__arrow { display: inline-flex; align-items: center; color: var(--text-muted); }
 .an-seg { display: inline-flex; }
 .an-seg__item {
   height: 18px; padding: 0 6px; display: inline-flex; align-items: center; margin-left: -1px;
@@ -199,7 +199,7 @@
 .an-menu__text > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* one line each: the full note or reason is in the item's tooltip */
 .an-menu__note { font-size: var(--font-caption); color: var(--text-muted); }
-.an-menu__check { flex: none; color: var(--accent); font-size: var(--font-caption); }
+.an-menu__check { flex: none; display: inline-flex; align-items: center; color: var(--accent); font-size: var(--font-caption); }
 .an-menu__none { padding: 10px 8px; font-size: var(--font-caption); color: var(--text-muted); }
 
 @media (prefers-reduced-motion: reduce) { .an-card, .an-menu { transition: none; animation: none; } }

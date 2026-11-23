@@ -33,6 +33,9 @@
 .ss-close {
   width: var(--control-sm-height);
   height: var(--control-sm-height);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border-radius: var(--radius-control);
 }
 .ss-close:hover { background: var(--raised); }

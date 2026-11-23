@@ -36,7 +36,7 @@
 .iw-menu { position: relative; display: inline-flex; align-items: center; max-width: 100%; }
 .iw-menu select { height: var(--control-sm-height); max-width: 100%; padding: 0 calc(var(--space-2) + 12px) 0 var(--space-2); border: 1px solid var(--border); border-radius: var(--radius-input); background: var(--raised); color: var(--text); appearance: none; -webkit-appearance: none; cursor: pointer; text-overflow: ellipsis; }
 .iw-menu select:hover { border-color: var(--border-strong); }
-.iw-caret { position: absolute; right: var(--space-2); pointer-events: none; color: var(--text-muted); }
+.iw-caret { position: absolute; right: var(--space-2); display: inline-flex; align-items: center; pointer-events: none; color: var(--text-muted); }
 
 /* Preview */
 .iw-main { display: grid; align-content: start; gap: var(--space-2); padding: var(--space-3) var(--space-4); min-width: 0; }

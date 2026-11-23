@@ -4,6 +4,7 @@
 import type { CSSProperties, ReactElement } from 'react';
 import type { MenuEntry } from '../left-panel/Menu';
 import { EditableValue } from '../shared/EditableValue';
+import { CaretDownIcon, ChevronLeftIcon, ChevronRightIcon, ChevronUpIcon, CloseIcon } from '../shared/Icons';
 import type { ChartLineProps, CrossingDotProps, EdgeTagProps, LineRowProps, ShowInPane } from './types';
 
 /* ---------- left panel ---------- */
@@ -33,7 +34,7 @@ export function LineRow(p: LineRowProps): ReactElement {
           onClick={(e) => { if (!single || unplaced) p.onPanes(e.currentTarget); }}>
           {unplaced ? <span className="lp-pane lp-pane--none">—</span> : p.panes.map((pn) => <span key={pn} className="lp-pane">{pn}</span>)}
         </button>
-        <button type="button" className="lp-icon-btn" aria-label={`Delete ${p.label}`} onClick={p.onRemove}>×</button>
+        <button type="button" className="lp-icon-btn" aria-label={`Delete ${p.label}`} onClick={p.onRemove}><CloseIcon /></button>
       </div>
       <div className="lp-sub">
         <span className="lp-sub__text">{lineSummary(p)}</span>
@@ -103,7 +104,12 @@ export function CrossingDot({ x, y, hue, current }: CrossingDotProps): ReactElem
 
 /* ---------- chart (HTML overlay, positioned inside the pane body) ---------- */
 
-const ARROW: Record<EdgeTagProps['side'], string> = { right: '›', left: '‹', top: '˄', bottom: '˅' };
+const ARROW: Record<EdgeTagProps['side'], ReactElement> = {
+  right: <ChevronRightIcon size={11} />,
+  left: <ChevronLeftIcon size={11} />,
+  top: <ChevronUpIcon size={11} />,
+  bottom: <CaretDownIcon size={11} />,
+};
 
 /** Shown when the line's value is outside this pane's visible range. Click pans the pane to it. */
 export function EdgeTag({ side, offset, label, value, lit, onReveal, onHover }: EdgeTagProps): ReactElement {

@@ -10,6 +10,7 @@ import type { AnalysisCardProps } from './kit/types';
 import type { ParamField } from './kit/types';
 import { Menu as KitMenu } from '../left-panel/Menu';
 import { PopoverAt } from '../shared/Controls';
+import { CheckIcon } from '../shared/Icons';
 import { useAnalysisContext } from '../../hooks/use-analysis-context';
 import { autoPickIp3 } from '../../domain/analysis/ip3-auto';
 import { useAnalysisDispatch, useAnalysisState } from '../../stores/analysis-store';
@@ -445,7 +446,7 @@ export function AnalysisInstanceCard({ instance, dropTarget, dragHandle }: { ins
             >
               <span>#{row.n} · {formatCrossingValue(row.x, units.x, significantStep(row.x, 6))}</span><span>{formatCrossingValue(row.y, units.y, significantStep(row.y, 6))}</span>
             </button>
-            <button type="button" className="an-btn" disabled={exists} title={exists ? 'Already a marker here' : 'Add marker'} onClick={() => addMarker(row.x)}>{exists ? '✓' : '+ Marker'}</button>
+            <button type="button" className="an-btn" disabled={exists} aria-label={exists ? 'Already a marker here' : undefined} title={exists ? 'Already a marker here' : 'Add marker'} onClick={() => addMarker(row.x)}>{exists ? <CheckIcon /> : '+ Marker'}</button>
           </div>;
         })}</div> : !result.reason && numbers && numbers.rows.length > 0 ? <KeyValues rows={numbers.rows} /> : null}
         {!result.reason && crossingGroups ? (

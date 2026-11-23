@@ -7,6 +7,7 @@ import type {
   KeyValue, MathOutput, ParamField, ResultValue,
 } from './types';
 import { Fx, IconEye, IconEyeOff, IconRuler, IconSearch, IconWarn } from './icons';
+import { CaretDownIcon, CheckIcon, CloseIcon } from '../../shared/Icons';
 
 const hueStyle = (hue: number): CSSProperties => ({ '--h': hue } as CSSProperties);
 
@@ -77,7 +78,7 @@ export function AnalysisCard(p: AnalysisCardProps): ReactElement {
         ) : null}
         {p.onRemove ? (
           <button type="button" className="an-icon-btn" aria-label={`Remove ${p.title}`}
-            onClick={(e) => { e.stopPropagation(); p.onRemove?.(); }}>×</button>
+            onClick={(e) => { e.stopPropagation(); p.onRemove?.(); }}><CloseIcon /></button>
         ) : null}
       </div>
       {p.collapsed ? null : <div className="an-card__body" id={bodyId}>{p.children}</div>}
@@ -126,7 +127,7 @@ export function Params({ cardId, fields }: { cardId: string; fields: ParamField[
               <button id={id} type="button" className="an-select" aria-haspopup="listbox" title={c.title ?? c.value}
                 onClick={(e) => c.onOpen(e.currentTarget)}>
                 {c.hue !== undefined ? <span className="an-swatch" style={hueStyle(c.hue)} aria-hidden="true" /> : null}
-                <span className="an-select__text">{c.value}</span><span className="an-select__arrow">▾</span>
+                <span className="an-select__text">{c.value}</span><span className="an-select__arrow"><CaretDownIcon /></span>
               </button>
             ) : (
               <span className="an-seg" role="group" aria-labelledby={id}>
@@ -238,7 +239,7 @@ function MenuItem({ item, active, onPick }: { item: AddMenuItem; active: boolean
       onClick={item.disabledReason ? undefined : () => onPick(item.id)}>
       <span className="an-menu__lead"><KindIcon kind={item.kind} /></span>
       <span className="an-menu__text"><span>{item.title}</span><span className="an-menu__note">{item.disabledReason ?? item.note}</span></span>
-      {item.added ? <span className="an-menu__check" aria-label="Already added">✓</span> : null}
+      {item.added ? <span className="an-menu__check" aria-label="Already added"><CheckIcon /></span> : null}
     </button>
   );
 }

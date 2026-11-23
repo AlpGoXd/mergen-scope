@@ -42,6 +42,7 @@ import type { InterpolationStrategy } from '../../types/interpolation';
 import { TouchstoneMatrixPicker } from '../sidebar/TouchstoneMatrixPicker';
 import { TraceRow } from '../sidebar/LiveTraceRow';
 import { MarkerItem } from '../sidebar/LiveMarkerItem';
+import { CaretDownIcon } from '../shared/Icons';
 import { LiveLineRow } from '../sidebar/LiveLineRow';
 import { formatWithUnit } from '../sidebar/live-row-helpers';
 
@@ -981,7 +982,7 @@ function MoreViews({ family, view, onChange }: { family: string; view: Touchston
         )}
       />
     </Popover>
-    <span className="lp-more-trigger__face" aria-hidden="true">{text} &#9662;</span>
+    <span className="lp-more-trigger__face" aria-hidden="true">{text} <CaretDownIcon /></span>
   </span>;
 }
 function ActionMenu({ label, actions }: { label: string; actions: SidebarAction[] }) {

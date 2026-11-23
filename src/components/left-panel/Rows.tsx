@@ -2,6 +2,7 @@
 import type { CSSProperties, ReactElement } from 'react';
 import type { MarkerItemProps, TraceRowProps } from './types';
 import { EditableValue } from '../shared/EditableValue';
+import { CaretDownIcon, CloseIcon } from '../shared/Icons';
 
 const hueStyle = (hue: number): CSSProperties => ({ ['--h' as string]: hue }) as CSSProperties;
 
@@ -37,7 +38,7 @@ export function TraceRow(p: TraceRowProps): ReactElement {
           {unplaced ? <span className="lp-pane lp-pane--none">—</span> : p.panes.map((pn) => <span key={pn} className="lp-pane">{pn}</span>)}
         </button>}
         {p.actionsControl}
-        <button type="button" className="lp-icon-btn" aria-label={`Remove ${p.name}`} onClick={(e) => { e.stopPropagation(); p.onRemove(); }}>×</button>
+        <button type="button" className="lp-icon-btn" aria-label={`Remove ${p.name}`} onClick={(e) => { e.stopPropagation(); p.onRemove(); }}><CloseIcon /></button>
       </div>
       {unplaced ? (
         <div className="lp-sub"><span className="lp-sub__text">{p.subline ? `${p.subline} · ` : ''}not in a pane, drag onto one</span></div>
@@ -55,7 +56,7 @@ export function MarkerItem(p: MarkerItemProps): ReactElement {
         <span className={`lp-tag${p.delta ? ' lp-tag--delta' : ''}`}>{p.label}</span>
         <EditableValue className="lp-ev" label={`${p.label} position`} value={p.delta ? `Δ ${p.x}` : p.x} editValue={p.x} onCommit={(text) => p.onX(text.replace(/^Δs*/, ''))} />
         <span className="lp-value">{p.y}</span>
-        <button type="button" className="lp-icon-btn" aria-label={`Remove ${p.label}`} onClick={(e) => { e.stopPropagation(); p.onRemove(); }}>×</button>
+        <button type="button" className="lp-icon-btn" aria-label={`Remove ${p.label}`} onClick={(e) => { e.stopPropagation(); p.onRemove(); }}><CloseIcon /></button>
       </div>
       <div className="lp-sub">
         <span className="lp-sub__text">
@@ -63,7 +64,7 @@ export function MarkerItem(p: MarkerItemProps): ReactElement {
             <>
               from{' '}
               {p.referenceControl ?? <button type="button" className="lp-from" style={hueStyle(p.delta.fromHue)} aria-haspopup="menu"
-                onClick={(e) => { e.stopPropagation(); p.delta?.onChangeRef(e.currentTarget); }}>{p.delta.from} ▾</button>}
+                onClick={(e) => { e.stopPropagation(); p.delta?.onChangeRef(e.currentTarget); }}>{p.delta.from} <CaretDownIcon size={10} /></button>}
               {' · at '}<span className="lp-mono">{p.delta.at}</span>
             </>
           ) : <>{p.traceName}{p.roleControl ? <> {p.roleControl}</> : null}</>}
