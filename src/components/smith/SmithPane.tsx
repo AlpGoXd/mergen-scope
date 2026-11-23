@@ -6,10 +6,10 @@ import type { Complex } from '../../types/touchstone';
 import { samplesPath, splitByBand } from '../../domain/smith/band';
 import { clipTraceToRange } from '../../domain/smith/range';
 import type { SmithBand } from '../../domain/smith/band';
-import { REAL_AXIS_PATH, UNIT_CIRCLE, buildGrid, circlePath, gridLevelForScale, gridThroughGamma, gridValues } from '../../domain/smith/grid';
+import { REAL_AXIS_PATH, UNIT_CIRCLE, buildGrid, circlePath, gridLevelForScale, gridValues, hoverGridsThroughGamma } from '../../domain/smith/grid';
 import { gammaAtFrequency, nearestSample, nearestTracePoint } from '../../domain/smith/hit';
-import { buildLabels } from '../../domain/smith/labels';
-import type { SmithLabelMode } from '../../domain/smith/labels';
+import { buildLabels, placeEndLabel } from '../../domain/smith/labels';
+import type { SmithLabelBox, SmithLabelMode } from '../../domain/smith/labels';
 import {
   SMITH_NO_VALUE, formatAdmittance, formatEquivalent, formatGammaPolar, formatImpedance, formatReturnLoss,
   formatSmithFrequency, formatSmithFrequencyShort, formatVswr, smithReadout,
@@ -109,8 +109,6 @@ const HOVER_REACH_PX = 28;
 const CLICK_REACH_PX = 10;
 const MARKER_REACH_PX = 10;
 const CLICK_SLOP_PX = 4;
-const END_TEXT_DX = 7;
-const END_TEXT_DY = 8;
 const DEFAULT_READOUT: readonly SmithReadoutField[] = ['z', 'gamma', 'vswr'];
 const NO_MARKERS: readonly Marker[] = [];
 
@@ -223,22 +221,26 @@ export function SmithPane({
   })), [traces, band]);
 
   const labelZ0 = traces[0]?.z0 ?? 50;
-  // Start and end dots with their frequency text; a grid label under one of these gives way.
-  const endMarks = useMemo(() => (viewport && direction !== 'off' ? tracePaths.flatMap(({ trace, ends }) => {
-    if (!ends) return [];
-    return [{ sample: ends.start, hollow: true }, { sample: ends.end, hollow: false }].flatMap(({ sample, hollow }) => {
-      const at = gammaToPoint(sample.gamma, viewport);
-      if (!at) return [];
-      const text = formatSmithFrequencyShort(sample.frequencyHz);
-      return [{ key: `${trace.traceId}-${hollow ? 'start' : 'end'}`, trace, at, hollow, text, frequencyHz: sample.frequencyHz, textWidth: text.length * fontPx * 0.62 }];
-    });
-  }) : []), [viewport, direction, tracePaths, fontPx]);
-
   const gridLabels = useMemo(() => (viewport && labels !== 'off'
-    ? buildLabels({ grid: grid === 'y' ? 'y' : 'z', values, viewport, mode: labels, z0: labelZ0, fontPx }).filter(label => !endMarks.some(mark =>
-      label.x + label.width / 2 > mark.at.x - 4 && label.x - label.width / 2 < mark.at.x + END_TEXT_DX + mark.textWidth
-      && label.y + label.height / 2 > mark.at.y - END_TEXT_DY - fontPx && label.y - label.height / 2 < mark.at.y + 4))
-    : []), [viewport, labels, grid, values, labelZ0, fontPx, endMarks]);
+    ? buildLabels({ grid: grid === 'y' ? 'y' : 'z', values, viewport, mode: labels, z0: labelZ0, fontPx })
+    : []), [viewport, labels, grid, values, labelZ0, fontPx]);
+
+  // Start and end dots with their frequency text, placed to avoid grid labels.
+  const endMarks = useMemo(() => {
+    if (!viewport || direction === 'off') return [];
+    const obstacles: SmithLabelBox[] = [...gridLabels];
+    return tracePaths.flatMap(({ trace, ends }) => {
+      if (!ends) return [];
+      return [{ sample: ends.start, hollow: true }, { sample: ends.end, hollow: false }].flatMap(({ sample, hollow }) => {
+        const at = gammaToPoint(sample.gamma, viewport);
+        if (!at) return [];
+        const text = formatSmithFrequencyShort(sample.frequencyHz);
+        const label = placeEndLabel(at, text, fontPx, viewport, obstacles);
+        obstacles.push(label);
+        return [{ key: `${trace.traceId}-${hollow ? 'start' : 'end'}`, trace, at, hollow, text, frequencyHz: sample.frequencyHz, label }];
+      });
+    });
+  }, [viewport, direction, tracePaths, fontPx, gridLabels]);
 
   const chevrons = useMemo(() => (viewport && direction === 'chevrons'
     ? traces.map(trace => ({ trace, items: (band ? clipTraceToRange(trace.samples, { startHz: band.minHz, stopHz: band.maxHz }) : splitByBand(trace.samples).map(run => run.samples)).flatMap(run => directionChevrons(run, viewport)) }))
@@ -373,7 +375,7 @@ export function SmithPane({
   const hoverTrace = hover ? traces.find(trace => trace.traceId === hover.traceId) ?? null : null;
   const hoverPoint = hover && viewport ? gammaToPoint(hover.gamma, viewport) : null;
   const hoverValues = hover && hoverTrace ? smithReadout(hover.gamma, hoverTrace.z0, hover.frequencyHz) : null;
-  const hoverGrid = hover ? gridThroughGamma(hover.gamma, grid === 'y' ? 'y' : 'z') : null;
+  const hoverGrids = hover ? hoverGridsThroughGamma(hover.gamma, grid) : [];
   const showY = readout.includes('y') && !readout.includes('z');
 
   const transform = viewport
@@ -436,10 +438,14 @@ export function SmithPane({
               )}
               {showGrid && <path className="smith-axis" d={REAL_AXIS_PATH} />}
               <path className={`smith-rim${hasActive ? ' is-active' : ''}`} d={unitPath} />
-              {hoverGrid && (
+              {hoverGrids.length > 0 && (
                 <g className="smith-hover-grid" data-testid="smith-hover-grid">
-                  <path d={hoverGrid.circle.path} />
-                  {hoverGrid.arc && <path d={hoverGrid.arc.path} />}
+                  {hoverGrids.map(({ kind, through }) => (
+                    <g key={kind} className={`smith-hover-grid-${kind}`} data-testid={`smith-hover-grid-${kind}`}>
+                      <path d={through.circle.path} />
+                      {through.arc && <path d={through.arc.path} />}
+                    </g>
+                  ))}
                 </g>
               )}
               {tracePaths.map(({ trace, runs }) => (
@@ -476,7 +482,7 @@ export function SmithPane({
                 {mark.hollow
                   ? <circle className="smith-end-start" cx={mark.at.x} cy={mark.at.y} r={3} stroke={mark.trace.color} />
                   : <circle cx={mark.at.x} cy={mark.at.y} r={3} fill={mark.trace.color} />}
-                <text className="smith-label" x={mark.at.x + END_TEXT_DX} y={mark.at.y - END_TEXT_DY}>{mark.text}</text>
+                <text className="smith-label" x={mark.label.x} y={mark.label.y} textAnchor="middle" dominantBaseline="central">{mark.text}</text>
               </g>
             ))}
 
