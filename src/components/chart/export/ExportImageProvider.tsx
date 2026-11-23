@@ -394,6 +394,7 @@ function buildLatex(job: Job, info: ExportPlotInfo | null, state: StageSnapshot,
   const pane = state.panes.find(item => item.id === job.paneId);
   const settings = { ...defaultPaneSettings(), ...pane?.settings };
   const options = job.document;
+  const showMarkerTags = options?.include.markerTags ?? settings.showMarkerLabels;
   const named = (trace: StageSnapshot['paneTraces'][number]) => options ? exportTraceName(trace, options.names === 'short') : trace.dn || trace.name;
   const title = options?.include.title && options.title.trim() ? options.title.trim() : paneName(state.panes, job.paneId);
   const legend = options ? options.include.legend ? options.legend : 'off' : undefined;
@@ -410,13 +411,13 @@ function buildLatex(job: Job, info: ExportPlotInfo | null, state: StageSnapshot,
       return { name: proposed ? named(proposed) : trace.shortName ?? trace.name, color: cssColorToRgb(trace.color, host), symbol: trace.symbol ?? null, data: [], runs };
     });
     const axis = { min: -edge * 1.05, max: edge * 1.05, label: '', unit: null };
-    const markers = settings.showMarkers && options?.include.markerTags !== false ? state.markers.flatMap((marker, index) => {
+    const markers = settings.showMarkers ? state.markers.flatMap((marker, index) => {
       const trace = smith.findIndex(item => item.name === marker.trace);
       const samples = smith[trace]?.samples;
       const gamma = samples && gammaAtFrequency(samples, marker.freq);
       return gamma ? [{ label: `${marker.type === 'delta' ? 'DM' : 'M'}${index + 1}`, x: gamma.re, y: gamma.im, trace }] : [];
     }) : [];
-    return latexDocument({ paneName: title, date: new Date(), x: axis, y: axis, traces, markers, lines: [], smithGrid: settings.smith.grid, grid: options?.grid, legend, caption: options?.include.title }, options?.latex, prefix, job.latexSize);
+    return latexDocument({ paneName: title, date: new Date(), x: axis, y: axis, traces, markers, lines: [], smithGrid: settings.smith.grid, grid: options?.grid, legend, caption: options?.include.title, markerTags: showMarkerTags }, options?.latex, prefix, job.latexSize);
   }
   if (!info?.x || !info.y) throw new Error('the chart did not report its axes');
   const [xMin, xMax] = info.x;
@@ -434,13 +435,13 @@ function buildLatex(job: Job, info: ExportPlotInfo | null, state: StageSnapshot,
     date: new Date(),
     x: { min: xMin, max: xMax, label: info.xLabel, unit: info.xUnit, scale: options ? info.autoX : undefined, ticks: info.xTicks, logarithmic: info.xScale === 'log' },
     y: { min: yMin, max: yMax, label: info.yLabel, scale: options ? info.autoY : undefined, ticks: info.yTicks, logarithmic: info.yScale === 'log' },
-    grid: options?.grid, legend, caption: options?.include.title, linePt: options?.paperLine, textPt: options?.paperText,
+    grid: options?.grid, legend, caption: options?.include.title, markerTags: showMarkerTags, linePt: options?.paperLine, textPt: options?.paperText,
     traces: displayTraces.map(trace => {
       const bands = traceBands(trace);
       const runs = bands.length > 1 ? bands.map(band => band.filter(p => p.freq >= xMin && p.freq <= xMax)).filter(band => band.length) : undefined;
       return { name: named(trace), color: cssColorToRgb(state.color(trace), host), symbol: state.symbol(trace.id), data: trace.data, runs };
     }),
-    markers: settings.showMarkers && options?.include.markerTags !== false ? state.markers.flatMap((marker, index) => {
+    markers: settings.showMarkers ? state.markers.flatMap((marker, index) => {
       const at = traceIndex.get(marker.trace);
       if (at === undefined) return [];
       const display = displayTraces[at];
