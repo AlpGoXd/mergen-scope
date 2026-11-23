@@ -20,10 +20,10 @@ test('landing and demo run under the Pages CSP without external requests', async
   await page.goto('/');
   await expect(page.locator('body')).toBeVisible();
   const structuredData = page.locator('head script[type="application/ld+json"]');
-  await expect(structuredData).toHaveCount(2);
+  await expect(structuredData).toHaveCount(3);
   const blocks = await structuredData.allTextContents();
   const json = blocks.map(block => JSON.parse(block) as { '@type': string });
-  expect(json.map(block => block['@type'])).toEqual(['SoftwareApplication', 'FAQPage']);
+  expect(json.map(block => block['@type'])).toEqual(['SoftwareApplication', 'WebSite', 'FAQPage']);
   await page.goto('/app.html?demo=1');
   await expect(page.getByTestId('chart-pane-pane-3')).toBeVisible();
   await expect(page.getByTestId('chart-pane-pane-2').getByTestId('smith-pane')).toBeVisible();

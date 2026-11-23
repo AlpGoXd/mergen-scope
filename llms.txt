@@ -1,6 +1,6 @@
 # Mergen Scope
 
-> Mergen Scope is a free, open-source browser workspace for viewing and analyzing spectrum analyzer, oscilloscope and S-parameter files. It is intended for RF and measurement engineers, students and radio amateurs.
+> Mergen Scope (mergenscope.com) is a free, open-source browser workspace for viewing and analyzing spectrum analyzer, oscilloscope and S-parameter files. It is intended for RF and measurement engineers, students and radio amateurs.
 
 ## Supported files
 
@@ -29,7 +29,7 @@ Files are read and processed locally in the browser and are not uploaded. There 
 
 ## Limits
 
-Mergen Scope is beta. Generic tables may need manual column and unit mapping which can done on internal wizzard.
+Mergen Scope is beta. Generic tables may need manual column and unit mapping which can be done in the built-in import wizard.
 
 ## How to use
 
@@ -43,10 +43,6 @@ Mergen Scope is beta. Generic tables may need manual column and unit mapping whi
 - [R&S DAT](https://github.com/AlpGoXd/mergen-scope/blob/main/docs/guide/rs-spectrum-analyzer-dat.md): Open spectrum analyzer exports.
 - [Trace math](https://github.com/AlpGoXd/mergen-scope/blob/main/docs/guide/trace-math.md): Trace alignment and unit rules.
 - [Analysis tools](https://github.com/AlpGoXd/mergen-scope/blob/main/docs/guide/analysis-tools.md): Tool inputs, settings and outputs.
-
-## Design
-
-The full design specification is one self-contained page: [Design review](https://mergenscope.com/design-review.html). It covers the rules, colours and themes, the panels, every pane type, the toolbar, the import flows and the landing page. Source and notes: [docs/design](https://github.com/AlpGoXd/mergen-scope/blob/main/docs/design/README.md).
 
 ## Links
 

@@ -120,9 +120,6 @@ function copyRuntimeAssets(): Plugin {
           }
         }
       }
-      // The design review lives with the design docs but is also published on the site.
-      const designReview = resolve(__dirname, "docs/design/design-review.html");
-      if (existsSync(designReview)) copyFileSync(designReview, resolve(outputDir, "design-review.html"));
       for (const dir of staticDirs) {
         const src = resolve(__dirname, dir);
         if (existsSync(src)) {

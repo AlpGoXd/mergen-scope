@@ -8,7 +8,7 @@
 
 **A browser workspace for spectrum analyzer, scope and S-parameter files. Your files stay in your browser.**
 
-[**Try the demo**](https://mergenscope.com/app.html?demo=1) · [**Open the app**](https://mergenscope.com/app.html) · [User guide](docs/guide/README.md) · [Design review](https://mergenscope.com/design-review.html) · [Sample files](test%20files/) · [Feedback](https://github.com/AlpGoXd/mergen-scope/discussions)
+[**Try the demo**](https://mergenscope.com/app.html?demo=1) · [**Open the app**](https://mergenscope.com/app.html) · [User guide](docs/guide/README.md) · [Design docs](docs/design/README.md) · [Sample files](test%20files/) · [Feedback](https://github.com/AlpGoXd/mergen-scope/discussions)
 
 ![Mergen Scope workspace with a four-pane layout showing gain, Smith chart, waveforms, and two-tone IP3 analysis](docs/images/mergen-scope-workspace.png)
 
@@ -98,8 +98,8 @@ The build is a single self-contained `app.html` plus static files: no server, no
 
 The whole design is specified in one detailed page: the rules every screen follows, colours and themes, every panel and pane type, the toolbar, the import flows and the landing page.
 
-- **[Open the design review](https://mergenscope.com/design-review.html)** in your browser.
-- Source: [`docs/design/design-review.html`](docs/design/design-review.html), with notes in [`docs/design/README.md`](docs/design/README.md) and exact colour values in [`docs/design/colour-values.md`](docs/design/colour-values.md).
+- **[Design review](docs/design/design-review.html)**: download it (Raw → save) and open it in any browser. It is not hosted on the site.
+- Notes in [`docs/design/README.md`](docs/design/README.md) and exact colour values in [`docs/design/colour-values.md`](docs/design/colour-values.md).
 
 ## Privacy
 

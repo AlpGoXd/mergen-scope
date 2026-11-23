@@ -77,7 +77,7 @@ test('the landing uses content-versioned URLs for its cacheable assets', async (
 test('structured FAQ matches the visible questions and answers', async ({ page }) => {
   await page.goto('/');
   const blocks = await page.locator('head script[type="application/ld+json"]').allTextContents();
-  expect(blocks).toHaveLength(2);
+  expect(blocks).toHaveLength(3);
   const structured = blocks.map(block => JSON.parse(block) as { '@type': string; mainEntity?: { name: string; acceptedAnswer: { text: string } }[] });
   const faq = structured.find(block => block['@type'] === 'FAQPage');
   expect(faq?.mainEntity).toBeDefined();
