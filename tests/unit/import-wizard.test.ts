@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { detectDelimiter, detectSkipRows, detectTabular, contentLines } from '../../src/domain/parsers/tabular-detect';
+import { detectSeparators, detectSkipRows, detectTabular, contentLines } from '../../src/domain/parsers/tabular-detect';
 import { detectFileSignature, parseForImport } from '../../src/domain/parsers/parse-file';
 import { parseTabularFile } from '../../src/domain/parsers/tabular';
 import { resetParserFileCounter } from '../../src/domain/parsers/rs-dat';
@@ -46,7 +46,7 @@ describe('import auto-detect', () => {
 
   it('reads a semicolon spectrum export and converts MHz', () => {
     const lines = contentLines(SPECTRUM);
-    expect(detectDelimiter(lines)).toBe(';');
+    expect(detectSeparators(lines)).toEqual({ delimiter: ';' });
     expect(detectSkipRows(lines, ';')).toBe(4);
     const { config, domainConfidence } = detectTabular(SPECTRUM);
     expect(config).toMatchObject({ xCol: 0, yCols: [1], domain: 'frequency', xUnit: 'MHz', xMult: 1e6, yUnit: 'dBm', yMult: 1 });
@@ -180,7 +180,7 @@ describe('whole-file preview plot', () => {
   const plotOf = (text: string, maxRows?: number) => {
     const config = detectTabular(text).config;
     const layout = wizardLayout(text, config);
-    const table = readNumericTable(layout.lines, config.delimiter, config.skipRows, layout.headers.length, maxRows);
+    const table = readNumericTable(layout.lines, config, config.skipRows, layout.headers.length, maxRows);
     return { table, plot: overviewPlot(table, config.xCol, config.yCols, 8) };
   };
 
@@ -233,16 +233,16 @@ describe('tinySA packed multi-trace sweeps', () => {
   it('uses the signature with any filename, keeps channel identities and reopens selected channels', () => {
     const config = parseForImport(text, 'renamed.txt').suggestedConfig;
     if (!config) throw Error('Missing wizard config');
-    expect(config).toMatchObject({ delimiter: 'tinySA', skipRows: 0, domain: 'frequency', xUnit: 'Hz', yUnit: 'dBm', yCols: [1, 2, 3, 4] });
+    expect(config).toMatchObject({ delimiter: ',', valueDelimiter: ' ', skipRows: 0, domain: 'frequency', xUnit: 'Hz', yUnit: '', yCols: [1, 2, 3, 4] });
     const parsed = parseTabularFile(text, 'renamed.txt', { ...config, yCols: [2, 4] });
     expect(parsed.columnIdentities).toEqual([{ index: 2 }, { index: 4 }]);
     expect(parsed.traces.map(t => [t.units, t.data.length, t.data[0]?.amp, t.data.at(-1)?.amp])).toEqual([
-      [{ x: 'Hz', y: 'dBm' }, 6, -114.813, -14],
-      [{ x: 'Hz', y: 'dBm' }, 6, -104.313, -16],
+      [{ x: 'Hz', y: null }, 6, -114.813, -14],
+      [{ x: 'Hz', y: null }, 6, -104.313, -16],
     ]);
     expect(parseTabularFile(text, 'renamed.txt', null).traces).toHaveLength(4);
     const layout = wizardLayout(text, config);
-    const table = readNumericTable(layout.lines, config.delimiter, 0, layout.headers.length);
+    const table = readNumericTable(layout.lines, config, 0, layout.headers.length);
     expect(overviewPlot(table, 0, config.yCols, 8, 600, true).series.map(bands => bands.map(run => run.length)))
       .toEqual([[3, 3], [3, 3], [3, 3], [3, 3]]);
   });
@@ -256,5 +256,64 @@ describe('tinySA packed multi-trace sweeps', () => {
     expect(detectTabular('Time (ms),Measured voltage (V)\n0,1\n1,2').config.delimiter).toBe(',');
     expect(detectTabular('0\t1\t2\n1\t2\t3').config.delimiter).toBe('\t');
     expect(detectTabular('0,run one\n1,run two').config.delimiter).toBe(',');
+  });
+});
+
+describe('independent field separators', () => {
+  it.each([
+    [';', ',', '-1;1,2,3\n0;4,5,6'],
+    [' ', ';', '-1  1;2;3\n0  4;5;6'],
+    ['\t', ',', '-1\t1,2,3\n0\t4,5,6'],
+    [',', '\t', '-1,1\t2\t3\n0,4\t5\t6'],
+    [';', ' ', '-1;1  2\t3\n0;4   5 6'],
+  ])('detects %j then %j and keeps the channel order', (delimiter, valueDelimiter, text) => {
+    const { config } = detectTabular(text);
+    expect(config).toMatchObject({ delimiter, valueDelimiter, yCols: [1, 2, 3] });
+    const result = parseTabularFile(text, 'readings.csv', config);
+    expect(result.traces.map(trace => trace.data.map(point => point.amp))).toEqual([[1, 4], [2, 5], [3, 6]]);
+  });
+
+  it('reads headers and units independently of the separator pair', () => {
+    const text = 'Time (ms);Left (mV),Right (mV)\n-1;1,2\n0;3,4';
+    const { config, domainConfidence } = detectTabular(text);
+    expect(domainConfidence).toBe('high');
+    expect(config).toMatchObject({ domain: 'time', xUnit: 'ms', yUnit: 'mV', yCols: [1, 2] });
+    const result = parseTabularFile(text, 'readings.txt', config);
+    expect(result.columnIdentities).toEqual([{ index: 1, header: 'Left (mV)' }, { index: 2, header: 'Right (mV)' }]);
+    expect(result.traces[1]?.data[0]).toEqual({ freq: -0.001, amp: 0.002 });
+  });
+
+  it('keeps channel names when the header uses a single separator and the data uses two', () => {
+    const text = 'Time (ms),Left channel (V),Right channel (V)\n0,1 2\n1,3 4';
+    const { config } = detectTabular(text);
+    expect(config.headers).toEqual(['Time (ms)', 'Left channel (V)', 'Right channel (V)']);
+    expect(parseTabularFile(text, 'scope.csv', config).columnIdentities).toEqual([
+      { index: 1, header: 'Left channel (V)' }, { index: 2, header: 'Right channel (V)' },
+    ]);
+  });
+
+  it('preserves empty explicit fields even when headers contain spaces', () => {
+    const text = 'Time (s)\tSignal A\tSignal B\n0\t\t2\n1\t3\t4\n2\t5\t6';
+    const { config } = detectTabular(text);
+    expect(config.delimiter).toBe('\t');
+    expect(config.valueDelimiter).toBeUndefined();
+    expect(parseTabularFile(text, 'readings.tsv', config).traces.map(trace => trace.data[0]?.amp)).toEqual([3, 2]);
+    const mixed = '0;1,,3\n1;4,5,6\n2;7,8,9';
+    expect(parseTabularFile(mixed, 'mixed.txt', detectTabular(mixed).config).traces.map(t => t.data[0]?.amp)).toEqual([1, 5, 3]);
+  });
+
+  it('detects repeated whitespace as the only separator', () => {
+    const { config } = detectTabular('0   1  2\n1  3   4');
+    expect(config.delimiter).toBe(' ');
+    expect(config.valueDelimiter).toBeUndefined();
+    expect(config.yCols).toEqual([1, 2]);
+  });
+
+  it('uses frequency spacing for suggested band breaks across both row layouts', () => {
+    const table = (xs: number[], sep: string) => 'Frequency (Hz),A' + sep + 'B\n' + xs.map(x => x + ',1' + sep + '2').join('\n');
+    for (const sep of [',', ';']) {
+      expect(detectTabular(table([0, 1, 2, 100, 101, 102], sep)).config.breakSweepGaps).toBe(true);
+      expect(detectTabular(table([1, 2, 10, 11], sep)).config.breakSweepGaps).toBeUndefined();
+    }
   });
 });

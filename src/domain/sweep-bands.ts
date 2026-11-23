@@ -26,14 +26,13 @@ export function sweepBands(data: readonly DataPoint[]): Bands {
   return bands;
 }
 
-export function isPackedFrequencySweep(config: Pick<WizardConfig, 'delimiter' | 'xCol' | 'domain' | 'xUnit'> | undefined): boolean {
-  return config?.delimiter === 'tinySA' && config.xCol === 0 && config.domain === 'frequency'
-    && /^[kmg]?hz$/i.test(config.xUnit ?? 'Hz');
+export function breaksFrequencyGaps(config: Pick<WizardConfig, 'breakSweepGaps' | 'domain' | 'xUnit'> | undefined): boolean {
+  return config?.breakSweepGaps === true && config.domain === 'frequency' && /^[kmg]?hz$/i.test(config.xUnit ?? 'Hz');
 }
 
 type BandTrace = Pick<Trace, 'data'> & Partial<Pick<Trace, 'parameters'>>;
 export function traceBands(trace: BandTrace): Bands {
-  if (trace.parameters?.sweepFormat === 'tinySA') return sweepBands(trace.data);
+  if (trace.parameters?.sweepFormat === 'multiband' || trace.parameters?.sweepFormat === 'tinySA') return sweepBands(trace.data);
   return [trace.data];
 }
 

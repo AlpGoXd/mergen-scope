@@ -60,15 +60,15 @@ export interface WizardLayout {
   readonly numeric: readonly number[];
 }
 
-export function wizardLayout(text: string, config: Pick<WizardConfig, "delimiter" | "skipRows">): WizardLayout {
+export function wizardLayout(text: string, config: Pick<WizardConfig, "delimiter" | "valueDelimiter" | "skipRows">): WizardLayout {
   const lines = contentLines(text);
-  const headers = columnHeaders(lines, config.delimiter, config.skipRows);
-  return { lines, headers, numeric: numericColumns(lines, config.delimiter, config.skipRows, headers.length) };
+  const headers = columnHeaders(lines, config, config.skipRows);
+  return { lines, headers, numeric: numericColumns(lines, config, config.skipRows, headers.length) };
 }
 
 /** Why the main button is unavailable, or null when the settings can import. */
 export function wizardBlocker(config: WizardConfig, layout: WizardLayout): string | null {
-  if (layout.numeric.length === 0) return "No numeric columns with these settings. Check Delimiter and Skip rows.";
+  if (layout.numeric.length === 0) return "No numeric columns with these settings. Check the separators and skipped rows.";
   if (config.xCol < 0 || config.xCol >= layout.headers.length) return "No X column. Click a column chip and pick X.";
   if (!layout.numeric.includes(config.xCol)) return "The X column has no numbers. Pick another X column.";
   const yCols = config.yCols.filter((col) => col < layout.headers.length);
@@ -142,7 +142,7 @@ export interface NumericTable {
 }
 
 /** Read the data rows once as numbers; done again only when Delimiter or Skip rows changes. */
-export function readNumericTable(lines: readonly string[], delimiter: string, skipRows: number, width: number, maxRows = PLOT_MAX_ROWS): NumericTable {
+export function readNumericTable(lines: readonly string[], delimiter: string | Pick<WizardConfig, "delimiter" | "valueDelimiter">, skipRows: number, width: number, maxRows = PLOT_MAX_ROWS): NumericTable {
   const start = Math.max(0, skipRows);
   const total = Math.max(0, lines.length - start);
   const stride = Math.max(1, Math.ceil(total / Math.max(1, maxRows)));

@@ -1,4 +1,4 @@
-import { isPackedFrequencySweep } from './sweep-bands';
+import { breaksFrequencyGaps } from './sweep-bands';
 import type { Dataset, NetworkDataset, ScalarSeries } from '../types/dataset';
 import type {
   ComplexDisplayTrace,
@@ -115,7 +115,7 @@ function adaptSeriesTrace(
       : [displayTrace.id],
     operationType: null,
     parameters: {
-      ...(isPackedFrequencySweep(file?.wizardConfig) ? { sweepFormat: 'tinySA' } : {}),
+      ...(breaksFrequencyGaps(file?.wizardConfig) ? { sweepFormat: 'multiband' } : {}),
       datasetId: dataset.id,
       displayTraceId: displayTrace.id,
       semantics: displayTrace.semantics,

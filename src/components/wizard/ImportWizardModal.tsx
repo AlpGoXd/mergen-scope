@@ -10,7 +10,7 @@ import { useTraceState } from '../../stores/trace-store';
 import { useMarkerState } from '../../stores/marker-store';
 import type { OpenChoice } from '../../types/open-files-plan';
 import type { WizardConfig } from '../../types/file';
-import { isPackedFrequencySweep } from '../../domain/sweep-bands';
+import { breaksFrequencyGaps } from '../../domain/sweep-bands';
 import { detectTabular } from '../../domain/parsers/tabular-detect';
 import {
   columnDisplayName, columnRole, hasColumnNames, importableYCols, listNames, matchPriorColumns, previewCaption,
@@ -73,16 +73,16 @@ function WizardDialog({ entry, position, total, others, queue, priorFile }: Wiza
   const editing = entry.mode === 'edit';
 
   const detection = useMemo(() => detectTabular(entry.rawText), [entry.rawText]);
-  const layout = useMemo(() => wizardLayout(entry.rawText, config), [entry.rawText, config.delimiter, config.skipRows]);
+  const layout = useMemo(() => wizardLayout(entry.rawText, config), [entry.rawText, config.delimiter, config.valueDelimiter, config.skipRows]);
   const headers = layout.headers;
   const named = hasColumnNames(config, headers);
   const blocker = wizardBlocker(config, layout);
   const yCols = importableYCols(config, layout);
   // Whole-file plot: numbers are read when the layout changes; roles only pick and re-reduce columns.
-  const numericTable = useMemo(() => readNumericTable(layout.lines, config.delimiter, config.skipRows, layout.headers.length), [layout, config.delimiter, config.skipRows]);
+  const numericTable = useMemo(() => readNumericTable(layout.lines, config, config.skipRows, layout.headers.length), [layout, config.delimiter, config.valueDelimiter, config.skipRows]);
   // yCols is a fresh array each render; compare it by content.
   const yColsKey = yCols.join(',');
-  const splitBands = isPackedFrequencySweep(config);
+  const splitBands = breaksFrequencyGaps(config);
   const plot = useMemo(() => overviewPlot(numericTable, config.xCol, yCols, PREVIEW_ROWS, undefined, splitBands), [numericTable, config.xCol, yColsKey, splitBands]);
 
   // Import settings on an open file: which existing trace each Y column continues, and which traces go away.
@@ -104,12 +104,12 @@ function WizardDialog({ entry, position, total, others, queue, priorFile }: Wiza
   const yColors = useWizardTraceColors(keepIds, editing ? removedIds : []);
   const colors = headers.map((_, col) => { const at = yCols.indexOf(col); return at >= 0 ? yColors[at] : undefined; });
 
-  const updateLayout = (delimiter: string, skipRows: number) => {
+  const updateLayout = (delimiter: string, skipRows: number, valueDelimiter?: WizardConfig['valueDelimiter']) => {
     setConfig(prev => {
-      const next = { ...prev, delimiter, skipRows };
+      const next = { ...prev, delimiter, valueDelimiter, skipRows };
       const nextLayout = wizardLayout(entry.rawText, next);
       // A new layout re-detects the roles when the old ones no longer fit.
-      const fits = nextLayout.numeric.includes(prev.xCol) && prev.yCols.some(col => nextLayout.numeric.includes(col));
+      const fits = prev.delimiter === delimiter && prev.valueDelimiter === valueDelimiter && nextLayout.numeric.includes(prev.xCol) && prev.yCols.some(col => nextLayout.numeric.includes(col));
       const xCol = fits ? prev.xCol : nextLayout.numeric[0] ?? 0;
       const roles = fits ? { xCol: prev.xCol, yCols: prev.yCols.filter(col => col < nextLayout.headers.length) } : { xCol, yCols: nextLayout.numeric.filter(col => col !== xCol) };
       return { ...next, ...roles, headers: nextLayout.headers };
@@ -213,7 +213,7 @@ function WizardDialog({ entry, position, total, others, queue, priorFile }: Wiza
             </div>
             <WizardPreviewTable
               lines={layout.lines}
-              delimiter={config.delimiter}
+              separators={config}
               skipRows={config.skipRows}
               headers={headers}
               names={names}
