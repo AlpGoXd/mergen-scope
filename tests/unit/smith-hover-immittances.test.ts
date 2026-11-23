@@ -18,3 +18,14 @@ describe('hoverImmittances', () => {
     expect(hoverImmittances('z', [])).toEqual(['z']);
   });
 });
+
+describe('reference text', () => {
+  it('names the reference impedance and the hint carries it', async () => {
+    const { formatReference, gammaHint } = await import('../../src/domain/smith/readout');
+    expect(formatReference(50)).toBe('50 Ω');
+    expect(formatReference(75.00001)).toBe('75 Ω');
+    expect(formatReference(Number.NaN)).toBe('—');
+    expect(gammaHint(50)).toContain('Z₀ = 50 Ω');
+    expect(gammaHint(50)).toContain('same Γ');
+  });
+});

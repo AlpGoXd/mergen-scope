@@ -81,6 +81,14 @@ export function formatAdmittance(y: SmithResult<Complex>): string {
   if (y.kind === 'undefined') return y.reason === 'singular' ? '∞ mS' : SMITH_NO_VALUE;
   return rectangular({ re: y.value.re * 1000, im: y.value.im * 1000 }, 'mS');
 }
+/** The reference impedance Γ is measured against: "50 Ω". */
+export function formatReference(z0: number): string {
+  return Number.isFinite(z0) ? `${Number(z0.toPrecision(4))} Ω` : SMITH_NO_VALUE;
+}
+/** Tooltip for Γ: it is the same in the Z and Y grids. */
+export function gammaHint(z0: number): string {
+  return `Reflection coefficient Γ = (Z − Z₀) / (Z + Z₀), referred to Z₀ = ${formatReference(z0)}. The Z and Y grids show the same Γ.`;
+}
 /** "0.333 ∠ −180.0°". */
 export function formatGammaPolar(magnitude: number, angleDeg: number): string {
   if (!Number.isFinite(magnitude) || !Number.isFinite(angleDeg)) return SMITH_NO_VALUE;

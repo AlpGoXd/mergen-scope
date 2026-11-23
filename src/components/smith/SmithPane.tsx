@@ -12,7 +12,7 @@ import { buildLabels, placeEndLabel } from '../../domain/smith/labels';
 import type { SmithLabelBox, SmithLabelMode } from '../../domain/smith/labels';
 import {
   SMITH_NO_VALUE, formatAdmittance, formatEquivalent, formatGammaPolar, formatImpedance, formatReturnLoss,
-  formatSmithFrequency, formatSmithFrequencyShort, formatVswr, hoverImmittances, smithReadout,
+  formatSmithFrequency, formatSmithFrequencyShort, formatReference, formatVswr, gammaHint, hoverImmittances, smithReadout,
 } from '../../domain/smith/readout';
 import type { SmithReadout } from '../../domain/smith/readout';
 import { directionChevrons, traceEnds } from '../../domain/smith/trace-decor';
@@ -531,7 +531,8 @@ export function SmithPane({
             <div className="smith-card-title"><i className="smith-swatch" style={{ background: hoverTrace.color }} />{hoverTrace.shortName ?? hoverTrace.name}</div>
             <div>{formatSmithFrequency(hoverValues.frequencyHz)}</div>
             {hoverKinds.map(kind => <div key={kind} data-field={kind}><span className="smith-key">{kind === 'y' ? 'Y' : 'Z'}</span>{kind === 'y' ? formatAdmittance(hoverValues.admittance) : formatImpedance(hoverValues.impedance)}</div>)}
-            <div><span className="smith-key">{'Γ'}</span>{formatGammaPolar(hoverValues.magnitude, hoverValues.angleDeg)}</div>
+            <div title={gammaHint(hoverValues.z0)}><span className="smith-key">{'Γ'}</span>{formatGammaPolar(hoverValues.magnitude, hoverValues.angleDeg)}</div>
+            <div data-field="z0"><span className="smith-key">{'Z₀'}</span>{formatReference(hoverValues.z0)}</div>
           </div>
         )}
       </div>
@@ -562,7 +563,8 @@ export function SmithPane({
                 <>
                   {readout.includes('z') && <span className="smith-field" data-field="z"><span className="smith-key">Z</span>{formatImpedance(stripValues.values.impedance)}</span>}
                   {readout.includes('y') && <span className="smith-field" data-field="y"><span className="smith-key">Y</span>{formatAdmittance(stripValues.values.admittance)}</span>}
-                  {readout.includes('gamma') && <span className="smith-field" data-field="gamma"><span className="smith-key">{'Γ'}</span>{formatGammaPolar(stripValues.values.magnitude, stripValues.values.angleDeg)}</span>}
+                  {readout.includes('gamma') && <span className="smith-field" data-field="gamma" title={gammaHint(stripValues.values.z0)}><span className="smith-key">{'Γ'}</span>{formatGammaPolar(stripValues.values.magnitude, stripValues.values.angleDeg)}</span>}
+                  {readout.includes('gamma') && <span className="smith-field" data-field="z0"><span className="smith-key">{'Z₀'}</span>{formatReference(stripValues.values.z0)}</span>}
                   {readout.includes('z') && stripValues.values.equivalent.kind === 'value' && <span className="smith-field" data-field="equivalent"><span className="smith-key">{stripValues.values.equivalent.value.kind}</span>{formatEquivalent(stripValues.values.equivalent)}</span>}
                   {readout.includes('return-loss') && <span className="smith-field" data-field="return-loss"><span className="smith-key">RL</span>{formatReturnLoss(stripValues.values.returnLossDb)}</span>}
                   {readout.includes('vswr') && <span className="smith-field" data-field="vswr"><span className="smith-key">VSWR</span>{formatVswr(stripValues.values.vswr)}</span>}
