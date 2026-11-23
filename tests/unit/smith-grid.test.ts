@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  arcPath, buildGrid, circlePath, gridLevelForScale, gridThroughGamma, gridValues, pointOnArc, pointOnCircle,
+  arcPath, buildGrid, circlePath, gridLevelForScale, gridThroughGamma, gridValues, hoverGridsThroughGamma, pointOnArc, pointOnCircle,
   reactanceArc, reactanceCircle, reactanceRimPoint, resistanceCircle, rotateArc180, SMITH_GRID_MAX_LEVEL,
 } from '../../src/domain/smith/grid.ts';
 import { gammaToImpedance, impedanceToGamma } from '../../src/domain/smith/numerics.ts';
@@ -152,5 +152,34 @@ describe('Smith grid geometry', () => {
     expect(gridThroughGamma({ re: -1 / 3, im: 0 })?.arc).toBeNull();
     expect(gridThroughGamma({ re: 1.3, im: 0 })).toBeNull();
     expect(gridThroughGamma({ re: 1, im: 0 })).toBeNull();
+  });
+
+  it('returns both Z and Y hover highlights in both mode and one in z or y mode', () => {
+    const gamma = { re: 0.2, im: 0.4 };
+    const onlyZ = hoverGridsThroughGamma(gamma, 'z');
+    expect(onlyZ.map(entry => entry.kind)).toEqual(['z']);
+    expect(onlyZ[0]?.through.real).toBeCloseTo(1, 12);
+    expect(onlyZ[0]?.through.imag).toBeCloseTo(1, 12);
+
+    const onlyY = hoverGridsThroughGamma(gamma, 'y');
+    expect(onlyY.map(entry => entry.kind)).toEqual(['y']);
+    expect(onlyY[0]?.through.real).toBeCloseTo(0.5, 12);
+    expect(onlyY[0]?.through.imag).toBeCloseTo(-0.5, 12);
+
+    const both = hoverGridsThroughGamma(gamma, 'both');
+    expect(both.map(entry => entry.kind)).toEqual(['z', 'y']);
+    expect(both[0]?.through.real).toBeCloseTo(1, 12);
+    expect(both[0]?.through.imag).toBeCloseTo(1, 12);
+    expect(both[1]?.through.real).toBeCloseTo(0.5, 12);
+    expect(both[1]?.through.imag).toBeCloseTo(-0.5, 12);
+    for (const { through } of both) {
+      expect(dist(gamma, through.circle.circle.center)).toBeCloseTo(through.circle.circle.radius, 12);
+      if (through.arc) expect(dist(gamma, through.arc.arc.center)).toBeCloseTo(through.arc.arc.radius, 12);
+    }
+
+    // At the open (Γ = +1), Z is singular while Y is g = 0; at the short (Γ = −1), the opposite.
+    expect(hoverGridsThroughGamma({ re: 1, im: 0 }, 'both').map(entry => entry.kind)).toEqual(['y']);
+    expect(hoverGridsThroughGamma({ re: -1, im: 0 }, 'both').map(entry => entry.kind)).toEqual(['z']);
+    expect(hoverGridsThroughGamma({ re: 1.3, im: 0 }, 'both')).toEqual([]);
   });
 });

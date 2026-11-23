@@ -38,6 +38,8 @@
 .smith-rim.is-active { stroke-dasharray: 6 4; }
 .smith-active-area { fill: color-mix(in oklab, var(--warning-fill) 40%, var(--smith-bg)); stroke: none; }
 .smith-hover-grid path { fill: none; stroke: var(--accent); stroke-width: 1; }
+.smith-pane[data-grid="both"] .smith-hover-grid-z path { stroke: var(--accent); }
+.smith-pane[data-grid="both"] .smith-hover-grid-y path { stroke: var(--smith-grid-y-both); stroke-dasharray: 3 3; }
 
 /* Traces are never dashed. Width comes from the element (1.5 px source, 2 px created). */
 .smith-trace path { fill: none; stroke-linejoin: round; stroke-linecap: round; }

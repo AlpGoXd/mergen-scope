@@ -46,6 +46,24 @@ describe('SmithPane', () => {
     expect(screen.getByTestId('smith-grid-y').classList.contains('is-secondary')).toBe(true);
   });
 
+  it('highlights both Z and Y grid curves on hover in both mode, and only the active grid in z or y mode', () => {
+    const { rerender } = show({ traces: [s11], grid: 'both' });
+    const plot = screen.getByTestId('smith-plot');
+    // Γ = 0 (1.5 GHz) sits at the plot centre (300, 200).
+    fireEvent(plot, new MouseEvent('pointermove', { bubbles: true, clientX: 300, clientY: 200 }));
+    expect(screen.getByTestId('smith-hover-grid')).toBeInTheDocument();
+    expect(screen.getByTestId('smith-hover-grid-z').querySelectorAll('path').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByTestId('smith-hover-grid-y').querySelectorAll('path').length).toBeGreaterThanOrEqual(1);
+
+    rerender(createElement(SmithPane, { traces: [s11], size, grid: 'z' }));
+    expect(screen.getByTestId('smith-hover-grid-z')).toBeInTheDocument();
+    expect(screen.queryByTestId('smith-hover-grid-y')).toBeNull();
+
+    rerender(createElement(SmithPane, { traces: [s11], size, grid: 'y' }));
+    expect(screen.getByTestId('smith-hover-grid-y')).toBeInTheDocument();
+    expect(screen.queryByTestId('smith-hover-grid-z')).toBeNull();
+  });
+
   it('draws the linked band in full colour and the rest faint', () => {
     show({ traces: [s11], band: { minHz: 1.25e9, maxHz: 1.75e9 } });
     const paths = [...screen.getByTestId('smith-trace-s11').querySelectorAll('path')];

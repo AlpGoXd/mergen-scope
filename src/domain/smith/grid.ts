@@ -184,3 +184,22 @@ export function gridThroughGamma(gamma: Complex, kind: SmithGridKind = 'z'): Smi
   const arcGeometry = baseArc ? (kind === 'y' ? rotateArc180(baseArc) : baseArc) : null;
   return { real, imag, circle, arc: arcGeometry ? { value: imag, arc: arcGeometry, path: arcPath(arcGeometry) } : null };
 }
+
+export interface SmithHoverGridEntry {
+  readonly kind: SmithGridKind;
+  readonly through: SmithGridThroughPoint;
+}
+
+/**
+ * Grid circles/arcs through `gamma` for the active grid mode:
+ * one entry for `'z'` or `'y'`, or both Z and Y entries for `'both'`.
+ */
+export function hoverGridsThroughGamma(gamma: Complex, mode: SmithGridKind | 'both'): SmithHoverGridEntry[] {
+  const kinds: readonly SmithGridKind[] = mode === 'both' ? ['z', 'y'] : [mode];
+  const entries: SmithHoverGridEntry[] = [];
+  for (const kind of kinds) {
+    const through = gridThroughGamma(gamma, kind);
+    if (through) entries.push({ kind, through });
+  }
+  return entries;
+}

@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { buildLabels, formatGridLabel } from '../../src/domain/smith/labels.ts';
-import type { SmithLabel } from '../../src/domain/smith/labels.ts';
+import { buildLabels, formatGridLabel, placeEndLabel } from '../../src/domain/smith/labels.ts';
+import type { SmithLabel, SmithLabelBox } from '../../src/domain/smith/labels.ts';
 import type { SmithViewport } from '../../src/types/smith-plot.ts';
 
 const full: SmithViewport = { width: 600, height: 600, center: { re: 0, im: 0 }, scale: 250 };
 const values = [0.2, 0.5, 1, 2, 5];
 const byKey = (labels: readonly SmithLabel[], key: string) => labels.find(label => label.key === key);
-const overlap = (a: SmithLabel, b: SmithLabel) =>
+const overlap = (a: SmithLabelBox, b: SmithLabelBox) =>
   Math.abs(a.x - b.x) < (a.width + b.width) / 2 && Math.abs(a.y - b.y) < (a.height + b.height) / 2;
 
 describe('Smith grid label text', () => {
@@ -109,5 +109,42 @@ describe('Smith grid label positions', () => {
     expect(Math.hypot(re - 1, im - 1)).toBeCloseTo(1, 9);
     // An arc that never crosses the view gets no label.
     expect(byKey(buildLabels({ grid: 'z', values: [5], viewport: zoomed, mode: 'normalised', z0: 50, fontPx: 10 }), 'x:5')).toBeUndefined();
+  });
+});
+
+describe('Smith start/end label placement', () => {
+  const gridLabels = buildLabels({ grid: 'z', values, viewport: full, mode: 'normalised', z0: 50, fontPx: 10 });
+
+  it('uses the default top-right position when there is no obstacle', () => {
+    const at = { x: 200, y: 200 };
+    const placed = placeEndLabel(at, '1 GHz', 10, full, []);
+    expect(placed.x).toBeGreaterThan(at.x);
+    expect(placed.y).toBeLessThan(at.y);
+  });
+
+  it('flips away from a colliding grid label without moving the grid label', () => {
+    // At Γ = 0 (300, 300), the r = 1 grid label sits just above and to the right of the dot.
+    const at = { x: 300, y: 300 };
+    const defaultPos = placeEndLabel(at, '1 GHz', 10, full, []);
+    const r1 = byKey(gridLabels, 'r:1');
+    expect(r1).toBeDefined();
+    if (!r1) return;
+    expect(overlap(defaultPos, r1)).toBe(true);
+
+    const placed = placeEndLabel(at, '1 GHz', 10, full, gridLabels);
+    for (const label of gridLabels) expect(overlap(placed, label), label.key).toBe(false);
+    expect(placed.y).toBeGreaterThan(at.y);
+    expect(Math.hypot(placed.x - at.x, placed.y - at.y)).toBeLessThan(60);
+  });
+
+  it('avoids all surrounding obstacles including previously placed end labels', () => {
+    const at = { x: 300, y: 300 };
+    const first = placeEndLabel(at, '1 GHz', 10, full, gridLabels);
+    const second = placeEndLabel(at, '2 GHz', 10, full, [...gridLabels, first]);
+    expect(overlap(first, second)).toBe(false);
+    for (const label of gridLabels) {
+      expect(overlap(first, label)).toBe(false);
+      expect(overlap(second, label)).toBe(false);
+    }
   });
 });
