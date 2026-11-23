@@ -50,6 +50,10 @@ Don't run the full suites repeatedly "to be sure"; CI runs everything on pushes 
 
 - Do not read, print or commit secrets: `.env*`, `~/.codex/auth.json`, tokens.
 
+## Antigravity (`agy`) jobs
+
+Since 2026-11-23 some jobs run through the Antigravity CLI in their own worktree on an `agy/<slug>` branch. The rules are the same as for any agent job: the branch is already checked out, leave changes uncommitted, run typecheck and related unit tests, skip e2e, no installs, no extra worktrees. Details are in CLAUDE.md, "Working with Antigravity".
+
 ## AI and tool leftovers
 
 (Yes, your 47 half-finished experiments too. Clean up after yourself; the repo is not your sketchbook.)
