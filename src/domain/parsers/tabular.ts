@@ -2,18 +2,19 @@
 // Mergen Scope — Tabular File Parser
 // ============================================================================
 // Ported from: app-modules/parser-helpers.js (parseTabular)
+// Unified onto tabular-detect.ts so auto-detection and wizard share one engine.
 // ============================================================================
 
-import type { DataPoint, RawTrace, TraceDomain } from "../../types/trace.ts";
+import type { DataPoint, RawTrace } from "../../types/trace.ts";
 import type { ParsedFile, WizardConfig } from "../../types/file.ts";
 import type { ScalarDisplayTrace } from "../../types/display.ts";
-import { breaksFrequencyGaps } from '../sweep-bands';
+import { breaksFrequencyGaps } from "../sweep-bands.ts";
 import { makeTrace } from "../trace-model.ts";
 import { buildScalarDisplayTraceFromSeriesDataset, buildSeriesDatasetFromTrace } from "../dataset-builders.ts";
 import { incrementFileCounter } from "./rs-dat.ts";
 import { normalizeTraceData } from "./helpers.ts";
-import { baseXUnit, detectXUnit, findXUnit, storedYUnit } from "../import-units.ts";
-import { detectTabular, detectSeparators, isNumber, splitCells, splitHeader } from "./tabular-detect.ts";
+import { baseXUnit, detectElectricalXUnit, detectXUnit, detectYUnit, storedXUnit, storedYUnit } from "../import-units.ts";
+import { contentLines, detectTabular, isNumber, splitCells, splitHeader } from "./tabular-detect.ts";
 
 // ---------------------------------------------------------------------------
 // Wizard preview summary
@@ -44,6 +45,20 @@ export function summarizeTabularPreview(lines: readonly string[], config: Pick<W
   return { dataRows, xMin: dataRows ? xMin : null, xMax: dataRows ? xMax : null };
 }
 
+/** Infer a unit from a column header when WizardConfig has no explicit xUnit/yUnit. */
+function inferHeaderUnit(header: string, axis: "x" | "y"): string | null {
+  const h = String(header ?? "");
+  if (axis === "x") {
+    const primary = detectXUnit(h)?.unit;
+    if (primary) return primary;
+    const electrical = detectElectricalXUnit(h)?.unit;
+    if (electrical) return electrical;
+    if (/\btime\b/i.test(h)) return "s";
+    return null;
+  }
+  return detectYUnit(h);
+}
+
 // ---------------------------------------------------------------------------
 // Tabular parser
 // ---------------------------------------------------------------------------
@@ -54,139 +69,41 @@ export function parseTabularFile(
   fileName: string,
   explicitConfig: WizardConfig | null,
 ): ParsedFile {
-  const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
+  const lines = contentLines(text);
 
   let config = explicitConfig;
   if (!config) {
-    const layout = detectSeparators(lines);
-    if (layout.valueDelimiter || layout.delimiter === " ") config = detectTabular(text).config;
-  }
-  let sourceHeaders: string[] | undefined;
-  const ext = String(fileName ?? "").split(".").pop()?.toLowerCase() ?? "";
-  const isDat = ext === "dat";
-
-  const splitRow = splitCells;
-  const isNumericRow = (parts: readonly string[]) => (
-    parts.length >= 2
-    && parts.every((part) => part !== "" && Number.isFinite(Number(part)))
-  );
-  const inferUnit = (header: string, axis: "x" | "y"): string | null => {
-    const h = String(header ?? "");
-    const parenthesized = h.match(/\(([^)]+)\)/)?.[1]?.trim();
-    const candidate = parenthesized || h;
-    const normalized = candidate.toLowerCase();
-    if (axis === "x") {
-      const angle = detectXUnit(h)?.unit;
-      if (angle === '°' || angle === 'rad') return angle;
-      if (/\bghz\b/.test(normalized)) return "GHz";
-      if (/\bmhz\b/.test(normalized)) return "MHz";
-      if (/\bkhz\b/.test(normalized)) return "kHz";
-      if (/\bhz\b/.test(normalized)) return "Hz";
-      if (/\bms\b/.test(normalized)) return "ms";
-      if (/\bus\b|\bµs\b/.test(normalized)) return "us";
-      if (/\bns\b/.test(normalized)) return "ns";
-      if (/\bs\b|time/.test(normalized)) return "s";
-      return null;
-    }
-    if (/\bdbi\b/.test(normalized)) return "dBi";
-    if (/\bdbm\b/.test(normalized)) return "dBm";
-    if (/\bdb\b/.test(normalized)) return "dB";
-    if (/\bmv\b/.test(normalized)) return "mV";
-    if (/\bv\b|volt/.test(normalized)) return "V";
-    if (/\ba\b|ampere/.test(normalized)) return "A";
-    return null;
-  };
-
-  if (!config) {
-    // Heuristics engine
-    const delims = [",", "\t", ";"] as const;
-    let bestDelimiter = ",";
-    let bestScore = 0;
-    for (const d of delims) {
-      const sample = lines.slice(0, 20).map((line) => splitRow(line, d).length);
-      const maxColsForDelimiter = Math.max(0, ...sample);
-      const rowsWithColumns = sample.filter((count) => count > 1).length;
-      const score = maxColsForDelimiter * 100 + rowsWithColumns;
-      if (score > bestScore) {
-        bestScore = score;
-        bestDelimiter = d;
-      }
-    }
-    const maxCols = Math.max(0, ...lines.slice(0, 20).map((line) => splitRow(line, bestDelimiter).length));
-
-    let skipRows = lines.length;
-    for (let i = 0; i < Math.min(50, lines.length); i++) {
-      const line = lines[i];
-      if (line === undefined) continue;
-      const parts = splitRow(line, bestDelimiter);
-      if (isNumericRow(parts)) { skipRows = i; break; }
-    }
-
-    const headerLine = skipRows > 0 ? lines[skipRows - 1] : null;
-    // Keep the source spelling for ColumnIdentity and unit inference. Heuristics
-    // remain case-insensitive, and the user-facing trace name stays lowercase
-    // for compatibility with older CSV imports.
-    const headers = headerLine ? splitRow(headerLine, bestDelimiter) : [];
-    const heuristicHeaders = headers.map((s) => s.toLowerCase());
-    sourceHeaders = headers;
-
-    let xCol = 0;
-    let hasExplicitXCol = false;
-    const yCols: number[] = [];
-    let domain: TraceDomain = isDat ? "frequency" : "time";
-    let confidence = isDat ? 0.8 : 0.5;
-
-    for (const [idx, h] of heuristicHeaders.entries()) {
-      const isFrequencyXHeader = h.indexOf("freq") !== -1 || h === "hz" || h === "f" || h.startsWith("frequency ");
-      const isTimeXHeader = h.indexOf("time") !== -1 || h === "s" || h === "t" || h.startsWith("time ");
-      if (!hasExplicitXCol && isFrequencyXHeader) { domain = "frequency"; xCol = idx; hasExplicitXCol = true; confidence += 0.25; }
-      else if (!hasExplicitXCol && isTimeXHeader) { domain = "time"; xCol = idx; hasExplicitXCol = true; confidence += 0.25; }
-      else if (h.indexOf("v") !== -1 || h.indexOf("ch") !== -1 || h.indexOf("amp") !== -1 || h.indexOf("db") !== -1 || h.indexOf("mag") !== -1) { yCols.push(idx); confidence += 0.2; }
-    }
-
-    if (yCols.length === 0) {
-      for (let j = 0; j < maxCols; j++) { if (j !== xCol) yCols.push(j); }
-      if (headers.length > 0 && hasExplicitXCol && yCols.length > 0) {
-        confidence += 0.15;
-      }
-    }
-
-    config = {
-      delimiter: bestDelimiter,
-      skipRows,
-      xCol,
-      yCols,
-      xMult: 1,
-      yMult: 1,
-      domain,
-      confidence,
-      headers: heuristicHeaders,
-    } satisfies WizardConfig;
-
-    if (confidence < 0.8) {
+    const detection = detectTabular(text);
+    const packedOrSpace = Boolean(detection.config.valueDelimiter) || detection.config.delimiter === " ";
+    if (detection.confidenceLevel === "low" && !packedOrSpace) {
       return {
         format: "needs-import-wizard",
         text,
         fileName,
-        suggestedConfig: config,
+        suggestedConfig: detection.config,
         previewLines: lines.slice(0, 100),
         meta: {},
         traces: [],
       };
     }
+    config = detection.config;
   }
+
+  let sourceHeaders: string[] | undefined;
 
   // Use the physical source header rather than possibly stale wizard labels.
   const firstDataRow = Math.max(0, Math.floor(Number.isFinite(config.skipRows) ? config.skipRows : 0));
-  const headerRow = firstDataRow > 0 ? splitHeader(lines[firstDataRow - 1] ?? '', config, config.headers?.length ?? 0) : undefined;
-  const physicalHeaders = headerRow?.some(cell => cell !== '' && !Number.isFinite(Number(cell))) ? headerRow : undefined;
+  const headerRow = firstDataRow > 0 ? splitHeader(lines[firstDataRow - 1] ?? "", config, config.headers?.length ?? 0) : undefined;
+  const physicalHeaders = headerRow?.some((cell) => cell !== "" && !Number.isFinite(Number(cell))) ? headerRow : undefined;
   if (physicalHeaders) sourceHeaders = physicalHeaders;
+
   const traces: { trace: RawTrace; column: number }[] = [];
-  const datasetFamily = config.domain === 'time' ? 'waveform' : 'spectrum';
+  const datasetFamily = config.domain === "time" ? "waveform" : "spectrum";
   const xHeader = sourceHeaders?.[config.xCol] ?? config.headers?.[config.xCol] ?? "";
   // A wizard-picked unit means xMult already converts to the base unit.
-  const xUnit = config.xUnit !== undefined ? findXUnit(config.domain, config.xUnit)?.base ?? baseXUnit(config.domain)
-    : inferUnit(xHeader, "x") ?? baseXUnit(config.domain);
+  const xUnit = config.xUnit !== undefined
+    ? storedXUnit(config.xUnit, config.domain)
+    : inferHeaderUnit(xHeader, "x") ?? baseXUnit(config.domain);
   const pickedYUnit = config.yUnit;
 
   // skipRows comes from user input (wizard): only whole, non-negative row counts are valid indices.
@@ -220,7 +137,7 @@ export function parseTabularFile(
       dn: `${fileName} ${name.toLowerCase()}`,
       units: {
         x: xUnit,
-        y: pickedYUnit !== undefined ? storedYUnit(pickedYUnit) : inferUnit(String(name), "y"),
+        y: pickedYUnit !== undefined ? storedYUnit(pickedYUnit) : inferHeaderUnit(String(name), "y"),
       },
       data: series[yIdx] ?? [],
     };
@@ -229,11 +146,11 @@ export function parseTabularFile(
 
   const surviving = traces
     .map(({ trace, column }) => ({ trace: { ...trace, data: normalizeTraceData(trace.data) }, column }))
-    .filter(({trace}) => trace.data.length > 1);
-  const filtered = surviving.map(({trace}) => trace);
+    .filter(({ trace }) => trace.data.length > 1);
+  const filtered = surviving.map(({ trace }) => trace);
   const columnIdentities = surviving.map(({ column }) => {
     const header = sourceHeaders?.[column];
-    return header ? {index: column, header} : {index: column};
+    return header ? { index: column, header } : { index: column };
   });
 
   const datasets = filtered.map((trace) => buildSeriesDatasetFromTrace(trace, datasetFamily));

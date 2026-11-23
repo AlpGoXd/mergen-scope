@@ -26,8 +26,8 @@ export function sweepBands(data: readonly DataPoint[]): Bands {
   return bands;
 }
 
-export function breaksFrequencyGaps(config: Pick<WizardConfig, 'breakSweepGaps' | 'domain' | 'xUnit'> | undefined): boolean {
-  return config?.breakSweepGaps === true && config.domain === 'frequency' && /^[kmg]?hz$/i.test(config.xUnit ?? 'Hz');
+export function breaksFrequencyGaps(config: Pick<WizardConfig, 'breakSweepGaps'> | undefined): boolean {
+  return config?.breakSweepGaps === true;
 }
 
 type BandTrace = Pick<Trace, 'data'> & Partial<Pick<Trace, 'parameters'>>;

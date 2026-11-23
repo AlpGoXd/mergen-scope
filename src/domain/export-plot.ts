@@ -1,7 +1,7 @@
 import type { Trace } from '../types/trace';
 import type { PresetId } from './pane-layout';
 import { shortName } from './footer-state';
-import { angleAxisUnit, isDecibelGain, isLinearGain } from './units';
+import { angleAxisUnit, isDecibelGain, isLinearGain, isUnitlessAxisUnit, xAxisQuantityName } from './units';
 
 const PREFIXES: Readonly<Record<number, string>> = { [-12]: 'p', [-9]: 'n', [-6]: 'µ', [-3]: 'm', 0: '', 3: 'k', 6: 'M', 9: 'G', 12: 'T' };
 
@@ -67,7 +67,8 @@ export function exportTick(axis: ExportAxis, value: number): string {
 export function autoExportAxes(trace: Trace | undefined, x: readonly [number, number], y: readonly [number, number], xTicks?: readonly number[], yTicks?: readonly number[], mixedY = false) {
   const time = trace?.domain === 'time';
   const angle = angleAxisUnit(trace?.units.x);
-  const xUnit = angle ?? (trace?.units.x || (time ? 's' : 'Hz'));
+  const unitlessX = isUnitlessAxisUnit(trace?.units.x);
+  const xUnit = angle ?? (unitlessX ? '' : (trace?.units.x || (time ? 's' : 'Hz')));
   const linearGain = !mixedY && isLinearGain(xUnit, trace?.units.y);
   const yUnit = mixedY ? '' : linearGain ? 'ratio' : trace?.units.y || '';
   const network = trace?.kind === 'raw' ? trace.networkSource : undefined;
@@ -79,7 +80,7 @@ export function autoExportAxes(trace: Trace | undefined, x: readonly [number, nu
           network?.view === 'Group delay' ? 'Group delay' :
             network?.view === 'Real' ? 'Real' : network?.view === 'Imag' ? 'Imaginary' :
               normalized === 'db' || network?.view === 'Mag' ? 'Magnitude' : 'Amplitude';
-  const xQuantity = angle ? 'Angle' : time ? 'Time' : xUnit === 'Hz' ? 'Frequency' : 'X';
+  const xQuantity = xAxisQuantityName(trace?.units.x, time ? 'time' : 'frequency');
   return { x: engineeringExportAxis(xQuantity, xUnit, x, xTicks), y: engineeringExportAxis(quantity, yUnit, y, yTicks) };
 }
 

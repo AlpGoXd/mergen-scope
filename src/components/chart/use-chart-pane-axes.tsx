@@ -9,7 +9,7 @@ import type { ExportView } from './export/export-context';
 import type { PlotView } from './LinesLayer';
 import type { AxisScale } from '../../types/pane';
 import { logTickLabel, logTicks } from '../../domain/chart/axis-scale';
-import { angleAxisUnit, isDecibelGain, isLinearGain } from '../../domain/units';
+import { isDecibelGain, isLinearGain, isUnitlessAxisUnit, xAxisLabelForUnit } from '../../domain/units';
 
 interface ChartPaneAxesOptions {
   paneId: string;
@@ -38,10 +38,7 @@ export function useChartPaneAxes({
   const appearance = exportView?.appearance;
   const xAxisLabelText = useMemo(() => {
     if (!activePaneTrace) return axisInfo.xLabel;
-    const xUnit = activePaneTrace.units.x ? String(activePaneTrace.units.x) : (activePaneTrace.domain === 'time' ? 's' : 'Hz');
-    const angle = angleAxisUnit(xUnit);
-    if (angle) return `Angle (${angle})`;
-    return activePaneTrace.domain === 'time' ? `Time (${xUnit})` : `Frequency (${xUnit})`;
+    return xAxisLabelForUnit(activePaneTrace.units.x, activePaneTrace.domain);
   }, [activePaneTrace, axisInfo.xLabel]);
 
   const yAxisLabelText = useMemo(() => {
@@ -61,7 +58,9 @@ export function useChartPaneAxes({
 
   // Export render: report the drawn ranges and axis titles (Copy as LaTeX builds its axis from them).
   const exportOnPlot = exportView?.onPlot;
-  const exportXUnit = activePaneTrace ? (activePaneTrace.units.x ? String(activePaneTrace.units.x) : activePaneTrace.domain === 'time' ? 's' : 'Hz') : null;
+  const exportXUnit = activePaneTrace
+    ? (isUnitlessAxisUnit(activePaneTrace.units.x) ? null : (activePaneTrace.units.x ? String(activePaneTrace.units.x) : activePaneTrace.domain === 'time' ? 's' : 'Hz'))
+    : null;
 
   const shortYLabel = yAxisLabelText.match(/\([^()]+\)\s*$/)?.[0] ?? yAxisLabelText.split(/\s+/)[0] ?? '';
   const fittedYLabel = yAxisLabelText.length * 7 <= labelRoom ? yAxisLabelText

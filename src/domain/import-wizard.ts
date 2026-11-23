@@ -1,17 +1,17 @@
 // ============================================================================
 // Mergen Scope — Import wizard rules (pure)
 // ============================================================================
-// Column roles, why Add is unavailable, and what Edit columns would remove.
+// Column roles, why Add is unavailable, preview range summary, and Edit columns.
 // ============================================================================
 
 import type { ColumnIdentity, WizardConfig } from "../types/file.ts";
-import { sweepBands } from './sweep-bands';
-import type { TraceDomain } from "../types/trace.ts";
-import { baseXUnit, findXUnit, findYUnit } from "./import-units.ts";
+import { sweepBands } from "./sweep-bands.ts";
+import type { TraceDomain, DataPoint } from "../types/trace.ts";
+import { baseXUnit, detectXUnit, detectYUnit, findXUnit, findYUnit, storedXUnit, storedYUnit } from "./import-units.ts";
+import { formatAdaptiveXAxisValue, formatScalarWithUnit } from "./format.ts";
 import { columnHeaders, contentLines, numericColumns, splitCells } from "./parsers/tabular-detect.ts";
 import { normalizeTraceData } from "./parsers/helpers.ts";
 import { decimateMinMax } from "./trace-math.ts";
-import type { DataPoint } from "../types/trace.ts";
 
 export type ColumnRole = "x" | "y" | "skip";
 
@@ -34,12 +34,18 @@ export function setDomain(config: WizardConfig, domain: TraceDomain): WizardConf
   return { ...config, domain, xUnit: baseXUnit(domain), xMult: 1 };
 }
 
+/** Picking any X unit sets xUnit, xMult, and the matching internal domain automatically. */
 export function setXUnit(config: WizardConfig, unitId: string): WizardConfig {
-  const unit = findXUnit(config.domain, unitId);
-  return unit ? { ...config, xUnit: unit.id, xMult: unit.factor } : config;
+  const unit = findXUnit(unitId);
+  return unit ? { ...config, domain: unit.domain, xUnit: unit.id, xMult: unit.factor } : config;
 }
 
-export function setYUnit(config: WizardConfig, unitId: string): WizardConfig {
+/** Picking a Y unit sets yUnit and yMult; passing undefined resets to "from column names". */
+export function setYUnit(config: WizardConfig, unitId: string | undefined): WizardConfig {
+  if (unitId === undefined) {
+    const { yUnit: _removed, ...rest } = config;
+    return { ...rest, yMult: 1 };
+  }
   const unit = findYUnit(unitId);
   return unit ? { ...config, yUnit: unit.id, yMult: unit.factor } : config;
 }
@@ -47,7 +53,7 @@ export function setYUnit(config: WizardConfig, unitId: string): WizardConfig {
 /** True when the multiplier is not the one the picked unit implies (the advanced ×N field was used). */
 export function hasCustomMultiplier(config: WizardConfig, axis: "x" | "y"): boolean {
   if (axis === "x") {
-    const unit = findXUnit(config.domain, config.xUnit);
+    const unit = findXUnit(config.xUnit);
     return unit ? unit.factor !== config.xMult : config.xMult !== 1;
   }
   const unit = findYUnit(config.yUnit);
@@ -120,11 +126,22 @@ export function listNames(names: readonly string[]): string {
   return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
 }
 
-/** Header as shown in the wizard: with the picked unit when the file's own name carries none. */
+/**
+ * Header as shown in the wizard: adds the picked unit when the file's own name carries none,
+ * and annotates overrides ("Time (s) → ms") when the user chose a different unit than the header states.
+ */
 export function columnDisplayName(header: string, role: ColumnRole, config: Pick<WizardConfig, "xUnit" | "yUnit">): string {
-  if (/[([]/.test(header)) return header;
-  const unit = role === "x" ? config.xUnit : role === "y" ? config.yUnit : undefined;
-  return unit ? `${header} (${unit})` : header;
+  if (role === "skip") return header;
+  const unit = role === "x" ? config.xUnit : config.yUnit;
+  if (unit === undefined) return header;
+  const bracketMatch = header.match(/[([]([^)\]]+)[)\]]/);
+  if (!bracketMatch) return unit ? `${header} (${unit})` : header;
+  const existing = (bracketMatch[1] ?? "").trim();
+  const detectedExisting = role === "x" ? detectXUnit(header)?.unit : detectYUnit(header);
+  const sameUnit = existing.toLowerCase() === unit.toLowerCase()
+    || (detectedExisting !== null && detectedExisting !== undefined && detectedExisting === unit);
+  if (sameUnit) return header;
+  return unit ? `${header} → ${unit}` : `${header} → no unit`;
 }
 
 /** Above this many data rows the plot reads every k-th row, so the dialog stays responsive. */
@@ -163,11 +180,20 @@ export function readNumericTable(lines: readonly string[], delimiter: string | P
   return { total, stride, columns };
 }
 
+export interface NumericRange {
+  readonly min: number;
+  readonly max: number;
+}
+
 export interface OverviewPlot {
   /** One polyline per measured band, grouped by Y column, on a shared normalized scale. */
   readonly series: readonly (readonly (readonly { x: number; y: number }[])[])[];
   /** Where the rows shown in the table sit along X (0–1), or null without data. */
   readonly band: { readonly from: number; readonly to: number } | null;
+  /** Unscaled X range across the plotted points, or null without data. */
+  readonly xRange: NumericRange | null;
+  /** Unscaled Y range across all selected Y columns, or null without data. */
+  readonly yRange: NumericRange | null;
 }
 
 /**
@@ -176,7 +202,7 @@ export interface OverviewPlot {
  */
 export function overviewPlot(table: NumericTable, xCol: number, yCols: readonly number[], tableRows: number, buckets = PLOT_BUCKETS, splitBands = false): OverviewPlot {
   const xs = table.columns[xCol];
-  if (!xs) return { series: yCols.map(() => []), band: null };
+  if (!xs) return { series: yCols.map(() => []), band: null, xRange: null, yRange: null };
   const data = yCols.map((col) => {
     const ys = table.columns[col];
     const points: DataPoint[] = [];
@@ -189,8 +215,8 @@ export function overviewPlot(table: NumericTable, xCol: number, yCols: readonly 
     if (first && first.freq < x0) x0 = first.freq;
     if (last && last.freq > x1) x1 = last.freq;
   }
-  if (!Number.isFinite(x0) || !Number.isFinite(x1)) return { series: yCols.map(() => []), band: null };
-  const reduced = data.map(line => (splitBands ? sweepBands(line) : [line]).map(run => decimateMinMax(run, x0, x1, buckets)));
+  if (!Number.isFinite(x0) || !Number.isFinite(x1)) return { series: yCols.map(() => []), band: null, xRange: null, yRange: null };
+  const reduced = data.map((line) => (splitBands ? sweepBands(line) : [line]).map((run) => decimateMinMax(run, x0, x1, buckets)));
   let y0 = Infinity; let y1 = -Infinity;
   for (const bands of reduced) for (const line of bands) for (const point of line) { if (point.amp < y0) y0 = point.amp; if (point.amp > y1) y1 = point.amp; }
   const sx = (x: number) => (x1 > x0 ? (x - x0) / (x1 - x0) : 0.5);
@@ -206,7 +232,40 @@ export function overviewPlot(table: NumericTable, xCol: number, yCols: readonly 
     if (x > to) to = x;
   }
   const band = Number.isFinite(from) && Number.isFinite(to) ? { from: sx(from), to: sx(to) } : null;
-  return { series: reduced.map(bands => bands.map(line => line.map(point => ({ x: sx(point.freq), y: sy(point.amp) })))), band };
+  const yRange = Number.isFinite(y0) && Number.isFinite(y1) ? { min: y0, max: y1 } : null;
+  return {
+    series: reduced.map((bands) => bands.map((line) => line.map((point) => ({ x: sx(point.freq), y: sy(point.amp) })))),
+    band,
+    xRange: { min: x0, max: x1 },
+    yRange,
+  };
+}
+
+/** Scaled X & Y min → max summary with units, e.g. "X: 100 MHz → 100.05 MHz · Y: -62.1 dBm → -60.4 dBm". */
+export function previewRangeSummary(
+  plot: Pick<OverviewPlot, "xRange" | "yRange">,
+  config: Pick<WizardConfig, "domain" | "xUnit" | "yUnit" | "xMult" | "yMult">,
+): string | null {
+  if (!plot.xRange) return null;
+  const xMult = Number.isFinite(config.xMult) && config.xMult !== 0 ? config.xMult : 1;
+  const xA = plot.xRange.min * xMult;
+  const xB = plot.xRange.max * xMult;
+  const xMin = Math.min(xA, xB);
+  const xMax = Math.max(xA, xB);
+  const xSpan = xMax > xMin ? xMax - xMin : Math.max(Math.abs(xMax), 1e-12);
+  const xStored = storedXUnit(config.xUnit, config.domain);
+  const xOpts = { domain: config.domain, unit: xStored };
+  const xText = `X: ${formatAdaptiveXAxisValue(xMin, xSpan, xOpts)} → ${formatAdaptiveXAxisValue(xMax, xSpan, xOpts)}`;
+
+  if (!plot.yRange) return xText;
+  const yMult = Number.isFinite(config.yMult) && config.yMult !== 0 ? config.yMult : 1;
+  const yA = plot.yRange.min * yMult;
+  const yB = plot.yRange.max * yMult;
+  const yMin = Math.min(yA, yB);
+  const yMax = Math.max(yA, yB);
+  const yStored = config.yUnit !== undefined ? storedYUnit(config.yUnit) : null;
+  const yText = `Y: ${formatScalarWithUnit(yMin, yStored, { digits: 3 })} → ${formatScalarWithUnit(yMax, yStored, { digits: 3 })}`;
+  return `${xText} · ${yText}`;
 }
 
 /** "all 9 998 rows" or "every 4th of 2 000 000 rows". */

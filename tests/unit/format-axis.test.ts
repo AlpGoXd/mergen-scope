@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { formatAdaptiveXAxisTickLabels, formatAdaptiveXAxisValue, formatPerDivision, makeYAxisTickFormatter } from "../../src/domain/format";
+import { xAxisLabelForUnit } from "../../src/domain/units";
 
 describe("axis display formatting", () => {
   it("trims adaptive frequency tick labels after duplicate detection", () => {
@@ -11,6 +12,19 @@ describe("axis display formatting", () => {
     expect(formatAdaptiveXAxisTickLabels([0, 90, 180], 180, { domain: "frequency", unit: "degrees" }))
       .toEqual(["0°", "90°", "180°"]);
     expect(formatAdaptiveXAxisValue(1.57, 3, { domain: "frequency", unit: "radians" })).toBe("1.57 rad");
+  });
+
+  it("formats electrical, log, and unitless X axes without falling back to Hz", () => {
+    expect(formatAdaptiveXAxisValue(0.025, 0.1, { domain: "frequency", unit: "V" })).toBe("25 mV");
+    expect(formatAdaptiveXAxisValue(-10, 20, { domain: "frequency", unit: "dBm" })).toBe("-10 dBm");
+    expect(formatAdaptiveXAxisValue(42.5, 100, { domain: "frequency", unit: "unitless" })).toBe("42.5");
+    expect(formatAdaptiveXAxisTickLabels([-20, -10, 0], 20, { domain: "frequency", unit: "dBm" })).toEqual(["-20", "-10", "0"]);
+    expect(formatAdaptiveXAxisTickLabels([0, 50, 100], 100, { domain: "frequency", unit: "unitless" })).toEqual(["0", "50", "100"]);
+    expect(xAxisLabelForUnit("°", "frequency")).toBe("Angle (°)");
+    expect(xAxisLabelForUnit("V", "frequency")).toBe("Voltage (V)");
+    expect(xAxisLabelForUnit("dBm", "frequency")).toBe("Power (dBm)");
+    expect(xAxisLabelForUnit("Ohm", "frequency")).toBe("Impedance (Ω)");
+    expect(xAxisLabelForUnit("unitless", "frequency")).toBe("X");
   });
 
   it("formats per-division steps with SI prefixes except for dB units", () => {

@@ -4,7 +4,11 @@ import { detectSeparators, detectSkipRows, detectTabular, contentLines } from '.
 import { detectFileSignature, parseForImport } from '../../src/domain/parsers/parse-file';
 import { parseTabularFile } from '../../src/domain/parsers/tabular';
 import { resetParserFileCounter } from '../../src/domain/parsers/rs-dat';
-import { overviewPlot, plotCaption, previewCaption, readNumericTable, setColumnRole, wizardBlocker, wizardLayout } from '../../src/domain/import-wizard';
+import {
+  columnDisplayName, overviewPlot, plotCaption, previewCaption, previewRangeSummary,
+  readNumericTable, setColumnRole, setXUnit, setYUnit, wizardBlocker, wizardLayout,
+} from '../../src/domain/import-wizard';
+import { traceXGroup } from '../../src/domain/pane-placement';
 import { migrateWorkspaceV5 } from '../../src/domain/workspace-migrate-v5';
 import { initialWorkspaceEngine, workspaceEngineReducer, snapshotFromWorkspace } from '../../src/stores/aggregate-workspace-store';
 import type { WizardConfig } from '../../src/types/file';
@@ -309,11 +313,114 @@ describe('independent field separators', () => {
     expect(config.yCols).toEqual([1, 2]);
   });
 
-  it('uses frequency spacing for suggested band breaks across both row layouts', () => {
-    const table = (xs: number[], sep: string) => 'Frequency (Hz),A' + sep + 'B\n' + xs.map(x => x + ',1' + sep + '2').join('\n');
+  it('uses sweep spacing for suggested band breaks across row layouts and non-Hz axes', () => {
+    const table = (header: string, xs: number[], sep: string) => header + ',A' + sep + 'B\n' + xs.map(x => x + ',1' + sep + '2').join('\n');
     for (const sep of [',', ';']) {
-      expect(detectTabular(table([0, 1, 2, 100, 101, 102], sep)).config.breakSweepGaps).toBe(true);
-      expect(detectTabular(table([1, 2, 10, 11], sep)).config.breakSweepGaps).toBeUndefined();
+      expect(detectTabular(table('Frequency (Hz)', [0, 1, 2, 100, 101, 102], sep)).config.breakSweepGaps).toBe(true);
+      expect(detectTabular(table('Frequency (Hz)', [1, 2, 10, 11], sep)).config.breakSweepGaps).toBeUndefined();
     }
+    const timeGaps = detectTabular(table('Time (ms)', [0, 1, 2, 100, 101, 102], ','));
+    expect(timeGaps.config.breakSweepGaps).toBe(true);
+    expect(parseTabularFile(table('Time (ms)', [0, 1, 2, 100, 101, 102], ','), 'burst.csv', timeGaps.config).traces[0]?.parameters?.sweepFormat).toBe('multiband');
+  });
+});
+
+describe('flexible X units, mixed Y units, preview summaries and 4-factor confidence', () => {
+  it('supports grouped X units (angle, electrical, THz, ps, unitless) and derives domain automatically', () => {
+    const base = detectTabular(SCOPE).config;
+    const deg = setXUnit(base, '°');
+    expect(deg).toMatchObject({ domain: 'frequency', xUnit: '°', xMult: 1 });
+    const ps = setXUnit(deg, 'ps');
+    expect(ps).toMatchObject({ domain: 'time', xUnit: 'ps', xMult: 1e-12 });
+    const thz = setXUnit(ps, 'THz');
+    expect(thz).toMatchObject({ domain: 'frequency', xUnit: 'THz', xMult: 1e12 });
+    const mv = setXUnit(thz, 'mV');
+    expect(mv).toMatchObject({ domain: 'frequency', xUnit: 'mV', xMult: 1e-3 });
+    const unitless = setXUnit(mv, '');
+    expect(unitless).toMatchObject({ domain: 'frequency', xUnit: '', xMult: 1 });
+
+    resetParserFileCounter();
+    const parsedUnitless = parseTabularFile('Step,CH1 (V),CH2 (V)\n0,1,2\n1,3,4\n', 'unitless.csv', {
+      ...unitless, skipRows: 1, xCol: 0, yCols: [1, 2], headers: ['Step', 'CH1 (V)', 'CH2 (V)'],
+    });
+    expect(parsedUnitless.traces[0]?.units.x).toBe('unitless');
+    expect(traceXGroup(parsedUnitless.traces[0]!)).toBe('unitless');
+    expect(traceXGroup(parsedUnitless.traces[1]!)).toBe('unitless');
+  });
+
+  it('auto-detects angle and electrical sweep axes without promoting CH1 (V) to X', () => {
+    const iv = detectTabular('Vgs (V),Id (mA)\n0,0.1\n1,2.5\n2,8.0\n');
+    expect(iv.config).toMatchObject({ xCol: 0, yCols: [1], xUnit: 'V', yUnit: 'mA', domain: 'frequency' });
+    expect(iv.confidenceLevel).toBe('high');
+    expect(iv.detectedXLabel).toBe('Voltage');
+
+    const powerSweep = detectTabular('Pin [dBm],Gain [dB]\n-20,15\n-10,15\n0,14\n');
+    expect(powerSweep.config).toMatchObject({ xCol: 0, yCols: [1], xUnit: 'dBm', yUnit: 'dB' });
+    expect(powerSweep.confidenceLevel).toBe('high');
+    expect(powerSweep.detectedXLabel).toBe('Power');
+
+    const indexed = detectTabular('Sample,CH1 (V),CH2 (V)\n1,0.1,0.2\n2,0.3,0.4\n');
+    expect(indexed.config.xCol).toBe(0);
+    expect(indexed.config.yCols).toEqual([1, 2]);
+    expect(indexed.confidenceLevel).toBe('low');
+  });
+
+  it('keeps per-column units when Y columns have mixed units and allows reverting to from-column-names', () => {
+    const mixedText = 'Time (s),Voltage (V),Current (mA)\n0,1,10\n1,2,20\n';
+    const detected = detectTabular(mixedText);
+    expect(detected.config.yUnit).toBeUndefined();
+    resetParserFileCounter();
+    const parsed = parseTabularFile(mixedText, 'mixed.csv', detected.config);
+    expect(parsed.traces.map(t => t.units.y)).toEqual(['V', 'mA']);
+
+    const forced = setYUnit(detected.config, 'V');
+    expect(forced.yUnit).toBe('V');
+    const reverted = setYUnit(forced, undefined);
+    expect(reverted.yUnit).toBeUndefined();
+    expect(reverted.yMult).toBe(1);
+  });
+
+  it('computes honest 4-factor confidence scores with concrete reasons', () => {
+    const clean = detectTabular(SCOPE);
+    expect(clean.confidenceLevel).toBe('high');
+    expect(clean.config.confidence).toBe(1);
+    expect(clean.confidenceReasons).toEqual([]);
+
+    const missingUnit = detectTabular('Frequency,Level\n100,-30\n200,-20\n300,-25\n');
+    expect(missingUnit.confidenceLevel).toBe('medium');
+    expect(missingUnit.config.confidence).toBeGreaterThanOrEqual(0.55);
+    expect(missingUnit.config.confidence).toBeLessThan(0.8);
+    expect(missingUnit.confidenceReasons.some(r => /Frequency.*no unit/i.test(r))).toBe(true);
+
+    const genericHeaders = detectTabular('X,Y\n0,1\n1,2\n2,3\n');
+    expect(genericHeaders.confidenceLevel).toBe('low');
+    expect(genericHeaders.config.confidence).toBeLessThan(0.55);
+    expect(genericHeaders.confidenceReasons.some(r => /no recognized unit or axis name/i.test(r))).toBe(true);
+
+    const headerless = detectTabular('0.000,1.2\n0.001,2.5\n0.002,3.1\n');
+    expect(headerless.confidenceLevel).toBe('low');
+    expect(headerless.config.confidence).toBeLessThan(0.5);
+    expect(headerless.confidenceReasons.some(r => /No column headers/i.test(r))).toBe(true);
+
+    const unsorted = detectTabular('Frequency (Hz),Level (dBm)\n300,-30\n100,-10\n200,-20\n');
+    expect(unsorted.confidenceFactors.data).toBeLessThan(1);
+    expect(unsorted.confidenceReasons.some(r => /not monotonic/i.test(r))).toBe(true);
+  });
+
+  it('annotates overridden units in preview column headers and formats scaled preview ranges', () => {
+    const cfg = detectTabular(SCOPE).config;
+    expect(columnDisplayName('CH1 (V)', 'y', cfg)).toBe('CH1 (V)');
+    expect(columnDisplayName('CH1 (V)', 'y', setYUnit(cfg, 'mV'))).toBe('CH1 (V) → mV');
+    expect(columnDisplayName('Time (s)', 'x', setXUnit(cfg, 'ms'))).toBe('Time (s) → ms');
+    expect(columnDisplayName('CH1 (V)', 'y', setYUnit(cfg, undefined))).toBe('CH1 (V)');
+
+    const layout = wizardLayout(SPECTRUM, detectTabular(SPECTRUM).config);
+    const specCfg = detectTabular(SPECTRUM).config;
+    const table = readNumericTable(layout.lines, specCfg, specCfg.skipRows, layout.headers.length);
+    const plot = overviewPlot(table, specCfg.xCol, specCfg.yCols, 8);
+    const range = previewRangeSummary(plot, specCfg);
+    expect(range).toContain('100 MHz');
+    expect(range).toContain('100.05 MHz');
+    expect(range).toContain('-62.100 dBm');
   });
 });

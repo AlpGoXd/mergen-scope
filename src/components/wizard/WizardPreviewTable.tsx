@@ -6,13 +6,17 @@ import { splitCells } from '../../domain/parsers/tabular-detect';
 import { PopoverAt } from '../shared/Controls';
 import { CaretDownIcon } from '../shared/Icons';
 
-export const PREVIEW_ROWS = 8;
+export const PREVIEW_ROWS = 100;
+const MAX_SKIPPED_PREVIEW = 4;
 
 export interface WizardPreviewTableProps {
   /** Content lines of the file. */
   lines: readonly string[];
   separators: Separators;
   skipRows: number;
+  /** How many data rows to render in the scrollable table. */
+  rowLimit?: number;
+  onShowMore?: () => void;
   headers: readonly string[];
   /** Header text as shown (with the picked unit). */
   names: readonly string[];
@@ -27,12 +31,36 @@ const ROLE_TEXT: Record<ColumnRole, string> = { x: 'X', y: 'Y', skip: '— skip'
 const ROLE_NAME: Record<ColumnRole, string> = { x: 'X', y: 'Y', skip: 'Skip' };
 const ROLE_HINT: Record<ColumnRole, string> = { x: 'Horizontal axis', y: 'One trace', skip: 'Not imported' };
 
-export function WizardPreviewTable({ lines, separators, skipRows, headers, names, roles, colors, numeric, onRole }: WizardPreviewTableProps) {
+export function WizardPreviewTable({
+  lines, separators, skipRows, rowLimit = PREVIEW_ROWS, onShowMore,
+  headers, names, roles, colors, numeric, onRole,
+}: WizardPreviewTableProps) {
   const [menu, setMenu] = useState<{ col: number; at: HTMLElement } | null>(null);
-  const rows = lines.slice(skipRows, skipRows + PREVIEW_ROWS).map(line => splitCells(line, separators));
+  const totalDataRows = Math.max(0, lines.length - skipRows);
+  const shownCount = Math.min(rowLimit, totalDataRows);
+  const remaining = Math.max(0, totalDataRows - shownCount);
+  const rows = lines.slice(skipRows, skipRows + shownCount).map(line => splitCells(line, separators));
+  const skippedCount = Math.max(0, Math.min(skipRows, lines.length));
+  const hiddenSkipped = Math.max(0, skippedCount - MAX_SKIPPED_PREVIEW);
+  const skippedLines = lines.slice(hiddenSkipped, skippedCount);
   const close = () => setMenu(null);
   return (
-    <div className="iw-table-wrap">
+    <div className="iw-table-wrap" data-testid="import-wizard-table-wrap">
+      {skippedCount > 0 && (
+        <div className="iw-skipped" data-testid="import-wizard-skipped" aria-label="Skipped rows">
+          {hiddenSkipped > 0 && (
+            <div className="iw-skipped-row iw-skipped-more t-caption">
+              … {hiddenSkipped} earlier skipped {hiddenSkipped === 1 ? 'row' : 'rows'}
+            </div>
+          )}
+          {skippedLines.map((line, index) => (
+            <div key={hiddenSkipped + index} className="iw-skipped-row">
+              <span className="iw-skipped-num t-caption">{hiddenSkipped + index + 1}</span>
+              <span className="iw-skipped-text t-readout" title={line}>{line}</span>
+            </div>
+          ))}
+        </div>
+      )}
       <table className="iw-table" data-testid="import-wizard-preview">
         <thead>
           <tr>
@@ -72,6 +100,13 @@ export function WizardPreviewTable({ lines, separators, skipRows, headers, names
           ))}
         </tbody>
       </table>
+      {remaining > 0 && onShowMore && (
+        <div className="iw-more-rows">
+          <button type="button" className="iw-more-rows-btn t-caption" onClick={onShowMore}>
+            Show {Math.min(PREVIEW_ROWS, remaining)} more {Math.min(PREVIEW_ROWS, remaining) === 1 ? 'row' : 'rows'} ({remaining} remaining)
+          </button>
+        </div>
+      )}
       {menu && (
         <PopoverAt label="Column role" at={menu.at} onClose={close} onEscape={() => { const at = menu.at; close(); at.focus(); }}>
           <div className="iw-role-menu" role="menu" aria-label={`Role of ${headers[menu.col] ?? 'column'}`}>
