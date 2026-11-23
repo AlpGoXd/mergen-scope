@@ -136,13 +136,28 @@ function sig3(value: number): string {
  * The footer's mouse position over a Smith pane: "Z 42.1 + j8.3 Ω  Γ 0.12 ∠ 61°" (a free point, referred to `z0`).
  * Shorter than the readout strip: a moving pointer needs no more precision than this.
  */
-export function smithPointerText(gamma: Complex, z0: number): string {
+export function smithPointerText(gamma: Complex, z0: number, withAdmittance = false): string {
   const polar = gammaPolar(gamma);
   const z = gammaToImpedance(gamma, z0);
   const zText = z.kind === 'undefined'
     ? (z.reason === 'singular' ? '∞ Ω' : SMITH_NO_VALUE)
     : `${z.value.re < 0 ? MINUS : ''}${sig3(z.value.re)} ${z.value.im < 0 ? MINUS : '+'} j${sig3(z.value.im)} Ω`;
+  const y = gammaToAdmittance(gamma, z0);
+  const yText = y.kind === 'undefined'
+    ? (y.reason === 'singular' ? '∞ mS' : SMITH_NO_VALUE)
+    : `${y.value.re < 0 ? MINUS : ''}${sig3(y.value.re * 1000)} ${y.value.im < 0 ? MINUS : '+'} j${sig3(y.value.im * 1000)} mS`;
   const angle = polar ? Math.round(polar.angleDeg) : 0;
   const gText = polar ? `${polar.magnitude.toFixed(2)} ∠ ${angle < 0 ? MINUS : ''}${Math.abs(angle)}°` : SMITH_NO_VALUE;
-  return `Z ${zText}  Γ ${gText}`;
+  return withAdmittance ? `Z ${zText}  Y ${yText}  Γ ${gText}` : `Z ${zText}  Γ ${gText}`;
+}
+
+/**
+ * Which of impedance (Z) and admittance (Y) the hover card shows. The Z + Y grid shows both, and so does a
+ * readout list that asks for both. Otherwise Y alone when only Y is listed, and Z in every other case.
+ */
+export function hoverImmittances(grid: 'z' | 'y' | 'both', readout: readonly string[]): readonly ('z' | 'y')[] {
+  const hasZ = readout.includes('z');
+  const hasY = readout.includes('y');
+  if (grid === 'both' || (hasZ && hasY)) return ['z', 'y'];
+  return hasY ? ['y'] : ['z'];
 }

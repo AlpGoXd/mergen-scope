@@ -56,6 +56,12 @@ describe('names and numbers', () => {
     expect(smithPointerText({ re: -0.2, im: -0.4 }, 50)).toBe('Z 25 − j25 Ω  Γ 0.45 ∠ −117°');
     expect(smithPointerText({ re: 1, im: 0 }, 50)).toBe('Z ∞ Ω  Γ 1.00 ∠ 0°');
   });
+
+  it('adds Y between Z and Γ for the Z + Y grid', () => {
+    expect(smithPointerText({ re: 0.2, im: 0.4 }, 50, true)).toBe('Z 50 + j50 Ω  Y 10 − j10 mS  Γ 0.45 ∠ 63°');
+    expect(smithPointerText({ re: -0.2, im: -0.4 }, 50, true)).toBe('Z 25 − j25 Ω  Y 20 + j20 mS  Γ 0.45 ∠ −117°');
+    expect(smithPointerText({ re: 1, im: 0 }, 50, true)).toBe('Z ∞ Ω  Y 0 + j0 mS  Γ 1.00 ∠ 0°');
+  });
 });
 
 describe('footer mouse hints', () => {

@@ -12,7 +12,7 @@ import { buildLabels, placeEndLabel } from '../../domain/smith/labels';
 import type { SmithLabelBox, SmithLabelMode } from '../../domain/smith/labels';
 import {
   SMITH_NO_VALUE, formatAdmittance, formatEquivalent, formatGammaPolar, formatImpedance, formatReturnLoss,
-  formatSmithFrequency, formatSmithFrequencyShort, formatVswr, smithReadout,
+  formatSmithFrequency, formatSmithFrequencyShort, formatVswr, hoverImmittances, smithReadout,
 } from '../../domain/smith/readout';
 import type { SmithReadout } from '../../domain/smith/readout';
 import { directionChevrons, traceEnds } from '../../domain/smith/trace-decor';
@@ -377,7 +377,7 @@ export function SmithPane({
   const hoverPoint = hover && viewport ? gammaToPoint(hover.gamma, viewport) : null;
   const hoverValues = hover && hoverTrace ? smithReadout(hover.gamma, hoverTrace.z0, hover.frequencyHz) : null;
   const hoverGrids = hover ? hoverGridsThroughGamma(hover.gamma, grid) : [];
-  const showY = readout.includes('y') && !readout.includes('z');
+  const hoverKinds = hoverImmittances(grid, readout);
 
   const transform = viewport
     ? `translate(${width / 2 - viewport.center.re * viewport.scale} ${height / 2 + viewport.center.im * viewport.scale}) scale(${viewport.scale})`
@@ -530,7 +530,7 @@ export function SmithPane({
           <div className="smith-card t-readout" data-testid="smith-hover-card" style={{ left: cardLeft, top: cardTop, transform: cardShift }}>
             <div className="smith-card-title"><i className="smith-swatch" style={{ background: hoverTrace.color }} />{hoverTrace.shortName ?? hoverTrace.name}</div>
             <div>{formatSmithFrequency(hoverValues.frequencyHz)}</div>
-            <div><span className="smith-key">{showY ? 'Y' : 'Z'}</span>{showY ? formatAdmittance(hoverValues.admittance) : formatImpedance(hoverValues.impedance)}</div>
+            {hoverKinds.map(kind => <div key={kind} data-field={kind}><span className="smith-key">{kind === 'y' ? 'Y' : 'Z'}</span>{kind === 'y' ? formatAdmittance(hoverValues.admittance) : formatImpedance(hoverValues.impedance)}</div>)}
             <div><span className="smith-key">{'Γ'}</span>{formatGammaPolar(hoverValues.magnitude, hoverValues.angleDeg)}</div>
           </div>
         )}

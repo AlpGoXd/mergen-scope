@@ -15,7 +15,7 @@ Beta 4 is a polish release: better zooming, a smarter import wizard, tidier Smit
 
 ### Smith chart
 
-- **Z + Y hover.** With the Z + Y grid, hovering now highlights the constant-resistance circle and reactance arc and the constant-conductance circle and susceptance arc through the cursor. The Y pair is dashed.
+- **Z + Y hover.** With the Z + Y grid, hovering now highlights the constant-resistance circle and reactance arc and the constant-conductance circle and susceptance arc through the cursor. The Y pair is dashed. The hover card and the footer pointer text show both Z and Y in that mode, not only Z.
 - **Start and end labels** move to a free spot instead of covering grid labels.
 
 ### Import

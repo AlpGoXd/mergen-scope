@@ -215,4 +215,9 @@ test('Z + Y grid mode highlights both Z and Y curves on hover', async ({ page })
   expect(await hoverY.locator('path').count()).toBeGreaterThanOrEqual(1);
   const yDash = await hoverY.locator('path').first().evaluate(el => getComputedStyle(el).strokeDasharray);
   expect(yDash).not.toBe('none');
+
+  const card = pane.getByTestId('smith-hover-card');
+  await expect(card.locator('[data-field="z"]')).toBeVisible();
+  await expect(card.locator('[data-field="y"]')).toBeVisible();
+  await expect(card.locator('[data-field="y"]')).toContainText('mS');
 });

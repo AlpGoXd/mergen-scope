@@ -96,7 +96,7 @@ export function SmithPaneContainer({ paneId, fitRequest = 0, exportView }: { pan
     onMoveMarkerEnd={() => historyDispatch?.({ type: 'commit-gesture' })}
     band={model.band} cursorFrequencyHz={cursorFrequencyHz}
     onHoverFrequency={value => { if (!isExport) publish(value === null ? null : { paneId, xUnit: 'Hz', value }, paneId); }}
-    onPointerGamma={gamma => { if (!isExport) publishReadout(gamma ? smithPointerText(gamma, traces[0]?.z0 ?? 50) : null, paneId); }}
+    onPointerGamma={gamma => { if (!isExport) publishReadout(gamma ? smithPointerText(gamma, traces[0]?.z0 ?? 50, (smith?.grid ?? 'z') === 'both') : null, paneId); }}
     grid={smith?.grid ?? (pane.renderMode === 'smith-inverted' ? 'y' : 'z')} labels={smith?.labels ?? 'normalised'}
     direction={smith?.direction ?? 'chevrons'} readout={smith?.readout ?? ['z', 'gamma', 'vswr']}
     showMarkers={pane.settings.showMarkers} showMarkerTags={exportView?.appearance?.include.markerTags ?? pane.settings.showMarkerLabels}
