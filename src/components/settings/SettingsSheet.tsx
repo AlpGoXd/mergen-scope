@@ -10,7 +10,7 @@ import { usePaneLimit } from '../../stores/pane-store';
 import { useThemePreference, useUiDispatch } from '../../stores/ui-store';
 import { FooterIcon } from '../layout/footer-icons';
 import { applyAppSize } from './app-size';
-import { appNeutrals, appPreferencesKey, applyAppAppearance, defaultAppPreferences, readAppPreferences } from './app-preferences';
+import { appNeutralLabels, appNeutrals, appPreferencesKey, applyAppAppearance, defaultAppPreferences, readAppPreferences } from './app-preferences';
 import type { AppPreferences } from './app-preferences';
 
 export { defaultAppPreferences, readAppPreferences } from './app-preferences';
@@ -141,7 +141,7 @@ export function SettingsSheet({ onClose, onShowShortcuts, onAbout, onPreferences
           <SegmentRow label="Theme" value={preference} options={[['light', 'Light'], ['dark', 'Dark'], ['system', 'System']]} onChange={setPreference} />
           <SegmentRow label="Size" value={prefs.size} options={[['compact', 'Compact'], ['comfortable', 'Comfortable'], ['large', 'Large']]}
             onChange={size => update({ ...prefs, size })} caption="Compact 24 px controls, 26 px rows · Comfortable 28 / 30 · Large 32 / 34" />
-          <SegmentRow label="Neutral tint" value={prefs.neutral} options={appNeutrals.map(neutral => [neutral, neutral.charAt(0).toUpperCase() + neutral.slice(1)])} wrap
+          <SegmentRow label="Neutral tint" value={prefs.neutral} options={appNeutrals.map(neutral => [neutral, appNeutralLabels[neutral]])} wrap
             onChange={neutral => update({ ...prefs, neutral })} caption="Changes the greys of the whole app, not the trace or tool colours." />
           <SegmentRow label="Contrast" value={prefs.contrast} options={[['normal', 'Normal'], ['high', 'High']]}
             onChange={contrast => update({ ...prefs, contrast })} />

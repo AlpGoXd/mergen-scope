@@ -6,7 +6,7 @@
  * pane, the cell clips its right edge, and the header never steps down to its compact levels. */
 .pane-layout-cell:has(> [data-pane-target]) { border-top: 2px solid var(--accent); }
 :root[data-contrast="high"] .pane-layout-cell { border-width: 1px !important; }
-:root[data-contrast="high"] .pane-layout-cell:has(> [data-pane-target]) { border: 1.5px solid var(--text) !important; }
+:root[data-contrast="high"] .pane-layout-cell:has(> [data-pane-target]) { border: 1.5px solid var(--accent) !important; }
 .pane-layout-cell > * { min-width: 0; }
 .pane-layout-cell.is-dimmed { opacity: 0.82; }
 .layout-divider { position: relative; z-index: 1; background: transparent; outline: none; touch-action: none; }

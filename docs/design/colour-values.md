@@ -2,9 +2,9 @@
 
 ## Normal contrast
 
-Surface, border, plot and text roles share their lightness and chroma across tints. Zinc uses zero chroma for those roles and Slate for selection. Stone and Ocean use their listed light accent and on-ink chroma. Raised surfaces are used for small controls, file cards and headers. Plot is used by live Chart, Smith and Table panes, with border-coloured grids and muted axes. Selection and links follow the tint. Toolbar zones and the Left and Analysis chips keep their own tones. The target pane has a tinted header, a 2 px accent top edge, and a bold name. The header-only treatment keeps the other three edges in the plain border colour.
+Surface, border, plot and text roles share their lightness and chroma across tints. Mist uses zero chroma for those roles and a low-chroma cool silver for selection. Sand and Ocean use their listed light accent and on-ink chroma. Raised surfaces are used for small controls, file cards and headers. Plot is used by live Chart, Smith and Table panes, with border-coloured grids and muted axes. Selection and links follow the tint. Toolbar zones and the Left and Analysis chips keep their own tones. The target pane has a tinted header, a 2 px accent top edge, and a bold name. The header-only treatment keeps the other three edges in the plain border colour.
 
-Slate (hue 255):
+Storm (hue 255):
   --bg: oklch(0.985 0.006 255) | oklch(0.170 0.014 255)
   --panel: oklch(0.965 0.012 255) | oklch(0.200 0.016 255)
   --raised: oklch(0.978 0.012 255) | oklch(0.250 0.020 255)
@@ -18,7 +18,7 @@ Slate (hue 255):
   --on-ink: oklch(0.320 0.070 255) | oklch(0.930 0.030 255)
   --on-line: oklch(0.800 0.050 255) | oklch(0.500 0.070 255)
 
-Stone (hue 70):
+Sand (hue 70):
   --bg: oklch(0.985 0.006 70) | oklch(0.170 0.014 70)
   --panel: oklch(0.965 0.012 70) | oklch(0.200 0.016 70)
   --raised: oklch(0.978 0.012 70) | oklch(0.250 0.020 70)
@@ -32,7 +32,7 @@ Stone (hue 70):
   --on-ink: oklch(0.320 0.068 70) | oklch(0.930 0.030 70)
   --on-line: oklch(0.800 0.050 70) | oklch(0.500 0.070 70)
 
-Zinc (hue 255):
+Mist (hue 255):
   --bg: oklch(0.985 0.000 255) | oklch(0.170 0.000 255)
   --panel: oklch(0.965 0.000 255) | oklch(0.200 0.000 255)
   --raised: oklch(0.978 0.000 255) | oklch(0.250 0.000 255)
@@ -41,10 +41,10 @@ Zinc (hue 255):
   --border-strong: oklch(0.780 0.000 255) | oklch(0.420 0.000 255)
   --text: oklch(0.220 0.000 255) | oklch(0.930 0.000 255)
   --text-muted: oklch(0.500 0.000 255) | oklch(0.720 0.000 255)
-  --accent: oklch(0.500 0.130 255) | oklch(0.740 0.110 255)
-  --on-fill: oklch(0.920 0.035 255) | oklch(0.340 0.050 255)
-  --on-ink: oklch(0.320 0.070 255) | oklch(0.930 0.030 255)
-  --on-line: oklch(0.800 0.050 255) | oklch(0.500 0.070 255)
+  --accent: oklch(0.500 0.026 255) | oklch(0.740 0.022 255)
+  --on-fill: oklch(0.920 0.007 255) | oklch(0.340 0.010 255)
+  --on-ink: oklch(0.320 0.014 255) | oklch(0.930 0.006 255)
+  --on-line: oklch(0.800 0.010 255) | oklch(0.500 0.014 255)
 
 Ocean (hue 222):
   --bg: oklch(0.985 0.006 222) | oklch(0.170 0.014 222)
@@ -74,7 +74,7 @@ Moss (hue 150):
   --on-ink: oklch(0.320 0.070 150) | oklch(0.930 0.030 150)
   --on-line: oklch(0.800 0.050 150) | oklch(0.500 0.070 150)
 
-Purple (hue 300):
+Amethyst (hue 300):
   --bg: oklch(0.985 0.006 300) | oklch(0.170 0.014 300)
   --panel: oklch(0.965 0.012 300) | oklch(0.200 0.016 300)
   --raised: oklch(0.978 0.012 300) | oklch(0.250 0.020 300)
@@ -88,7 +88,7 @@ Purple (hue 300):
   --on-ink: oklch(0.320 0.070 300) | oklch(0.930 0.030 300)
   --on-line: oklch(0.800 0.050 300) | oklch(0.500 0.070 300)
 
-Pink (hue 355):
+Sakura (hue 355):
   --bg: oklch(0.985 0.006 355) | oklch(0.170 0.014 355)
   --panel: oklch(0.965 0.012 355) | oklch(0.200 0.016 355)
   --raised: oklch(0.978 0.012 355) | oklch(0.250 0.020 355)
@@ -118,9 +118,9 @@ Ember (hue 25):
 
 ## High contrast
 
-Plot uses the background. Small on controls use text-coloured fill and border, background-coloured labels and bold weight. Larger selections keep their regular text and swatches with a 2 px text-coloured border. The target header uses text fill and background-coloured labels within a 1.5 px text-coloured pane border. Focus rings are 3 px with a 2 px offset, and links are underlined in the text colour. Matrix diagonals have a strong border and bold label. Unavailable cells are striped and struck through, with the reason retained. Count badges use the inverted colours. The mark and both brand words use the text colour, with a 2.2 stroke and Scope at weight 800.
+Plot uses the background. Small on controls use the high-contrast tinted accent fill and border, background-coloured labels and bold weight (WCAG AAA ≥ 10:1). Larger selections keep their regular text and swatches with a 2 px accent border. The target header uses accent fill and background-coloured labels within a 1.5 px accent pane border. Focus rings are 3 px with a 2 px offset, and links are underlined in the accent colour. Matrix diagonals have a strong border and bold label. Unavailable cells are striped and struck through, with the reason retained. Count badges use the inverted accent colours. The mark and Scope word use the accent colour, with a 2.2 stroke and Scope at weight 800.
 
-Slate:
+Storm:
   --bg: oklch(0.990 0.003 255) | oklch(0.100 0.008 255)
   --panel: oklch(0.970 0.005 255) | oklch(0.140 0.008 255)
   --raised: oklch(1.000 0.001 255) | oklch(0.180 0.008 255)
@@ -128,8 +128,9 @@ Slate:
   --border-strong: oklch(0.450 0.005 255) | oklch(0.800 0.008 255)
   --text: oklch(0.120 0.007 255) | oklch(0.980 0.008 255)
   --text-muted: oklch(0.300 0.005 255) | oklch(0.860 0.008 255)
+  --accent: oklch(0.350 0.115 255) | oklch(0.840 0.080 255)
 
-Stone:
+Sand:
   --bg: oklch(0.990 0.003 70) | oklch(0.100 0.006 70)
   --panel: oklch(0.970 0.004 70) | oklch(0.140 0.006 70)
   --raised: oklch(1.000 0.000 70) | oklch(0.180 0.006 70)
@@ -137,8 +138,9 @@ Stone:
   --border-strong: oklch(0.450 0.004 70) | oklch(0.800 0.006 70)
   --text: oklch(0.120 0.006 70) | oklch(0.980 0.006 70)
   --text-muted: oklch(0.300 0.004 70) | oklch(0.860 0.006 70)
+  --accent: oklch(0.350 0.075 70) | oklch(0.840 0.110 70)
 
-Zinc:
+Mist:
   --bg: oklch(0.990 0.000 255) | oklch(0.100 0.000 255)
   --panel: oklch(0.970 0.000 255) | oklch(0.140 0.000 255)
   --raised: oklch(1.000 0.000 255) | oklch(0.180 0.000 255)
@@ -146,6 +148,7 @@ Zinc:
   --border-strong: oklch(0.450 0.000 255) | oklch(0.800 0.000 255)
   --text: oklch(0.120 0.000 255) | oklch(0.980 0.000 255)
   --text-muted: oklch(0.300 0.000 255) | oklch(0.860 0.000 255)
+  --accent: oklch(0.350 0.020 255) | oklch(0.840 0.020 255)
 
 Ocean:
   --bg: oklch(0.990 0.005 222) | oklch(0.100 0.016 222)
@@ -155,6 +158,7 @@ Ocean:
   --border-strong: oklch(0.450 0.015 222) | oklch(0.800 0.024 222)
   --text: oklch(0.120 0.012 222) | oklch(0.980 0.013 222)
   --text-muted: oklch(0.300 0.008 222) | oklch(0.860 0.013 222)
+  --accent: oklch(0.350 0.064 222) | oklch(0.840 0.110 222)
 
 Moss:
   --bg: oklch(0.990 0.008 150) | oklch(0.100 0.021 150)
@@ -164,8 +168,9 @@ Moss:
   --border-strong: oklch(0.450 0.013 150) | oklch(0.800 0.021 150)
   --text: oklch(0.120 0.011 150) | oklch(0.980 0.011 150)
   --text-muted: oklch(0.300 0.007 150) | oklch(0.860 0.011 150)
+  --accent: oklch(0.350 0.096 150) | oklch(0.840 0.110 150)
 
-Purple:
+Amethyst:
   --bg: oklch(0.990 0.006 300) | oklch(0.100 0.025 300)
   --panel: oklch(0.970 0.018 300) | oklch(0.140 0.025 300)
   --raised: oklch(1.000 0.002 300) | oklch(0.180 0.025 300)
@@ -173,8 +178,9 @@ Purple:
   --border-strong: oklch(0.450 0.037 300) | oklch(0.800 0.025 300)
   --text: oklch(0.120 0.013 300) | oklch(0.980 0.013 300)
   --text-muted: oklch(0.300 0.009 300) | oklch(0.860 0.013 300)
+  --accent: oklch(0.350 0.130 300) | oklch(0.840 0.093 300)
 
-Pink:
+Sakura:
   --bg: oklch(0.990 0.006 355) | oklch(0.100 0.022 355)
   --panel: oklch(0.970 0.016 355) | oklch(0.140 0.022 355)
   --raised: oklch(1.000 0.002 355) | oklch(0.180 0.022 355)
@@ -182,6 +188,7 @@ Pink:
   --border-strong: oklch(0.450 0.033 355) | oklch(0.800 0.022 355)
   --text: oklch(0.120 0.011 355) | oklch(0.980 0.012 355)
   --text-muted: oklch(0.300 0.007 355) | oklch(0.860 0.012 355)
+  --accent: oklch(0.350 0.130 355) | oklch(0.840 0.099 355)
 
 Ember:
   --bg: oklch(0.990 0.006 25) | oklch(0.100 0.022 25)
@@ -191,6 +198,7 @@ Ember:
   --border-strong: oklch(0.450 0.033 25) | oklch(0.800 0.022 25)
   --text: oklch(0.120 0.011 25) | oklch(0.980 0.012 25)
   --text-muted: oklch(0.300 0.007 25) | oklch(0.860 0.012 25)
+  --accent: oklch(0.350 0.130 25) | oklch(0.840 0.087 25)
 
 ## Colour-blind Palette A
 
@@ -216,17 +224,17 @@ COLOUR-BLIND PALETTE A, dark theme, assignment order (source -> created trace):
 
 ## Logo
 
-Scope uses the accent and Mergen uses the text colour. The favicon uses the Slate pair. The mark uses these line and triangle colours in normal contrast.
+Scope uses the accent and Mergen uses the text colour. The favicon uses the Storm pair. The mark uses these line and triangle colours in normal contrast.
 
 | Tint | Light line | Dark line | Light marker | Dark marker |
 | --- | --- | --- | --- | --- |
-| Slate | `oklch(0.580 0.160 270)` | `oklch(0.750 0.127 270)` | `oklch(0.600 0.180 21)` | `oklch(0.700 0.160 21)` |
-| Stone | `oklch(0.580 0.118 90)` | `oklch(0.750 0.127 90)` | `oklch(0.600 0.180 21)` | `oklch(0.700 0.160 21)` |
-| Zinc | `oklch(0.580 0.160 270)` | `oklch(0.750 0.127 270)` | `oklch(0.600 0.180 21)` | `oklch(0.700 0.160 21)` |
+| Storm | `oklch(0.580 0.160 270)` | `oklch(0.750 0.127 270)` | `oklch(0.600 0.180 21)` | `oklch(0.700 0.160 21)` |
+| Sand | `oklch(0.580 0.118 90)` | `oklch(0.750 0.127 90)` | `oklch(0.600 0.180 21)` | `oklch(0.700 0.160 21)` |
+| Mist | `oklch(0.520 0.026 255)` | `oklch(0.740 0.022 255)` | `oklch(0.600 0.180 21)` | `oklch(0.700 0.160 21)` |
 | Ocean | `oklch(0.580 0.108 225)` | `oklch(0.750 0.127 225)` | `oklch(0.600 0.180 21)` | `oklch(0.700 0.160 21)` |
 | Moss | `oklch(0.580 0.160 135)` | `oklch(0.750 0.127 135)` | `oklch(0.600 0.180 21)` | `oklch(0.700 0.160 21)` |
-| Purple | `oklch(0.580 0.160 315)` | `oklch(0.750 0.127 315)` | `oklch(0.600 0.180 21)` | `oklch(0.700 0.160 21)` |
-| Pink | `oklch(0.580 0.160 0)` | `oklch(0.750 0.127 0)` | `oklch(0.580 0.108 225)` | `oklch(0.750 0.127 225)` |
+| Amethyst | `oklch(0.580 0.160 315)` | `oklch(0.750 0.127 315)` | `oklch(0.600 0.180 21)` | `oklch(0.700 0.160 21)` |
+| Sakura | `oklch(0.580 0.160 0)` | `oklch(0.750 0.127 0)` | `oklch(0.580 0.108 225)` | `oklch(0.750 0.127 225)` |
 | Ember | `oklch(0.580 0.160 45)` | `oklch(0.750 0.127 45)` | `oklch(0.580 0.108 225)` | `oklch(0.750 0.127 225)` |
 
 ## Sharper high-contrast colours

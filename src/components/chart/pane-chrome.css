@@ -21,16 +21,16 @@
   cursor: default;
 }
 .ph.is-target > .ph-title { color: var(--on-ink); font-weight: var(--fw-bold); }
-.ph.is-target > .ph-count, .ph.is-target .ptc-prefix { color: var(--on-ink); opacity: .8; }
+.ph.is-target > :is(.ph-count, .ph-scale), .ph.is-target .ptc-prefix { color: var(--on-ink); opacity: .8; }
 :root[data-contrast="high"] .ph.is-target {
   height: calc(var(--pane-header-height) - .5px);
-  background: var(--text);
+  background: var(--on-fill);
 }
-:root[data-contrast="high"] .ph.is-target > :is(.ph-title, .ph-count),
-:root[data-contrast="high"] .ph.is-target .ptc-prefix { color: var(--bg); opacity: 1; }
+:root[data-contrast="high"] .ph.is-target > :is(.ph-title, .ph-count, .ph-scale),
+:root[data-contrast="high"] .ph.is-target .ptc-prefix { color: var(--on-ink); opacity: 1; }
 :root[data-contrast="high"] .ph.is-target .ptc-prefix {
-  background: var(--text);
-  border-right-color: var(--bg);
+  background: var(--on-fill);
+  border-right-color: var(--on-ink);
   padding-left: 3px;
   border-radius: var(--radius-input) 0 0 var(--radius-input);
 }

@@ -1,6 +1,6 @@
 /* The live palette follows docs/design/colour-values.md. Exports define their own palette below. */
 :root {
-  --neutral-h: 255; --neutral-chroma-scale: 1;
+  --neutral-h: 255; --neutral-chroma-scale: 1; --selection-chroma-scale: 1;
   --grid: var(--border);
   --light-accent-c: 0.130; --light-on-ink-c: 0.070;
   --bg: oklch(0.985 calc(0.006 * var(--neutral-chroma-scale)) var(--neutral-h));
@@ -11,10 +11,10 @@
   --border-strong: oklch(0.780 calc(0.022 * var(--neutral-chroma-scale)) var(--neutral-h));
   --text: oklch(0.220 calc(0.016 * var(--neutral-chroma-scale)) var(--neutral-h));
   --text-muted: oklch(0.500 calc(0.012 * var(--neutral-chroma-scale)) var(--neutral-h));
-  --accent: oklch(0.500 var(--light-accent-c) var(--neutral-h));
-  --on-fill: oklch(0.920 0.035 var(--neutral-h));
-  --on-ink: oklch(0.320 var(--light-on-ink-c) var(--neutral-h));
-  --on-line: oklch(0.800 0.050 var(--neutral-h));
+  --accent: oklch(0.500 calc(var(--light-accent-c) * var(--selection-chroma-scale)) var(--neutral-h));
+  --on-fill: oklch(0.920 calc(0.035 * var(--selection-chroma-scale)) var(--neutral-h));
+  --on-ink: oklch(0.320 calc(var(--light-on-ink-c) * var(--selection-chroma-scale)) var(--neutral-h));
+  --on-line: oklch(0.800 calc(0.050 * var(--selection-chroma-scale)) var(--neutral-h));
 }
 
 :root.theme-dark {
@@ -26,14 +26,14 @@
   --border-strong: oklch(0.420 calc(0.022 * var(--neutral-chroma-scale)) var(--neutral-h));
   --text: oklch(0.930 calc(0.012 * var(--neutral-chroma-scale)) var(--neutral-h));
   --text-muted: oklch(0.720 calc(0.014 * var(--neutral-chroma-scale)) var(--neutral-h));
-  --accent: oklch(0.740 0.110 var(--neutral-h));
-  --on-fill: oklch(0.340 0.050 var(--neutral-h));
-  --on-ink: oklch(0.930 0.030 var(--neutral-h));
-  --on-line: oklch(0.500 0.070 var(--neutral-h));
+  --accent: oklch(0.740 calc(0.110 * var(--selection-chroma-scale)) var(--neutral-h));
+  --on-fill: oklch(0.340 calc(0.050 * var(--selection-chroma-scale)) var(--neutral-h));
+  --on-ink: oklch(0.930 calc(0.030 * var(--selection-chroma-scale)) var(--neutral-h));
+  --on-line: oklch(0.500 calc(0.070 * var(--selection-chroma-scale)) var(--neutral-h));
 }
 
 :root[data-neutral="stone"] { --neutral-h: 70; --light-accent-c: 0.108; --light-on-ink-c: 0.068; }
-:root[data-neutral="zinc"] { --neutral-h: 255; --neutral-chroma-scale: 0; }
+:root[data-neutral="zinc"] { --neutral-h: 255; --neutral-chroma-scale: 0; --selection-chroma-scale: 0.2; }
 :root[data-neutral="ocean"] { --neutral-h: 222; --light-accent-c: 0.092; --light-on-ink-c: 0.058; }
 :root[data-neutral="moss"] { --neutral-h: 150; }
 :root[data-neutral="purple"] { --neutral-h: 300; }
@@ -42,10 +42,9 @@
 
 :root[data-contrast="high"] {
   --plot: var(--bg);
-  --accent: var(--text);
-  --on-fill: var(--text);
+  --on-fill: var(--accent);
   --on-ink: var(--bg);
-  --on-line: var(--text);
+  --on-line: var(--accent);
 }
 
 :root[data-contrast="high"] {
@@ -56,6 +55,7 @@
   --border-strong: oklch(0.450 0.005 255);
   --text: oklch(0.120 0.007 255);
   --text-muted: oklch(0.300 0.005 255);
+  --accent: oklch(0.350 0.115 255);
 }
 
 :root.theme-dark[data-contrast="high"] {
@@ -66,6 +66,7 @@
   --border-strong: oklch(0.800 0.008 255);
   --text: oklch(0.980 0.008 255);
   --text-muted: oklch(0.860 0.008 255);
+  --accent: oklch(0.840 0.080 255);
 }
 
 :root[data-neutral="stone"][data-contrast="high"] {
@@ -76,6 +77,7 @@
   --border-strong: oklch(0.450 0.004 70);
   --text: oklch(0.120 0.006 70);
   --text-muted: oklch(0.300 0.004 70);
+  --accent: oklch(0.350 0.075 70);
 }
 
 :root.theme-dark[data-neutral="stone"][data-contrast="high"] {
@@ -86,6 +88,7 @@
   --border-strong: oklch(0.800 0.006 70);
   --text: oklch(0.980 0.006 70);
   --text-muted: oklch(0.860 0.006 70);
+  --accent: oklch(0.840 0.110 70);
 }
 
 :root[data-neutral="zinc"][data-contrast="high"] {
@@ -96,6 +99,7 @@
   --border-strong: oklch(0.450 0.000 255);
   --text: oklch(0.120 0.000 255);
   --text-muted: oklch(0.300 0.000 255);
+  --accent: oklch(0.350 0.020 255);
 }
 
 :root.theme-dark[data-neutral="zinc"][data-contrast="high"] {
@@ -106,6 +110,7 @@
   --border-strong: oklch(0.800 0.000 255);
   --text: oklch(0.980 0.000 255);
   --text-muted: oklch(0.860 0.000 255);
+  --accent: oklch(0.840 0.020 255);
 }
 
 :root[data-neutral="ocean"][data-contrast="high"] {
@@ -116,6 +121,7 @@
   --border-strong: oklch(0.450 0.015 222);
   --text: oklch(0.120 0.012 222);
   --text-muted: oklch(0.300 0.008 222);
+  --accent: oklch(0.350 0.064 222);
 }
 
 :root.theme-dark[data-neutral="ocean"][data-contrast="high"] {
@@ -126,6 +132,7 @@
   --border-strong: oklch(0.800 0.024 222);
   --text: oklch(0.980 0.013 222);
   --text-muted: oklch(0.860 0.013 222);
+  --accent: oklch(0.840 0.110 222);
 }
 
 :root[data-neutral="moss"][data-contrast="high"] {
@@ -136,6 +143,7 @@
   --border-strong: oklch(0.450 0.013 150);
   --text: oklch(0.120 0.011 150);
   --text-muted: oklch(0.300 0.007 150);
+  --accent: oklch(0.350 0.096 150);
 }
 
 :root.theme-dark[data-neutral="moss"][data-contrast="high"] {
@@ -146,6 +154,7 @@
   --border-strong: oklch(0.800 0.021 150);
   --text: oklch(0.980 0.011 150);
   --text-muted: oklch(0.860 0.011 150);
+  --accent: oklch(0.840 0.110 150);
 }
 
 :root[data-neutral="purple"][data-contrast="high"] {
@@ -156,6 +165,7 @@
   --border-strong: oklch(0.450 0.037 300);
   --text: oklch(0.120 0.013 300);
   --text-muted: oklch(0.300 0.009 300);
+  --accent: oklch(0.350 0.130 300);
 }
 
 :root.theme-dark[data-neutral="purple"][data-contrast="high"] {
@@ -166,6 +176,7 @@
   --border-strong: oklch(0.800 0.025 300);
   --text: oklch(0.980 0.013 300);
   --text-muted: oklch(0.860 0.013 300);
+  --accent: oklch(0.840 0.093 300);
 }
 
 :root[data-neutral="pink"][data-contrast="high"] {
@@ -176,6 +187,7 @@
   --border-strong: oklch(0.450 0.033 355);
   --text: oklch(0.120 0.011 355);
   --text-muted: oklch(0.300 0.007 355);
+  --accent: oklch(0.350 0.130 355);
 }
 
 :root.theme-dark[data-neutral="pink"][data-contrast="high"] {
@@ -186,6 +198,7 @@
   --border-strong: oklch(0.800 0.022 355);
   --text: oklch(0.980 0.012 355);
   --text-muted: oklch(0.860 0.012 355);
+  --accent: oklch(0.840 0.099 355);
 }
 
 :root[data-neutral="ember"][data-contrast="high"] {
@@ -196,6 +209,7 @@
   --border-strong: oklch(0.450 0.033 25);
   --text: oklch(0.120 0.011 25);
   --text-muted: oklch(0.300 0.007 25);
+  --accent: oklch(0.350 0.130 25);
 }
 
 :root.theme-dark[data-neutral="ember"][data-contrast="high"] {
@@ -206,6 +220,7 @@
   --border-strong: oklch(0.800 0.022 25);
   --text: oklch(0.980 0.012 25);
   --text-muted: oklch(0.860 0.012 25);
+  --accent: oklch(0.840 0.087 25);
 }
 
 /* Export colours are independent of the live tint and contrast. */
@@ -230,19 +245,19 @@
 }
 
 :root[data-contrast="high"] :is(button[aria-pressed="true"], .ui-btn.is-active, .lp-icon-btn[aria-expanded="true"], .ptc[aria-expanded="true"], .btn-active):not(:where(.export-tokens *, .tool-zone *, .topbar-panel-toggle, .ss-card, .ptm-tile, .layout-menu__tile, [role^="menuitem"], :disabled, [aria-disabled="true"])) {
-  background: var(--text) !important;
-  color: var(--bg) !important;
-  border: 1.5px solid var(--text) !important;
+  background: var(--on-fill) !important;
+  color: var(--on-ink) !important;
+  border: 1.5px solid var(--on-line) !important;
   font-weight: var(--fw-bold);
 }
 
 :root[data-contrast="high"] :focus-visible:not(:where(.export-tokens *)) {
-  outline: 3px solid var(--text) !important;
+  outline: 3px solid var(--accent) !important;
   outline-offset: 2px !important;
 }
 
 :root[data-contrast="high"] a[href]:not(:where(.export-tokens *)) {
-  color: var(--text) !important;
+  color: var(--accent) !important;
   text-decoration-line: underline !important;
 }
 
@@ -283,8 +298,8 @@ a[href] { color: var(--accent); }
   text-decoration: line-through;
 }
 :root[data-contrast="high"] .lp-cell__count {
-  background: var(--text);
-  color: var(--bg);
+  background: var(--on-fill);
+  color: var(--on-ink);
   font-family: var(--font-mono);
   font-weight: var(--fw-regular);
   padding: 0 2px;
@@ -296,7 +311,7 @@ a[href] { color: var(--accent); }
 :root[data-contrast="high"] :is(.ss-card[aria-checked="true"], .lp-selected, .an-cross__row[aria-current="true"], .an-menu__item[aria-selected="true"], .ptm-tile.is-selected, .layout-menu__tile.is-selected, [role^="menuitem"][aria-checked="true"], [role^="menuitem"][aria-selected="true"], .lp-cell[aria-selected="true"]:not(:disabled)) {
   background: var(--raised) !important;
   color: var(--text) !important;
-  border: 2px solid var(--text) !important;
+  border: 2px solid var(--accent) !important;
   font-weight: var(--fw-bold);
 }
 
@@ -305,22 +320,32 @@ a[href] { color: var(--accent); }
   font-weight: var(--fw-bold);
 }
 
-:root[data-contrast="high"] :is(.ss-radio-dot, .lp-menu__check) { color: var(--text); }
-:root[data-contrast="high"] .ss-card[aria-checked="true"] .ss-radio-dot::after { background: var(--text); }
+:root[data-contrast="high"] :is(.ss-radio-dot, .lp-menu__check) { color: var(--accent); }
+:root[data-contrast="high"] .ss-card[aria-checked="true"] .ss-radio-dot::after { background: var(--accent); }
 :root[data-contrast="high"] :is(.lp-selected > .lp-row, .an-menu__item[aria-selected="true"])::before {
   content: "\2713";
   flex: none;
-  color: var(--text);
+  color: var(--accent);
 }
 :root[data-contrast="high"] .lp-cell[aria-selected="true"]:not(:disabled)::before {
   content: "\2713";
   position: absolute;
   left: 2px;
-  color: var(--text);
+  color: var(--accent);
 }
-:root[data-contrast="high"] :is(.ui-btn, .lp-menu__item, .lp-seg__item):is(:disabled, [aria-disabled="true"]) {
+:root[data-contrast="high"] :is(.ui-btn, .lp-menu__item, .lp-seg__item, .lp-toggle):is(:disabled, [aria-disabled="true"]) {
   opacity: 1;
   color: var(--text-muted);
+}
+:root[data-contrast="high"] :is(.lp-seg__item, .lp-toggle):is(:disabled, [aria-disabled="true"]) {
+  background: var(--panel);
+  border-color: var(--border);
+  border-style: dashed;
+  font-weight: var(--fw-regular);
+}
+:root[data-contrast="high"] .lp-seg__item[aria-pressed="true"]:is(:disabled, [aria-disabled="true"]) {
+  border-color: var(--border-strong);
+  font-weight: var(--fw-semibold);
 }
 :root[data-contrast="high"] :is(.lp-icon-btn, .lp-menu__item):hover:not(:disabled):not([aria-disabled="true"]),
 :root[data-contrast="high"] :is(.lp-menu__item, .an-menu__item):focus-visible,
@@ -336,8 +361,8 @@ a[href] { color: var(--accent); }
 :root.theme-dark { --logo-line: oklch(0.750 0.127 270); --logo-marker: oklch(0.700 0.160 21); }
 :root[data-neutral="stone"] { --logo-line: oklch(0.580 0.118 90); --logo-marker: oklch(0.600 0.180 21); }
 :root.theme-dark[data-neutral="stone"] { --logo-line: oklch(0.750 0.127 90); --logo-marker: oklch(0.700 0.160 21); }
-:root[data-neutral="zinc"] { --logo-line: oklch(0.580 0.160 270); --logo-marker: oklch(0.600 0.180 21); }
-:root.theme-dark[data-neutral="zinc"] { --logo-line: oklch(0.750 0.127 270); --logo-marker: oklch(0.700 0.160 21); }
+:root[data-neutral="zinc"] { --logo-line: oklch(0.520 0.026 255); --logo-marker: oklch(0.600 0.180 21); }
+:root.theme-dark[data-neutral="zinc"] { --logo-line: oklch(0.740 0.022 255); --logo-marker: oklch(0.700 0.160 21); }
 :root[data-neutral="ocean"] { --logo-line: oklch(0.580 0.108 225); --logo-marker: oklch(0.600 0.180 21); }
 :root.theme-dark[data-neutral="ocean"] { --logo-line: oklch(0.750 0.127 225); --logo-marker: oklch(0.700 0.160 21); }
 :root[data-neutral="moss"] { --logo-line: oklch(0.580 0.160 135); --logo-marker: oklch(0.600 0.180 21); }
@@ -348,7 +373,7 @@ a[href] { color: var(--accent); }
 :root.theme-dark[data-neutral="pink"] { --logo-line: oklch(0.750 0.127 0); --logo-marker: oklch(0.750 0.127 225); }
 :root[data-neutral="ember"] { --logo-line: oklch(0.580 0.160 45); --logo-marker: oklch(0.580 0.108 225); }
 :root.theme-dark[data-neutral="ember"] { --logo-line: oklch(0.750 0.127 45); --logo-marker: oklch(0.750 0.127 225); }
-:root[data-contrast="high"], :root.theme-dark[data-contrast="high"][data-neutral] { --logo-line: var(--text); --logo-marker: var(--text); }
+:root[data-contrast="high"], :root.theme-dark[data-contrast="high"][data-neutral] { --logo-line: var(--accent); --logo-marker: var(--accent); }
 
 /* Stronger toolbar and status colours, gamut-clamped at the requested lightness and hue. */
 :root[data-contrast="high"],

@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { appNeutrals } from '../../src/components/settings/app-preferences';
+import { appNeutralLabels, appNeutrals } from '../../src/components/settings/app-preferences';
 import { displayTraceColor } from '../../src/domain/trace-colors';
 import { CREATED_HUES, SOURCE_HUES } from '../../src/domain/trace-palette';
 
@@ -19,7 +19,7 @@ function computedToken(name: string, palette: Record<string, string>): string {
   if (value === undefined) throw new Error(`Missing CSS token ${name}`);
   return value
     .replace(/var\((--[\w-]+)\)/g, (_, token: string) => computedToken(token, palette))
-    .replace(/calc\(([\d.]+)\s*\*\s*([\d.]+)\)/g, (_, chroma: string, scale: string) => String(Number(chroma) * Number(scale)));
+    .replace(/calc\(([\d.]+)\s*\*\s*([\d.]+)\)/g, (_, chroma: string, scale: string) => String(Number((Number(chroma) * Number(scale)).toFixed(6))));
 }
 
 function tuple(colour: string): [number, number, number] {
@@ -67,11 +67,11 @@ describe.each(['light', 'dark'] as const)('%s appearance', theme => {
         ...tokens(`:root${dark}${tint === 'slate' ? '' : `[data-neutral="${tint}"]`}[data-contrast="high"]`),
       } : {};
       const palette = { ...base, ...variant, ...high };
-      const title = tint.charAt(0).toUpperCase() + tint.slice(1);
+      const title = appNeutralLabels[tint];
       const heading = contrast === 'high' ? 'High' : 'Normal';
       const section = spec.split(`## ${heading} contrast\n`)[1]?.split('\n## ')[0] ?? '';
       const rows = section.split(new RegExp(`\\n${title}(?: \\(hue \\d+\\))?:\\n`))[1]?.split('\n\n')[0] ?? '';
-      const required = contrast === 'high' ? greyTokens : [...greyTokens, 'plot', ...selectionTokens];
+      const required = contrast === 'high' ? [...greyTokens, 'accent'] : [...greyTokens, 'plot', ...selectionTokens];
       for (const token of required) {
         const match = new RegExp(`--${token}: (oklch\\([^)]+\\)) \\| (oklch\\([^)]+\\))`).exec(rows);
         const exact = match?.[theme === 'light' ? 1 : 2];
@@ -83,8 +83,11 @@ describe.each(['light', 'dark'] as const)('%s appearance', theme => {
       expect(contrastRatio(luminanceOf('text-muted'), luminanceOf('panel'))).toBeGreaterThanOrEqual(4.5);
       if (contrast === 'high') {
         expect(contrastRatio(luminanceOf('border'), luminanceOf('bg'))).toBeGreaterThanOrEqual(3);
+        expect(contrastRatio(luminanceOf('accent'), luminanceOf('bg'))).toBeGreaterThanOrEqual(7);
+        expect(contrastRatio(luminanceOf('accent'), luminanceOf('panel'))).toBeGreaterThanOrEqual(7);
         expect(computedToken('--plot', palette)).toBe(computedToken('--bg', palette));
-        expect(computedToken('--accent', palette)).toBe(computedToken('--text', palette));
+        expect(computedToken('--on-fill', palette)).toBe(computedToken('--accent', palette));
+        expect(computedToken('--on-ink', palette)).toBe(computedToken('--bg', palette));
       }
     });
   });
