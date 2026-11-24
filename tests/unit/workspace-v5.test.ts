@@ -6,6 +6,8 @@ import { parseTouchstoneFile } from '../../src/domain/parsers/touchstone';
 import { defaultBinaryConfig, parseBinaryWithConfig } from '../../src/domain/parsers/raw-binary';
 import { isEnvelopeTrace } from '../../src/domain/trace-model';
 import { migrateWorkspaceV5 } from '../../src/domain/workspace-migrate-v5';
+import { parseForImport } from '../../src/domain/parsers/parse-file';
+import type { WizardConfig } from '../../src/types/file';
 import { makeTestTrace } from './helpers';
 
 it('accepts optional trace math alignment choices and rejects unknown choices', () => {
@@ -632,4 +634,94 @@ it('round-trips envelopeOf in v5 workspaces and rejects invalid or mismatched en
   expect(upgradedTraceOnly?.datasets[0]?.envelopeOf).toBe(sampleCount);
   expect(upgradedTraceOnly?.displayTraces[0]?.envelopeOf).toBe(sampleCount);
   expect(migrateWorkspaceV5(JSON.parse(JSON.stringify(upgradedTraceOnly)))).toEqual(upgradedTraceOnly);
+});
+
+it('round-trips WizardConfig.network in v5 workspaces and rejects invalid network configs', () => {
+  const csv = [
+    'Frequency (GHz),S11 dB,S11 ang,S21 dB,S21 ang',
+    '1.0,-15,45,-1.2,-30',
+    '2.0,-18,20,-1.5,-60',
+  ].join('\n');
+  const openParsed = parseForImport(csv, 'amp.csv');
+  const networkConfig: WizardConfig = {
+    ...(openParsed.suggestedConfig ?? {
+      delimiter: ',',
+      skipRows: 1,
+      xCol: 0,
+      yCols: [1, 2, 3, 4],
+      xMult: 1e9,
+      yMult: 1,
+      xUnit: 'GHz',
+      domain: 'frequency',
+      confidence: 1,
+      headers: ['Frequency (GHz)', 'S11 dB', 'S11 ang', 'S21 dB', 'S21 ang'],
+    }),
+    network: {
+      portCount: 2,
+      format: 'DB',
+      angleUnit: 'deg',
+      referenceOhms: 50,
+      cells: [
+        { row: 0, col: 0, first: 1, second: 2 },
+        { row: 1, col: 0, first: 3, second: 4 },
+      ],
+    },
+  };
+
+  const state = initialWorkspaceState();
+  let resolved = workspaceReducer(state, {
+    slice: 'open-data',
+    inputs: [{ id: 'csv-net', name: 'amp.csv', text: csv, parsed: openParsed }],
+    limit: 4,
+  });
+  resolved = workspaceReducer(resolved, {
+    slice: 'files',
+    limit: 4,
+    action: { type: 'RESOLVE_WIZARD', payload: { id: 'csv-net', config: networkConfig } },
+  });
+
+  const saved = snapshotFromWorkspace(resolved);
+  if (!saved) throw new Error('expected snapshot');
+  const migrated = migrateWorkspaceV5(JSON.parse(JSON.stringify(saved)));
+  expect(migrated).not.toBeNull();
+  expect(migrated?.files[0]?.wizardConfig?.network).toEqual(networkConfig.network);
+  expect(migrated?.files[0]?.touchstoneNetwork?.cellOrder).toBe('spec');
+
+  const withNetwork = (network: unknown) => JSON.parse(JSON.stringify({
+    ...migrated,
+    files: migrated?.files.map((file, idx) => (idx === 0 ? {
+      ...file,
+      wizardConfig: file.wizardConfig ? { ...file.wizardConfig, network } : undefined,
+    } : file)),
+  }));
+
+  expect(migrateWorkspaceV5(withNetwork({ ...networkConfig.network, portCount: 5 }))).toBeNull();
+  expect(migrateWorkspaceV5(withNetwork({ ...networkConfig.network, format: 'XY' }))).toBeNull();
+  expect(migrateWorkspaceV5(withNetwork({ ...networkConfig.network, angleUnit: 'grad' }))).toBeNull();
+  expect(migrateWorkspaceV5(withNetwork({ ...networkConfig.network, referenceOhms: 0 }))).toBeNull();
+  expect(migrateWorkspaceV5(withNetwork({ ...networkConfig.network, cells: [] }))).toBeNull();
+  expect(migrateWorkspaceV5(withNetwork({
+    ...networkConfig.network,
+    cells: [{ row: 2, col: 0, first: 1, second: 2 }],
+  }))).toBeNull();
+  expect(migrateWorkspaceV5(withNetwork({
+    ...networkConfig.network,
+    cells: [
+      { row: 0, col: 0, first: 1, second: 2 },
+      { row: 0, col: 0, first: 3, second: 4 },
+    ],
+  }))).toBeNull();
+  expect(migrateWorkspaceV5(withNetwork({
+    ...networkConfig.network,
+    cells: [
+      { row: 0, col: 0, first: 0, second: 2 },
+    ],
+  }))).toBeNull();
+  expect(migrateWorkspaceV5(withNetwork({
+    ...networkConfig.network,
+    cells: [
+      { row: 0, col: 0, first: 1, second: 2 },
+      { row: 1, col: 0, first: 2, second: 3 },
+    ],
+  }))).toBeNull();
 });

@@ -20,6 +20,7 @@ export const DATA_FILE_ACCEPT = [
   '.bin', '.trc', '.isf', '.wav', '.npy', '.wfm', '.raw', '.pcm', '.sigmf-data',
   '.cfile', '.cf32', '.fc32', '.sc16', '.cs16', '.cu8', '.cs8', '.iq', '.f32', '.f64', '.i32', '.u32', '.i16', '.s16', '.u16', '.u8',
   ...Array.from({ length: 16 }, (_, i) => `.s${i + 1}p`),
+  '.ts',
 ].join(',');
 let issuedImportId = 0;
 function nextImportId(): string { issuedImportId += 1; return `import-${Date.now()}-${issuedImportId}`; }

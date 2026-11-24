@@ -372,7 +372,7 @@ export function Sidebar({ width = 280, hidden = false, onOpenFiles, onDropFiles,
                     const action = { type: 'RENAME_FILE' as const, payload: { fileId, name } };
                     if (aggregate) aggregate.historyDispatch({ type: 'change', command: { slice: 'files', action } }); else fileDispatch(action);
                   }}
-                  onEdit={file.format === 'tabular' || Boolean(rawBinaryData?.[fileId]) ? () => onEditColumns ? onEditColumns(fileId) : fileDispatch({ type: 'RERUN_WIZARD', payload: { fileId, fileName: file.fileName } }) : undefined}
+                  onEdit={file.format === 'tabular' || Boolean(file.wizardConfig) || Boolean(rawBinaryData?.[fileId]) ? () => onEditColumns ? onEditColumns(fileId) : fileDispatch({ type: 'RERUN_WIZARD', payload: { fileId, fileName: file.fileName } }) : undefined}
                   onVisibility={(visible) => {
                     const traces = allTraces.filter(item => displayTraceLocationByLegacyName.get(item.name)?.fileId === fileId);
                     const actions = traces.map(item => ({ slice: 'traces' as const, action: { type: 'SET_VISIBILITY' as const, name: item.name, visible } }));

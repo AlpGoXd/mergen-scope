@@ -91,7 +91,9 @@ export function prepareOpenInput(input: PrepareOpenInput): PreparedOpenInput {
   const bothBinary = prior?.format !== undefined && BINARY_FORMATS.has(prior.format) && BINARY_FORMATS.has(parsed.format);
   const binaryToTabular = prior?.format !== undefined && BINARY_FORMATS.has(prior.format) && parsed.format === 'tabular';
   const tabularToBinary = prior?.format === 'tabular' && BINARY_FORMATS.has(parsed.format);
-  if (prior && prior.format !== parsed.format && !bothBinary && !binaryToTabular && !tabularToBinary) return fail(`Cannot replace ${prior.format ?? 'unknown'} data with ${parsed.format} data: file kinds differ.`);
+  const tabularNetworkSwitch = (prior?.format === 'tabular' && parsed.format === 'touchstone' && Boolean(input.wizardConfig?.network))
+    || (prior?.format === 'touchstone' && Boolean(prior.wizardConfig?.network) && parsed.format === 'tabular');
+  if (prior && prior.format !== parsed.format && !bothBinary && !binaryToTabular && !tabularToBinary && !tabularNetworkSwitch) return fail(`Cannot replace ${prior.format ?? 'unknown'} data with ${parsed.format} data: file kinds differ.`);
   const columns = parsed.columnIdentities;
   const legacyColumns = prior?.displayTraces?.length ? undefined : legacyTabularColumns(prior,input.priorRawText);
   const priorColumns = prior?.columnIdentities ?? legacyColumns;

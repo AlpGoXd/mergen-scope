@@ -27,28 +27,55 @@ export function normalizeMatrixFormat(matrixFormat: string | null | undefined): 
   return "full";
 }
 
-/** Build the traversal order for a matrix based on format and port count. */
-export function buildMatrixOrder(portCount: number, matrixFormat: MatrixFormat): MatrixOrderEntry[] {
+/** Touchstone v2 two-port data ordering convention. */
+export type TwoPortDataOrder = "21_12" | "12_21";
+
+/**
+ * Build the matrix cell traversal order per Touchstone 2.1 specification:
+ * - 1-port: N11
+ * - 2-port Full: "21_12" (v1 default) -> N11, N21, N12, N22; "12_21" -> N11, N12, N21, N22
+ * - 3+ port Full: row-by-row (N11..N1n, N21..N2n, ..., Nnn)
+ * - Lower: row-by-row (N11 / N21 N22 / N31 N32 N33 ...)
+ * - Upper: row-by-row (N11..N1n / N22..N2n / ... Nnn)
+ */
+export function buildTouchstoneMatrixOrder(
+  portCount: number,
+  matrixFormat: MatrixFormat,
+  twoPortOrder: TwoPortDataOrder = "21_12",
+): MatrixOrderEntry[] {
   const n = Math.max(1, Math.floor(Number(portCount) || 0));
   const fmt = normalizeMatrixFormat(matrixFormat);
   const order: MatrixOrderEntry[] = [];
 
   if (fmt === "lower") {
-    for (let col = 0; col < n; col++) {
-      for (let row = col; row < n; row++) order.push({ row, col });
+    for (let row = 0; row < n; row++) {
+      for (let col = 0; col <= row; col++) order.push({ row, col });
     }
     return order;
   }
   if (fmt === "upper") {
-    for (let col = 0; col < n; col++) {
-      for (let row = 0; row <= col; row++) order.push({ row, col });
+    for (let row = 0; row < n; row++) {
+      for (let col = row; col < n; col++) order.push({ row, col });
     }
     return order;
   }
-  for (let col = 0; col < n; col++) {
-    for (let row = 0; row < n; row++) order.push({ row, col });
+  if (n === 2 && twoPortOrder !== "12_21") {
+    return [
+      { row: 0, col: 0 },
+      { row: 1, col: 0 },
+      { row: 0, col: 1 },
+      { row: 1, col: 1 },
+    ];
+  }
+  for (let row = 0; row < n; row++) {
+    for (let col = 0; col < n; col++) order.push({ row, col });
   }
   return order;
+}
+
+/** Build the traversal order for a matrix based on format and port count (v1 / 21_12 2-port default). */
+export function buildMatrixOrder(portCount: number, matrixFormat: MatrixFormat): MatrixOrderEntry[] {
+  return buildTouchstoneMatrixOrder(portCount, matrixFormat, "21_12");
 }
 
 // ---------------------------------------------------------------------------
@@ -243,25 +270,36 @@ export function normalizeReferenceArray(
 // Matrix expansion
 // ---------------------------------------------------------------------------
 
-/** Expand ordered complex values into a full N×N matrix. */
-export function expandOrderedValuesToMatrix(
+/** Expand ordered complex values into a full N×N matrix with explicit two-port order. */
+export function expandTouchstoneOrderedValuesToMatrix(
   portCount: number,
   matrixFormat: MatrixFormat,
   values: readonly Complex[],
+  twoPortOrder: TwoPortDataOrder = "21_12",
 ): Complex[][] | null {
   const n = Math.max(1, Math.floor(Number(portCount) || 0));
-  const order = buildMatrixOrder(n, matrixFormat);
+  const fmt = normalizeMatrixFormat(matrixFormat);
+  const order = buildTouchstoneMatrixOrder(n, fmt, twoPortOrder);
   if (!Array.isArray(values) || values.length !== order.length) return null;
 
   const matrix = makeComplexMatrix(n);
   for (const [i, { row, col }] of order.entries()) {
     const value = cloneComplex(values[i]);
     requireMatrixRow(matrix, row)[col] = value;
-    if (matrixFormat !== "full" && row !== col) {
+    if (fmt !== "full" && row !== col) {
       requireMatrixRow(matrix, col)[row] = cloneComplex(value);
     }
   }
   return matrix;
+}
+
+/** Expand ordered complex values into a full N×N matrix. */
+export function expandOrderedValuesToMatrix(
+  portCount: number,
+  matrixFormat: MatrixFormat,
+  values: readonly Complex[],
+): Complex[][] | null {
+  return expandTouchstoneOrderedValuesToMatrix(portCount, matrixFormat, values, "21_12");
 }
 
 /** Convert a Touchstone data pair to a complex number based on format. */
@@ -330,6 +368,160 @@ export function convertSMatrixToYMatrix(
   }
 
   return matrixMultiply(matrixMultiply(invLeft, matrixMultiply(minus, plusInv)), invLeft);
+}
+
+// ---------------------------------------------------------------------------
+// Z / Y / H / G → S conversions (Touchstone 2.1 spec)
+// ---------------------------------------------------------------------------
+
+function makeDiagonalSqrtMatrix(refs: readonly number[], invert: boolean): Complex[][] | null {
+  const n = refs.length;
+  const diag = makeComplexMatrix(n);
+  for (const [i, row] of diag.entries()) {
+    const ref = refs[i];
+    if (ref === undefined || !Number.isFinite(ref) || ref <= 0) return null;
+    const scale = Math.sqrt(ref);
+    row[i] = cx(invert ? 1 / scale : scale, 0);
+  }
+  return diag;
+}
+
+/**
+ * Convert a Z-matrix to an S-matrix matching power-wave convention F = diag(sqrt(R_i)):
+ * - Unnormalized (Touchstone v2.0/v2.1): z = F^-1 * Z * F^-1
+ * - Normalized (Touchstone v1.0/v1.1): z = Z directly (for v1.1 with unequal per-port R,
+ *   the file values are assumed already normalized by F^-1 * Z * F^-1).
+ * Then S = (z - I)(z + I)^-1. Returns null if (z + I) is singular.
+ */
+export function convertZMatrixToSMatrix(
+  zMatrix: ComplexMatrix,
+  referenceOhms: number | readonly number[],
+  normalized = false,
+): Complex[][] | null {
+  const n = zMatrix?.length ?? 0;
+  if (!n) return null;
+  let z: Complex[][];
+  if (normalized) {
+    z = cloneComplexMatrix(zMatrix);
+  } else {
+    const refs = normalizeReferenceArray(referenceOhms, n);
+    if (!refs) return null;
+    const invF = makeDiagonalSqrtMatrix(refs, true);
+    if (!invF) return null;
+    z = matrixMultiply(matrixMultiply(invF, zMatrix), invF);
+  }
+
+  const identity = matrixIdentity(n);
+  const minus = matrixSubtract(z, identity);
+  const plus = matrixAdd(z, identity);
+  const plusInv = matrixInverse(plus);
+  if (!plusInv) return null;
+  return matrixMultiply(minus, plusInv);
+}
+
+/**
+ * Convert a Y-matrix to an S-matrix matching power-wave convention F = diag(sqrt(R_i)):
+ * - Unnormalized (Touchstone v2.0/v2.1): y = F * Y * F
+ * - Normalized (Touchstone v1.0/v1.1): y = Y directly (for v1.1 with unequal per-port R,
+ *   the file values are assumed already normalized by F * Y * F).
+ * Then S = (I - y)(I + y)^-1 (avoids inverting Y). Returns null if (I + y) is singular.
+ */
+export function convertYMatrixToSMatrix(
+  yMatrix: ComplexMatrix,
+  referenceOhms: number | readonly number[],
+  normalized = false,
+): Complex[][] | null {
+  const n = yMatrix?.length ?? 0;
+  if (!n) return null;
+  let y: Complex[][];
+  if (normalized) {
+    y = cloneComplexMatrix(yMatrix);
+  } else {
+    const refs = normalizeReferenceArray(referenceOhms, n);
+    if (!refs) return null;
+    const f = makeDiagonalSqrtMatrix(refs, false);
+    if (!f) return null;
+    y = matrixMultiply(matrixMultiply(f, yMatrix), f);
+  }
+
+  const identity = matrixIdentity(n);
+  const minus = matrixSubtract(identity, y);
+  const plus = matrixAdd(identity, y);
+  const plusInv = matrixInverse(plus);
+  if (!plusInv) return null;
+  return matrixMultiply(minus, plusInv);
+}
+
+/**
+ * Convert a 2-port H-matrix to a 2-port Z-matrix:
+ * Z11 = (h11*h22 - h12*h21) / h22, Z12 = h12 / h22, Z21 = -h21 / h22, Z22 = 1 / h22.
+ * Returns null if not 2-port or if h22 is singular.
+ */
+export function convertHMatrixToZMatrix(hMatrix: ComplexMatrix): Complex[][] | null {
+  if (!Array.isArray(hMatrix) || hMatrix.length !== 2) return null;
+  const r0 = hMatrix[0];
+  const r1 = hMatrix[1];
+  const h11 = r0?.[0];
+  const h12 = r0?.[1];
+  const h21 = r1?.[0];
+  const h22 = r1?.[1];
+  if (!h11 || !h12 || !h21 || !h22) return null;
+  if (abs(h22) <= 1e-15) return null;
+
+  const deltaH = sub(mul(h11, h22), mul(h12, h21));
+  const z11 = div(deltaH, h22);
+  const z12 = div(h12, h22);
+  const z21 = div(sub(cx(0, 0), h21), h22);
+  const z22 = div(cx(1, 0), h22);
+  if (!z11 || !z12 || !z21 || !z22) return null;
+  return [[z11, z12], [z21, z22]];
+}
+
+/**
+ * Convert a 2-port G-matrix to a 2-port Z-matrix:
+ * Z11 = 1 / g11, Z12 = -g12 / g11, Z21 = g21 / g11, Z22 = (g11*g22 - g12*g21) / g11.
+ * Returns null if not 2-port or if g11 is singular.
+ */
+export function convertGMatrixToZMatrix(gMatrix: ComplexMatrix): Complex[][] | null {
+  if (!Array.isArray(gMatrix) || gMatrix.length !== 2) return null;
+  const r0 = gMatrix[0];
+  const r1 = gMatrix[1];
+  const g11 = r0?.[0];
+  const g12 = r0?.[1];
+  const g21 = r1?.[0];
+  const g22 = r1?.[1];
+  if (!g11 || !g12 || !g21 || !g22) return null;
+  if (abs(g11) <= 1e-15) return null;
+
+  const deltaG = sub(mul(g11, g22), mul(g12, g21));
+  const z11 = div(cx(1, 0), g11);
+  const z12 = div(sub(cx(0, 0), g12), g11);
+  const z21 = div(g21, g11);
+  const z22 = div(deltaG, g11);
+  if (!z11 || !z12 || !z21 || !z22) return null;
+  return [[z11, z12], [z21, z22]];
+}
+
+/** Convert a 2-port H-matrix to an S-matrix via closed-form H→Z followed by Z→S. */
+export function convertHMatrixToSMatrix(
+  hMatrix: ComplexMatrix,
+  referenceOhms: number | readonly number[],
+  normalized = false,
+): Complex[][] | null {
+  const zMatrix = convertHMatrixToZMatrix(hMatrix);
+  if (!zMatrix) return null;
+  return convertZMatrixToSMatrix(zMatrix, referenceOhms, normalized);
+}
+
+/** Convert a 2-port G-matrix to an S-matrix via closed-form G→Z followed by Z→S. */
+export function convertGMatrixToSMatrix(
+  gMatrix: ComplexMatrix,
+  referenceOhms: number | readonly number[],
+  normalized = false,
+): Complex[][] | null {
+  const zMatrix = convertGMatrixToZMatrix(gMatrix);
+  if (!zMatrix) return null;
+  return convertZMatrixToSMatrix(zMatrix, referenceOhms, normalized);
 }
 
 // ---------------------------------------------------------------------------
