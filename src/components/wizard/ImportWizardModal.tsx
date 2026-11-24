@@ -18,10 +18,11 @@ import {
 } from '../../domain/import-wizard';
 import { useWizardTraceColors } from '../../hooks/use-wizard-trace-colors';
 import { Btn } from '../shared/Btn';
-import { Icon, MessageBar } from '../shared/Controls';
+import { Icon, MessageBar, Segmented } from '../shared/Controls';
 import { WizardPreviewTable, PREVIEW_ROWS } from './WizardPreviewTable';
 import { WizardSettings } from './WizardSettings';
 import { WizardPreviewPlot } from './WizardPreviewPlot';
+import { BinaryWizardDialog } from './BinaryWizardDialog';
 import './import-wizard.css';
 
 function configFor(entry: WizardEntry): WizardConfig {
@@ -47,7 +48,15 @@ export function ImportWizardModal() {
   if (!active) return null;
   const total = Math.max(1, seen.current.size);
   const queued = wizardQueue.filter(entry => entry.mode !== 'edit').length;
-  return <WizardDialog key={active.id} entry={active} position={active.mode === 'edit' ? 1 : total - queued + 1} total={active.mode === 'edit' ? 1 : total} others={wizardQueue.slice(1).filter(entry => entry.mode !== 'edit')} queue={wizardQueue} priorFile={active.mode === 'edit' ? files.find(file => String(file.id) === active.id) : undefined} />;
+  const position = active.mode === 'edit' ? 1 : total - queued + 1;
+  const displayTotal = active.mode === 'edit' ? 1 : total;
+  const priorFile = active.mode === 'edit' ? files.find(file => String(file.id) === active.id) : undefined;
+  const isBinaryView = (active.wizardView ?? (active.rawBinary ? 'binary' : 'text')) === 'binary';
+  if (isBinaryView && active.rawBinary) {
+    const others = wizardQueue.slice(1).filter(entry => entry.mode !== 'edit' && (entry.wizardView ?? (entry.rawBinary ? 'binary' : 'text')) === 'binary' && Boolean(entry.rawBinary));
+    return <BinaryWizardDialog key={active.id} entry={active} buffer={active.rawBinary} position={position} total={displayTotal} others={others} queue={wizardQueue} priorFile={priorFile} />;
+  }
+  return <WizardDialog key={active.id} entry={active} position={position} total={displayTotal} others={wizardQueue.slice(1).filter(entry => entry.mode !== 'edit' && (entry.wizardView ?? (entry.rawBinary ? 'binary' : 'text')) === 'text')} queue={wizardQueue} priorFile={priorFile} />;
 }
 
 interface WizardDialogProps {
@@ -199,6 +208,26 @@ function WizardDialog({ entry, position, total, others, queue, priorFile }: Wiza
           {total > 1 && <span className="t-caption" data-testid="import-wizard-queue">File {position} of {total}</span>}
           <button type="button" className="iw-close" aria-label="Close" title="Cancel (Esc)" onClick={cancel}><Icon name="close" /></button>
         </header>
+
+        <div className="iw-mode-bar" data-testid="import-wizard-mode-bar">
+          <span className="t-label t-muted">Import as</span>
+          <div className="iw-mode-switch">
+            <Segmented
+              label="Import mode"
+              options={[
+                { value: 'text', label: 'Table / CSV', title: 'Parse delimited CSV, TSV, or ASCII text columns' },
+                { value: 'header', label: 'File Header (Scope / WAV / NPY)', title: 'Decode self-describing binary files (Keysight, Rigol, LeCroy, Tektronix, OWON, WAV, NumPy .npy)' },
+                { value: 'raw', label: 'Raw Binary / IQ', title: 'Decode headerless or custom-framed binary streams, SDR IQ, or SA sweeps manually' },
+              ]}
+              value="text"
+              onChange={mode => {
+                if (mode === 'header') fileDispatch({ type: 'SWITCH_WIZARD_TO_BINARY', payload: { id: entry.id, mode: 'auto-scope' } });
+                else if (mode === 'raw') fileDispatch({ type: 'SWITCH_WIZARD_TO_BINARY', payload: { id: entry.id, mode: 'raw' } });
+              }}
+            />
+          </div>
+          <span className="t-caption t-muted iw-mode-hint">Switch anytime without losing the file.</span>
+        </div>
 
         <div className="iw-body">
           <WizardSettings

@@ -14,6 +14,28 @@ import type { DataPoint, Trace } from "../../types/trace.ts";
 export function normalizeTraceData(data: readonly DataPoint[]): DataPoint[] {
   if (!Array.isArray(data) || !data.length) return [];
 
+  // Single-pass fast-path when data is already finite and strictly ascending by freq.
+  let prevFreq = Number.NEGATIVE_INFINITY;
+  let alreadyNormalized = true;
+  for (let i = 0; i < data.length; i++) {
+    const pt = data[i];
+    if (
+      !pt
+      || typeof pt.freq !== "number"
+      || typeof pt.amp !== "number"
+      || !Number.isFinite(pt.freq)
+      || !Number.isFinite(pt.amp)
+      || pt.freq <= prevFreq
+    ) {
+      alreadyNormalized = false;
+      break;
+    }
+    prevFreq = pt.freq;
+  }
+  if (alreadyNormalized) {
+    return data.slice();
+  }
+
   const rows = data
     .filter((d) => d && Number.isFinite(d.freq) && Number.isFinite(d.amp))
     .map((d) => ({ freq: Number(d.freq), amp: Number(d.amp) }));

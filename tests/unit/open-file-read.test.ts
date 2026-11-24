@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { classifyReadFile, maxTraceSerial, workspaceCounts } from '../../src/domain/open-file-read';
+import { classifyReadBinary, classifyReadFile, maxTraceSerial, workspaceCounts } from '../../src/domain/open-file-read';
 import { initialWorkspaceState, snapshotFromWorkspace, workspaceReducer } from '../../src/stores/aggregate-workspace-store';
 
 describe('classifyReadFile', () => {
@@ -73,5 +73,76 @@ describe('maxTraceSerial', () => {
 
   it('returns zero when there are no traces', () => {
     expect(maxTraceSerial([])).toBe(0);
+  });
+});
+
+function buildLeCroyInt8Buffer(sampleCount: number): ArrayBuffer {
+  const descLen = 346;
+  const buf = new ArrayBuffer(descLen + sampleCount);
+  const bytes = new Uint8Array(buf);
+  const view = new DataView(buf);
+  const writeAscii = (offset: number, text: string) => {
+    for (let i = 0; i < text.length; i++) bytes[offset + i] = text.charCodeAt(i);
+  };
+  writeAscii(0, 'WAVEDESC');
+  writeAscii(16, 'LECROY_2_3');
+  view.setInt16(32, 0, true); // Int8
+  view.setInt16(34, 1, true); // LOFIRST (LE)
+  view.setInt32(36, descLen, true);
+  view.setInt32(60, sampleCount, true);
+  view.setInt32(116, sampleCount, true);
+  view.setFloat32(156, 1, true);
+  view.setFloat32(160, 0, true);
+  view.setFloat32(176, 1e-6, true);
+  view.setFloat64(180, 0, true);
+  writeAscii(196, 'V');
+  writeAscii(244, 's');
+  return buf;
+}
+
+describe('classifyReadBinary auto-open guard', () => {
+  it('auto-opens scope captures within SOFT_POINT_LIMIT without routing to the wizard', () => {
+    const buf = buildLeCroyInt8Buffer(64);
+    const read = classifyReadBinary('small.trc', buf, 'trc-small');
+    expect(read.kind).toBe('data');
+    if (read.kind !== 'data') return;
+    expect(read.input.parsed?.format).toBe('lecroy-trc');
+    expect(read.input.parsed?.traces[0]?.data).toHaveLength(64);
+    expect(read.input.binaryConfig?.mode).toBe('auto-scope');
+  });
+
+  it('routes scope captures above SOFT_POINT_LIMIT to the binary wizard with defaultBinaryReduction', () => {
+    const largeBuf = buildLeCroyInt8Buffer(2_500_000);
+    const largeRead = classifyReadBinary('large.trc', largeBuf, 'trc-large');
+    expect(largeRead.kind).toBe('data');
+    if (largeRead.kind !== 'data') return;
+    expect(largeRead.input.parsed?.format).toBe('needs-binary-wizard');
+    expect(largeRead.input.rawBinary).toBe(largeBuf);
+    expect(largeRead.input.binaryConfig).toMatchObject({
+      mode: 'auto-scope',
+      reduction: { mode: 'full' },
+    });
+
+    const veryLargeBuf = buildLeCroyInt8Buffer(11_000_000);
+    const veryLargeRead = classifyReadBinary('very-large.trc', veryLargeBuf, 'trc-vl');
+    expect(veryLargeRead.kind).toBe('data');
+    if (veryLargeRead.kind !== 'data') return;
+    expect(veryLargeRead.input.parsed?.format).toBe('needs-binary-wizard');
+    expect(veryLargeRead.input.binaryConfig).toMatchObject({
+      mode: 'auto-scope',
+      reduction: { mode: 'decimate', factor: 6 },
+    });
+  });
+
+  it('routes headerless raw binary .dat files (with binary bytes) to the binary wizard instead of rejecting them', () => {
+    const rawDat = new ArrayBuffer(32);
+    const view = new DataView(rawDat);
+    for (let i = 0; i < 8; i++) view.setFloat32(i * 4, i * 0.5, true);
+    const read = classifyReadBinary('sdr_dump.dat', rawDat, 'dat-bin-1');
+    expect(read.kind).toBe('data');
+    if (read.kind !== 'data') return;
+    expect(read.input.parsed?.format).toBe('needs-binary-wizard');
+    expect(read.input.rawBinary).toBe(rawDat);
+    expect(read.input.binaryConfig?.mode).toBe('raw');
   });
 });

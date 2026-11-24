@@ -21,7 +21,8 @@ export function openData(
   const oldView = traceView(state.files, state.traces);
   const oldById = new Map(oldView.allKnownTraces.map(trace => [trace.id, trace]));
   const matchingKeys = new Map<string, string>();
-  const pendingWizards = command.inputs.filter(input => input.parsed?.format === 'needs-import-wizard');
+  const isWizardFormat = (format: string | undefined) => format === 'needs-import-wizard' || format === 'needs-binary-wizard';
+  const pendingWizards = command.inputs.filter(input => isWizardFormat(input.parsed?.format));
   if (pendingWizards.length && !command.resolveBatchId) {
     const batch = {
       id: command.inputs[0]?.id ?? '',
@@ -36,6 +37,9 @@ export function openData(
       rawText: input.text,
       previewLines: input.parsed?.previewLines ?? [],
       suggestedConfig: input.parsed?.suggestedConfig,
+      ...(input.rawBinary ? { rawBinary: input.rawBinary } : {}),
+      ...(input.binaryConfig ? { binaryConfig: input.binaryConfig } : {}),
+      ...(input.binaryWarning ? { binaryWarning: input.binaryWarning } : {}),
       targetPaneId: command.targetPaneId,
       duplicateChoice: input.choice,
       pendingBatch: batch,
@@ -85,7 +89,7 @@ export function openData(
     };
     return opened;
   }
-  const descriptors: OpenData[] = command.inputs.filter(input => input.parsed?.format !== 'needs-import-wizard').map(input => {
+  const descriptors: OpenData[] = command.inputs.filter(input => !isWizardFormat(input.parsed?.format)).map(input => {
     const prior = input.choice === 'replace' ? state.files.files.find(file => file.fileName === input.name) : undefined;
     if (input.choice === 'replace' && input.expectedFileId && String(prior?.id) !== input.expectedFileId) return {
       kind: 'data',
@@ -101,6 +105,8 @@ export function openData(
         && new Set(adapted.map(trace => trace.id)).size === adapted.length
         && new Set(adapted.map(trace => trace.name)).size === adapted.length);
     const canonicalPrior = prior && adapted && validPrior ? { ...prior, traces: adapted } : prior;
+    const allPriorHidden = Boolean(prior?.displayTraces?.length && prior.displayTraces.every(display => display.hidden));
+    const unhideMatched = Boolean(command.resolveWizardId) || allPriorHidden;
     const result = !validPrior
       ? { ok: false as const, reason: 'The existing file has invalid projection references.' }
       : input.parsed
@@ -113,6 +119,7 @@ export function openData(
           priorRawText: prior ? state.files.rawFileData[String(prior.id)] : undefined,
           wizardConfig: input.wizardConfig,
           recognizedColumns: !input.wizardConfig,
+          unhideMatched,
         })
         : { ok: false as const, reason: input.error ?? 'Could not read this file.' };
     prepared.set(input.id, result);
@@ -246,6 +253,9 @@ export function openData(
   const replacedTraceNames = new Set<string>();
   let files = [...state.files.files];
   const raw = { ...state.files.rawFileData };
+  const rawBin = { ...(state.files.rawBinaryData ?? {}) };
+  const binConfigs = { ...(state.files.binaryConfigByFileId ?? {}) };
+  const inputById = new Map(command.inputs.map(input => [input.id, input]));
   const memberships = { ...state.panes.tracePaneMap };
   const panes = state.panes.panes.map(pane => paneById.get(pane.id) ?? pane);
   const issued = [...state.panes.issuedPaneIds];
@@ -277,9 +287,14 @@ export function openData(
     if (step.replaceFileId) {
       files = files.filter(file => String(file.id) !== step.replaceFileId);
       delete raw[step.replaceFileId];
+      delete rawBin[step.replaceFileId];
+      delete binConfigs[step.replaceFileId];
     }
     files.push({ ...item.file, fileName: step.name, matrixOpen: step.matrixOpen });
     raw[step.fileId] = item.rawText;
+    const sourceInput = inputById.get(step.inputId);
+    if (sourceInput?.rawBinary) rawBin[step.fileId] = sourceInput.rawBinary;
+    if (sourceInput?.binaryConfig) binConfigs[step.fileId] = sourceInput.binaryConfig;
     for (const entry of step.traces) {
       const trace = tracesById.get(entry.trace.id);
       if (trace) {
@@ -290,7 +305,7 @@ export function openData(
   }
   const wizardQueue = state.files.wizardQueue.filter(entry => entry.id !== command.resolveWizardId
     && (!command.resolveBatchId || entry.pendingBatch?.id !== command.resolveBatchId));
-  const fileState = { ...state.files, files, rawFileData: raw, wizardQueue };
+  const fileState = { ...state.files, files, rawFileData: raw, rawBinaryData: rawBin, binaryConfigByFileId: binConfigs, wizardQueue };
   const paneState = { ...state.panes, panes, issuedPaneIds: issued, tracePaneMap: memberships };
   let next = workspaceReducer(state, {
     slice: 'transaction',

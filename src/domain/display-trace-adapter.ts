@@ -107,6 +107,7 @@ function adaptSeriesTrace(
   const yUnit = displayTrace.yUnit ?? series?.yUnit ?? null;
   const points = displayTrace.points;
 
+  const envelopeOf = displayTrace.envelopeOf ?? dataset.envelopeOf;
   return {
     id: displayTrace.id || makeTraceId(),
     kind: 'raw',
@@ -131,6 +132,7 @@ function adaptSeriesTrace(
     file: file?.fileName ?? dataset.fileName ?? null,
     dn: getLegacyDisplayName(displayTrace),
     isUniform: displayTrace.isUniform ?? dataset.isUniform ?? false,
+    ...(envelopeOf !== undefined ? { envelopeOf } : {}),
     interpolation: displayTrace.interpolation,
     fileId: file?.id ?? dataset.fileId ?? null,
     fileName: file?.fileName ?? dataset.fileName ?? null,

@@ -59,8 +59,8 @@ export interface SidebarProps {
   onThresholdCrossings?: (lineId: number) => void;
 }
 export function Sidebar({ width = 280, hidden = false, onOpenFiles, onDropFiles, onLoadDemo, onReplaceFile, onEditColumns, onThresholdCrossings }: SidebarProps) {
-  const { files, rawFileData } = useFileState();
-  const { allTraces, allKnownTraces, allDisplayTraces, vis, listOrder } = useTraceState();
+  const { files, rawFileData, rawBinaryData } = useFileState();
+  const { allTraces, allKnownTraces, allDisplayTraces, derivedTraces, vis, listOrder } = useTraceState();
   const { analyses } = useAnalysisState();
   const { markers, selectedMkrIdx } = useMarkerState();
   const { refLines, selectedRefLineId, hoveredRefLineId, paneViews } = useRefLineState();
@@ -188,9 +188,34 @@ export function Sidebar({ width = 280, hidden = false, onOpenFiles, onDropFiles,
   return (
     <LeftPanel width={effectiveWidth}>
         <PanelSection title="Files" count={files.length} actions={[{ label: 'Close all files…', disabled: !files.length, reason: 'No files open', run: () => {
-          const actions = files.map(file => ({ slice: 'files' as const, action: { type: 'REMOVE_FILE' as const, payload: { fileId: String(file.id) } } }));
+          const closedTraceIds = new Set(allKnownTraces.filter(trace => trace.kind !== 'derived').map(trace => trace.id));
+          const childIds = new Set<string>();
+          let grew = true;
+          while (grew) {
+            grew = false;
+            for (const trace of derivedTraces) {
+              if (trace.kind !== 'derived' || childIds.has(trace.id) || trace.parameters?.['analysisFrozen'] === true) continue;
+              if (trace.sourceTraceIds.some(id => closedTraceIds.has(id) || childIds.has(id))) {
+                childIds.add(trace.id);
+                grew = true;
+              }
+            }
+          }
+          const linkedAnalyses = analyses.filter(item =>
+            (item.outputTraceId !== null && childIds.has(item.outputTraceId))
+            || (item.source.traceId !== null && (closedTraceIds.has(item.source.traceId) || childIds.has(item.source.traceId)))
+            || (item.source.secondTraceId != null && (closedTraceIds.has(item.source.secondTraceId) || childIds.has(item.source.secondTraceId))),
+          );
+          const actions: Extract<WorkspaceAction, { slice: 'transaction' }>['actions'][number][] = [
+            ...linkedAnalyses.map(item => ({ slice: 'analysis' as const, action: { type: 'REMOVE_ANALYSIS' as const, payload: { id: item.id } } })),
+            ...(childIds.size > 0 ? [{ slice: 'traces' as const, action: { type: 'REMOVE_MULTIPLE_DERIVED' as const, payload: [...childIds] } }] : []),
+            ...files.map(file => ({ slice: 'files' as const, action: { type: 'REMOVE_FILE' as const, payload: { fileId: String(file.id) } } })),
+          ];
           if (aggregate) aggregate.historyDispatch({ type: 'change', toastMessage: `Closed ${files.length} files`, toastKind: 'close', command: { slice: 'transaction', actions } });
-          else actions.forEach(item => fileDispatch(item.action));
+          else {
+            files.forEach(file => fileDispatch({ type: 'REMOVE_FILE', payload: { fileId: String(file.id) } }));
+            if (childIds.size > 0) traceDispatch({ type: 'REMOVE_MULTIPLE_DERIVED', payload: [...childIds] });
+          }
         } }, { label: 'Clear workspace…', danger: true, separatorBefore: true, disabled: !canClear, reason: 'Nothing to clear', run: clearWorkspace }]} rightElement={
           // With no file open the drop area below offers Open… and Load demo; the header button joins once a file is open.
           files.length > 0 ? <OpenButton onOpen={() => onOpenFiles?.()} /> : undefined
@@ -347,7 +372,7 @@ export function Sidebar({ width = 280, hidden = false, onOpenFiles, onDropFiles,
                     const action = { type: 'RENAME_FILE' as const, payload: { fileId, name } };
                     if (aggregate) aggregate.historyDispatch({ type: 'change', command: { slice: 'files', action } }); else fileDispatch(action);
                   }}
-                  onEdit={file.format === 'tabular' ? () => onEditColumns ? onEditColumns(fileId) : fileDispatch({ type: 'RERUN_WIZARD', payload: { fileId, fileName: file.fileName } }) : undefined}
+                  onEdit={file.format === 'tabular' || Boolean(rawBinaryData?.[fileId]) ? () => onEditColumns ? onEditColumns(fileId) : fileDispatch({ type: 'RERUN_WIZARD', payload: { fileId, fileName: file.fileName } }) : undefined}
                   onVisibility={(visible) => {
                     const traces = allTraces.filter(item => displayTraceLocationByLegacyName.get(item.name)?.fileId === fileId);
                     const actions = traces.map(item => ({ slice: 'traces' as const, action: { type: 'SET_VISIBILITY' as const, name: item.name, visible } }));
@@ -554,7 +579,7 @@ export function Sidebar({ width = 280, hidden = false, onOpenFiles, onDropFiles,
             </div>}
         </PanelSection>
 
-        {files.length > 0 && <>
+        {(files.length > 0 || allTraces.length > 0 || markers.length > 0 || refLines.length > 0) && <>
         <PanelSection title="Traces" count={allTraces.length} actions={[
           ...([true, false] as const).map(
             visible => ({
@@ -916,7 +941,17 @@ function FileTitleRow({
 }) {
   const [editing, setEditing] = useState(false);
   const extension = fileName.split('.').pop()?.toUpperCase() ?? '';
-  const format: FileFormat = /^S[0-9]+P$/.test(extension) ? extension as FileFormat : extension === 'CSV' || extension === 'TXT' || extension === 'DAT' ? extension : 'DAT';
+  const format: FileFormat = /^S[0-9]+P$/.test(extension)
+    ? extension as FileFormat
+    : extension === 'CSV' || extension === 'TXT' || extension === 'TSV' || extension === 'DAT'
+      || extension === 'BIN' || extension === 'TRC' || extension === 'ISF'
+      || extension === 'WAV' || extension === 'NPY' || extension === 'RAW'
+      ? extension as FileFormat
+      : /^(?:CF32|FC32|SC16|CS16|CI16|CU8|CS8|CFILE|IQ)$/.test(extension)
+        ? 'IQ'
+        : /^(?:F32|F64|I32|U32|I24|U24|I16|S16|U16|U8|PCM|WFM)$/.test(extension)
+          ? 'BIN'
+          : 'DAT';
   const actions: SidebarAction[] = [
     { label: 'Info', run: onInfo },
     ...(onReplace ? [{ label: 'Replace file\u2026', run: onReplace }] : []),

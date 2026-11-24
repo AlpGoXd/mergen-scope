@@ -21,8 +21,16 @@ export type FileFormat =
   | "touchstone"
   | "rs-dat"
   | "tabular"
+  | "wavebin"
+  | "lecroy-trc"
+  | "tek-isf"
+  | "owon-bin"
+  | "wav"
+  | "npy"
+  | "raw-binary"
   | "binary"
   | "needs-import-wizard"
+  | "needs-binary-wizard"
   | "unknown";
 
 /** Result of classifying a file before parsing. */

@@ -132,6 +132,11 @@ export function isDerivedTrace(tr: Trace | null | undefined): tr is DerivedTrace
   return !!tr && tr.kind === "derived";
 }
 
+/** Check if a trace or display trace is a min-max display envelope. */
+export function isEnvelopeTrace(trace: { readonly envelopeOf?: number } | null | undefined): boolean {
+  return trace?.envelopeOf !== undefined && Number.isFinite(trace.envelopeOf) && trace.envelopeOf > 0;
+}
+
 // ---------------------------------------------------------------------------
 // Trace accessors
 // ---------------------------------------------------------------------------

@@ -1,7 +1,17 @@
 import type { OpenDataCommand, WorkspaceState } from '../stores/workspace/workspace-state';
 import type { WorkspaceSnapshotV5 } from '../types/workspace-v5';
 import type { WorkspaceCounts } from './confirm-text';
+import { BINARY_SNIFF_BYTES, detectBinarySignature } from './parsers/binary-detect';
 import { parseForImport } from './parsers/parse-file';
+import { parseWavebin, probeWavebinPoints } from './parsers/wavebin';
+import { parseLeCroyTrc, probeLeCroyTrcPoints } from './parsers/lecroy-trc';
+import { parseTekIsf, probeTekIsfPoints } from './parsers/tek-isf';
+import { parseOwonBin, probeOwonBinPoints } from './parsers/owon-bin';
+import { parseWavBin, probeWavBinPoints } from './parsers/wav-bin';
+import { parseNpyBin, probeNpyBinPoints } from './parsers/npy-bin';
+import { defaultBinaryConfig, isBinaryFileExtension } from './parsers/raw-binary';
+import { defaultBinaryReduction } from './parsers/binary-reduce';
+import { pointBudget } from './point-budget';
 import { migrateWorkspaceV5 } from './workspace-migrate-v5';
 
 export type ReadFileResult =
@@ -34,6 +44,104 @@ export function classifyReadFile(fileName: string, text: string, workspaceRoute:
     return { kind: 'data', input: { id, name: fileName, text, parsed: null, error: 'Binary files cannot be opened as measurement data.' } };
   }
   return { kind: 'data', input: { id, name: fileName, text, parsed: parseForImport(text, fileName) } };
+}
+
+/**
+ * Parse a binary measurement file:
+ * - Recognized oscilloscope formats (Keysight AG / Rigol RG .bin, LeCroy .trc, Tektronix .isf, OWON .bin)
+ *   import directly while retaining their raw buffer so users can re-run Import settings… anytime.
+ * - Unrecognized or headerless binary/SDR files (.bin, .cfile, .cf32, .sc16, .cu8, .iq, etc.) — or a
+ *   recognized scope header that failed auto-parse — route into the Binary Import Wizard.
+ */
+export function classifyReadBinary(fileName: string, buffer: ArrayBuffer, id: string): ReadFileResult {
+  const signature = detectBinarySignature(new Uint8Array(buffer, 0, Math.min(buffer.byteLength, BINARY_SNIFF_BYTES)));
+  let binaryWarning: string | undefined;
+
+  if (signature !== null) {
+    const probe = signature === 'wavebin' ? probeWavebinPoints(buffer)
+      : signature === 'lecroy-trc' ? probeLeCroyTrcPoints(buffer)
+      : signature === 'tek-isf' ? probeTekIsfPoints(buffer)
+      : signature === 'owon-bin' ? probeOwonBinPoints(buffer)
+      : signature === 'wav' ? probeWavBinPoints(buffer)
+      : probeNpyBinPoints(buffer);
+
+    if (probe.ok) {
+      const budget = pointBudget(probe.totalPoints);
+      if (budget.level !== 'ok') {
+        const baseConfig = defaultBinaryConfig(fileName, buffer.byteLength, signature);
+        return {
+          kind: 'data',
+          input: {
+            id,
+            name: fileName,
+            text: '',
+            parsed: {
+              format: 'needs-binary-wizard',
+              fileName,
+              meta: {},
+              traces: [],
+            },
+            rawBinary: buffer,
+            binaryConfig: {
+              ...baseConfig,
+              reduction: defaultBinaryReduction(probe.totalPoints),
+            },
+          },
+        };
+      }
+
+      const result = signature === 'wavebin' ? parseWavebin(buffer, fileName)
+        : signature === 'lecroy-trc' ? parseLeCroyTrc(buffer, fileName)
+        : signature === 'tek-isf' ? parseTekIsf(buffer, fileName)
+        : signature === 'owon-bin' ? parseOwonBin(buffer, fileName)
+        : signature === 'wav' ? parseWavBin(buffer, fileName)
+        : parseNpyBin(buffer, fileName);
+
+      if (result.ok) {
+        return {
+          kind: 'data',
+          input: {
+            id,
+            name: fileName,
+            text: result.summaryText,
+            parsed: result.parsed,
+            rawBinary: buffer,
+            binaryConfig: defaultBinaryConfig(fileName, buffer.byteLength, signature),
+          },
+        };
+      }
+      binaryWarning = result.error;
+    } else {
+      binaryWarning = probe.error;
+    }
+  }
+
+  // Fallback to Binary Import Wizard if a scope header failed auto-parse, the extension is binary/SDR,
+  // or the file contains binary bytes in its leading 8 KB (e.g. headerless .dat / .raw / .wfm / .pcm or ASCII-header binary).
+  const head = new Uint8Array(buffer, 0, Math.min(buffer.byteLength, 8192));
+  const hasBinaryBytes = head.some(byte => byte === 0 || (byte < 0x20 && byte !== 0x09 && byte !== 0x0a && byte !== 0x0d));
+  if (signature !== null || isBinaryFileExtension(fileName) || hasBinaryBytes) {
+    const suggestedBinary = defaultBinaryConfig(fileName, buffer.byteLength, null);
+    return {
+      kind: 'data',
+      input: {
+        id,
+        name: fileName,
+        text: '',
+        parsed: {
+          format: 'needs-binary-wizard',
+          fileName,
+          meta: {},
+          traces: [],
+        },
+        rawBinary: buffer,
+        binaryConfig: suggestedBinary,
+        ...(binaryWarning ? { binaryWarning } : {}),
+      },
+    };
+  }
+
+  return { kind: 'data', input: { id, name: fileName, text: '', parsed: null, error: 'Binary files cannot be opened as measurement data.' } };
 }
 
 /** What opening a workspace would close; null when nothing is open (no question needed). */

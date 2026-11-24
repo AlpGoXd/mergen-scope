@@ -9,6 +9,9 @@ import { parseMeasurementFile } from '../domain/parsers/parse-file';
 import { classify } from '../domain/parsers/classifier';
 import { parseTabularFile } from '../domain/parsers/tabular';
 import { detectTabular } from '../domain/parsers/tabular-detect';
+import { BINARY_SNIFF_BYTES, detectBinarySignature } from '../domain/parsers/binary-detect';
+import { defaultBinaryConfig } from '../domain/parsers/raw-binary';
+import type { BinaryImportConfig } from '../domain/parsers/raw-binary';
 import type { TraceDomain } from '../types/trace';
 
 /**
@@ -22,7 +25,7 @@ function lastImportConfig(text: string, yCols: readonly number[] | undefined, do
 import { adaptDisplayTracesToLegacyTraces } from '../domain/display-trace-adapter';
 import { buildScalarDisplayTraceFromSeriesDataset, buildSeriesDatasetFromTrace, buildNetworkDatasetFromTouchstone } from '../domain/dataset-builders';
 
-export interface PendingOpenInput { readonly id:string; readonly name:string; readonly text:string; readonly parsed:ParsedFile | null; readonly error?:string; readonly choice?:OpenChoice; readonly expectedFileId?:string; readonly wizardConfig?:WizardConfig }
+export interface PendingOpenInput { readonly id:string; readonly name:string; readonly text:string; readonly parsed:ParsedFile | null; readonly error?:string; readonly choice?:OpenChoice; readonly expectedFileId?:string; readonly wizardConfig?:WizardConfig; readonly rawBinary?:ArrayBuffer; readonly binaryConfig?:BinaryImportConfig; readonly binaryWarning?:string }
 export interface PendingOpenBatch { readonly id:string; readonly inputs:readonly PendingOpenInput[]; readonly targetPaneId?:string; readonly drop?:boolean; readonly workspace?:{readonly snapshot:WorkspaceSnapshotV5;readonly legacy:boolean;readonly choice?:'replace'|'cancel'} }
 export interface WizardEntry {
   id: string;
@@ -30,10 +33,15 @@ export interface WizardEntry {
   rawText: string;
   previewLines: readonly string[];
   suggestedConfig?: WizardConfig;
+  rawBinary?: ArrayBuffer;
+  binaryConfig?: BinaryImportConfig;
+  binaryWarning?: string;
+  /** Active wizard mode when flipping between Text and Binary views without losing the buffer. */
+  wizardView?: 'text' | 'binary';
   targetPaneId?: string;
   duplicateChoice?: OpenChoice;
   pendingBatch?: PendingOpenBatch;
-  /** 'edit' = Edit columns on a file that is already open (not part of undo history while open). */
+  /** 'edit' = Edit columns / binary import settings on a file that is already open (not part of undo history while open). */
   mode?: 'edit';
 }
 
@@ -46,6 +54,10 @@ export interface ImportError {
 export interface FileState {
   files: RawFileRecord[];
   rawFileData: Record<string, string>;
+  /** Session-only raw binary buffers for re-running Binary Import Wizard (never serialized to Workspace JSON). */
+  rawBinaryData?: Record<string, ArrayBuffer>;
+  /** Session-only last binary wizard settings per fileId. */
+  binaryConfigByFileId?: Record<string, BinaryImportConfig>;
   vis: Record<string, boolean>; // trace name -> visible boolean
   wizardQueue: WizardEntry[];
   importErrors: ImportError[];
@@ -54,6 +66,9 @@ export interface FileState {
 export type FileAction =
   | { type: 'QUEUE_WIZARD'; payload: { fileName: string; rawText: string; id: string; targetPaneId?: string } }
   | { type: 'RESOLVE_WIZARD'; payload: { id: string; config: WizardConfig; decisions?:Readonly<Record<string,{choice:OpenChoice;expectedFileId?:string}>>; workspaceChoice?:'replace'|'cancel' } }
+  | { type: 'RESOLVE_BINARY_WIZARD'; payload: { id: string; binaryConfig: BinaryImportConfig; decisions?:Readonly<Record<string,{choice:OpenChoice;expectedFileId?:string}>>; workspaceChoice?:'replace'|'cancel' } }
+  | { type: 'SWITCH_WIZARD_TO_TEXT'; payload: { id: string } }
+  | { type: 'SWITCH_WIZARD_TO_BINARY'; payload: { id: string; mode?: 'auto-scope' | 'raw' } }
   | { type: 'RERUN_WIZARD'; payload: { fileId: string; fileName: string } }
   | { type: 'SKIP_WIZARD'; payload: { id: string } }
   | { type: 'SKIP_ALL_WIZARD' }
@@ -79,6 +94,8 @@ export type FileAction =
 export const defaultFileState: FileState = {
   files: [],
   rawFileData: {},
+  rawBinaryData: {},
+  binaryConfigByFileId: {},
   vis: {},
   wizardQueue: [],
   importErrors: [],
@@ -252,11 +269,25 @@ export function fileReducer(state: FileState, action: FileAction): FileState {
     }
     case 'RERUN_WIZARD': {
       const { fileId, fileName } = action.payload;
+      if (state.wizardQueue.some((entry) => entry.id === fileId)) return state;
+      const file = state.files.find(item => String(item.id) === fileId);
+      const binary = state.rawBinaryData?.[fileId];
+      if (binary) {
+        const newEntry: WizardEntry = {
+          id: fileId,
+          fileName,
+          rawText: state.rawFileData[fileId] ?? '',
+          previewLines: [],
+          rawBinary: binary,
+          binaryConfig: state.binaryConfigByFileId?.[fileId],
+          targetPaneId: file?.targetPaneId,
+          mode: 'edit',
+        };
+        return { ...state, wizardQueue: [...state.wizardQueue, newEntry] };
+      }
       const text = state.rawFileData[fileId];
       if (!text) return state; // can't rerun without text
-      if (state.wizardQueue.some((entry) => entry.id === fileId)) return state;
 
-      const file = state.files.find(item => String(item.id) === fileId);
       // Prefer the actual previous choice; older files get the columns they actually imported.
       const suggestedConfig = file?.wizardConfig ?? lastImportConfig(text, file?.columnIdentities?.map(column => column.index), file?.traces[0]?.domain);
 
@@ -275,6 +306,49 @@ export function fileReducer(state: FileState, action: FileAction): FileState {
         wizardQueue: [...state.wizardQueue, newEntry]
       };
     }
+    case 'SWITCH_WIZARD_TO_TEXT': {
+      const targetId = action.payload.id;
+      const entry = state.wizardQueue.find((item) => item.id === targetId);
+      if (!entry) return state;
+      const decodedText = entry.rawText || (entry.rawBinary ? new TextDecoder('utf-8', { fatal: false }).decode(entry.rawBinary) : '');
+      const detected = detectTabular(decodedText);
+      const nextEntry: WizardEntry = {
+        ...entry,
+        wizardView: 'text',
+        rawText: decodedText,
+        previewLines: nonEmptyPreviewLines(decodedText),
+        suggestedConfig: entry.suggestedConfig ?? detected.config,
+      };
+      return {
+        ...state,
+        wizardQueue: state.wizardQueue.map((item) => (item.id === targetId ? nextEntry : item)),
+      };
+    }
+    case 'SWITCH_WIZARD_TO_BINARY': {
+      const targetId = action.payload.id;
+      const entry = state.wizardQueue.find((item) => item.id === targetId);
+      if (!entry) return state;
+      let buffer = entry.rawBinary;
+      if (!buffer) {
+        const encoded = new TextEncoder().encode(entry.rawText);
+        buffer = encoded.buffer.slice(encoded.byteOffset, encoded.byteOffset + encoded.byteLength);
+      }
+      const detectedScope = detectBinarySignature(new Uint8Array(buffer, 0, Math.min(buffer.byteLength, BINARY_SNIFF_BYTES)));
+      const baseBinaryConfig = entry.binaryConfig ?? defaultBinaryConfig(entry.fileName, buffer.byteLength, detectedScope);
+      const binaryConfig = action.payload.mode
+        ? { ...baseBinaryConfig, mode: action.payload.mode }
+        : baseBinaryConfig;
+      const nextEntry: WizardEntry = {
+        ...entry,
+        wizardView: 'binary',
+        rawBinary: buffer,
+        binaryConfig,
+      };
+      return {
+        ...state,
+        wizardQueue: state.wizardQueue.map((item) => (item.id === targetId ? nextEntry : item)),
+      };
+    }
     case 'SKIP_WIZARD': {
       const newQueue = state.wizardQueue.filter(e => e.id !== action.payload.id);
       return { ...state, wizardQueue: newQueue };
@@ -291,6 +365,10 @@ export function fileReducer(state: FileState, action: FileAction): FileState {
       
       const newRawFileData = { ...state.rawFileData };
       delete newRawFileData[fileId];
+      const newRawBinaryData = { ...(state.rawBinaryData ?? {}) };
+      delete newRawBinaryData[fileId];
+      const newBinaryConfigs = { ...(state.binaryConfigByFileId ?? {}) };
+      delete newBinaryConfigs[fileId];
 
       // Remove from visibility dict? We can leave them to allow garbage collection, 
       // or optionally clean up `vis` for those traceNames.
@@ -302,6 +380,8 @@ export function fileReducer(state: FileState, action: FileAction): FileState {
         ...state,
         files: newFiles,
         rawFileData: newRawFileData,
+        rawBinaryData: newRawBinaryData,
+        binaryConfigByFileId: newBinaryConfigs,
         vis: newVis
       };
     }

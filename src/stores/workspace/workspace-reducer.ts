@@ -9,7 +9,8 @@ import { normalizeXLinks, paneXUnits } from '../../domain/x-link';
 import { canPlaceMembership, planPaneRemoval, planPaneTypeChange, traceXGroup } from '../../domain/pane-placement';
 import { refusalGuidance, traceAlreadyInPane } from '../../domain/pane-drop-hints';
 import { parseTabularFile } from '../../domain/parsers/tabular';
-import { autoOutputName, makeAnalysisOutput, outputsFollowView, recomputeOutputs } from '../../domain/analysis/instances';
+import { parseBinaryWithConfig } from '../../domain/parsers/raw-binary';
+import { autoOutputName, makeAnalysisOutput, recomputeOutputs, visibleOutputSourceChanged } from '../../domain/analysis/instances';
 import { getAnalysisTool } from '../../domain/analysis/tool-registry';
 import {
   defaultTitle,
@@ -197,6 +198,71 @@ export function workspaceReducer(state: WorkspaceState, command: WorkspaceAction
         },
       });
     }
+  }
+  if (command.slice === 'files' && command.action.type === 'RESOLVE_BINARY_WIZARD') {
+    const { id, binaryConfig, decisions, workspaceChoice } = command.action.payload;
+    const entry = state.files.wizardQueue.find(item => item.id === id);
+    if (!entry?.rawBinary) return state;
+    const prior = state.files.files.find(file => String(file.id) === entry.id);
+    const parsedResult = parseBinaryWithConfig(entry.rawBinary, entry.fileName, binaryConfig);
+    if (!parsedResult.ok) {
+      const withoutFailedWizard = {
+        ...state,
+        files: { ...state.files, wizardQueue: state.files.wizardQueue.filter(item => item.id !== entry.id) },
+      };
+      return workspaceReducer(withoutFailedWizard, {
+        slice: 'files',
+        action: { type: 'REPORT_IMPORT_ERROR', payload: { fileName: entry.fileName, message: parsedResult.error } },
+      });
+    }
+    const { parsed, summaryText } = parsedResult;
+    if (entry.pendingBatch) {
+      const batch = {
+        ...entry.pendingBatch,
+        workspace: entry.pendingBatch.workspace && workspaceChoice
+          ? { ...entry.pendingBatch.workspace, choice: workspaceChoice }
+          : entry.pendingBatch.workspace,
+        inputs: entry.pendingBatch.inputs.map(input => ({
+          ...(input.id === entry.id ? { ...input, text: summaryText, parsed, rawBinary: entry.rawBinary, binaryConfig } : input),
+          ...decisions?.[input.id],
+        })),
+      };
+      const remaining = state.files.wizardQueue.filter(item => item.pendingBatch?.id === batch.id && item.id !== entry.id);
+      if (remaining.length) return {
+        ...state,
+        files: {
+          ...state.files,
+          wizardQueue: state.files.wizardQueue.filter(item => item.id !== entry.id).map(item => item.pendingBatch?.id === batch.id
+            ? { ...item, pendingBatch: batch }
+            : item),
+        },
+        revision: state.revision + 1,
+      };
+      return openData(state, {
+        slice: 'open-data',
+        inputs: batch.inputs,
+        targetPaneId: batch.targetPaneId,
+        limit: command.limit ?? 4,
+        resolveBatchId: batch.id,
+        workspace: batch.workspace,
+        drop: batch.drop,
+      }, workspaceReducer);
+    }
+    return openData(state, {
+      slice: 'open-data',
+      inputs: [{
+        id: prior ? `${entry.id}:reimport:${state.revision}` : entry.id,
+        name: entry.fileName,
+        text: summaryText,
+        parsed,
+        rawBinary: entry.rawBinary,
+        binaryConfig,
+        choice: prior ? 'replace' : entry.duplicateChoice,
+      }],
+      targetPaneId: entry.targetPaneId,
+      limit: command.limit ?? 4,
+      resolveWizardId: entry.id,
+    }, workspaceReducer);
   }
   if (command.slice === 'files' && command.action.type === 'SKIP_WIZARD') {
     const id = command.action.payload.id;
@@ -508,7 +574,14 @@ export function workspaceReducer(state: WorkspaceState, command: WorkspaceAction
   });
   // An FFT with Range: Visible follows the pan and zoom of its source's pane.
   const viewChanged = (next.lines.paneViews !== state.lines.paneViews || next.panes.tracePaneMap !== state.panes.tracePaneMap)
-    && outputsFollowView(next.analysis.analyses);
+    && visibleOutputSourceChanged(
+      next.analysis.analyses,
+      traceView(next.files, next.traces).allKnownTraces,
+      state.panes.tracePaneMap,
+      next.panes.tracePaneMap,
+      state.lines.paneViews,
+      next.lines.paneViews,
+    );
   if (next.files !== state.files || next.traces !== state.traces || analysisInputsChanged || viewChanged) {
     const view = traceView(next.files, next.traces);
     const outputs = recomputeOutputs({

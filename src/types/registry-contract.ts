@@ -146,6 +146,8 @@ export interface AnalysisTool<
 > {
   readonly kind: AnalysisToolKind;
   readonly addable?: boolean;
+  /** Opt in only when results are valid on min-max display envelopes (defaults to false / fail-closed). */
+  readonly acceptsEnvelope?: boolean;
   /** The card explains and fixes missing inputs itself (for example IP3's Auto-place markers), so the Add menu does not block it. */
   readonly cardGuidesInputs?: boolean;
   readonly parameterUnits?: Readonly<Record<string, string>>;

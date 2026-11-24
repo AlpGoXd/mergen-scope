@@ -230,6 +230,7 @@ function displayTraceFromLegacy(trace: Trace, datasetIdValue: string): Workspace
     datasetId: datasetIdValue,
     family: trace.family,
     isUniform: trace.isUniform ?? false,
+    ...(trace.envelopeOf !== undefined ? { envelopeOf: trace.envelopeOf } : {}),
     interpolation: trace.interpolation,
     provenance: {
       parentDatasetId: datasetIdValue,
@@ -258,6 +259,7 @@ function derivedTraceFromLegacy(trace: DerivedTrace, datasetIdValue: string): Wo
     datasetId: datasetIdValue,
     family: trace.family,
     isUniform: trace.isUniform ?? false,
+    ...(trace.envelopeOf !== undefined ? { envelopeOf: trace.envelopeOf } : {}),
     interpolation: trace.interpolation,
     provenance: {
       parentDatasetId: datasetIdValue,
@@ -280,6 +282,7 @@ function derivedTraceFromLegacy(trace: DerivedTrace, datasetIdValue: string): Wo
 function legacyTraceFromDisplay(displayTrace: WorkspaceDisplayTraceRecord, dataset: WorkspaceDatasetRecord): Trace {
   const scalarDisplay = displayTrace as WorkspaceScalarDisplayTrace;
   const data = scalarDisplay.points.map((point) => ({ freq: point.x, amp: point.y }));
+  const envelopeOf = displayTrace.envelopeOf ?? dataset.envelopeOf;
   if (displayTrace.kind === 'derived-trace') {
     return {
       id: displayTrace.id,
@@ -298,6 +301,7 @@ function legacyTraceFromDisplay(displayTrace: WorkspaceDisplayTraceRecord, datas
       file: dataset.fileName ?? null,
       dn: displayTrace.label,
       isUniform: displayTrace.isUniform ?? dataset.isUniform ?? false,
+      ...(envelopeOf !== undefined ? { envelopeOf } : {}),
       interpolation: displayTrace.interpolation,
     };
   }
@@ -319,6 +323,7 @@ function legacyTraceFromDisplay(displayTrace: WorkspaceDisplayTraceRecord, datas
     file: dataset.fileName ?? null,
     dn: displayTrace.label,
     isUniform: displayTrace.isUniform ?? dataset.isUniform ?? false,
+    ...(envelopeOf !== undefined ? { envelopeOf } : {}),
     interpolation: displayTrace.interpolation,
     fileId: dataset.fileId ?? null,
     fileName: dataset.fileName ?? null,

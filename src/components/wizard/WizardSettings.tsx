@@ -96,13 +96,13 @@ const Y_MORE_GROUPS: readonly { label: string; items: readonly { id: string; lab
   },
 ];
 
-const CONFIDENCE_LABEL: Record<ConfidenceLevel, string> = {
+export const CONFIDENCE_LABEL: Record<ConfidenceLevel, string> = {
   high: 'High confidence',
   medium: 'Medium confidence',
   low: 'Low confidence',
 };
 
-const CONFIDENCE_ICON: Record<ConfidenceLevel, 'check' | 'info' | 'warning'> = {
+export const CONFIDENCE_ICON: Record<ConfidenceLevel, 'check' | 'info' | 'warning'> = {
   high: 'check',
   medium: 'info',
   low: 'warning',
@@ -342,9 +342,11 @@ export function WizardSettings({ config, maxSkipRows, detected, onChange, onLayo
           <span className="t-caption">{detectedAxisText}</span>
         </div>
         {detected.level === 'low' && detected.reasons.length > 0 && (
-          <MessageBar status="warning">
-            {detected.reasons.join('. ')}. Check axis and units before importing.
-          </MessageBar>
+          <div data-testid="import-wizard-reasons">
+            <MessageBar status="warning">
+              {detected.reasons.join('. ')}. Check axis and units before importing.
+            </MessageBar>
+          </div>
         )}
         {detected.level !== 'low' && detected.reasons.length > 0 && (
           <ul className="iw-reasons" data-testid="import-wizard-reasons">

@@ -86,7 +86,7 @@ export function Select(props: React.ComponentPropsWithoutRef<'select'> & { reaso
 
 export function Segmented<T extends string>({ label, options, value, onChange }: {
   label: string;
-  options: readonly { value: T; label: string; ariaLabel?: string; disabled?: boolean; reason?: string }[];
+  options: readonly { value: T; label: string; ariaLabel?: string; title?: string; disabled?: boolean; reason?: string }[];
   value: T;
   onChange: (value: T) => void
 }) {
@@ -115,6 +115,7 @@ export function Segmented<T extends string>({ label, options, value, onChange }:
           disabled={option.disabled}
           aria-checked={option.value === value}
           aria-label={option.ariaLabel}
+          title={option.title}
           tabIndex={option.value === value ? 0 : -1}
           onClick={() => onChange(option.value)}
         >

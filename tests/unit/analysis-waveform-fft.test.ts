@@ -326,7 +326,13 @@ describe('fft output placement', () => {
     let engine = setup();
     engine = change(engine, { type: 'ADD_ANALYSIS', payload: { toolId: 'fft', source: { traceId: 'ch1' } } });
     engine = change(engine, { type: 'CREATE_ANALYSIS_OUTPUT', payload: { id: 'analysis-1' } });
-    expect(engine.present.traces.derivedTraces[0]?.data).toHaveLength(N / 2 + 1);
+    const createdOutput = engine.present.traces.derivedTraces[0];
+    expect(createdOutput?.data).toHaveLength(N / 2 + 1);
+    const fftPane = engine.present.panes.panes[1]?.id;
+    if (!fftPane) throw new Error('no fft pane');
+    // Updating the FFT output pane's view must not recompute or replace the output trace.
+    engine = workspaceEngineReducer(engine, { type: 'change', command: { slice: 'lines', action: { type: 'SET_PANE_VIEW', payload: { paneId: fftPane, view: { x: [0, 1e5], y: null } } } } });
+    expect(engine.present.traces.derivedTraces[0]).toBe(createdOutput);
     engine = workspaceEngineReducer(engine, { type: 'change', command: { slice: 'lines', action: { type: 'SET_PANE_VIEW', payload: { paneId: 'pane-1', view: { x: [0, 300 * dt], y: null } } } } });
     // 301 samples in view: Auto takes all of them, so 151 bins.
     expect(engine.present.traces.derivedTraces[0]?.data).toHaveLength(151);
