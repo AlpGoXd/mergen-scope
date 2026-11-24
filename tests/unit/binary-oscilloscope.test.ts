@@ -4,7 +4,7 @@ import { BINARY_SNIFF_BYTES, classifyBinaryConfidence, detectBinarySignature } f
 import { parseLeCroyTrc } from '../../src/domain/parsers/lecroy-trc';
 import { parseTekIsf } from '../../src/domain/parsers/tek-isf';
 import { parseOwonBin, probeOwonBinPoints } from '../../src/domain/parsers/owon-bin';
-import { defaultBinaryConfig, findBinaryDataStart, parseBinarySettings, parseBinaryWithConfig, previewBinaryImport, serializeBinarySettings } from '../../src/domain/parsers/raw-binary';
+import { defaultBinaryConfig, detectBinaryDataStart, findBinaryDataStart, parseBinarySettings, parseBinaryWithConfig, previewBinaryImport, serializeBinarySettings } from '../../src/domain/parsers/raw-binary';
 import { classifyReadBinary } from '../../src/domain/open-file-read';
 import { resetParserFileCounter } from '../../src/domain/parsers/rs-dat';
 import { initialWorkspaceEngine, workspaceEngineReducer } from '../../src/stores/aggregate-workspace-store';
@@ -689,5 +689,50 @@ describe('Phase 2 binary oscilloscope formats (.trc, .isf, OWON .bin) + shipped 
       xOffset: -1e-3,
     });
     expect(parseBinarySettings('{not json', customCfg).ok).toBe(false);
+  });
+
+  it('detectBinaryDataStart locates WAV, NumPy .npy, scope headers, IEEE 488.2 blocks, and ASCII preambles', () => {
+    // 1. All 5 shipped oscilloscope fixtures report positive payload offsets in Custom mode.
+    const ks = detectBinaryDataStart(readArrayBuffer('test files/keysight_dsox_sample.bin'));
+    expect(ks.detected).toBe(true);
+    expect(ks.offset).toBe(164); // 12 + 140 + 12
+    expect(ks.reason).toContain('Keysight');
+
+    const rg = detectBinaryDataStart(readArrayBuffer('test files/rigol_dho804_sample.bin'));
+    expect(rg.detected).toBe(true);
+    expect(rg.offset).toBe(172); // 16 + 140 + 16
+    expect(rg.reason).toContain('Rigol');
+
+    const lc = detectBinaryDataStart(readArrayBuffer('test files/lecroy_sample.trc'));
+    expect(lc.detected).toBe(true);
+    expect(lc.offset).toBeGreaterThanOrEqual(346);
+    expect(lc.reason).toContain('LeCroy');
+
+    const tek = detectBinaryDataStart(readArrayBuffer('test files/tektronix_sample.isf'));
+    expect(tek.detected).toBe(true);
+    expect(tek.offset).toBeGreaterThan(50);
+    expect(tek.reason).toContain('IEEE 488.2');
+
+    const ow = detectBinaryDataStart(readArrayBuffer('test files/owon_sample.bin'));
+    expect(ow.detected).toBe(true);
+    expect(ow.offset).toBeGreaterThan(20);
+    expect(ow.reason).toContain('OWON');
+
+    // 2. NumPy .npy v1.0 header ("\x93NUMPY" + v1.0 + 2B len=118 -> data at 128).
+    const npy = Buffer.alloc(128 + 32);
+    npy[0] = 0x93;
+    npy.write('NUMPY', 1, 'ascii');
+    npy[6] = 1; npy[7] = 0;
+    npy.writeUInt16LE(118, 8);
+    const npyRes = detectBinaryDataStart(npy.buffer.slice(npy.byteOffset, npy.byteOffset + npy.byteLength));
+    expect(npyRes).toEqual({ offset: 128, reason: 'NumPy .npy header', detected: true });
+
+    // 3. Headerless Float32 stream returns detected=false, offset=0.
+    const raw = Buffer.alloc(64);
+    for (let i = 0; i < 16; i++) raw.writeFloatLE(Math.sin(i / 3), i * 4);
+    const rawRes = detectBinaryDataStart(raw.buffer.slice(raw.byteOffset, raw.byteOffset + raw.byteLength));
+    expect(rawRes.detected).toBe(false);
+    expect(rawRes.offset).toBe(0);
+    expect(findBinaryDataStart(raw.buffer.slice(raw.byteOffset, raw.byteOffset + raw.byteLength))).toBe(0);
   });
 });

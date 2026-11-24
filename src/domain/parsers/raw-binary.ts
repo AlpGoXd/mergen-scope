@@ -248,46 +248,147 @@ export function rawTotalSamples(
   return frameBytes > 0 ? Math.floor(remaining / frameBytes) : 0;
 }
 
+export interface BinaryDataStartResult {
+  readonly offset: number;
+  readonly reason: string;
+  readonly detected: boolean;
+}
+
 /**
- * Heuristic header-end finder for unknown binary files:
- *  - RIFF/WAVE files: jumps directly past the "data" chunk header (+8 bytes).
- *  - ASCII preamble followed by binary bytes: jumps past the leading printable text/NUL block
- *    (rounded up to the next 4-byte boundary if NUL-padded).
+ * Heuristic header-end finder for binary files in Custom mode:
+ *  - RIFF/WAVE ("RIFF....WAVE") -> past "data" chunk header (+8 B)
+ *  - NumPy .npy ("\x93NUMPY") -> past v1/v2/v3 dict header
+ *  - Keysight AG / Rigol RG .bin -> CH1 waveform payload start
+ *  - Teledyne LeCroy .trc ("WAVEDESC") -> wave array 1 start
+ *  - OWON .bin ("SPBXDS") -> CH1 payload past JSON + optional 4 B byte-length prefix
+ *  - Tektronix .isf / IEEE 488.2 binary block ("#<d><len>") inside leading ASCII header
+ *  - Leading printable ASCII preamble (+ optional trailing NUL padding)
  */
-export function findBinaryDataStart(buffer: ArrayBuffer): number {
+export function detectBinaryDataStart(buffer: ArrayBuffer): BinaryDataStartResult {
   const bytes = new Uint8Array(buffer);
   const len = bytes.byteLength;
-  if (len < 16) return 0;
+  if (len < 16) return { offset: 0, reason: "File too short for a header", detected: false };
+
+  const view = new DataView(buffer);
+  const asciiAt = (pos: number, count: number): string => {
+    let out = "";
+    for (let i = 0; i < count && pos + i < len; i++) out += String.fromCharCode(bytes[pos + i] ?? 0);
+    return out;
+  };
 
   // 1. RIFF / WAVE container ("RIFF....WAVE"): walk chunks until "data".
-  if (
-    bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46
-    && bytes[8] === 0x57 && bytes[9] === 0x41 && bytes[10] === 0x56 && bytes[11] === 0x45
-  ) {
-    const view = new DataView(buffer);
+  if (asciiAt(0, 4) === "RIFF" && asciiAt(8, 4) === "WAVE") {
     let pos = 12;
     while (pos + 8 <= len) {
-      const isData = bytes[pos] === 0x64 && bytes[pos + 1] === 0x61 && bytes[pos + 2] === 0x74 && bytes[pos + 3] === 0x61;
+      const isData = asciiAt(pos, 4) === "data";
       const chunkSize = view.getUint32(pos + 4, true);
-      if (isData) return Math.min(len, pos + 8);
+      if (isData) {
+        const offset = Math.min(len - 1, pos + 8);
+        return { offset, reason: 'WAV "data" chunk', detected: true };
+      }
       if (chunkSize > len) break;
       pos += 8 + chunkSize + (chunkSize % 2);
     }
   }
 
-  // 2. Leading printable ASCII preamble (e.g. text header ending in newline/NUL before binary payload).
+  // 2. NumPy .npy ("\x93NUMPY").
+  if (bytes[0] === 0x93 && asciiAt(1, 5) === "NUMPY") {
+    const major = bytes[6] ?? 0;
+    if (major === 1 && len >= 10) {
+      const hdrLen = view.getUint16(8, true);
+      const offset = 10 + hdrLen;
+      if (offset < len) return { offset, reason: "NumPy .npy header", detected: true };
+    } else if (major >= 2 && len >= 12) {
+      const hdrLen = view.getUint32(8, true);
+      const offset = 12 + hdrLen;
+      if (offset < len) return { offset, reason: "NumPy .npy header", detected: true };
+    }
+  }
+
+  // 3. Keysight AG / Rigol RG .bin -> CH1 payload offset.
+  const cookie = asciiAt(0, 2);
+  if ((cookie === "AG" || cookie === "RG") && /^[0-9]{2}$/.test(asciiAt(2, 2))) {
+    const isRigol16 = cookie === "RG" && len >= 20 && view.getUint32(8, true) === 0 && view.getUint32(12, true) > 0 && view.getUint32(12, true) <= 64;
+    const fileHdr = isRigol16 ? 16 : 12;
+    if (fileHdr + 4 <= len) {
+      const wfmHdr = view.getInt32(fileHdr, true);
+      if (wfmHdr >= 100 && wfmHdr <= 4096 && fileHdr + wfmHdr + 4 <= len) {
+        const dataHdr = view.getInt32(fileHdr + wfmHdr, true);
+        if (dataHdr >= 8 && dataHdr <= 64) {
+          const offset = fileHdr + wfmHdr + dataHdr;
+          if (offset < len) {
+            return { offset, reason: cookie === "AG" ? "Keysight AG CH1 payload" : "Rigol RG CH1 payload", detected: true };
+          }
+        }
+      }
+    }
+  }
+
+  // 4. Teledyne LeCroy .trc ("WAVEDESC" within first 64 bytes).
+  const sniffAscii = asciiAt(0, Math.min(len, 64));
+  const wdStart = sniffAscii.indexOf("WAVEDESC");
+  if (wdStart >= 0 && wdStart + 56 <= len) {
+    const le = view.getInt16(wdStart + 34, true) !== 0;
+    const wdLen = view.getInt32(wdStart + 36, le);
+    const userText = view.getInt32(wdStart + 40, le);
+    const trigtime = view.getInt32(wdStart + 48, le);
+    const risTime = view.getInt32(wdStart + 52, le);
+    if (wdLen >= 346 && userText >= 0 && trigtime >= 0 && risTime >= 0) {
+      const offset = wdStart + wdLen + userText + trigtime + risTime;
+      if (offset < len) return { offset, reason: "LeCroy WAVEDESC payload", detected: true };
+    }
+  }
+
+  // 5. OWON .bin ("SPBXDS" + 4 B JSON length + JSON + optional 4 B CH1 byte length).
+  if (asciiAt(0, 6) === "SPBXDS" && len >= 14) {
+    const jsonLen = view.getUint32(6, true);
+    const afterJson = 10 + jsonLen;
+    if (jsonLen > 0 && afterJson < len) {
+      let offset = afterJson;
+      if (afterJson + 4 < len) {
+        const maybeLen = view.getUint32(afterJson, true);
+        if (maybeLen > 0 && maybeLen <= len - (afterJson + 4)) offset = afterJson + 4;
+      }
+      return { offset, reason: "OWON SPBXDS CH1 payload", detected: true };
+    }
+  }
+
+  // 6. Leading printable ASCII preamble (including IEEE 488.2 "#<d><len>" blocks like Tektronix .isf / SCPI CURVE?).
   const isPrintableText = (b: number) => (b >= 0x20 && b <= 0x7e) || b === 0x09 || b === 0x0a || b === 0x0d;
   const scanLimit = Math.min(len, 65_536);
   let textRun = 0;
   while (textRun < scanLimit && isPrintableText(bytes[textRun] ?? 0)) textRun += 1;
-  if (textRun >= 8 && textRun < len) {
-    let pos = textRun;
-    // Skip any trailing NUL padding right after an ASCII header block.
-    while (pos < scanLimit && bytes[pos] === 0) pos += 1;
-    return pos < len ? pos : textRun;
+
+  if (textRun >= 8) {
+    const headText = asciiAt(0, textRun);
+    const ieeeMatch = /#([1-9])(\d+)/g;
+    let m: RegExpExecArray | null;
+    while ((m = ieeeMatch.exec(headText)) !== null) {
+      const digitCount = Number(m[1]);
+      const digits = m[2] ?? "";
+      if (digits.length < digitCount) continue;
+      const blockBytes = Number(digits.slice(0, digitCount));
+      const dataStart = m.index + 2 + digitCount;
+      const remaining = len - dataStart;
+      if (Number.isFinite(blockBytes) && blockBytes > 0 && dataStart < len && blockBytes <= remaining && remaining - blockBytes <= 64) {
+        return { offset: dataStart, reason: "IEEE 488.2 binary block", detected: true };
+      }
+    }
+    if (textRun < len) {
+      let pos = textRun;
+      // Skip any trailing NUL padding right after an ASCII header block.
+      while (pos < scanLimit && bytes[pos] === 0) pos += 1;
+      const offset = pos < len ? pos : textRun;
+      return { offset, reason: "End of ASCII header", detected: true };
+    }
   }
 
-  return 0;
+  return { offset: 0, reason: "No known header found", detected: false };
+}
+
+/** Backwards-compatible numeric wrapper around detectBinaryDataStart. */
+export function findBinaryDataStart(buffer: ArrayBuffer): number {
+  return detectBinaryDataStart(buffer).offset;
 }
 
 /** Smart default configuration from binary signature and filename extension hints (e.g. .cf32, .sc16, .cu8). */

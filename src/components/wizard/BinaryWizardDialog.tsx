@@ -15,7 +15,7 @@ import {
   BINARY_RAW_PRESETS,
   channelsPerFrame,
   defaultBinaryConfig,
-  findBinaryDataStart,
+  detectBinaryDataStart,
   parseBinarySettings,
   previewBinaryImport,
   rawTotalSamples,
@@ -287,6 +287,7 @@ export function BinaryWizardDialog({ entry, buffer, position, total, queue, prio
   );
   const [hexSize, setHexSize] = useState<number>(64);
   const [hexPageOffset, setHexPageOffset] = useState<number | null>(null);
+  const [autoSkipHint, setAutoSkipHint] = useState<string | null>(null);
   const [settingsNotice, setSettingsNotice] = useState<string | null>(null);
   const settingsFileInputRef = useRef<HTMLInputElement>(null);
   const preview = useMemo(
@@ -521,6 +522,7 @@ export function BinaryWizardDialog({ entry, buffer, position, total, queue, prio
 
   const nudgeSkip = (delta: number) => {
     setHexPageOffset(null);
+    setAutoSkipHint(null);
     setConfig(prev => ({
       ...prev,
       headerBytes: Math.max(0, Math.min(Math.max(0, buffer.byteLength - 2), prev.headerBytes + delta)),
@@ -528,13 +530,18 @@ export function BinaryWizardDialog({ entry, buffer, position, total, queue, prio
   };
 
   const autoSkipHeader = () => {
-    const detected = findBinaryDataStart(buffer);
+    const result = detectBinaryDataStart(buffer);
+    const clamped = Math.max(0, Math.min(Math.max(0, buffer.byteLength - 2), result.offset));
     setHexPageOffset(null);
     setConfig(prev => ({
       ...prev,
-      headerBytes: Math.max(0, Math.min(Math.max(0, buffer.byteLength - 2), detected)),
+      headerBytes: clamped,
     }));
-    setSettingsNotice(detected > 0 ? `Auto-skip jumped to byte ${formatCount(detected)}.` : 'No leading ASCII/WAV header found (skip stayed at 0 B).');
+    setAutoSkipHint(
+      result.detected
+        ? `Jumped to ${formatCount(clamped)} B (${result.reason}).`
+        : 'No known header found (0 B) — inspect hex on the right and click Set skip.',
+    );
   };
 
   const exportBinarySettings = () => {
@@ -958,13 +965,14 @@ export function BinaryWizardDialog({ entry, buffer, position, total, queue, prio
                         onChange={event => {
                           const n = Math.max(0, Math.floor(Number(event.target.value) || 0));
                           setHexPageOffset(null);
+                          setAutoSkipHint(null);
                           setConfig(prev => ({ ...prev, headerBytes: n }));
                         }}
                       />
                       <Btn
                         small
                         aria-label="Auto-skip header"
-                        title="Scan for WAV 'data' chunk or leading ASCII header block and jump Skip bytes past it"
+                        title="Scan for WAV, NumPy .npy, oscilloscope headers, IEEE #block, or leading ASCII preamble and jump Skip bytes past it"
                         onClick={autoSkipHeader}
                       >
                         Auto
@@ -972,6 +980,11 @@ export function BinaryWizardDialog({ entry, buffer, position, total, queue, prio
                     </div>
                   </div>
                 </div>
+                {autoSkipHint && (
+                  <div className="t-caption t-muted" role="status" data-testid="binary-wizard-autoskip-hint">
+                    {autoSkipHint}
+                  </div>
+                )}
                 <details className="iw-disclosure" open={Boolean((config.framePadBytes ?? 0) > 0 || (config.footerBytes ?? 0) > 0)}>
                   <summary className="t-caption" title="Optional per-frame struct padding and trailing EOF footer bytes">
                     Struct framing &amp; footer
@@ -1378,6 +1391,7 @@ export function BinaryWizardDialog({ entry, buffer, position, total, queue, prio
                   onClick={() => {
                     const target = preview.hexOffset;
                     setHexPageOffset(null);
+                    setAutoSkipHint(null);
                     setConfig(prev => ({ ...prev, headerBytes: target }));
                   }}
                 >
