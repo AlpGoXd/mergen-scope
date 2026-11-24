@@ -231,3 +231,102 @@ test('headerless binary .dat opens Binary Import Wizard with expandable hex insp
   await expect(page.locator('[data-testid^="trace-row-"]')).toHaveCount(1);
   await expect(page.getByTestId('chart-plot-pane-1').locator('.trace-source .recharts-line-curve')).toHaveCount(1);
 });
+
+test('unified Text/Binary toggle, clickable hex byte cursor, batch binary apply, and direct WAV/NPY auto-open', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/app.html');
+
+  // 1. Direct auto-open of WAV (16-bit PCM stereo) and NumPy .npy (1D Float32) with zero wizard.
+  const wavFrames = 32;
+  const wavDataBytes = wavFrames * 2 * 2;
+  const wav = Buffer.alloc(44 + wavDataBytes);
+  wav.write('RIFF', 0, 'ascii');
+  wav.writeUInt32LE(36 + wavDataBytes, 4);
+  wav.write('WAVE', 8, 'ascii');
+  wav.write('fmt ', 12, 'ascii');
+  wav.writeUInt32LE(16, 16);
+  wav.writeUInt16LE(1, 20); // PCM
+  wav.writeUInt16LE(2, 22); // stereo
+  wav.writeUInt32LE(48_000, 24);
+  wav.writeUInt32LE(48_000 * 4, 28);
+  wav.writeUInt16LE(4, 32);
+  wav.writeUInt16LE(16, 34);
+  wav.write('data', 36, 'ascii');
+  wav.writeUInt32LE(wavDataBytes, 40);
+  for (let i = 0; i < wavFrames; i++) {
+    wav.writeInt16LE(Math.round(Math.sin(i / 4) * 16000), 44 + i * 4);
+    wav.writeInt16LE(Math.round(Math.cos(i / 4) * 12000), 44 + i * 4 + 2);
+  }
+
+  const npyDict = "{'descr': '<f4', 'fortran_order': False, 'shape': (32,), }";
+  const npyPad = (16 - ((10 + npyDict.length + 1) % 16)) % 16;
+  const npyHdr = `${npyDict}${' '.repeat(npyPad)}\n`;
+  const npy = Buffer.alloc(10 + npyHdr.length + 32 * 4);
+  npy[0] = 0x93;
+  npy.write('NUMPY', 1, 'ascii');
+  npy[6] = 1; npy[7] = 0;
+  npy.writeUInt16LE(npyHdr.length, 8);
+  npy.write(npyHdr, 10, 'ascii');
+  for (let i = 0; i < 32; i++) npy.writeFloatLE(Math.sin(i / 5), 10 + npyHdr.length + i * 4);
+
+  await page.getByTestId('app-open-input').setInputFiles([
+    { name: 'audio_iq.wav', mimeType: 'audio/wav', buffer: wav },
+    { name: 'vec.npy', mimeType: 'application/octet-stream', buffer: npy },
+  ]);
+  await expect(page.getByTestId('binary-wizard')).toHaveCount(0);
+  await expect(page.locator('.lp-file--header')).toHaveCount(2);
+  // 2 stereo WAV channels (time in s) in pane-1 + 1 NPY channel (sample index) -> 3 total traces
+  await expect(page.locator('[data-testid^="trace-row-"]')).toHaveCount(3);
+  await expect(page.getByTestId('chart-plot-pane-1').locator('.trace-source .recharts-line-curve')).toHaveCount(2);
+
+  // 2. Binary .dat with >64-byte ASCII preamble routes to Binary Wizard; clickable hex byte decodes live & sets skip; Text <-> Binary switch works losslessly.
+  const longHeader = Buffer.from('# INSTRUMENT=LAB_DAQ_9000\n# SAMPLE_RATE=100000\n# CHANNELS=1\n# FORMAT=FLOAT32_LE\n# END_HEADER\n', 'ascii');
+  expect(longHeader.byteLength).toBeGreaterThan(64);
+  const payload = Buffer.alloc(32 * 4);
+  for (let i = 0; i < 32; i++) payload.writeFloatLE(Math.sin(i / 4), i * 4);
+  const hybrid = Buffer.concat([longHeader, payload]);
+
+  await page.getByTestId('app-open-input').setInputFiles({
+    name: 'long_hdr.dat',
+    mimeType: 'application/octet-stream',
+    buffer: hybrid,
+  });
+  const binWizard = page.getByTestId('binary-wizard');
+  await expect(binWizard).toBeVisible();
+
+  // Click byte offset 8 in the hex inspector -> live cursor readout appears and Set skip targets 8 B.
+  await binWizard.getByRole('button', { name: /^Byte 8 \(0x0008\):/ }).click();
+  await expect(binWizard.getByTestId('binary-wizard-hex-cursor')).toContainText('@8 B');
+  await expect(binWizard.getByRole('button', { name: 'Set skip = 8 B' })).toBeEnabled();
+
+  // Flip Binary -> Text -> Binary via unified header toggle without losing the buffer.
+  await binWizard.getByRole('radiogroup', { name: 'Import mode' }).getByRole('radio', { name: 'Text' }).click();
+  const textWizard = page.getByTestId('import-wizard');
+  await expect(textWizard).toBeVisible();
+  await textWizard.getByRole('radiogroup', { name: 'Import mode' }).getByRole('radio', { name: 'Binary' }).click();
+  await expect(binWizard).toBeVisible();
+  await binWizard.getByRole('button', { name: 'Auto-skip header' }).click();
+  await expect(binWizard.getByTestId('binary-wizard-autoskip-hint')).toContainText(`${longHeader.byteLength} B`);
+  await binWizard.getByTestId('import-wizard-confirm').click();
+  await expect(binWizard).toHaveCount(0);
+
+  // 3. Batch drop two .cf32 files and apply settings to both in one click.
+  const makeIq = (scale: number) => {
+    const b = Buffer.alloc(32 * 8);
+    for (let i = 0; i < 32; i++) {
+      b.writeFloatLE(Math.cos(i / 4) * scale, i * 8);
+      b.writeFloatLE(Math.sin(i / 4) * scale, i * 8 + 4);
+    }
+    return b;
+  };
+  await page.getByTestId('app-open-input').setInputFiles([
+    { name: 'batch_a.cf32', mimeType: 'application/octet-stream', buffer: makeIq(1) },
+    { name: 'batch_b.cf32', mimeType: 'application/octet-stream', buffer: makeIq(2) },
+  ]);
+  await expect(binWizard).toBeVisible();
+  await binWizard.getByLabel('Use these settings for the other file').check();
+  await binWizard.getByTestId('import-wizard-confirm').click();
+  await expect(binWizard).toHaveCount(0);
+  await expect(page.locator('.lp-file--header').filter({ hasText: 'batch_a.cf32' })).toBeVisible();
+  await expect(page.locator('.lp-file--header').filter({ hasText: 'batch_b.cf32' })).toBeVisible();
+});

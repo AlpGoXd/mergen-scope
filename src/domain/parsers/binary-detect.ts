@@ -7,12 +7,15 @@
 
 import type { ConfidenceLevel } from "./tabular-detect.ts";
 
-export type BinaryFormat = "wavebin" | "lecroy-trc" | "tek-isf" | "owon-bin";
+export type BinaryFormat = "wavebin" | "lecroy-trc" | "tek-isf" | "owon-bin" | "wav" | "npy";
 
-/** Minimum header prefix bytes needed to sniff any supported binary format. */
+/** Minimum header prefix bytes needed to sniff any supported binary signature. */
 export const BINARY_SNIFF_BYTES = 64;
 
-const STRICT_RAW_SDR_EXT = /\.(?:cfile|cf32|fc32|sc16|cs16|ci16|cu8|cs8|iq|f32|f64|i32|u32|i16|s16|u8)$/i;
+/** Prefix bytes scanned to distinguish binary payloads (including files with ASCII preambles) from plain text. */
+export const BINARY_TEXT_SNIFF_BYTES = 8192;
+
+const STRICT_RAW_SDR_EXT = /\.(?:cfile|cf32|fc32|sc16|cs16|ci16|cu8|cs8|iq|f32|f64|i32|u32|i16|s16|u16|u8|pcm)$/i;
 
 export function isStrictRawBinaryExtension(fileName: string): boolean {
   return STRICT_RAW_SDR_EXT.test(fileName);
@@ -24,6 +27,8 @@ export function scopeFormatLabel(format: BinaryFormat | null): string {
     case "lecroy-trc": return "LeCroy (.trc)";
     case "tek-isf": return "Tektronix (.isf)";
     case "owon-bin": return "OWON (.bin)";
+    case "wav": return "RIFF / WAV (.wav)";
+    case "npy": return "NumPy (.npy)";
     default: return "Raw binary";
   }
 }
@@ -197,11 +202,24 @@ function looksLikeOwonBin(bytes: Uint8Array): boolean {
   return bytes.byteLength >= 12 && matchesAscii(bytes, 0, "SPBXDS");
 }
 
+/** RIFF/WAVE audio/DAQ/SDR IQ file: "RIFF" at 0..3 and "WAVE" at 8..11. */
+function looksLikeWav(bytes: Uint8Array): boolean {
+  return bytes.byteLength >= 12 && matchesAscii(bytes, 0, "RIFF") && matchesAscii(bytes, 8, "WAVE");
+}
+
+/** NumPy .npy binary array: 0x93 followed by "NUMPY" and major version 1..3. */
+function looksLikeNpy(bytes: Uint8Array): boolean {
+  const major = bytes[6] ?? 0;
+  return bytes.byteLength >= 10 && bytes[0] === 0x93 && matchesAscii(bytes, 1, "NUMPY") && major >= 1 && major <= 3;
+}
+
 /** Detect a supported binary measurement format from its leading bytes, or null. */
 export function detectBinarySignature(bytes: Uint8Array): BinaryFormat | null {
   if (looksLikeWavebin(bytes)) return "wavebin";
   if (looksLikeLeCroyTrc(bytes)) return "lecroy-trc";
   if (looksLikeTekIsf(bytes)) return "tek-isf";
   if (looksLikeOwonBin(bytes)) return "owon-bin";
+  if (looksLikeWav(bytes)) return "wav";
+  if (looksLikeNpy(bytes)) return "npy";
   return null;
 }

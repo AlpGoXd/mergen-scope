@@ -7,6 +7,8 @@ import { parseWavebin, probeWavebinPoints } from './parsers/wavebin';
 import { parseLeCroyTrc, probeLeCroyTrcPoints } from './parsers/lecroy-trc';
 import { parseTekIsf, probeTekIsfPoints } from './parsers/tek-isf';
 import { parseOwonBin, probeOwonBinPoints } from './parsers/owon-bin';
+import { parseWavBin, probeWavBinPoints } from './parsers/wav-bin';
+import { parseNpyBin, probeNpyBinPoints } from './parsers/npy-bin';
 import { defaultBinaryConfig, isBinaryFileExtension } from './parsers/raw-binary';
 import { defaultBinaryReduction } from './parsers/binary-reduce';
 import { pointBudget } from './point-budget';
@@ -59,7 +61,9 @@ export function classifyReadBinary(fileName: string, buffer: ArrayBuffer, id: st
     const probe = signature === 'wavebin' ? probeWavebinPoints(buffer)
       : signature === 'lecroy-trc' ? probeLeCroyTrcPoints(buffer)
       : signature === 'tek-isf' ? probeTekIsfPoints(buffer)
-      : probeOwonBinPoints(buffer);
+      : signature === 'owon-bin' ? probeOwonBinPoints(buffer)
+      : signature === 'wav' ? probeWavBinPoints(buffer)
+      : probeNpyBinPoints(buffer);
 
     if (probe.ok) {
       const budget = pointBudget(probe.totalPoints);
@@ -89,7 +93,9 @@ export function classifyReadBinary(fileName: string, buffer: ArrayBuffer, id: st
       const result = signature === 'wavebin' ? parseWavebin(buffer, fileName)
         : signature === 'lecroy-trc' ? parseLeCroyTrc(buffer, fileName)
         : signature === 'tek-isf' ? parseTekIsf(buffer, fileName)
-        : parseOwonBin(buffer, fileName);
+        : signature === 'owon-bin' ? parseOwonBin(buffer, fileName)
+        : signature === 'wav' ? parseWavBin(buffer, fileName)
+        : parseNpyBin(buffer, fileName);
 
       if (result.ok) {
         return {
@@ -111,8 +117,8 @@ export function classifyReadBinary(fileName: string, buffer: ArrayBuffer, id: st
   }
 
   // Fallback to Binary Import Wizard if a scope header failed auto-parse, the extension is binary/SDR,
-  // or the file starts with binary bytes (e.g. headerless raw binary .dat / .raw / .wfm / .pcm).
-  const head = new Uint8Array(buffer, 0, Math.min(buffer.byteLength, BINARY_SNIFF_BYTES));
+  // or the file contains binary bytes in its leading 8 KB (e.g. headerless .dat / .raw / .wfm / .pcm or ASCII-header binary).
+  const head = new Uint8Array(buffer, 0, Math.min(buffer.byteLength, 8192));
   const hasBinaryBytes = head.some(byte => byte === 0 || (byte < 0x20 && byte !== 0x09 && byte !== 0x0a && byte !== 0x0d));
   if (signature !== null || isBinaryFileExtension(fileName) || hasBinaryBytes) {
     const suggestedBinary = defaultBinaryConfig(fileName, buffer.byteLength, null);

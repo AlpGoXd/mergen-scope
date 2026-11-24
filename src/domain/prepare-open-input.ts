@@ -65,7 +65,7 @@ function legacyTabularDisplays(prior: RawFileRecord | undefined, columns: readon
   });
 }
 
-const BINARY_FORMATS = new Set(['wavebin', 'lecroy-trc', 'tek-isf', 'owon-bin', 'raw-binary']);
+const BINARY_FORMATS = new Set(['wavebin', 'lecroy-trc', 'tek-isf', 'owon-bin', 'wav', 'npy', 'raw-binary']);
 const INDEXED_CHANNEL_FORMATS = new Set(['tabular', ...BINARY_FORMATS]);
 
 /** Resolve the same structural key used by replacement candidates; null means identity is unavailable. */
@@ -90,7 +90,8 @@ export function prepareOpenInput(input: PrepareOpenInput): PreparedOpenInput {
   if (!fileId.trim() || !fileName.trim()) return fail('File ID and name are required.');
   const bothBinary = prior?.format !== undefined && BINARY_FORMATS.has(prior.format) && BINARY_FORMATS.has(parsed.format);
   const binaryToTabular = prior?.format !== undefined && BINARY_FORMATS.has(prior.format) && parsed.format === 'tabular';
-  if (prior && prior.format !== parsed.format && !bothBinary && !binaryToTabular) return fail(`Cannot replace ${prior.format ?? 'unknown'} data with ${parsed.format} data: file kinds differ.`);
+  const tabularToBinary = prior?.format === 'tabular' && BINARY_FORMATS.has(parsed.format);
+  if (prior && prior.format !== parsed.format && !bothBinary && !binaryToTabular && !tabularToBinary) return fail(`Cannot replace ${prior.format ?? 'unknown'} data with ${parsed.format} data: file kinds differ.`);
   const columns = parsed.columnIdentities;
   const legacyColumns = prior?.displayTraces?.length ? undefined : legacyTabularColumns(prior,input.priorRawText);
   const priorColumns = prior?.columnIdentities ?? legacyColumns;

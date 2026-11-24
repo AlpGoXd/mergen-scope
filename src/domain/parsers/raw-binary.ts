@@ -32,12 +32,16 @@ import { parseWavebin } from "./wavebin.ts";
 import { parseLeCroyTrc } from "./lecroy-trc.ts";
 import { parseTekIsf } from "./tek-isf.ts";
 import { parseOwonBin } from "./owon-bin.ts";
+import { parseWavBin } from "./wav-bin.ts";
+import { parseNpyBin } from "./npy-bin.ts";
+import { analyzeDecodedQuality, decodeFloat16, inspectBinaryCursor, readInt24, readUint24 } from "./binary-inspect.ts";
+import type { BinaryCursorReadings, BinaryEncodingWarning } from "./binary-inspect.ts";
 import type { BinaryParseResult } from "./lecroy-trc.ts";
 
-export { isStrictRawBinaryExtension, scopeFormatLabel };
-export type { BinaryReduction };
+export { inspectBinaryCursor, isStrictRawBinaryExtension, scopeFormatLabel };
+export type { BinaryCursorReadings, BinaryEncodingWarning, BinaryReduction };
 
-export type BinarySampleType = "float32" | "float64" | "int32" | "uint32" | "int16" | "uint16" | "int8" | "uint8";
+export type BinarySampleType = "float32" | "float64" | "float16" | "int32" | "uint32" | "int24" | "uint24" | "int16" | "uint16" | "int8" | "uint8";
 export type BinaryEndian = "le" | "be";
 export type BinaryChannelLayout = "real" | "iq" | "interleaved" | "planar";
 export type BinaryParserChoice = "auto" | BinaryFormat;
@@ -129,7 +133,7 @@ export const BINARY_RAW_PRESETS: readonly BinaryRawPreset[] = [
   },
 ];
 
-const RAW_BINARY_EXT = /\.(?:bin|cfile|cf32|fc32|sc16|cs16|ci16|cu8|cs8|iq|f32|f64|i32|u32|i16|s16|u8|trc|isf)$/i;
+const RAW_BINARY_EXT = /\.(?:bin|cfile|cf32|fc32|sc16|cs16|ci16|cu8|cs8|iq|f32|f64|i32|u32|i24|u24|i16|s16|u16|u8|trc|isf|wav|npy|wfm|raw|pcm)$/i;
 
 export interface BinarySettingsProfile {
   readonly kind: "mergen-binary-import-settings";
@@ -137,9 +141,9 @@ export interface BinarySettingsProfile {
   readonly config: BinaryImportConfig;
 }
 
-const VALID_SAMPLE_TYPES = new Set<BinarySampleType>(["float32", "float64", "int32", "uint32", "int16", "uint16", "int8", "uint8"]);
+const VALID_SAMPLE_TYPES = new Set<BinarySampleType>(["float32", "float64", "float16", "int32", "uint32", "int24", "uint24", "int16", "uint16", "int8", "uint8"]);
 const VALID_LAYOUTS = new Set<BinaryChannelLayout>(["real", "iq", "interleaved", "planar"]);
-const VALID_PARSERS = new Set<BinaryParserChoice>(["auto", "wavebin", "lecroy-trc", "tek-isf", "owon-bin"]);
+const VALID_PARSERS = new Set<BinaryParserChoice>(["auto", "wavebin", "lecroy-trc", "tek-isf", "owon-bin", "wav", "npy"]);
 
 /** Serialize a BinaryImportConfig into a portable JSON profile for saving/sharing lab formats. */
 export function serializeBinarySettings(config: BinaryImportConfig): string {
@@ -223,6 +227,9 @@ export function sampleTypeBytes(type: BinarySampleType): number {
     case "float32":
     case "int32":
     case "uint32": return 4;
+    case "int24":
+    case "uint24": return 3;
+    case "float16":
     case "int16":
     case "uint16": return 2;
     case "int8":
@@ -376,8 +383,12 @@ export function detectBinaryDataStart(buffer: ArrayBuffer): BinaryDataStartResul
     }
     if (textRun < len) {
       let pos = textRun;
-      // Skip any trailing NUL padding right after an ASCII header block.
-      while (pos < scanLimit && bytes[pos] === 0) pos += 1;
+      const lastChar = bytes[textRun - 1] ?? 0;
+      // Only skip trailing NUL padding when the ASCII header wasn't already terminated by a newline
+      // (so a newline-terminated header followed by a 0.0 Float32 / 0 Int16 sample keeps sample 0 intact).
+      if (lastChar !== 0x0a && lastChar !== 0x0d) {
+        while (pos < scanLimit && bytes[pos] === 0) pos += 1;
+      }
       const offset = pos < len ? pos : textRun;
       return { offset, reason: "End of ASCII header", detected: true };
     }
@@ -480,6 +491,8 @@ function parseDetectedScope(
     case "lecroy-trc": return parseLeCroyTrc(buffer, fileName, options);
     case "tek-isf": return parseTekIsf(buffer, fileName, options);
     case "owon-bin": return parseOwonBin(buffer, fileName, options);
+    case "wav": return parseWavBin(buffer, fileName, options);
+    case "npy": return parseNpyBin(buffer, fileName, options);
   }
 }
 
@@ -487,8 +500,11 @@ function readTypedSample(view: DataView, offset: number, type: BinarySampleType,
   switch (type) {
     case "float32": return view.getFloat32(offset, littleEndian);
     case "float64": return view.getFloat64(offset, littleEndian);
+    case "float16": return decodeFloat16(view.getUint16(offset, littleEndian));
     case "int32": return view.getInt32(offset, littleEndian);
     case "uint32": return view.getUint32(offset, littleEndian);
+    case "int24": return readInt24(view, offset, littleEndian);
+    case "uint24": return readUint24(view, offset, littleEndian);
     case "int16": return view.getInt16(offset, littleEndian);
     case "uint16": return view.getUint16(offset, littleEndian);
     case "int8": return view.getInt8(offset);
@@ -782,6 +798,7 @@ export interface BinaryPreviewResult {
   readonly dtSeconds: number | null;
   readonly hexDump: string;
   readonly hexOffset: number;
+  readonly encodingWarning: BinaryEncodingWarning | null;
   readonly error: string | null;
 }
 
@@ -867,6 +884,35 @@ export function previewBinaryImport(
 
   const parsedResult = parseBinaryWithConfig(buffer, fileName, config, { reduction: PREVIEW_REDUCTION });
 
+  // Probe raw decoded samples in Custom mode (before NaN filtering) to warn about wrong endianness/type/alignment.
+  let encodingWarning: BinaryEncodingWarning | null = null;
+  if (config.mode === "raw" || !signature) {
+    const skip = Math.max(0, Math.floor(Number.isFinite(config.headerBytes) ? config.headerBytes : 0));
+    const footer = Math.max(0, Math.floor(Number.isFinite(config.footerBytes ?? 0) ? (config.footerBytes ?? 0) : 0));
+    const pad = Math.max(0, Math.floor(Number.isFinite(config.framePadBytes ?? 0) ? (config.framePadBytes ?? 0) : 0));
+    const elemBytes = sampleTypeBytes(config.sampleType);
+    const nChannels = channelsPerFrame(config);
+    const frameBytes = elemBytes * nChannels + (config.layout === "planar" ? 0 : pad);
+    const totalFrames = skip + footer < buffer.byteLength && frameBytes > 0
+      ? Math.floor((buffer.byteLength - skip - footer) / frameBytes)
+      : 0;
+    const start = Math.max(0, Math.min(Math.max(0, totalFrames - 1), Math.floor(Number.isFinite(config.startSample) ? config.startSample : 0)));
+    const probeCount = Math.min(512, Math.max(0, totalFrames - start));
+    if (probeCount >= 2) {
+      const view = new DataView(buffer);
+      const le = config.endian === "le";
+      const probeSamples: number[] = [];
+      for (let i = 0; i < probeCount; i++) {
+        const byteOffset = config.layout === "planar"
+          ? skip + (start + i) * elemBytes
+          : skip + (start + i) * frameBytes;
+        if (byteOffset + elemBytes > buffer.byteLength) break;
+        probeSamples.push(readTypedSample(view, byteOffset, config.sampleType, le));
+      }
+      encodingWarning = analyzeDecodedQuality(probeSamples, config.sampleType);
+    }
+  }
+
   let sampleRateHz: number | null = null;
   let dtSeconds: number | null = null;
   if (config.mode === "raw" || !signature) {
@@ -895,6 +941,7 @@ export function previewBinaryImport(
       dtSeconds,
       hexDump,
       hexOffset,
+      encodingWarning,
       error: parsedResult.error,
     };
   }
@@ -918,6 +965,7 @@ export function previewBinaryImport(
       dtSeconds,
       hexDump,
       hexOffset,
+      encodingWarning,
       error: "No finite points to plot.",
     };
   }
@@ -963,6 +1011,7 @@ export function previewBinaryImport(
     dtSeconds,
     hexDump,
     hexOffset,
+    encodingWarning,
     error: null,
   };
 }

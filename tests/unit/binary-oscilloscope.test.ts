@@ -388,7 +388,7 @@ describe('Phase 2 binary oscilloscope formats (.trc, .isf, OWON .bin) + shipped 
     expect(swapped.parsed.traces[0]?.data.map(p => p.amp)).toEqual([9, 8]);
     expect(swapped.parsed.traces[1]?.data.map(p => p.amp)).toEqual([1, 2]);
 
-    // SWITCH_WIZARD_TO_TEXT converts a misclassified ASCII .bin buffer into a tabular wizard entry.
+    // SWITCH_WIZARD_TO_TEXT converts a misclassified ASCII .bin buffer into a tabular wizard entry while preserving rawBinary for lossless switch-back.
     const asciiBuf = Buffer.from('time,v\n0,1\n1,2\n2,3\n', 'utf-8');
     const asciiAb = asciiBuf.buffer.slice(asciiBuf.byteOffset, asciiBuf.byteOffset + asciiBuf.byteLength);
     const readAscii = classifyReadBinary('notes.bin', asciiAb, 'txt-1');
@@ -402,9 +402,18 @@ describe('Phase 2 binary oscilloscope formats (.trc, .isf, OWON .bin) + shipped 
       type: 'change',
       command: { slice: 'files', action: { type: 'SWITCH_WIZARD_TO_TEXT', payload: { id: 'txt-1' } } },
     });
-    expect(engine.present.files.wizardQueue[0]?.rawBinary).toBeUndefined();
+    expect(engine.present.files.wizardQueue[0]?.wizardView).toBe('text');
+    expect(engine.present.files.wizardQueue[0]?.rawBinary).toBe(asciiAb);
     expect(engine.present.files.wizardQueue[0]?.rawText).toContain('time,v');
     expect(engine.present.files.wizardQueue[0]?.previewLines.length).toBeGreaterThan(2);
+
+    // SWITCH_WIZARD_TO_BINARY switches back losslessly to binary view with the original buffer intact.
+    engine = workspaceEngineReducer(engine, {
+      type: 'change',
+      command: { slice: 'files', action: { type: 'SWITCH_WIZARD_TO_BINARY', payload: { id: 'txt-1' } } },
+    });
+    expect(engine.present.files.wizardQueue[0]?.wizardView).toBe('binary');
+    expect(engine.present.files.wizardQueue[0]?.rawBinary).toBe(asciiAb);
   });
 
   it('defaults raw sampleCount to 0 even above 65,536 frames and exposes sampleRateHz/dtSeconds in previewBinaryImport', () => {
@@ -568,8 +577,12 @@ describe('Phase 2 binary oscilloscope formats (.trc, .isf, OWON .bin) + shipped 
     wav.writeUInt32LE(16, 40);
     expect(findBinaryDataStart(wav.buffer.slice(wav.byteOffset, wav.byteOffset + wav.byteLength))).toBe(44);
 
-    const asciiHead = Buffer.concat([Buffer.from('HEADER=1\nRATE=1000\n', 'ascii'), Buffer.from([0, 0, 0x80, 0x3f, 0, 0])]);
-    expect(findBinaryDataStart(asciiHead.buffer.slice(asciiHead.byteOffset, asciiHead.byteOffset + asciiHead.byteLength))).toBe(21);
+    // Newline-terminated ASCII header followed by Float32 1.0 (00 00 80 3f) keeps sample 0 intact at offset 19.
+    const asciiNewline = Buffer.concat([Buffer.from('HEADER=1\nRATE=1000\n', 'ascii'), Buffer.from([0, 0, 0x80, 0x3f, 0, 0, 0, 0x40])]);
+    expect(findBinaryDataStart(asciiNewline.buffer.slice(asciiNewline.byteOffset, asciiNewline.byteOffset + asciiNewline.byteLength))).toBe(19);
+    // NUL-padded fixed-width ASCII header without trailing newline skips NUL padding to payload start.
+    const asciiNulPadded = Buffer.concat([Buffer.from('HEADER=1;RATE=1000', 'ascii'), Buffer.from([0, 0, 0x3f, 0x80, 0, 0])]);
+    expect(findBinaryDataStart(asciiNulPadded.buffer.slice(asciiNulPadded.byteOffset, asciiNulPadded.byteOffset + asciiNulPadded.byteLength))).toBe(20);
 
     // previewBinaryImport supports custom hexView offset & size > 64 B.
     const big = new ArrayBuffer(512);
@@ -734,5 +747,42 @@ describe('Phase 2 binary oscilloscope formats (.trc, .isf, OWON .bin) + shipped 
     expect(rawRes.detected).toBe(false);
     expect(rawRes.offset).toBe(0);
     expect(findBinaryDataStart(raw.buffer.slice(raw.byteOffset, raw.byteOffset + raw.byteLength))).toBe(0);
+  });
+
+  it('supports int24, uint24, float16 custom decoding and emits encodingWarning on byte-swapped floats', () => {
+    // 24-bit signed LE: [1, -1, 1000]
+    const b24 = Buffer.from([0x01, 0x00, 0x00, 0xff, 0xff, 0xff, 0xe8, 0x03, 0x00]);
+    const ab24 = b24.buffer.slice(b24.byteOffset, b24.byteOffset + b24.byteLength);
+    const p24 = parseBinaryWithConfig(ab24, 'adc.raw', {
+      ...defaultBinaryConfig('adc.raw', ab24.byteLength, null),
+      sampleType: 'int24',
+      endian: 'le',
+    });
+    expect(p24.ok).toBe(true);
+    if (!p24.ok) return;
+    expect(p24.parsed.traces[0]?.data.map(p => p.amp)).toEqual([1, -1, 1000]);
+
+    // float16 LE: 1.0 (0x3c00), -2.5 (0xc100), 0.5 (0x3800)
+    const bf16 = Buffer.from([0x00, 0x3c, 0x00, 0xc1, 0x00, 0x38]);
+    const abf16 = bf16.buffer.slice(bf16.byteOffset, bf16.byteOffset + bf16.byteLength);
+    const pf16 = parseBinaryWithConfig(abf16, 'half.raw', {
+      ...defaultBinaryConfig('half.raw', abf16.byteLength, null),
+      sampleType: 'float16',
+      endian: 'le',
+    });
+    expect(pf16.ok).toBe(true);
+    if (!pf16.ok) return;
+    expect(pf16.parsed.traces[0]?.data.map(p => p.amp)).toEqual([1, -2.5, 0.5]);
+
+    // Float32 with NaN triggers encodingWarning in previewBinaryImport.
+    const nanBuf = Buffer.alloc(16);
+    nanBuf.writeFloatLE(1.0, 0);
+    nanBuf.writeFloatLE(Number.NaN, 4);
+    nanBuf.writeFloatLE(2.0, 8);
+    nanBuf.writeFloatLE(3.0, 12);
+    const nanAb = nanBuf.buffer.slice(nanBuf.byteOffset, nanBuf.byteOffset + nanBuf.byteLength);
+    const nanPrev = previewBinaryImport(nanAb, 'bad.f32', defaultBinaryConfig('bad.f32', nanAb.byteLength, null));
+    expect(nanPrev.encodingWarning).not.toBeNull();
+    expect(nanPrev.encodingWarning?.message).toContain('NaN');
   });
 });

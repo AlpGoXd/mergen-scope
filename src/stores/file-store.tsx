@@ -9,6 +9,8 @@ import { parseMeasurementFile } from '../domain/parsers/parse-file';
 import { classify } from '../domain/parsers/classifier';
 import { parseTabularFile } from '../domain/parsers/tabular';
 import { detectTabular } from '../domain/parsers/tabular-detect';
+import { BINARY_SNIFF_BYTES, detectBinarySignature } from '../domain/parsers/binary-detect';
+import { defaultBinaryConfig } from '../domain/parsers/raw-binary';
 import type { BinaryImportConfig } from '../domain/parsers/raw-binary';
 import type { TraceDomain } from '../types/trace';
 
@@ -34,6 +36,8 @@ export interface WizardEntry {
   rawBinary?: ArrayBuffer;
   binaryConfig?: BinaryImportConfig;
   binaryWarning?: string;
+  /** Active wizard mode when flipping between Text and Binary views without losing the buffer. */
+  wizardView?: 'text' | 'binary';
   targetPaneId?: string;
   duplicateChoice?: OpenChoice;
   pendingBatch?: PendingOpenBatch;
@@ -64,6 +68,7 @@ export type FileAction =
   | { type: 'RESOLVE_WIZARD'; payload: { id: string; config: WizardConfig; decisions?:Readonly<Record<string,{choice:OpenChoice;expectedFileId?:string}>>; workspaceChoice?:'replace'|'cancel' } }
   | { type: 'RESOLVE_BINARY_WIZARD'; payload: { id: string; binaryConfig: BinaryImportConfig; decisions?:Readonly<Record<string,{choice:OpenChoice;expectedFileId?:string}>>; workspaceChoice?:'replace'|'cancel' } }
   | { type: 'SWITCH_WIZARD_TO_TEXT'; payload: { id: string } }
+  | { type: 'SWITCH_WIZARD_TO_BINARY'; payload: { id: string } }
   | { type: 'RERUN_WIZARD'; payload: { fileId: string; fileName: string } }
   | { type: 'SKIP_WIZARD'; payload: { id: string } }
   | { type: 'SKIP_ALL_WIZARD' }
@@ -304,17 +309,37 @@ export function fileReducer(state: FileState, action: FileAction): FileState {
     case 'SWITCH_WIZARD_TO_TEXT': {
       const targetId = action.payload.id;
       const entry = state.wizardQueue.find((item) => item.id === targetId);
-      if (!entry?.rawBinary) return state;
-      const decodedText = new TextDecoder('utf-8', { fatal: false }).decode(entry.rawBinary);
+      if (!entry) return state;
+      const decodedText = entry.rawText || (entry.rawBinary ? new TextDecoder('utf-8', { fatal: false }).decode(entry.rawBinary) : '');
       const detected = detectTabular(decodedText);
       const nextEntry: WizardEntry = {
         ...entry,
-        rawBinary: undefined,
-        binaryConfig: undefined,
-        binaryWarning: undefined,
+        wizardView: 'text',
         rawText: decodedText,
         previewLines: nonEmptyPreviewLines(decodedText),
-        suggestedConfig: detected.config,
+        suggestedConfig: entry.suggestedConfig ?? detected.config,
+      };
+      return {
+        ...state,
+        wizardQueue: state.wizardQueue.map((item) => (item.id === targetId ? nextEntry : item)),
+      };
+    }
+    case 'SWITCH_WIZARD_TO_BINARY': {
+      const targetId = action.payload.id;
+      const entry = state.wizardQueue.find((item) => item.id === targetId);
+      if (!entry) return state;
+      let buffer = entry.rawBinary;
+      if (!buffer) {
+        const encoded = new TextEncoder().encode(entry.rawText);
+        buffer = encoded.buffer.slice(encoded.byteOffset, encoded.byteOffset + encoded.byteLength);
+      }
+      const detectedScope = detectBinarySignature(new Uint8Array(buffer, 0, Math.min(buffer.byteLength, BINARY_SNIFF_BYTES)));
+      const binaryConfig = entry.binaryConfig ?? defaultBinaryConfig(entry.fileName, buffer.byteLength, detectedScope);
+      const nextEntry: WizardEntry = {
+        ...entry,
+        wizardView: 'binary',
+        rawBinary: buffer,
+        binaryConfig,
       };
       return {
         ...state,

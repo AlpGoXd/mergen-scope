@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useFileDispatch } from '../../stores/file-store';
 import type { WizardEntry } from '../../stores/file-store';
 import { useOptionalAggregateWorkspace } from '../../stores/aggregate-workspace-store';
@@ -16,6 +16,7 @@ import {
   channelsPerFrame,
   defaultBinaryConfig,
   detectBinaryDataStart,
+  inspectBinaryCursor,
   parseBinarySettings,
   previewBinaryImport,
   rawTotalSamples,
@@ -53,8 +54,11 @@ const SAMPLE_TYPES: readonly { value: BinarySampleType; label: string; ariaLabel
 
 const EXTRA_SAMPLE_TYPES: readonly { value: BinarySampleType; label: string; ariaLabel: string; title: string }[] = [
   { value: 'float64', label: 'f64', ariaLabel: 'Float 64-bit', title: 'IEEE-754 64-bit double-precision float (8 bytes/sample; MATLAB / NumPy float64)' },
+  { value: 'float16', label: 'f16', ariaLabel: 'Float 16-bit', title: 'IEEE-754 16-bit half-precision float (2 bytes/sample; NumPy float16 / DSP / FPGA)' },
   { value: 'int32', label: 'i32', ariaLabel: 'Signed 32-bit integer', title: 'Signed 32-bit integer (4 bytes/sample; FPGA / high-resolution DAQ dumps)' },
   { value: 'uint32', label: 'u32', ariaLabel: 'Unsigned 32-bit integer', title: 'Unsigned 32-bit integer (4 bytes/sample; raw counters / unsigned ADC words)' },
+  { value: 'int24', label: 'i24', ariaLabel: 'Signed 24-bit integer', title: 'Signed 24-bit integer (3 bytes/sample; 24-bit Σ-Δ ADCs / PCM audio / DAQ)' },
+  { value: 'uint24', label: 'u24', ariaLabel: 'Unsigned 24-bit integer', title: 'Unsigned 24-bit integer (3 bytes/sample; unipolar 24-bit ADC streams)' },
   { value: 'uint16', label: 'u16', ariaLabel: 'Unsigned 16-bit integer', title: 'Unsigned 16-bit integer (0..65535, 2 bytes/sample; unipolar ADCs)' },
 ];
 
@@ -102,6 +106,8 @@ const EXPLICIT_PARSERS: readonly { value: BinaryFormat; label: string; title: st
   { value: 'lecroy-trc', label: 'LeCroy (.trc)', title: 'Force Teledyne LeCroy WAVEDESC / LECROY_2_3 parser' },
   { value: 'tek-isf', label: 'Tektronix (.isf)', title: 'Force Tektronix Internal Save Format (:WFMPRE: + :CURVE #) parser' },
   { value: 'owon-bin', label: 'OWON (.bin)', title: 'Force OWON SPBXDS + JSON header parser' },
+  { value: 'wav', label: 'RIFF / WAV (.wav)', title: 'Force RIFF/WAVE PCM or IEEE Float audio/DAQ/IQ parser' },
+  { value: 'npy', label: 'NumPy (.npy)', title: 'Force NumPy .npy binary array parser (1D/2D real or complex)' },
 ];
 
 const SKIP_NUDGES: readonly { delta: number; label: string; title: string }[] = [
@@ -264,11 +270,12 @@ export interface BinaryWizardDialogProps {
   buffer: ArrayBuffer;
   position: number;
   total: number;
+  others?: readonly WizardEntry[];
   queue: readonly WizardEntry[];
   priorFile: RawFileRecord | undefined;
 }
 
-export function BinaryWizardDialog({ entry, buffer, position, total, queue, priorFile }: BinaryWizardDialogProps) {
+export function BinaryWizardDialog({ entry, buffer, position, total, others = [], queue, priorFile }: BinaryWizardDialogProps) {
   const fileDispatch = useFileDispatch();
   const aggregate = useOptionalAggregateWorkspace();
   const ask = useAsk();
@@ -285,8 +292,10 @@ export function BinaryWizardDialog({ entry, buffer, position, total, queue, prio
   const [config, setConfig] = useState<BinaryImportConfig>(
     () => entry.binaryConfig ?? defaultBinaryConfig(entry.fileName, buffer.byteLength, detectedScope),
   );
+  const [applyToOthers, setApplyToOthers] = useState(false);
   const [hexSize, setHexSize] = useState<number>(64);
   const [hexPageOffset, setHexPageOffset] = useState<number | null>(null);
+  const [selectedHexByte, setSelectedHexByte] = useState<number | null>(null);
   const [autoSkipHint, setAutoSkipHint] = useState<string | null>(null);
   const [settingsNotice, setSettingsNotice] = useState<string | null>(null);
   const settingsFileInputRef = useRef<HTMLInputElement>(null);
@@ -396,11 +405,11 @@ export function BinaryWizardDialog({ entry, buffer, position, total, queue, prio
     && (Math.max(0, preview.totalAvailableSamples - startSample) < 2 || requestedSamples === 1);
   const blocker = preview.error ?? (rawWindowTooSmall ? 'Selected sample window has fewer than two samples.' : null);
 
-  const resolveDecisions = async (batchId: string) => {
-    const batch = entry.pendingBatch;
+  const resolveDecisions = async (batchId: string, resolving: readonly WizardEntry[]) => {
+    const batch = resolving.find(item => item.pendingBatch?.id === batchId)?.pendingBatch;
     const decisions: Record<string, { choice: OpenChoice; expectedFileId?: string }> = {};
     let workspaceChoice: 'replace' | undefined;
-    if (!batch || batch.id !== batchId || !aggregate) return { ok: true as const, decisions, workspaceChoice };
+    if (!batch || !aggregate) return { ok: true as const, decisions, workspaceChoice };
     const current = aggregate.state;
     if (batch.workspace) {
       const counts = workspaceCounts(current);
@@ -422,16 +431,17 @@ export function BinaryWizardDialog({ entry, buffer, position, total, queue, prio
 
   const confirm = async () => {
     if (blocker || asking.current) return;
-    let extra: { decisions: Record<string, { choice: OpenChoice; expectedFileId?: string }>; workspaceChoice?: 'replace' } | undefined;
-    const batchId = entry.pendingBatch?.id;
-    if (batchId) {
-      const left = queue.filter(other => other.pendingBatch?.id === batchId && other.id !== entry.id);
-      if (!left.length) {
-        asking.current = true;
-        const answer = await resolveDecisions(batchId).finally(() => { asking.current = false; });
-        if (!answer.ok) return;
-        extra = { decisions: answer.decisions, workspaceChoice: answer.workspaceChoice };
-      }
+    const resolving = [entry, ...(applyToOthers ? others : [])];
+    const finalFor = new Map<string, { decisions: Record<string, { choice: OpenChoice; expectedFileId?: string }>; workspaceChoice?: 'replace' }>();
+    for (const item of resolving) {
+      const batchId = item.pendingBatch?.id;
+      if (!batchId || finalFor.has(batchId)) continue;
+      const left = queue.filter(other => other.pendingBatch?.id === batchId && !resolving.includes(other));
+      if (left.length) continue;
+      asking.current = true;
+      const answer = await resolveDecisions(batchId, resolving).finally(() => { asking.current = false; });
+      if (!answer.ok) return;
+      finalFor.set(batchId, { decisions: answer.decisions, workspaceChoice: answer.workspaceChoice });
     }
     const normalizedConfig: BinaryImportConfig = (() => {
       if (pointStats.budget.level === 'ok') {
@@ -452,13 +462,18 @@ export function BinaryWizardDialog({ entry, buffer, position, total, queue, prio
       }
       return config;
     })();
-    fileDispatch({
-      type: 'RESOLVE_BINARY_WIZARD',
-      payload: {
-        id: entry.id,
-        binaryConfig: normalizedConfig,
-        ...(extra ? { decisions: extra.decisions, workspaceChoice: extra.workspaceChoice } : {}),
-      },
+    resolving.forEach(item => {
+      const batchId = item.pendingBatch?.id;
+      const isLast = batchId ? resolving.filter(other => other.pendingBatch?.id === batchId).at(-1) === item : true;
+      const extra = batchId && isLast ? finalFor.get(batchId) : undefined;
+      fileDispatch({
+        type: 'RESOLVE_BINARY_WIZARD',
+        payload: {
+          id: item.id,
+          binaryConfig: normalizedConfig,
+          ...(extra ? { decisions: extra.decisions, workspaceChoice: extra.workspaceChoice } : {}),
+        },
+      });
     });
   };
 
@@ -626,7 +641,34 @@ export function BinaryWizardDialog({ entry, buffer, position, total, queue, prio
   const hexHeading = `Hex · 0x${preview.hexOffset.toString(16).padStart(4, '0')} (${formatCount(preview.hexOffset)} B · ${formatCount(hexShown)} B)`;
   const canHexPrev = preview.hexOffset > 0;
   const canHexNext = preview.hexOffset + hexSize < buffer.byteLength;
-  const hexDiffersFromSkip = config.mode === 'raw' && hexPageOffset !== null && preview.hexOffset !== config.headerBytes;
+  const hexTargetOffset = selectedHexByte !== null && selectedHexByte >= 0 && selectedHexByte < buffer.byteLength
+    ? selectedHexByte
+    : preview.hexOffset;
+  const hexDiffersFromSkip = config.mode === 'raw' && hexTargetOffset !== config.headerBytes;
+  const hexRows = useMemo(() => {
+    const out: { rowOffset: number; addr: string; bytes: number[]; ascii: string }[] = [];
+    if (hexShown <= 0) return out;
+    const view = new Uint8Array(buffer, preview.hexOffset, hexShown);
+    for (let row = 0; row < view.length; row += 16) {
+      const slice = view.subarray(row, Math.min(row + 16, view.length));
+      const rowOffset = preview.hexOffset + row;
+      const addr = rowOffset.toString(16).padStart(4, '0');
+      const bytes = Array.from(slice);
+      const ascii = bytes.map(b => (b >= 0x20 && b <= 0x7e ? String.fromCharCode(b) : '.')).join('');
+      out.push({ rowOffset, addr, bytes, ascii });
+    }
+    return out;
+  }, [buffer, preview.hexOffset, hexShown]);
+  const cursorReadings = useMemo(
+    () => (selectedHexByte !== null ? inspectBinaryCursor(buffer, selectedHexByte, config.endian) : null),
+    [buffer, selectedHexByte, config.endian],
+  );
+  const formatCursorFloat = (value: number | null): string => {
+    if (value === null) return '—';
+    if (Number.isNaN(value)) return 'NaN';
+    if (!Number.isFinite(value)) return value > 0 ? '+Inf' : '−Inf';
+    return formatCompactNum(value);
+  };
 
   const mainLabel = editing ? 'Apply' : `Add ${preview.channels.length} trace${preview.channels.length === 1 ? '' : 's'}`;
 
@@ -635,8 +677,16 @@ export function BinaryWizardDialog({ entry, buffer, position, total, queue, prio
       <div ref={dialogRef} className="ui-dialog iw-dialog iw-dialog--binary" role="dialog" aria-modal="true" aria-labelledby="binary-wizard-title" data-testid="binary-wizard" tabIndex={-1}>
         <header className="iw-head">
           <h2 id="binary-wizard-title" className="iw-title t-title">
-            {editing ? 'Binary import settings' : 'Open binary'} <span className="iw-file" title={entry.fileName}>{entry.fileName}</span>
+            {editing ? 'Import settings' : 'Open'} <span className="iw-file" title={entry.fileName}>{entry.fileName}</span>
           </h2>
+          <div className="iw-mode-switch" title="Switch between Text / CSV table import and Binary / Waveform import">
+            <Segmented
+              label="Import mode"
+              options={[{ value: 'text', label: 'Text' }, { value: 'binary', label: 'Binary' }]}
+              value="binary"
+              onChange={mode => { if (mode === 'text') switchToText(); }}
+            />
+          </div>
           {total > 1 && <span className="t-caption" data-testid="import-wizard-queue">File {position} of {total}</span>}
           <button type="button" className="iw-close" aria-label="Close" title="Cancel (Esc)" onClick={cancel}><Icon name="close" /></button>
         </header>
@@ -1196,6 +1246,11 @@ export function BinaryWizardDialog({ entry, buffer, position, total, queue, prio
             {preview.rangeText && (
               <div className="iw-plot-range t-readout" data-testid="binary-wizard-range">{preview.rangeText}</div>
             )}
+            {preview.encodingWarning && (
+              <div data-testid="binary-wizard-encoding-warning">
+                <MessageBar status="warning">{preview.encodingWarning.message}</MessageBar>
+              </div>
+            )}
             {config.mode === 'auto-scope' && preview.headerSummary && (
               <div className="iw-header-summary t-caption" data-testid="binary-wizard-header-summary">
                 {preview.headerSummary}
@@ -1349,7 +1404,10 @@ export function BinaryWizardDialog({ entry, buffer, position, total, queue, prio
                   disabled={!canHexPrev}
                   aria-label="Previous hex page"
                   title={`Jump back ${hexSize} bytes in the hex inspector`}
-                  onClick={() => setHexPageOffset(Math.max(0, preview.hexOffset - hexSize))}
+                  onClick={() => {
+                    setSelectedHexByte(null);
+                    setHexPageOffset(Math.max(0, preview.hexOffset - hexSize));
+                  }}
                 >
                   ◀
                 </Btn>
@@ -1358,13 +1416,65 @@ export function BinaryWizardDialog({ entry, buffer, position, total, queue, prio
                   disabled={!canHexNext}
                   aria-label="Next hex page"
                   title={`Jump forward ${hexSize} bytes in the hex inspector`}
-                  onClick={() => setHexPageOffset(Math.min(Math.max(0, buffer.byteLength - 16), preview.hexOffset + hexSize))}
+                  onClick={() => {
+                    setSelectedHexByte(null);
+                    setHexPageOffset(Math.min(Math.max(0, buffer.byteLength - 16), preview.hexOffset + hexSize));
+                  }}
                 >
                   ▶
                 </Btn>
               </div>
             </div>
-            <pre className="iw-hex t-readout" data-testid="binary-wizard-hex">{preview.hexDump}</pre>
+            <div className="iw-hex t-readout" data-testid="binary-wizard-hex" role="region" aria-label="Hex inspector (click any byte to decode and set skip)">
+              {hexRows.length === 0 ? '(end of file)' : (
+                <div className="iw-hex-grid">
+                  {hexRows.map(row => (
+                    <div key={row.rowOffset} className="iw-hex-row">
+                      <span className="iw-hex-addr">{row.addr}</span>
+                      <span className="iw-hex-bytes">
+                        {row.bytes.map((byteVal, col) => {
+                          const absOffset = row.rowOffset + col;
+                          const hex = byteVal.toString(16).padStart(2, '0');
+                          const isSelected = selectedHexByte === absOffset;
+                          const isSkipStart = config.mode === 'raw' && config.headerBytes === absOffset;
+                          return (
+                            <Fragment key={absOffset}>
+                              {col > 0 ? ' ' : ''}
+                              <button
+                                type="button"
+                                className={`iw-hex-byte t-readout${isSelected ? ' is-selected' : ''}${isSkipStart ? ' is-skip-start' : ''}`}
+                                aria-pressed={isSelected}
+                                aria-label={`Byte ${absOffset} (0x${absOffset.toString(16).padStart(4, '0')}): ${hex}`}
+                                title={`Offset ${formatCount(absOffset)} B (0x${absOffset.toString(16).padStart(4, '0')}) — click to inspect decoded values`}
+                                onClick={() => setSelectedHexByte(prev => (prev === absOffset ? null : absOffset))}
+                              >
+                                {hex}
+                              </button>
+                            </Fragment>
+                          );
+                        })}
+                        {row.bytes.length < 16 ? ' '.repeat((16 - row.bytes.length) * 3) : ''}
+                      </span>
+                      <span className="iw-hex-ascii">{row.ascii}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            {cursorReadings && cursorReadings.byteHex !== null && (
+              <div className="iw-hex-cursor t-caption" data-testid="binary-wizard-hex-cursor">
+                <div className="iw-hex-cursor-vals t-readout">
+                  <span>@{formatCount(cursorReadings.offset)} B (0x{cursorReadings.offset.toString(16).padStart(4, '0')} · {config.endian.toUpperCase()})</span>
+                  {cursorReadings.u8 !== null && <span>u8:{cursorReadings.u8}</span>}
+                  {cursorReadings.i16 !== null && <span>i16:{cursorReadings.i16}</span>}
+                  {cursorReadings.i24 !== null && <span>i24:{cursorReadings.i24}</span>}
+                  {cursorReadings.i32 !== null && <span>i32:{cursorReadings.i32}</span>}
+                  {cursorReadings.f16 !== null && <span>f16:{formatCursorFloat(cursorReadings.f16)}</span>}
+                  {cursorReadings.f32 !== null && <span>f32:{formatCursorFloat(cursorReadings.f32)}</span>}
+                  {cursorReadings.f64 !== null && <span>f64:{formatCursorFloat(cursorReadings.f64)}</span>}
+                </div>
+              </div>
+            )}
             {config.mode === 'raw' && (
               <div className="iw-hex-foot">
                 <div className="iw-nudges" aria-label="Header skip step">
@@ -1375,7 +1485,10 @@ export function BinaryWizardDialog({ entry, buffer, position, total, queue, prio
                       small
                       aria-label={`Skip ${item.label} bytes`}
                       title={item.title}
-                      onClick={() => nudgeSkip(item.delta)}
+                      onClick={() => {
+                        setSelectedHexByte(null);
+                        nudgeSkip(item.delta);
+                      }}
                     >
                       {item.label} B
                     </Btn>
@@ -1386,16 +1499,17 @@ export function BinaryWizardDialog({ entry, buffer, position, total, queue, prio
                   variant="slate"
                   disabled={!hexDiffersFromSkip}
                   title={hexDiffersFromSkip
-                    ? `Set Skip bytes to the current hex view offset (${formatCount(preview.hexOffset)} B / 0x${preview.hexOffset.toString(16)})`
-                    : 'Page the hex viewer to another offset, then click here to set Skip bytes to it'}
+                    ? `Set Skip bytes to ${formatCount(hexTargetOffset)} B (0x${hexTargetOffset.toString(16)})`
+                    : 'Click any byte above or page the hex viewer to another offset, then click here to set Skip bytes'}
                   onClick={() => {
-                    const target = preview.hexOffset;
+                    const target = hexTargetOffset;
+                    setSelectedHexByte(null);
                     setHexPageOffset(null);
                     setAutoSkipHint(null);
                     setConfig(prev => ({ ...prev, headerBytes: target }));
                   }}
                 >
-                  Set skip = {formatCount(preview.hexOffset)} B
+                  Set skip = {formatCount(hexTargetOffset)} B
                 </Btn>
               </div>
             )}
@@ -1422,6 +1536,12 @@ export function BinaryWizardDialog({ entry, buffer, position, total, queue, prio
               event.target.value = '';
             }}
           />
+          {!editing && others.length > 0 && (
+            <label className="iw-check t-label" title="Apply these exact binary import settings to every remaining binary file in this batch">
+              <input type="checkbox" checked={applyToOthers} onChange={event => setApplyToOthers(event.target.checked)} />
+              Use these settings for the other {others.length === 1 ? 'file' : `${others.length} files`}
+            </label>
+          )}
           <Btn
             small
             title="Export current binary import settings as a reusable .json profile"

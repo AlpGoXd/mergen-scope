@@ -18,7 +18,7 @@ import {
 } from '../../domain/import-wizard';
 import { useWizardTraceColors } from '../../hooks/use-wizard-trace-colors';
 import { Btn } from '../shared/Btn';
-import { Icon, MessageBar } from '../shared/Controls';
+import { Icon, MessageBar, Segmented } from '../shared/Controls';
 import { WizardPreviewTable, PREVIEW_ROWS } from './WizardPreviewTable';
 import { WizardSettings } from './WizardSettings';
 import { WizardPreviewPlot } from './WizardPreviewPlot';
@@ -51,10 +51,12 @@ export function ImportWizardModal() {
   const position = active.mode === 'edit' ? 1 : total - queued + 1;
   const displayTotal = active.mode === 'edit' ? 1 : total;
   const priorFile = active.mode === 'edit' ? files.find(file => String(file.id) === active.id) : undefined;
-  if (active.rawBinary) {
-    return <BinaryWizardDialog key={active.id} entry={active} buffer={active.rawBinary} position={position} total={displayTotal} queue={wizardQueue} priorFile={priorFile} />;
+  const isBinaryView = (active.wizardView ?? (active.rawBinary ? 'binary' : 'text')) === 'binary';
+  if (isBinaryView && active.rawBinary) {
+    const others = wizardQueue.slice(1).filter(entry => entry.mode !== 'edit' && (entry.wizardView ?? (entry.rawBinary ? 'binary' : 'text')) === 'binary' && Boolean(entry.rawBinary));
+    return <BinaryWizardDialog key={active.id} entry={active} buffer={active.rawBinary} position={position} total={displayTotal} others={others} queue={wizardQueue} priorFile={priorFile} />;
   }
-  return <WizardDialog key={active.id} entry={active} position={position} total={displayTotal} others={wizardQueue.slice(1).filter(entry => entry.mode !== 'edit' && !entry.rawBinary)} queue={wizardQueue} priorFile={priorFile} />;
+  return <WizardDialog key={active.id} entry={active} position={position} total={displayTotal} others={wizardQueue.slice(1).filter(entry => entry.mode !== 'edit' && (entry.wizardView ?? (entry.rawBinary ? 'binary' : 'text')) === 'text')} queue={wizardQueue} priorFile={priorFile} />;
 }
 
 interface WizardDialogProps {
@@ -203,6 +205,14 @@ function WizardDialog({ entry, position, total, others, queue, priorFile }: Wiza
           <h2 id="import-wizard-title" className="iw-title t-title">
             {editing ? 'Import settings' : 'Open'} <span className="iw-file" title={entry.fileName}>{entry.fileName}</span>
           </h2>
+          <div className="iw-mode-switch" title="Switch between Text / CSV table import and Binary / Waveform import">
+            <Segmented
+              label="Import mode"
+              options={[{ value: 'text', label: 'Text' }, { value: 'binary', label: 'Binary' }]}
+              value="text"
+              onChange={mode => { if (mode === 'binary') fileDispatch({ type: 'SWITCH_WIZARD_TO_BINARY', payload: { id: entry.id } }); }}
+            />
+          </div>
           {total > 1 && <span className="t-caption" data-testid="import-wizard-queue">File {position} of {total}</span>}
           <button type="button" className="iw-close" aria-label="Close" title="Cancel (Esc)" onClick={cancel}><Icon name="close" /></button>
         </header>
