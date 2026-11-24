@@ -18,6 +18,8 @@ The file shows 16 boards in seven rows, read top to bottom and left to right:
 
 Exact colour values (OKLCH) for every theme are in [colour-values.md](colour-values.md).
 
+The eye diagram was designed after this export (24 Nov 2026). Its written guide is [eye-diagram.md](eye-diagram.md); where it differs from the Eye section of the planned-panes board, the guide is right.
+
 ## How to view
 
 - It is not published on mergenscope.com.
