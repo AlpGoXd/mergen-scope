@@ -16,9 +16,11 @@ import {
   channelsPerFrame,
   defaultBinaryConfig,
   findBinaryDataStart,
+  parseBinarySettings,
   previewBinaryImport,
   rawTotalSamples,
   scopeFormatLabel,
+  serializeBinarySettings,
 } from '../../domain/parsers/raw-binary';
 import type {
   BinaryChannelLayout,
@@ -285,6 +287,8 @@ export function BinaryWizardDialog({ entry, buffer, position, total, queue, prio
   );
   const [hexSize, setHexSize] = useState<number>(64);
   const [hexPageOffset, setHexPageOffset] = useState<number | null>(null);
+  const [settingsNotice, setSettingsNotice] = useState<string | null>(null);
+  const settingsFileInputRef = useRef<HTMLInputElement>(null);
   const preview = useMemo(
     () => previewBinaryImport(buffer, entry.fileName, config, {
       ...(hexPageOffset !== null ? { offset: hexPageOffset } : {}),
@@ -530,7 +534,53 @@ export function BinaryWizardDialog({ entry, buffer, position, total, queue, prio
       ...prev,
       headerBytes: Math.max(0, Math.min(Math.max(0, buffer.byteLength - 2), detected)),
     }));
+    setSettingsNotice(detected > 0 ? `Auto-skip jumped to byte ${formatCount(detected)}.` : 'No leading ASCII/WAV header found (skip stayed at 0 B).');
   };
+
+  const exportBinarySettings = () => {
+    const json = serializeBinarySettings(config);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    const stem = entry.fileName.replace(/\.[^.]+$/, '') || 'binary';
+    link.href = url;
+    link.download = `${stem}.binary-import.json`;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    setSettingsNotice('Exported binary import settings JSON.');
+  };
+
+  const importBinarySettings = async (file: File) => {
+    try {
+      const text = await file.text();
+      const parsed = parseBinarySettings(text, config);
+      if (!parsed.ok) {
+        setSettingsNotice(parsed.error);
+        return;
+      }
+      const next = parsed.config;
+      setHexPageOffset(null);
+      setConfig(next);
+      setRateDraft(next.sampleRateHz > 0 ? String(next.sampleRateHz) : '0');
+      setYMultDraft(formatCompactNum(next.yMult));
+      setYOffsetDraft(formatCompactNum(next.yOffset));
+      setXMultDraft(formatCompactNum(next.xMult));
+      setXOffsetDraft(formatCompactNum(next.xOffset ?? 0));
+      setSettingsNotice(`Loaded settings from ${file.name}.`);
+    } catch {
+      setSettingsNotice('Could not read settings file.');
+    }
+  };
+
+  const isPresetActive = (patch: Partial<BinaryImportConfig>): boolean => (
+    config.mode === 'raw'
+    && config.sampleType === patch.sampleType
+    && config.endian === patch.endian
+    && config.layout === patch.layout
+    && Boolean(config.swapIQ) === Boolean(patch.swapIQ)
+    && Math.abs(config.yMult - (patch.yMult ?? 1)) < 1e-9
+    && Math.abs(config.yOffset - (patch.yOffset ?? 0)) < 1e-9
+  );
 
   const confidence = useMemo(
     () => classifyBinaryConfidence({
@@ -565,9 +615,8 @@ export function BinaryWizardDialog({ entry, buffer, position, total, queue, prio
     ));
   };
 
-  const hexHeading = preview.hexOffset > 0
-    ? `Bytes at 0x${preview.hexOffset.toString(16).padStart(4, '0')} (${formatCount(preview.hexOffset)} B · showing ${formatCount(Math.min(hexSize, Math.max(0, buffer.byteLength - preview.hexOffset)))} B)`
-    : `Header bytes (first ${formatCount(Math.min(hexSize, buffer.byteLength))} B)`;
+  const hexShown = Math.min(hexSize, Math.max(0, buffer.byteLength - preview.hexOffset));
+  const hexHeading = `Hex · 0x${preview.hexOffset.toString(16).padStart(4, '0')} (${formatCount(preview.hexOffset)} B · ${formatCount(hexShown)} B)`;
   const canHexPrev = preview.hexOffset > 0;
   const canHexNext = preview.hexOffset + hexSize < buffer.byteLength;
   const hexDiffersFromSkip = config.mode === 'raw' && hexPageOffset !== null && preview.hexOffset !== config.headerBytes;
@@ -576,7 +625,7 @@ export function BinaryWizardDialog({ entry, buffer, position, total, queue, prio
 
   return (
     <div className="ui-dialog-backdrop">
-      <div ref={dialogRef} className="ui-dialog iw-dialog" role="dialog" aria-modal="true" aria-labelledby="binary-wizard-title" data-testid="binary-wizard" tabIndex={-1}>
+      <div ref={dialogRef} className="ui-dialog iw-dialog iw-dialog--binary" role="dialog" aria-modal="true" aria-labelledby="binary-wizard-title" data-testid="binary-wizard" tabIndex={-1}>
         <header className="iw-head">
           <h2 id="binary-wizard-title" className="iw-title t-title">
             {editing ? 'Binary import settings' : 'Open binary'} <span className="iw-file" title={entry.fileName}>{entry.fileName}</span>
@@ -607,10 +656,11 @@ export function BinaryWizardDialog({ entry, buffer, position, total, queue, prio
                     variant="slate"
                     active={config.mode === 'raw'}
                     aria-checked={config.mode === 'raw'}
-                    title="Decode raw binary numbers directly with custom data type, endianness, layout, header skip, stride, and sample rate"
+                    aria-label="Custom raw binary"
+                    title="Custom binary mode: decode any raw/proprietary binary file with custom data type, endianness, layout, header skip, frame pad, footer, and sample rate"
                     onClick={() => setConfig(prev => ({ ...prev, mode: 'raw' }))}
                   >
-                    Raw binary
+                    Custom
                   </Btn>
                   <Btn
                     variant="slate"
@@ -757,16 +807,22 @@ export function BinaryWizardDialog({ entry, buffer, position, total, queue, prio
               <section className="iw-group" aria-label="Binary format">
                 <h3 className="t-section">Binary format</h3>
                 <div className="iw-presets" aria-label="SDR presets">
-                  {BINARY_RAW_PRESETS.map(preset => (
-                    <Btn
-                      key={preset.id}
-                      small
-                      title={preset.title}
-                      onClick={() => applyRawPreset(preset.patch)}
-                    >
-                      {preset.label}
-                    </Btn>
-                  ))}
+                  {BINARY_RAW_PRESETS.map(preset => {
+                    const active = isPresetActive(preset.patch);
+                    return (
+                      <Btn
+                        key={preset.id}
+                        small
+                        variant="slate"
+                        active={active}
+                        aria-pressed={active}
+                        title={preset.title}
+                        onClick={() => applyRawPreset(preset.patch)}
+                      >
+                        {preset.label}
+                      </Btn>
+                    );
+                  })}
                 </div>
                 <div className="iw-seg">
                   <div className="ui-segmented" role="radiogroup" aria-label="Sample data type">
@@ -1247,8 +1303,8 @@ export function BinaryWizardDialog({ entry, buffer, position, total, queue, prio
                 </p>
               </section>
             )}
-            <div className="iw-preview-head">
-              <h3 className="t-section" data-testid="binary-wizard-hex-heading">{hexHeading}</h3>
+            <div className="iw-hex-head">
+              <h3 className="t-section iw-hex-title" data-testid="binary-wizard-hex-heading" title={hexHeading}>{hexHeading}</h3>
               <div className="iw-hex-tools" aria-label="Hex inspector controls">
                 {HEX_SIZES.map(opt => (
                   <Btn
@@ -1309,11 +1365,37 @@ export function BinaryWizardDialog({ entry, buffer, position, total, queue, prio
         </div>
 
         <footer className="iw-foot">
+          <input
+            ref={settingsFileInputRef}
+            type="file"
+            accept=".json,application/json"
+            hidden
+            onChange={event => {
+              const picked = event.target.files?.[0];
+              if (picked) void importBinarySettings(picked);
+              event.target.value = '';
+            }}
+          />
+          <Btn
+            small
+            title="Export current binary import settings as a reusable .json profile"
+            onClick={exportBinarySettings}
+          >
+            Save settings
+          </Btn>
+          <Btn
+            small
+            title="Load a previously saved .json binary import profile"
+            onClick={() => settingsFileInputRef.current?.click()}
+          >
+            Load settings
+          </Btn>
+          {settingsNotice && <span className="t-caption" data-testid="binary-wizard-settings-notice">{settingsNotice}</span>}
           <span className="iw-spacer" />
           {blocker && <span className="iw-blocker t-caption" data-testid="import-wizard-blocker">{blocker}</span>}
-          {!editing && total > 1 && <Btn onClick={skipFile}>Skip file</Btn>}
-          <Btn onClick={cancel} title="Esc">Cancel</Btn>
-          <Btn variant="solid" onClick={() => void confirm()} disabled={!!blocker} title="Enter" data-testid="import-wizard-confirm">{mainLabel}</Btn>
+          {!editing && total > 1 && <Btn onClick={skipFile} title="Skip this file and continue with the next file in the batch">Skip file</Btn>}
+          <Btn onClick={cancel} title="Close without importing (Esc)">Cancel</Btn>
+          <Btn variant="solid" onClick={() => void confirm()} disabled={!!blocker} title="Import traces with these settings (Enter)" data-testid="import-wizard-confirm">{mainLabel}</Btn>
         </footer>
 
         {parserMoreAnchor && (

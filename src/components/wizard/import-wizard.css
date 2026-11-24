@@ -3,6 +3,14 @@
 .ui-dialog.iw-dialog { width: min(880px, calc(100vw - 32px)); max-height: calc(100vh - 32px); padding: 0; gap: 0; grid-template-rows: auto minmax(0, auto) auto; overflow: hidden; outline: none; }
 .ui-dialog.iw-dialog:focus-visible { outline: none; }
 
+/* Binary wizard: fixed responsive box with independent left/right scrolling so preview never scrolls away or overflows small screens. */
+.ui-dialog.iw-dialog.iw-dialog--binary { width: min(940px, calc(100vw - 32px)); height: min(680px, calc(100vh - 32px)); max-width: calc(100vw - 16px); max-height: calc(100vh - 16px); grid-template-rows: auto minmax(0, 1fr) auto; }
+.iw-dialog--binary .iw-body { grid-template-columns: clamp(272px, 34%, 336px) minmax(0, 1fr); overflow: hidden; }
+.iw-dialog--binary .iw-settings { overflow-y: auto; min-height: 0; gap: var(--space-3); }
+.iw-dialog--binary .iw-main { overflow-y: auto; min-height: 0; }
+.iw-dialog--binary .ui-btn { transition: transform 60ms ease, background-color 80ms ease, border-color 80ms ease; }
+.iw-dialog--binary .ui-btn:active:not(:disabled) { transform: translateY(1px) scale(0.97); background: var(--sel-bg); border-color: var(--sel-line); }
+
 /* Header: "Open" + file name (Mono 400) · File 1 of 3 · × */
 .iw-head { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--border); min-width: 0; }
 .iw-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -99,8 +107,10 @@
 
 .iw-plot-range { color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .iw-header-summary { padding: var(--space-1) var(--space-2); border: 1px solid var(--border); border-radius: var(--radius-input); background: var(--panel); color: var(--text-muted); }
-.iw-hex { margin: 0; max-height: 220px; padding: var(--space-2); border: 1px solid var(--border); border-radius: var(--radius-card); background: var(--panel); color: var(--text-muted); overflow: auto; white-space: pre; }
-.iw-hex-tools { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.iw-hex-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); flex-wrap: nowrap; min-height: var(--control-sm-height); min-width: 0; }
+.iw-hex-title { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.iw-hex { margin: 0; max-height: 200px; padding: var(--space-2); border: 1px solid var(--border); border-radius: var(--radius-card); background: var(--panel); color: var(--text-muted); overflow: auto; white-space: pre; }
+.iw-hex-tools { display: flex; align-items: center; gap: 4px; flex: none; flex-wrap: nowrap; }
 .iw-chan-list { display: grid; gap: var(--space-1); }
 .iw-chan-table { display: grid; gap: var(--space-1); }
 .iw-chan-row { display: grid; grid-template-columns: minmax(0, 1fr) auto 46px 46px; align-items: center; gap: 4px; }
@@ -135,6 +145,10 @@
 .iw-blocker { color: var(--danger-ink); text-align: right; }
 
 @media (max-width: 720px) {
+  .ui-dialog.iw-dialog.iw-dialog--binary { width: calc(100vw - 16px); height: calc(100vh - 16px); }
+  .iw-dialog--binary .iw-body { grid-template-columns: minmax(0, 1fr); overflow-y: auto; }
+  .iw-dialog--binary .iw-settings, .iw-dialog--binary .iw-main { overflow: visible; }
   .iw-body { grid-template-columns: minmax(0, 1fr); }
   .iw-settings { border-right: 0; border-bottom: 1px solid var(--border); }
+  .iw-hex-head { flex-wrap: wrap; }
 }

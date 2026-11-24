@@ -131,6 +131,88 @@ export const BINARY_RAW_PRESETS: readonly BinaryRawPreset[] = [
 
 const RAW_BINARY_EXT = /\.(?:bin|cfile|cf32|fc32|sc16|cs16|ci16|cu8|cs8|iq|f32|f64|i32|u32|i16|s16|u8|trc|isf)$/i;
 
+export interface BinarySettingsProfile {
+  readonly kind: "mergen-binary-import-settings";
+  readonly version: 1;
+  readonly config: BinaryImportConfig;
+}
+
+const VALID_SAMPLE_TYPES = new Set<BinarySampleType>(["float32", "float64", "int32", "uint32", "int16", "uint16", "int8", "uint8"]);
+const VALID_LAYOUTS = new Set<BinaryChannelLayout>(["real", "iq", "interleaved", "planar"]);
+const VALID_PARSERS = new Set<BinaryParserChoice>(["auto", "wavebin", "lecroy-trc", "tek-isf", "owon-bin"]);
+
+/** Serialize a BinaryImportConfig into a portable JSON profile for saving/sharing lab formats. */
+export function serializeBinarySettings(config: BinaryImportConfig): string {
+  const profile: BinarySettingsProfile = {
+    kind: "mergen-binary-import-settings",
+    version: 1,
+    config,
+  };
+  return `${JSON.stringify(profile, null, 2)}\n`;
+}
+
+/** Validate and parse a saved binary import settings JSON file safely (untrusted input). */
+export function parseBinarySettings(
+  jsonText: string,
+  fallback: BinaryImportConfig,
+): { readonly ok: true; readonly config: BinaryImportConfig } | { readonly ok: false; readonly error: string } {
+  let raw: unknown;
+  try {
+    raw = JSON.parse(jsonText);
+  } catch {
+    return { ok: false, error: "Settings file is not valid JSON." };
+  }
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return { ok: false, error: "Invalid binary settings file." };
+  }
+  const envelope = raw as Record<string, unknown>;
+  const cfg = (envelope["kind"] === "mergen-binary-import-settings" && envelope["config"] && typeof envelope["config"] === "object" && !Array.isArray(envelope["config"]))
+    ? (envelope["config"] as Record<string, unknown>)
+    : envelope;
+
+  const mode = cfg["mode"] === "auto-scope" || cfg["mode"] === "raw" ? cfg["mode"] : fallback.mode;
+  const parserOverride = typeof cfg["parserOverride"] === "string" && VALID_PARSERS.has(cfg["parserOverride"] as BinaryParserChoice)
+    ? (cfg["parserOverride"] as BinaryParserChoice)
+    : fallback.parserOverride;
+  const sampleType = typeof cfg["sampleType"] === "string" && VALID_SAMPLE_TYPES.has(cfg["sampleType"] as BinarySampleType)
+    ? (cfg["sampleType"] as BinarySampleType)
+    : fallback.sampleType;
+  const endian = cfg["endian"] === "le" || cfg["endian"] === "be" ? cfg["endian"] : fallback.endian;
+  const layout = typeof cfg["layout"] === "string" && VALID_LAYOUTS.has(cfg["layout"] as BinaryChannelLayout)
+    ? (cfg["layout"] as BinaryChannelLayout)
+    : fallback.layout;
+  const num = (v: unknown, def: number) => (typeof v === "number" && Number.isFinite(v) ? v : def);
+  const nonNegInt = (v: unknown, def: number) => Math.max(0, Math.floor(num(v, def)));
+
+  const yMult = num(cfg["yMult"], fallback.yMult);
+  const xMult = num(cfg["xMult"], fallback.xMult);
+
+  return {
+    ok: true,
+    config: {
+      ...fallback,
+      mode,
+      parserOverride,
+      sampleType,
+      endian,
+      layout,
+      swapIQ: typeof cfg["swapIQ"] === "boolean" ? cfg["swapIQ"] : fallback.swapIQ,
+      channelCount: Math.max(2, Math.min(8, nonNegInt(cfg["channelCount"], fallback.channelCount))),
+      headerBytes: nonNegInt(cfg["headerBytes"], fallback.headerBytes),
+      framePadBytes: nonNegInt(cfg["framePadBytes"], fallback.framePadBytes ?? 0),
+      footerBytes: nonNegInt(cfg["footerBytes"], fallback.footerBytes ?? 0),
+      sampleRateHz: Math.max(0, num(cfg["sampleRateHz"], fallback.sampleRateHz)),
+      startSample: nonNegInt(cfg["startSample"], fallback.startSample),
+      sampleCount: nonNegInt(cfg["sampleCount"], fallback.sampleCount),
+      yUnit: typeof cfg["yUnit"] === "string" ? cfg["yUnit"] : undefined,
+      yMult: yMult !== 0 ? yMult : 1,
+      yOffset: num(cfg["yOffset"], fallback.yOffset),
+      xMult: xMult !== 0 ? xMult : 1,
+      xOffset: num(cfg["xOffset"], fallback.xOffset ?? 0),
+    },
+  };
+}
+
 export function isBinaryFileExtension(fileName: string): boolean {
   return RAW_BINARY_EXT.test(fileName);
 }

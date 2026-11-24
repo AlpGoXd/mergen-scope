@@ -4,7 +4,7 @@ import { BINARY_SNIFF_BYTES, classifyBinaryConfidence, detectBinarySignature } f
 import { parseLeCroyTrc } from '../../src/domain/parsers/lecroy-trc';
 import { parseTekIsf } from '../../src/domain/parsers/tek-isf';
 import { parseOwonBin, probeOwonBinPoints } from '../../src/domain/parsers/owon-bin';
-import { defaultBinaryConfig, findBinaryDataStart, parseBinaryWithConfig, previewBinaryImport } from '../../src/domain/parsers/raw-binary';
+import { defaultBinaryConfig, findBinaryDataStart, parseBinarySettings, parseBinaryWithConfig, previewBinaryImport, serializeBinarySettings } from '../../src/domain/parsers/raw-binary';
 import { classifyReadBinary } from '../../src/domain/open-file-read';
 import { resetParserFileCounter } from '../../src/domain/parsers/rs-dat';
 import { initialWorkspaceEngine, workspaceEngineReducer } from '../../src/stores/aggregate-workspace-store';
@@ -650,5 +650,44 @@ describe('Phase 2 binary oscilloscope formats (.trc, .isf, OWON .bin) + shipped 
       },
     });
     expect(engine.present.files.files[0]?.traces).toHaveLength(2);
+
+    // Binary settings JSON export / import round-trip & malformed input rejection.
+    const customCfg = {
+      ...defaultBinaryConfig('daq.dat', 1024, null),
+      sampleType: 'int16' as const,
+      endian: 'be' as const,
+      layout: 'interleaved' as const,
+      channelCount: 4,
+      headerBytes: 128,
+      framePadBytes: 2,
+      footerBytes: 8,
+      sampleRateHz: 250_000,
+      yUnit: 'mV',
+      yMult: 0.5,
+      yOffset: -1.25,
+      xMult: 2,
+      xOffset: -1e-3,
+    };
+    const json = serializeBinarySettings(customCfg);
+    const loaded = parseBinarySettings(json, defaultBinaryConfig('other.bin', 1024, null));
+    expect(loaded.ok).toBe(true);
+    if (!loaded.ok) return;
+    expect(loaded.config).toMatchObject({
+      mode: 'raw',
+      sampleType: 'int16',
+      endian: 'be',
+      layout: 'interleaved',
+      channelCount: 4,
+      headerBytes: 128,
+      framePadBytes: 2,
+      footerBytes: 8,
+      sampleRateHz: 250_000,
+      yUnit: 'mV',
+      yMult: 0.5,
+      yOffset: -1.25,
+      xMult: 2,
+      xOffset: -1e-3,
+    });
+    expect(parseBinarySettings('{not json', customCfg).ok).toBe(false);
   });
 });

@@ -187,6 +187,19 @@ test('headerless binary .dat opens Binary Import Wizard with expandable hex insp
 
   const binWizard = page.getByTestId('binary-wizard');
   await expect(binWizard).toBeVisible();
+  // Dialog stays within viewport bounds and paging the hex inspector causes zero vertical layout jump.
+  const dialogBox = await binWizard.boundingBox();
+  expect(dialogBox).not.toBeNull();
+  if (dialogBox) {
+    expect(dialogBox.y).toBeGreaterThanOrEqual(0);
+    expect(dialogBox.y + dialogBox.height).toBeLessThanOrEqual(900);
+  }
+  const hexBefore = await binWizard.getByTestId('binary-wizard-hex').boundingBox();
+  await binWizard.getByRole('button', { name: 'Next hex page' }).click();
+  await expect(binWizard.getByTestId('binary-wizard-hex')).toContainText('0040');
+  const hexAfter = await binWizard.getByTestId('binary-wizard-hex').boundingBox();
+  expect(hexAfter?.y).toBeCloseTo(hexBefore?.y ?? -1, 0);
+  await binWizard.getByRole('button', { name: 'Previous hex page' }).click();
   // Expand hex inspector beyond 64 B to 256 B and page forward.
   await binWizard.getByRole('button', { name: '256 B' }).click();
   await expect(binWizard.getByTestId('binary-wizard-hex-heading')).toContainText('256 B');
