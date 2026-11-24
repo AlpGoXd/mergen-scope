@@ -1,6 +1,6 @@
 # Mergen Scope
 
-> Mergen Scope (mergenscope.com) is a free, open-source (Apache-2.0), zero-upload browser workspace for viewing and analyzing Rohde & Schwarz (.dat) spectrum analyzer traces, Touchstone (.s1p–.s16p) VNA and NanoVNA files, tinySA CSV sweeps, and oscilloscope CSV/TSV/TXT captures. Built for RF and measurement engineers, students, researchers and radio amateurs.
+> Mergen Scope (mergenscope.com) is a free, open-source (Apache-2.0), zero-upload browser workspace for viewing and analyzing spectrum analyzer, VNA S-parameter (Touchstone) and oscilloscope measurement files. Built for RF and measurement engineers, students, researchers and radio amateurs.
 
 ## Full LLM reference
 
@@ -8,13 +8,12 @@
 
 ## Supported files
 
-- Rohde & Schwarz (R&S) spectrum `.dat`: spectrum traces with span, RBW and detector metadata (tested with FSVA3044 exports; amplitude-only exports rebuild the X axis from Start/Stop). Tabular `.dat` files can also contain time or frequency columns.
-- Touchstone `.s1p` through `.s16p` (1.x and 2.0): S-parameter networks from lab VNAs or NanoVNA in RI, MA or dB/angle form. Views include S, Y, Z and, for two-port networks, ABCD; VSWR, return loss, group delay and an interactive Z/Y/Z+Y Smith chart.
-- tinySA `.csv`: packed tinySA spectrum traces are read with sweep gaps preserved.
-- `.csv`, `.txt` and `.tsv`: oscilloscope waveforms (Rigol, Siglent, Keysight, Tektronix, R&S or script exports) and other time or frequency column data, using comma, semicolon, tab or mixed delimiters via the built-in import wizard.
+- Spectrum analyzer exports: Rohde & Schwarz (R&S) ASCII `.dat` traces with span, RBW and detector metadata (tested with FSVA3044 exports; amplitude-only exports rebuild the X axis from Start/Stop), plus tabular `.dat`, `.csv`, `.txt` and `.tsv` spectrum sweeps (including packed sweeps with sweep gaps preserved).
+- VNA Touchstone `.s1p` through `.s16p` (1.x and 2.0): S-parameter networks from any VNA in RI, MA or dB/angle form. Views include S, Y, Z and, for two-port networks, ABCD; VSWR, return loss, group delay and an interactive Z/Y/Z+Y Smith chart.
+- `.csv`, `.txt` and `.tsv`: oscilloscope waveforms and any other time or frequency column data, using comma, semicolon, tab or mixed delimiters via the built-in import wizard.
 - Workspace `.json`: saved session containing data, panes, markers, lines and analyses (version 5 with migration from v1–v4).
 
-Not tied to one instrument brand: any waveform or measurement exported as a text table (CSV, TXT or TSV) can be opened. Proprietary binary formats are not read; export as ASCII CSV, text or Touchstone first.
+Not tied to one instrument brand: any VNA exporting Touchstone files and any spectrum analyzer, oscilloscope or script exporting a text table (CSV, TXT, TSV or ASCII `.dat`) can be opened. Proprietary binary formats are not read; export as ASCII CSV, text or Touchstone first.
 
 ## Analysis tools
 

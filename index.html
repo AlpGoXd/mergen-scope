@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Mergen Scope – Free Oscilloscope, Spectrum Analyzer &amp; Touchstone (.s2p) Viewer</title>
-<meta name="description" content="Open Rohde &amp; Schwarz .dat spectrum traces, Touchstone (.s1p–.s16p) VNA/NanoVNA files, tinySA and oscilloscope CSV captures in your browser with Smith chart, RF analysis and LaTeX export. Free, open source, offline, nothing uploaded.">
+<meta name="description" content="Open spectrum analyzer (.dat, .csv), VNA Touchstone (.s1p–.s16p) and oscilloscope CSV captures in your browser with Smith chart, RF analysis and LaTeX export. Free, open source, offline, nothing uploaded.">
 <meta name="author" content="Alp Gokalp">
 <meta name="robots" content="index, follow">
 <meta name="color-scheme" content="light dark">
@@ -15,14 +15,14 @@
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://mergenscope.com/">
 <meta property="og:title" content="Mergen Scope – Free Oscilloscope, Spectrum Analyzer &amp; Touchstone (.s2p) Viewer">
-<meta property="og:description" content="Open Rohde &amp; Schwarz .dat spectrum traces, Touchstone (.s1p–.s16p) VNA/NanoVNA files, tinySA and oscilloscope CSV captures in your browser. Free, open source, nothing uploaded.">
+<meta property="og:description" content="Open spectrum analyzer, VNA Touchstone (.s1p–.s16p) and oscilloscope CSV captures in your browser. Free, open source, nothing uploaded.">
 <meta property="og:image" content="https://mergenscope.com/mergen-scope-preview.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:image:alt" content="Mergen Scope workspace showing RF and waveform plots">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Mergen Scope – Free Oscilloscope, Spectrum Analyzer &amp; Touchstone (.s2p) Viewer">
-<meta name="twitter:description" content="Open Rohde &amp; Schwarz .dat spectrum traces, Touchstone (.s1p–.s16p) VNA/NanoVNA files, tinySA and oscilloscope CSV captures in your browser. Free, open source, nothing uploaded.">
+<meta name="twitter:description" content="Open spectrum analyzer, VNA Touchstone (.s1p–.s16p) and oscilloscope CSV captures in your browser. Free, open source, nothing uploaded.">
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -40,12 +40,11 @@
   },
   "license": "https://www.apache.org/licenses/LICENSE-2.0",
   "codeRepository": "https://github.com/AlpGoXd/mergen-scope",
-  "description": "Free, open-source, zero-upload browser workspace for Rohde & Schwarz spectrum analyzer .dat files, Touchstone (.s1p–.s16p) VNA and NanoVNA files, tinySA traces, and oscilloscope CSV captures.",
+  "description": "Free, open-source, zero-upload browser workspace for spectrum analyzer files (including Rohde & Schwarz .dat and CSV sweeps), VNA Touchstone (.s1p–.s16p) S-parameter files, and oscilloscope CSV captures.",
   "featureList": [
-    "Rohde & Schwarz (R&S) FSV and FSVA spectrum analyzer .dat files",
-    "Touchstone S-parameter .s1p through .s16p files (lab VNA and NanoVNA) with S, Y, Z and two-port ABCD views and Z/Y Smith chart",
-    "tinySA packed CSV spectrum traces with sweep gaps preserved",
-    "Oscilloscope CSV, TSV and TXT waveform and column data (Rigol, Siglent, Keysight, Tektronix, or custom)",
+    "Spectrum analyzer trace files including Rohde & Schwarz (R&S) .dat and CSV/TSV/TXT sweeps",
+    "VNA Touchstone S-parameter .s1p through .s16p files with S, Y, Z and two-port ABCD views and Z/Y Smith chart",
+    "Oscilloscope CSV, TSV and TXT waveform and column data with live import wizard",
     "Antenna far-field polar plots (beamwidth, peak bearing, front-to-back ratio, sidelobes)",
     "Linked X axes across multi-pane layouts",
     "Noise PSD",
@@ -80,7 +79,7 @@
   ],
   "screenshot": "https://mergenscope.com/mergen-scope-preview.png",
   "isAccessibleForFree": true,
-  "keywords": "Rohde & Schwarz dat viewer, R&S FSV dat viewer, Touchstone viewer, s2p viewer, s1p viewer, NanoVNA viewer, tinySA viewer, Smith chart online, oscilloscope CSV viewer, spectrum analyzer viewer, VNA, S-parameters, RF analysis, antenna polar plot, pgfplots TikZ LaTeX export"
+  "keywords": "Touchstone viewer, s2p viewer, s1p viewer, VNA viewer, Smith chart online, spectrum analyzer viewer, Rohde & Schwarz dat viewer, R&S FSV dat viewer, oscilloscope CSV viewer, S-parameters, RF analysis, antenna polar plot, pgfplots TikZ LaTeX export"
 }
 </script>
 <script type="application/ld+json">
@@ -124,10 +123,10 @@
     },
     {
       "@type": "Question",
-      "name": "Does Mergen Scope work with NanoVNA and tinySA files?",
+      "name": "Is Mergen Scope tied to one instrument brand?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Yes. NanoVNA .s1p and .s2p Touchstone exports open directly with Smith chart, VSWR and return loss views, and tinySA packed CSV traces are parsed with sweep gaps preserved."
+        "text": "No. Any VNA that exports Touchstone (.s1p through .s16p) files and any spectrum analyzer or oscilloscope that exports CSV, TSV, TXT or ASCII .dat tables can be opened, with the import wizard handling delimiters, columns and units."
       }
     },
     {
@@ -143,7 +142,7 @@
       "name": "Which instruments and file formats work?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Mergen Scope accepts Rohde & Schwarz (R&S) spectrum .dat, Touchstone .s1p through .s16p (including lab VNAs and NanoVNA), tinySA CSV, and CSV, TSV and TXT column data from oscilloscopes such as Rigol, Siglent, Keysight or Tektronix. R&S .dat has been tested with FSVA3044 exports; generic tables may need column and unit mapping."
+        "text": "Mergen Scope accepts spectrum analyzer files (including Rohde & Schwarz .dat and tabular CSV/TXT sweeps), VNA Touchstone .s1p through .s16p files, and oscilloscope CSV, TSV and TXT column data. R&S .dat has been tested with FSVA3044 exports; generic tables may need column and unit mapping."
       }
     },
     {
@@ -272,7 +271,7 @@
 </div>
 <div class="rows">
 <div class="row">
-<div class="row-head"><span class="ext mono">.dat</span><h3>Rohde &amp; Schwarz spectrum analyzer</h3><p>Tested with Rohde &amp; Schwarz (R&amp;S) FSVA3044 exports. Another instrument? <a href="https://github.com/AlpGoXd/mergen-scope/issues/new?template=01-file-not-opening.yml">Send a sample.</a></p></div>
+<div class="row-head"><span class="ext mono">.dat</span><h3>Spectrum analyzer</h3><p>Tested with Rohde &amp; Schwarz (R&amp;S) FSVA3044 exports; tabular CSV/TXT sweeps open too. Another instrument? <a href="https://github.com/AlpGoXd/mergen-scope/issues/new?template=01-file-not-opening.yml">Send a sample.</a></p></div>
 <pre class="raw">Type;FSVA3044;
 Center Freq;1420405000.000000;Hz
 Span;1000000.000000;Hz
@@ -282,7 +281,7 @@ Detector;AUTOPEAK;</pre>
 <ul class="chips" aria-label="What the app reads"><li>Spectrum</li><li>centre 1.420405 GHz</li><li>span 1 MHz</li><li>RBW 3 kHz</li><li>AUTOPEAK</li><li>dBm</li></ul>
 </div>
 <div class="row">
-<div class="row-head"><span class="ext mono">.s1p … .s16p</span><h3>S-parameters from a VNA or NanoVNA</h3><p>Touchstone files, including .s1p and .s2p. S, Y, Z, ABCD; dB, magnitude, phase; Z/Y Smith chart.</p></div>
+<div class="row-head"><span class="ext mono">.s1p … .s16p</span><h3>S-parameters from any VNA</h3><p>Touchstone files, including .s1p and .s2p. S, Y, Z, ABCD; dB, magnitude, phase; Z/Y Smith chart.</p></div>
 <pre class="raw">#  HZ   S   RI   R     50.00
 ! freq[Hz]  re:S11  im:S11  re:S21  im:S21 …
  1.000000000000000E4  1.062620232310890 …</pre>
@@ -290,7 +289,7 @@ Detector;AUTOPEAK;</pre>
 <ul class="chips" aria-label="What the app reads"><li>2 ports</li><li>201 points</li><li>10 kHz – 8.5 GHz</li><li>50 Ω</li><li>S11 S21 S12 S22</li></ul>
 </div>
 <div class="row">
-<div class="row-head"><span class="ext mono">.csv · .txt · .tsv</span><h3>Oscilloscope captures, tinySA and columns</h3><p>Waveform exports in CSV, TXT or TSV (Rigol, Siglent, Keysight, Tektronix, tinySA or scripts), with real units.</p></div>
+<div class="row-head"><span class="ext mono">.csv · .txt · .tsv</span><h3>Oscilloscope captures and columns</h3><p>Waveform and sweep exports in CSV, TXT or TSV: each channel against time or frequency, with real units. Any other columns too.</p></div>
 <pre class="raw">time,signal_1kHz,signal_5kHz
 0.000000,0.000000,0.000000
 0.000100,0.628319,0.951057
@@ -377,9 +376,9 @@ Detector;AUTOPEAK;</pre>
 <div><h3>How do I open an oscilloscope CSV file in my browser?</h3><p>Open the app and drop the CSV file into the workspace. The import wizard lets you map columns and units if needed.</p></div>
 <div><h3>Can I view a Touchstone .s2p file and its Smith chart online?</h3><p>Yes. Open the app and drop in the .s2p file to view its S-parameters and Smith chart.</p></div>
 <div><h3>Can I open Rohde &amp; Schwarz FSV or FSVA .dat files in my browser?</h3><p>Yes. Drop an ASCII Rohde &amp; Schwarz spectrum analyzer .dat export into Mergen Scope to inspect traces along with span, RBW and detector metadata locally in your browser, with no upload.</p></div>
-<div><h3>Does Mergen Scope work with NanoVNA and tinySA files?</h3><p>Yes. NanoVNA .s1p and .s2p Touchstone exports open directly with Smith chart, VSWR and return loss views, and tinySA packed CSV traces are parsed with sweep gaps preserved.</p></div>
+<div><h3>Is Mergen Scope tied to one instrument brand?</h3><p>No. Any VNA that exports Touchstone (.s1p through .s16p) files and any spectrum analyzer or oscilloscope that exports CSV, TSV, TXT or ASCII .dat tables can be opened, with the import wizard handling delimiters, columns and units.</p></div>
 <div><h3>Are my files uploaded anywhere?</h3><p>Files are read and processed in your browser and are not uploaded. Settings such as the theme stay in your browser.</p></div>
-<div><h3>Which instruments and file formats work?</h3><p>Mergen Scope accepts Rohde &amp; Schwarz (R&amp;S) spectrum .dat, Touchstone .s1p through .s16p (including lab VNAs and NanoVNA), tinySA CSV, and CSV, TSV and TXT column data from oscilloscopes such as Rigol, Siglent, Keysight or Tektronix. R&amp;S .dat has been tested with FSVA3044 exports; generic tables may need column and unit mapping.</p></div>
+<div><h3>Which instruments and file formats work?</h3><p>Mergen Scope accepts spectrum analyzer files (including Rohde &amp; Schwarz .dat and tabular CSV/TXT sweeps), VNA Touchstone .s1p through .s16p files, and oscilloscope CSV, TSV and TXT column data. R&amp;S .dat has been tested with FSVA3044 exports; generic tables may need column and unit mapping.</p></div>
 <div><h3>Does Mergen Scope require installation or an account?</h3><p>No installation or account is required. Open the app in your browser to use it.</p></div>
 <div><h3>Can I use Mergen Scope offline in an air-gapped lab?</h3><p>Yes. The production build is a single self-contained app.html file with no CDN requests or server backend, so a local copy opened from disk works completely offline.</p></div>
 <div><h3>Is Mergen Scope free?</h3><p>Yes. Mergen Scope is free and open source under the Apache-2.0 license.</p></div>

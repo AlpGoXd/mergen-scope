@@ -99,8 +99,8 @@ test('serves llms.txt and llms-full.txt', async ({ request }) => {
   const fullText = await full.text();
   expect(fullText).toMatch(/^# Mergen Scope/);
   expect(fullText).toContain('Rohde & Schwarz');
-  expect(fullText).toContain('NanoVNA');
-  expect(fullText).toContain('tinySA');
+  expect(fullText).toContain('Touchstone');
+  expect(fullText).toContain('spectrum analyzer');
 
   const indexNowKey = 'd46aa9de7cff5aefedfca297c656b43d';
   const keyResp = await request.get(`/${indexNowKey}.txt`);

@@ -25,9 +25,8 @@ No file at hand? [Load the demo workspace](https://mergenscope.com/app.html?demo
 | Format | What you get | Tested with |
 | --- | --- | --- |
 | Rohde &amp; Schwarz (R&amp;S) `.dat` | Spectrum traces with span, RBW and detector metadata. Amplitude-only exports rebuild the X axis from Start/Stop. | R&amp;S FSVA3044 exports (`cascade_ip3_*.DAT`) |
-| Touchstone `.s1p` to `.s16p` (1.x and 2.0) | S-parameter networks from lab VNAs or NanoVNA in RI, MA or dB/angle form, with S, Y, Z and (two-port) ABCD views, VSWR, return loss, group delay and a Z/Y Smith chart. | `cascaded chain.s2p`, NanoVNA `.s1p`/`.s2p` |
-| tinySA `.csv` | Packed tinySA spectrum traces with sweep gaps preserved. | tinySA exports |
-| `.csv`, `.tsv`, `.txt`, tabular `.dat` | Time or frequency traces from oscilloscopes (Rigol, Siglent, Keysight, Tektronix, R&amp;S) or scripts. An import wizard maps delimiter (including mixed separators), header rows, X/Y columns, multipliers and units. | Oscilloscope CSVs (`scope_1khz_sine_100ksps.csv`) |
+| Touchstone `.s1p` to `.s16p` (1.x and 2.0) | S-parameter networks from any VNA in RI, MA or dB/angle form, with S, Y, Z and (two-port) ABCD views, VSWR, return loss, group delay and a Z/Y Smith chart. | `cascaded chain.s2p` |
+| `.csv`, `.tsv`, `.txt`, tabular `.dat` | Time or frequency traces from oscilloscopes, spectrum analyzers or scripts. An import wizard maps delimiter (including mixed separators), header rows, X/Y columns, multipliers and units, and preserves sweep gaps. | Oscilloscope CSVs (`scope_1khz_sine_100ksps.csv`) |
 | Workspace `.json` | A saved session: data, panes, markers, lines and analyses. | Round trip in the unit tests |
 
 Rohde &amp; Schwarz `.dat` is the primary tested spectrum instrument path. Generic tables may need manual column and unit mapping.
