@@ -60,10 +60,10 @@ function lazyPaperPdf(): Plugin {
 
 // Version the landing page's cacheable assets against their contents.
 function versionLandingAssets(html: string): string {
-  return html.replace(/"((?:\.\.\/)?)(landing-assets\/(?:landing\.(?:css|js)|img\/[\w.-]+))"/g,
-    (_match, prefix: string, asset: string) => {
+  return html.replace(/"(landing-assets\/(?:landing\.(?:css|js)|img\/[\w.-]+))"/g,
+    (_match, asset: string) => {
       const revision = createHash("sha256").update(readFileSync(resolve(__dirname, asset))).digest("hex").slice(0, 12);
-      return `"${prefix}${asset}?v=${revision}"`;
+      return `"${asset}?v=${revision}"`;
     });
 }
 
@@ -71,15 +71,8 @@ function versionLandingAssets(html: string): string {
 // Only needed in production since dev serves everything from the root.
 function copyRuntimeAssets(): Plugin {
   let outputDir: string;
-  const landingPages = new Set([
-    "index.html",
-    "rs-dat-viewer/index.html",
-    "touchstone-s2p-viewer/index.html",
-    "nanovna-tinysa-viewer/index.html",
-    "oscilloscope-csv-viewer/index.html",
-  ]);
   const staticFiles = [
-    ...landingPages,
+    "index.html",
     "mergen-scope-icon.svg",
     "mergen-scope-icon.png",
     "favicon.ico",
@@ -103,13 +96,12 @@ function copyRuntimeAssets(): Plugin {
     },
     closeBundle() {
       mkdirSync(outputDir, { recursive: true });
-      const { version } = JSON.parse(readFileSync(resolve(__dirname, "package.json"), "utf8")) as { version: string };
       for (const file of staticFiles) {
         const src = resolve(__dirname, file);
         if (existsSync(src)) {
           const dest = resolve(outputDir, file);
-          mkdirSync(resolve(dest, ".."), { recursive: true });
-          if (landingPages.has(file)) {
+          if (file === "index.html") {
+            const { version } = JSON.parse(readFileSync(resolve(__dirname, "package.json"), "utf8")) as { version: string };
             // Landing assets retain a long cache lifetime. A release must use
             // the stylesheet, script and examples that belong to its HTML.
             const html = versionLandingAssets(readFileSync(src, "utf8"));
@@ -122,7 +114,7 @@ function copyRuntimeAssets(): Plugin {
                 "utf8",
               );
             } else {
-              console.warn(`Could not update app version: ${file} does not contain a span with data-version.`);
+              console.warn("Could not update app version: index.html does not contain a span with data-version.");
               writeFileSync(dest, html, "utf8");
             }
           } else {

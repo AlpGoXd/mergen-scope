@@ -30,7 +30,7 @@ No file at hand? [Load the demo workspace](https://mergenscope.com/app.html?demo
 | `.csv`, `.tsv`, `.txt`, tabular `.dat` | Time or frequency traces from oscilloscopes (Rigol, Siglent, Keysight, Tektronix, R&amp;S) or scripts. An import wizard maps delimiter (including mixed separators), header rows, X/Y columns, multipliers and units. | Oscilloscope CSVs (`scope_1khz_sine_100ksps.csv`) |
 | Workspace `.json` | A saved session: data, panes, markers, lines and analyses. | Round trip in the unit tests |
 
-Rohde &amp; Schwarz `.dat` is the primary tested spectrum instrument path. Generic tables may need manual column and unit mapping. Format-specific guides: [R&amp;S `.dat` viewer](https://mergenscope.com/rs-dat-viewer/) · [Touchstone &amp; Smith chart viewer](https://mergenscope.com/touchstone-s2p-viewer/) · [NanoVNA &amp; tinySA viewer](https://mergenscope.com/nanovna-tinysa-viewer/) · [Oscilloscope CSV &amp; FFT viewer](https://mergenscope.com/oscilloscope-csv-viewer/).
+Rohde &amp; Schwarz `.dat` is the primary tested spectrum instrument path. Generic tables may need manual column and unit mapping.
 
 ## Features
 

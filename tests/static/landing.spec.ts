@@ -108,44 +108,9 @@ test('serves llms.txt and llms-full.txt', async ({ request }) => {
   expect((await keyResp.text()).trim()).toBe(indexNowKey);
 });
 
-const SUBPAGES = [
-  '/rs-dat-viewer/',
-  '/touchstone-s2p-viewer/',
-  '/nanovna-tinysa-viewer/',
-  '/oscilloscope-csv-viewer/',
-];
-
-test('dedicated format landing pages render cleanly with synced FAQ schema and zero external requests', async ({ page }) => {
-  const external = watchOrigins(page);
-  for (const path of SUBPAGES) {
-    external.length = 0;
-    await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto(path);
-    await expect(page.locator('h1')).toBeVisible();
-    await expect(page.locator('[data-version]')).toHaveText([`v${version}`]);
-    expect(await page.evaluate(() => document.documentElement.scrollWidth), path).toBeLessThanOrEqual(390);
-
-    const blocks = await page.locator('head script[type="application/ld+json"]').allTextContents();
-    const structured = blocks.map(block => JSON.parse(block) as { '@type': string; mainEntity?: { name: string; acceptedAnswer: { text: string } }[] });
-    expect(structured.map(b => b['@type']), path).toEqual(['SoftwareApplication', 'BreadcrumbList', 'FAQPage']);
-
-    const faq = structured.find(block => block['@type'] === 'FAQPage');
-    const visible = await page.locator('#faq .pfacts > div').evaluateAll(items => items.map(item => ({
-      name: item.querySelector('h3')?.textContent?.trim(),
-      answer: item.querySelector('p')?.textContent?.trim(),
-    })));
-    expect(visible.length, path).toBeGreaterThanOrEqual(4);
-    expect(visible, path).toEqual(faq?.mainEntity?.map(item => ({ name: item.name, answer: item.acceptedAnswer.text })));
-
-    const cssHref = await page.locator('link[href*="landing-assets/landing.css"]').getAttribute('href');
-    expect(cssHref, path).toMatch(/\?v=[0-9a-f]{12}$/);
-    expect(external, path).toEqual([]);
-  }
-});
-
 test('internal landing links resolve', async ({ page, request }) => {
   const links = new Set<string>();
-  for (const path of ['/', ...SUBPAGES]) {
+  for (const path of ['/']) {
     await page.goto(path);
     const urls = await page.locator('a[href]').evaluateAll(nodes => nodes.map(node => (node as HTMLAnchorElement).href));
     for (const href of urls) {

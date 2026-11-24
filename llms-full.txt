@@ -110,9 +110,5 @@ One core engineering principle applies across all tools: **when a measurement ca
 - Home: `https://mergenscope.com/`
 - App: `https://mergenscope.com/app.html`
 - Demo workspace: `https://mergenscope.com/app.html?demo=1`
-- Rohde & Schwarz `.dat` viewer: `https://mergenscope.com/rs-dat-viewer/`
-- Touchstone `.s1p`–`.s16p` & Smith chart viewer: `https://mergenscope.com/touchstone-s2p-viewer/`
-- NanoVNA & tinySA viewer: `https://mergenscope.com/nanovna-tinysa-viewer/`
-- Oscilloscope CSV & FFT viewer: `https://mergenscope.com/oscilloscope-csv-viewer/`
 - Concise LLM summary: `https://mergenscope.com/llms.txt`
 - Full LLM reference: `https://mergenscope.com/llms-full.txt`

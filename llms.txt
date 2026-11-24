@@ -2,13 +2,9 @@
 
 > Mergen Scope (mergenscope.com) is a free, open-source (Apache-2.0), zero-upload browser workspace for viewing and analyzing Rohde & Schwarz (.dat) spectrum analyzer traces, Touchstone (.s1p–.s16p) VNA and NanoVNA files, tinySA CSV sweeps, and oscilloscope CSV/TSV/TXT captures. Built for RF and measurement engineers, students, researchers and radio amateurs.
 
-## Dedicated format guides and landing pages
+## Full LLM reference
 
-- [Rohde & Schwarz .dat spectrum viewer](https://mergenscope.com/rs-dat-viewer/): Open ASCII R&S FSV / FSVA spectrum analyzer `.dat` files offline in your browser with span, RBW and detector metadata.
-- [Touchstone .s1p–.s16p & Smith chart viewer](https://mergenscope.com/touchstone-s2p-viewer/): View S, Y, Z and two-port ABCD parameters, Z/Y/Z+Y Smith chart, VSWR, return loss, group delay, stability (K, μ) and reciprocity/isolation.
-- [NanoVNA & tinySA browser viewer](https://mergenscope.com/nanovna-tinysa-viewer/): Open NanoVNA `.s1p`/`.s2p` Touchstone files and tinySA packed `.csv` traces (preserving sweep gaps) in one offline workspace.
-- [Oscilloscope CSV waveform & FFT viewer](https://mergenscope.com/oscilloscope-csv-viewer/): Open Rigol, Siglent, Keysight, Tektronix or custom CSV/TSV/TXT waveforms with import wizard, waveform measurements, 14-window FFT and harmonics.
-- [Full LLM reference](https://mergenscope.com/llms-full.txt): Detailed feature matrix, analysis tool formulas and requirements, privacy guarantees and comparison notes.
+- [Full LLM reference](https://mergenscope.com/llms-full.txt): Detailed feature matrix, analysis tool formulas and requirements, privacy guarantees and scope notes.
 
 ## Supported files
 
