@@ -102,10 +102,12 @@ test('serves llms.txt and llms-full.txt', async ({ request }) => {
   expect(fullText).toContain('Touchstone');
   expect(fullText).toContain('spectrum analyzer');
 
-  const indexNowKey = 'd46aa9de7cff5aefedfca297c656b43d';
-  const keyResp = await request.get(`/${indexNowKey}.txt`);
-  expect(keyResp.status()).toBe(200);
-  expect((await keyResp.text()).trim()).toBe(indexNowKey);
+  const indexNowKey = process.env.INDEXNOW_KEY?.trim();
+  if (indexNowKey) {
+    const keyResp = await request.get(`/${indexNowKey}.txt`);
+    expect(keyResp.status()).toBe(200);
+    expect((await keyResp.text()).trim()).toBe(indexNowKey);
+  }
 });
 
 test('internal landing links resolve', async ({ page, request }) => {

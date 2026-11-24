@@ -1,7 +1,10 @@
 #!/usr/bin/env node
 // Submits all URLs in sitemap.xml to the universal IndexNow endpoint (Bing, Yandex, Naver, Seznam, Yep).
-// Run AFTER deploying dist/ so https://mergenscope.com/<key>.txt is live.
-// Usage:
+// Requires INDEXNOW_KEY in the environment (matching the Cloudflare Pages build env var).
+// Run AFTER deploying dist/ so https://mergenscope.com/<INDEXNOW_KEY>.txt is live.
+//
+// PowerShell usage:
+//   $env:INDEXNOW_KEY = "<your-key>"
 //   node scripts/submit-indexnow.mjs --dry-run
 //   node scripts/submit-indexnow.mjs
 
@@ -9,19 +12,20 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 const HOST = "mergenscope.com";
-const KEY = "d46aa9de7cff5aefedfca297c656b43d";
 const ENDPOINT = "https://api.indexnow.org/indexnow";
 
-const root = resolve(import.meta.dirname, "..");
-const keyFile = resolve(root, `${KEY}.txt`);
-const sitemapFile = resolve(root, "sitemap.xml");
-
-const storedKey = readFileSync(keyFile, "utf8").trim();
-if (storedKey !== KEY) {
-  console.error(`Key mismatch: ${keyFile} contains ${JSON.stringify(storedKey)}, expected ${JSON.stringify(KEY)}.`);
+const key = process.env.INDEXNOW_KEY?.trim();
+if (!key) {
+  console.error("Missing INDEXNOW_KEY environment variable. Set it to the same key configured in Cloudflare Pages.");
+  process.exit(1);
+}
+if (!/^[a-zA-Z0-9-]{8,128}$/.test(key)) {
+  console.error("Invalid INDEXNOW_KEY: must be 8-128 characters using only a-z, A-Z, 0-9, and '-'.");
   process.exit(1);
 }
 
+const root = resolve(import.meta.dirname, "..");
+const sitemapFile = resolve(root, "sitemap.xml");
 const sitemap = readFileSync(sitemapFile, "utf8");
 const urlList = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1].trim());
 if (urlList.length === 0) {
@@ -38,8 +42,8 @@ for (const url of urlList) {
 
 const payload = {
   host: HOST,
-  key: KEY,
-  keyLocation: `https://${HOST}/${KEY}.txt`,
+  key,
+  keyLocation: `https://${HOST}/${key}.txt`,
   urlList,
 };
 
