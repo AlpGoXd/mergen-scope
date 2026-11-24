@@ -149,6 +149,9 @@ test('opens shipped binary oscilloscope fixtures (Keysight, Rigol, LeCroy, Tektr
   await expect(page.locator('.lp-file--header')).toHaveCount(5);
   // 2 (Keysight) + 2 (Rigol) + 1 (LeCroy) + 1 (Tektronix) + 1 (OWON) = 7 traces in Pane 1.
   await expect(page.getByTestId('chart-plot-pane-1').locator('.trace-source .recharts-line-curve')).toHaveCount(7);
+  // Toggling Samples ON while zoomed out on 2048-point captures shows a clear corner hint to zoom in.
+  await page.getByTestId('chart-pane-header-pane-1').getByTestId('samples-toggle').click();
+  await expect(page.getByTestId('chart-plot-pane-1').getByTestId('samples-zoom-hint')).toContainText('Samples on');
 });
 
 test('Close all files… removes linked derived child traces (e.g. FFT) alongside their parent files and is undoable', async ({ page }) => {
@@ -302,15 +305,15 @@ test('unified Text/Binary toggle, clickable hex byte cursor, batch binary apply,
   await expect(binWizard.getByTestId('binary-wizard-hex-cursor')).toContainText('@8 B');
   await expect(binWizard.getByRole('button', { name: 'Set skip = 8 B' })).toBeEnabled();
 
-  // Flip Binary -> Text -> Binary via explicit top mode bar; dialog keeps identical width & height (no proportion jump).
+  // Flip Raw Binary -> Table / CSV -> Raw Binary via explicit 3-tab top mode bar; dialog keeps identical width & height.
   const binBox = await binWizard.boundingBox();
-  await binWizard.getByRole('radiogroup', { name: 'Import mode' }).getByRole('radio', { name: 'Text / Table' }).click();
+  await binWizard.getByRole('radiogroup', { name: 'Import mode' }).getByRole('radio', { name: 'Table / CSV' }).click();
   const textWizard = page.getByTestId('import-wizard');
   await expect(textWizard).toBeVisible();
   const textBox = await textWizard.boundingBox();
   expect(textBox?.width).toBeCloseTo(binBox?.width ?? -1, 0);
   expect(textBox?.height).toBeCloseTo(binBox?.height ?? -1, 0);
-  await textWizard.getByRole('radiogroup', { name: 'Import mode' }).getByRole('radio', { name: 'Binary / Waveform' }).click();
+  await textWizard.getByRole('radiogroup', { name: 'Import mode' }).getByRole('radio', { name: 'Raw Binary / IQ' }).click();
   await expect(binWizard).toBeVisible();
   await binWizard.getByRole('button', { name: 'Auto-skip header' }).click();
   await expect(binWizard.getByTestId('binary-wizard-autoskip-hint')).toContainText(`${longHeader.byteLength} B`);

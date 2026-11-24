@@ -68,7 +68,7 @@ export type FileAction =
   | { type: 'RESOLVE_WIZARD'; payload: { id: string; config: WizardConfig; decisions?:Readonly<Record<string,{choice:OpenChoice;expectedFileId?:string}>>; workspaceChoice?:'replace'|'cancel' } }
   | { type: 'RESOLVE_BINARY_WIZARD'; payload: { id: string; binaryConfig: BinaryImportConfig; decisions?:Readonly<Record<string,{choice:OpenChoice;expectedFileId?:string}>>; workspaceChoice?:'replace'|'cancel' } }
   | { type: 'SWITCH_WIZARD_TO_TEXT'; payload: { id: string } }
-  | { type: 'SWITCH_WIZARD_TO_BINARY'; payload: { id: string } }
+  | { type: 'SWITCH_WIZARD_TO_BINARY'; payload: { id: string; mode?: 'auto-scope' | 'raw' } }
   | { type: 'RERUN_WIZARD'; payload: { fileId: string; fileName: string } }
   | { type: 'SKIP_WIZARD'; payload: { id: string } }
   | { type: 'SKIP_ALL_WIZARD' }
@@ -334,7 +334,10 @@ export function fileReducer(state: FileState, action: FileAction): FileState {
         buffer = encoded.buffer.slice(encoded.byteOffset, encoded.byteOffset + encoded.byteLength);
       }
       const detectedScope = detectBinarySignature(new Uint8Array(buffer, 0, Math.min(buffer.byteLength, BINARY_SNIFF_BYTES)));
-      const binaryConfig = entry.binaryConfig ?? defaultBinaryConfig(entry.fileName, buffer.byteLength, detectedScope);
+      const baseBinaryConfig = entry.binaryConfig ?? defaultBinaryConfig(entry.fileName, buffer.byteLength, detectedScope);
+      const binaryConfig = action.payload.mode
+        ? { ...baseBinaryConfig, mode: action.payload.mode }
+        : baseBinaryConfig;
       const nextEntry: WizardEntry = {
         ...entry,
         wizardView: 'binary',

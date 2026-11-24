@@ -679,14 +679,19 @@ export function BinaryWizardDialog({ entry, buffer, position, total, others = []
             <Segmented
               label="Import mode"
               options={[
-                { value: 'text', label: 'Text / Table', title: 'Parse delimited CSV, TSV, or ASCII table columns' },
-                { value: 'binary', label: 'Binary / Waveform', title: 'Decode binary oscilloscope, WAV, NumPy, SDR IQ, SA sweep, or raw binary streams' },
+                { value: 'text', label: 'Table / CSV', title: 'Parse delimited CSV, TSV, or ASCII text columns' },
+                { value: 'header', label: 'File Header (Scope / WAV / NPY)', title: 'Decode self-describing binary files (Keysight, Rigol, LeCroy, Tektronix, OWON, WAV, NumPy .npy)' },
+                { value: 'raw', label: 'Raw Binary / IQ', title: 'Decode headerless or custom-framed binary streams, SDR IQ, or SA sweeps manually' },
               ]}
-              value="binary"
-              onChange={mode => { if (mode === 'text') switchToText(); }}
+              value={config.mode === 'auto-scope' ? 'header' : 'raw'}
+              onChange={mode => {
+                if (mode === 'text') switchToText();
+                else if (mode === 'header') setConfig(prev => ({ ...prev, mode: 'auto-scope' }));
+                else if (mode === 'raw') setConfig(prev => ({ ...prev, mode: 'raw' }));
+              }}
             />
           </div>
-          <span className="t-caption t-muted iw-mode-hint">Wrong view? Switch anytime without losing the file.</span>
+          <span className="t-caption t-muted iw-mode-hint">Switch anytime without losing the file.</span>
         </div>
 
         <div className="iw-body">
@@ -721,37 +726,15 @@ export function BinaryWizardDialog({ entry, buffer, position, total, others = []
               )}
             </section>
 
-            <section className="iw-group" aria-label="Parser">
-              <h3 className="t-section">File format</h3>
-              <div className="iw-seg">
-                <div className="ui-segmented" role="radiogroup" aria-label="Parser mode">
-                  <Btn
-                    role="radio"
-                    variant="slate"
-                    active={config.mode === 'auto-scope'}
-                    aria-checked={config.mode === 'auto-scope'}
-                    disabled={!detectedScope && activeParserChoice === 'auto'}
-                    title={detectedScope ? `Parse using the embedded file header (${scopeFormatLabel(detectedScope)})` : 'No recognized file header detected — pick a format from Format ▾ or use Custom'}
-                    onClick={() => setConfig(prev => ({ ...prev, mode: 'auto-scope' }))}
-                  >
-                    File header
-                  </Btn>
-                  <Btn
-                    role="radio"
-                    variant="slate"
-                    active={config.mode === 'raw'}
-                    aria-checked={config.mode === 'raw'}
-                    aria-label="Custom raw binary"
-                    title="Custom binary mode: decode any raw/proprietary binary file with custom data type, endianness, layout, header skip, frame pad, footer, and sample rate"
-                    onClick={() => setConfig(prev => ({ ...prev, mode: 'raw' }))}
-                  >
-                    Custom
-                  </Btn>
+            {config.mode === 'auto-scope' && (
+              <section className="iw-group" aria-label="Parser">
+                <div className="iw-line">
+                  <span className="t-label t-muted" title="Choose which container parser decodes this file's embedded header">Format</span>
                   <Btn
                     variant="slate"
                     active={explicitParserActive || Boolean(parserMoreAnchor)}
                     aria-label="Choose parser format"
-                    title="Force a specific instrument parser or switch to the Text / CSV importer"
+                    title="Auto-detect or force a specific binary file parser (Keysight, Rigol, LeCroy, Tektronix, OWON, WAV, NumPy)"
                     aria-haspopup="menu"
                     aria-expanded={Boolean(parserMoreAnchor)}
                     onClick={event => {
@@ -759,18 +742,18 @@ export function BinaryWizardDialog({ entry, buffer, position, total, others = []
                       setParserMoreAnchor(cur => (cur ? null : target));
                     }}
                   >
-                    <span className="iw-more-face">{parserMoreFace}<CaretDownIcon /></span>
+                    <span className="iw-more-face">{explicitParserActive ? parserMoreFace : scopeFormatLabel(detectedScope)}<CaretDownIcon /></span>
                   </Btn>
                 </div>
-              </div>
-              <span className="t-caption" data-testid="binary-wizard-detected">
-                {config.mode === 'raw'
-                  ? 'Custom binary decoding'
-                  : activeParserChoice !== 'auto'
+                <span className="t-caption" data-testid="binary-wizard-detected">
+                  {activeParserChoice !== 'auto'
                     ? `Forced: ${scopeFormatLabel(activeParserChoice)}`
-                    : `Detected: ${scopeFormatLabel(detectedScope)}`}
-              </span>
-            </section>
+                    : detectedScope
+                      ? `Detected: ${scopeFormatLabel(detectedScope)}`
+                      : 'No file header detected — pick a format above or switch to Raw Binary / IQ'}
+                </span>
+              </section>
+            )}
 
             {config.mode === 'auto-scope' && preview.allScopeChannels.length > 0 && (
               <section className="iw-group" aria-label="Channels">

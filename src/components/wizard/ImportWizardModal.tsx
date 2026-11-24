@@ -215,14 +215,18 @@ function WizardDialog({ entry, position, total, others, queue, priorFile }: Wiza
             <Segmented
               label="Import mode"
               options={[
-                { value: 'text', label: 'Text / Table', title: 'Parse delimited CSV, TSV, or ASCII table columns' },
-                { value: 'binary', label: 'Binary / Waveform', title: 'Decode binary oscilloscope, WAV, NumPy, SDR IQ, SA sweep, or raw binary streams' },
+                { value: 'text', label: 'Table / CSV', title: 'Parse delimited CSV, TSV, or ASCII text columns' },
+                { value: 'header', label: 'File Header (Scope / WAV / NPY)', title: 'Decode self-describing binary files (Keysight, Rigol, LeCroy, Tektronix, OWON, WAV, NumPy .npy)' },
+                { value: 'raw', label: 'Raw Binary / IQ', title: 'Decode headerless or custom-framed binary streams, SDR IQ, or SA sweeps manually' },
               ]}
               value="text"
-              onChange={mode => { if (mode === 'binary') fileDispatch({ type: 'SWITCH_WIZARD_TO_BINARY', payload: { id: entry.id } }); }}
+              onChange={mode => {
+                if (mode === 'header') fileDispatch({ type: 'SWITCH_WIZARD_TO_BINARY', payload: { id: entry.id, mode: 'auto-scope' } });
+                else if (mode === 'raw') fileDispatch({ type: 'SWITCH_WIZARD_TO_BINARY', payload: { id: entry.id, mode: 'raw' } });
+              }}
             />
           </div>
-          <span className="t-caption t-muted iw-mode-hint">Wrong view? Switch anytime without losing the file.</span>
+          <span className="t-caption t-muted iw-mode-hint">Switch anytime without losing the file.</span>
         </div>
 
         <div className="iw-body">
