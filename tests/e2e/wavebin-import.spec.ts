@@ -171,3 +171,42 @@ test('Close all files… removes linked derived child traces (e.g. FFT) alongsid
   await page.keyboard.press('Control+z');
   await expect(page.locator('[data-testid^="trace-row-"]')).toHaveCount(3);
 });
+
+test('headerless binary .dat opens Binary Import Wizard with expandable hex inspector, and re-importing after hiding all traces repopulates them', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/app.html');
+
+  // 1. Headerless binary .dat file (512 bytes = 128 Float32 samples) opens in Binary Import Wizard.
+  const rawDat = Buffer.alloc(512);
+  for (let i = 0; i < 128; i++) rawDat.writeFloatLE(Math.sin(i / 6), i * 4);
+  await page.getByTestId('app-open-input').setInputFiles({
+    name: 'daq_stream.dat',
+    mimeType: 'application/octet-stream',
+    buffer: rawDat,
+  });
+
+  const binWizard = page.getByTestId('binary-wizard');
+  await expect(binWizard).toBeVisible();
+  // Expand hex inspector beyond 64 B to 256 B and page forward.
+  await binWizard.getByRole('button', { name: '256 B' }).click();
+  await expect(binWizard.getByTestId('binary-wizard-hex-heading')).toContainText('256 B');
+  await binWizard.getByRole('button', { name: 'Next hex page' }).click();
+  await expect(binWizard.getByTestId('binary-wizard-hex')).toContainText('0100');
+  await binWizard.getByRole('button', { name: 'Previous hex page' }).click();
+  await binWizard.getByTestId('import-wizard-confirm').click();
+  await expect(binWizard).toHaveCount(0);
+  await expect(page.getByTestId('chart-plot-pane-1').locator('.trace-source .recharts-line-curve')).toHaveCount(1);
+
+  // 2. Remove all traces of the binary file via sidebar × (file remains open with 0 traces).
+  await page.locator('[data-testid^="trace-row-"]').first().getByRole('button', { name: /^Remove / }).click();
+  await expect(page.locator('[data-testid^="trace-row-"]')).toHaveCount(0);
+
+  // Re-run Import settings… -> Apply: trace repopulates visibly on the chart.
+  await page.getByRole('button', { name: 'Actions for daq_stream.dat' }).click();
+  await page.getByRole('menuitem', { name: 'Import settings…' }).click();
+  await expect(binWizard).toBeVisible();
+  await binWizard.getByTestId('import-wizard-confirm').click();
+  await expect(binWizard).toHaveCount(0);
+  await expect(page.locator('[data-testid^="trace-row-"]')).toHaveCount(1);
+  await expect(page.getByTestId('chart-plot-pane-1').locator('.trace-source .recharts-line-curve')).toHaveCount(1);
+});

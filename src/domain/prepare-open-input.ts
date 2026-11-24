@@ -18,6 +18,8 @@ export interface PrepareOpenInput {
   readonly priorRawText?: string;
   readonly wizardConfig?: WizardConfig;
   readonly recognizedColumns?: boolean;
+  /** Re-importing via Import settings… or replacing a file whose traces were all hidden unhides matched traces. */
+  readonly unhideMatched?: boolean;
 }
 export type PreparedOpenInput = { readonly ok: false; readonly reason: string } | {
   readonly ok: true; readonly file: RawFileRecord; readonly rawText: string;
@@ -111,7 +113,7 @@ export function prepareOpenInput(input: PrepareOpenInput): PreparedOpenInput {
   const usableColumns: boolean = validColumns(columns, parsed.traces.length);
   const uniqueIndices = !!columns && columns.length === parsed.traces.length && columns.every(column => Number.isInteger(column.index) && column.index >= 0) && new Set(columns.map(column => column.index)).size === columns.length;
   if (indexedChannels && (!uniqueIndices || (prior && !usableColumns))) return fail('Actual parsed output column identities are unavailable or ambiguous.');
-  if (prior && indexedChannels && priorColumns && columns && (priorColumns[0]?.header === undefined) !== (columns[0]?.header === undefined)) return fail('Cannot safely match headerless and headered column identities.');
+  if (prior && indexedChannels && priorColumns && columns && priorColumns.length > 0 && columns.length > 0 && (priorColumns[0]?.header === undefined) !== (columns[0]?.header === undefined)) return fail('Cannot safely match headerless and headered column identities.');
   for (let i = 0; i < oldDisplays.length; i++) {
     const display = oldDisplays[i]; if (!display) continue;
     const legacyColumn = prior?.format === 'tabular' && !prior.displayTraces?.length ? legacyColumns?.[i] : undefined;
@@ -121,16 +123,21 @@ export function prepareOpenInput(input: PrepareOpenInput): PreparedOpenInput {
     const matches = (prior?.traces ?? []).filter(t => t.id === display.id || (t.parameters?.displayTraceId === display.id) || (display.compat?.legacyTraceName && t.name === display.compat.legacyTraceName));
     if (matches.length > 1) return fail('Prior trace identity is ambiguous.');
     if (matches[0] && matches[0].id !== display.id) return fail('Prior trace and display IDs disagree.');
+    if (input.unhideMatched && display.hidden) continue;
     oldByKey.set(key, display); if (matches[0]) oldTraceByKey.set(key, matches[0]);
   }
-  if (prior?.traces.some(t => ![...oldTraceByKey.values()].includes(t))) return fail('A prior trace cannot be matched to a display projection.');
+  if (prior?.traces.some(t => {
+    const owner = oldDisplays.find(d => d.id === t.id || t.parameters?.displayTraceId === d.id || (d.compat?.legacyTraceName && t.name === d.compat.legacyTraceName));
+    if (input.unhideMatched && owner?.hidden) return false;
+    return ![...oldTraceByKey.values()].includes(t);
+  })) return fail('A prior trace cannot be matched to a display projection.');
   const datasets: Dataset[] = [];
   const displays: DisplayTrace[] = [];
   const traces: Trace[] = [];
   const refs = new Map<string, OpenTrace>();
   const add = (key: string, fresh: DisplayTrace): boolean => {
     const old = oldByKey.get(key); const oldTrace = oldTraceByKey.get(key);
-    const display: DisplayTrace = old ? { ...fresh, id: old.id, hidden: old.hidden, interpolation: old.interpolation,
+    const display: DisplayTrace = old ? { ...fresh, id: old.id, hidden: input.unhideMatched ? false : old.hidden, interpolation: old.interpolation,
       compat: { ...fresh.compat, legacyTraceName: oldTrace?.name ?? old.compat?.legacyTraceName, legacyDisplayName: oldTrace?.dn ?? old.compat?.legacyDisplayName, automaticDisplayName: old.compat?.automaticDisplayName } } : fresh;
     const adapted = adaptDisplayTraceToLegacyTrace(datasets, display, file);
     if (!adapted) return false;

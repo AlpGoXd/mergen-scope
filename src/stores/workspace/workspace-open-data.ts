@@ -105,6 +105,8 @@ export function openData(
         && new Set(adapted.map(trace => trace.id)).size === adapted.length
         && new Set(adapted.map(trace => trace.name)).size === adapted.length);
     const canonicalPrior = prior && adapted && validPrior ? { ...prior, traces: adapted } : prior;
+    const allPriorHidden = Boolean(prior?.displayTraces?.length && prior.displayTraces.every(display => display.hidden));
+    const unhideMatched = Boolean(command.resolveWizardId) || allPriorHidden;
     const result = !validPrior
       ? { ok: false as const, reason: 'The existing file has invalid projection references.' }
       : input.parsed
@@ -117,6 +119,7 @@ export function openData(
           priorRawText: prior ? state.files.rawFileData[String(prior.id)] : undefined,
           wizardConfig: input.wizardConfig,
           recognizedColumns: !input.wizardConfig,
+          unhideMatched,
         })
         : { ok: false as const, reason: input.error ?? 'Could not read this file.' };
     prepared.set(input.id, result);

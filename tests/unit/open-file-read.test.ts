@@ -133,4 +133,16 @@ describe('classifyReadBinary auto-open guard', () => {
       reduction: { mode: 'decimate', factor: 6 },
     });
   });
+
+  it('routes headerless raw binary .dat files (with binary bytes) to the binary wizard instead of rejecting them', () => {
+    const rawDat = new ArrayBuffer(32);
+    const view = new DataView(rawDat);
+    for (let i = 0; i < 8; i++) view.setFloat32(i * 4, i * 0.5, true);
+    const read = classifyReadBinary('sdr_dump.dat', rawDat, 'dat-bin-1');
+    expect(read.kind).toBe('data');
+    if (read.kind !== 'data') return;
+    expect(read.input.parsed?.format).toBe('needs-binary-wizard');
+    expect(read.input.rawBinary).toBe(rawDat);
+    expect(read.input.binaryConfig?.mode).toBe('raw');
+  });
 });

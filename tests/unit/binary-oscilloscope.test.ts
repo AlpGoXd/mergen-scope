@@ -4,7 +4,7 @@ import { BINARY_SNIFF_BYTES, classifyBinaryConfidence, detectBinarySignature } f
 import { parseLeCroyTrc } from '../../src/domain/parsers/lecroy-trc';
 import { parseTekIsf } from '../../src/domain/parsers/tek-isf';
 import { parseOwonBin, probeOwonBinPoints } from '../../src/domain/parsers/owon-bin';
-import { defaultBinaryConfig, parseBinaryWithConfig, previewBinaryImport } from '../../src/domain/parsers/raw-binary';
+import { defaultBinaryConfig, findBinaryDataStart, parseBinaryWithConfig, previewBinaryImport } from '../../src/domain/parsers/raw-binary';
 import { classifyReadBinary } from '../../src/domain/open-file-read';
 import { resetParserFileCounter } from '../../src/domain/parsers/rs-dat';
 import { initialWorkspaceEngine, workspaceEngineReducer } from '../../src/stores/aggregate-workspace-store';
@@ -531,5 +531,124 @@ describe('Phase 2 binary oscilloscope formats (.trc, .isf, OWON .bin) + shipped 
       score: 0.3,
       reasons: ['Header truncated', 'Verify parser format or adjust raw binary settings'],
     });
+  });
+
+  it('supports framePadBytes, footerBytes, findBinaryDataStart, expanded hexView, and repopulating traces after all traces are hidden or deleted', () => {
+    resetParserFileCounter();
+    // 3 frames of [int16 CH1][int16 CH2][2B status pad] + 4B EOF footer = 22 bytes.
+    const framed = Buffer.alloc(3 * 6 + 4);
+    for (let i = 0; i < 3; i++) {
+      framed.writeInt16LE((i + 1) * 10, i * 6);
+      framed.writeInt16LE((i + 1) * 100, i * 6 + 2);
+      framed.writeUInt16LE(0xbeef, i * 6 + 4);
+    }
+    framed.writeUInt32LE(0xdeadcafe, 18);
+    const framedAb = framed.buffer.slice(framed.byteOffset, framed.byteOffset + framed.byteLength);
+    const parsedFramed = parseBinaryWithConfig(framedAb, 'struct.dat', {
+      ...defaultBinaryConfig('struct.dat', framedAb.byteLength, null),
+      sampleType: 'int16',
+      layout: 'interleaved',
+      channelCount: 2,
+      framePadBytes: 2,
+      footerBytes: 4,
+      sampleRateHz: 1000,
+    });
+    expect(parsedFramed.ok).toBe(true);
+    if (!parsedFramed.ok) return;
+    expect(parsedFramed.parsed.traces[0]?.data.map(p => p.amp)).toEqual([10, 20, 30]);
+    expect(parsedFramed.parsed.traces[1]?.data.map(p => p.amp)).toEqual([100, 200, 300]);
+
+    // findBinaryDataStart locates RIFF/WAVE data chunk and ASCII preamble end.
+    const wav = Buffer.alloc(60);
+    wav.write('RIFF', 0, 'ascii');
+    wav.writeUInt32LE(52, 4);
+    wav.write('WAVEfmt ', 8, 'ascii');
+    wav.writeUInt32LE(16, 16);
+    wav.write('data', 36, 'ascii');
+    wav.writeUInt32LE(16, 40);
+    expect(findBinaryDataStart(wav.buffer.slice(wav.byteOffset, wav.byteOffset + wav.byteLength))).toBe(44);
+
+    const asciiHead = Buffer.concat([Buffer.from('HEADER=1\nRATE=1000\n', 'ascii'), Buffer.from([0, 0, 0x80, 0x3f, 0, 0])]);
+    expect(findBinaryDataStart(asciiHead.buffer.slice(asciiHead.byteOffset, asciiHead.byteOffset + asciiHead.byteLength))).toBe(21);
+
+    // previewBinaryImport supports custom hexView offset & size > 64 B.
+    const big = new ArrayBuffer(512);
+    const prev256 = previewBinaryImport(big, 'big.bin', defaultBinaryConfig('big.bin', 512, null), { offset: 128, maxBytes: 256 });
+    expect(prev256.hexOffset).toBe(128);
+    expect(prev256.hexDump.startsWith('0080')).toBe(true);
+    expect(prev256.hexDump.split('\n')).toHaveLength(16);
+
+    // Repopulating traces after all traces of a binary file are hidden OR deleted.
+    const ksAb = readArrayBuffer('test files/keysight_dsox_sample.bin');
+    const readKs = classifyReadBinary('keysight_dsox_sample.bin', ksAb, 'ks-repop');
+    if (readKs.kind !== 'data') throw new Error('expected data');
+    let engine = workspaceEngineReducer(initialWorkspaceEngine(), {
+      type: 'change',
+      command: { slice: 'open-data', inputs: [readKs.input], limit: 4 },
+    });
+    const file = engine.present.files.files[0];
+    if (!file) throw new Error('expected file');
+    const fileId = String(file.id);
+
+    // Hide every trace on the file (same as clicking "Hide view" × on every trace row).
+    for (const display of file.displayTraces ?? []) {
+      engine = workspaceEngineReducer(engine, {
+        type: 'change',
+        command: { slice: 'files', action: { type: 'SET_DISPLAY_TRACE_HIDDEN', payload: { fileId, displayTraceId: display.id, hidden: true } } },
+      });
+    }
+    expect(engine.present.files.files[0]?.traces).toHaveLength(0);
+
+    // Re-run Import settings… -> Apply: both traces must reappear visibly and be placed in a pane.
+    engine = workspaceEngineReducer(engine, {
+      type: 'change',
+      command: { slice: 'files', action: { type: 'RERUN_WIZARD', payload: { fileId, fileName: 'keysight_dsox_sample.bin' } } },
+    });
+    engine = workspaceEngineReducer(engine, {
+      type: 'change',
+      command: {
+        slice: 'files',
+        limit: 4,
+        action: {
+          type: 'RESOLVE_BINARY_WIZARD',
+          payload: { id: fileId, binaryConfig: defaultBinaryConfig('keysight_dsox_sample.bin', ksAb.byteLength, 'wavebin') },
+        },
+      },
+    });
+    expect(engine.present.files.files[0]?.traces).toHaveLength(2);
+    expect(engine.present.files.files[0]?.displayTraces?.every(d => !d.hidden)).toBe(true);
+    for (const tr of engine.present.files.files[0]?.traces ?? []) {
+      expect((engine.present.panes.tracePaneMap[tr.name] ?? []).length).toBeGreaterThan(0);
+    }
+
+    // Delete every trace on the file (priorColumns becomes empty) -> re-importing via Import settings… still repopulates.
+    const afterFile = engine.present.files.files[0];
+    if (!afterFile) throw new Error('expected file');
+    const afterId = String(afterFile.id);
+    for (const display of afterFile.displayTraces ?? []) {
+      engine = workspaceEngineReducer(engine, {
+        type: 'change',
+        command: { slice: 'files', action: { type: 'DELETE_DISPLAY_TRACE', payload: { fileId: afterId, displayTraceId: display.id } } },
+      });
+    }
+    expect(engine.present.files.files[0]?.traces).toHaveLength(0);
+    expect(engine.present.files.files[0]?.displayTraces).toHaveLength(0);
+
+    engine = workspaceEngineReducer(engine, {
+      type: 'change',
+      command: { slice: 'files', action: { type: 'RERUN_WIZARD', payload: { fileId: afterId, fileName: 'keysight_dsox_sample.bin' } } },
+    });
+    engine = workspaceEngineReducer(engine, {
+      type: 'change',
+      command: {
+        slice: 'files',
+        limit: 4,
+        action: {
+          type: 'RESOLVE_BINARY_WIZARD',
+          payload: { id: afterId, binaryConfig: defaultBinaryConfig('keysight_dsox_sample.bin', ksAb.byteLength, 'wavebin') },
+        },
+      },
+    });
+    expect(engine.present.files.files[0]?.traces).toHaveLength(2);
   });
 });

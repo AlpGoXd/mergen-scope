@@ -110,8 +110,11 @@ export function classifyReadBinary(fileName: string, buffer: ArrayBuffer, id: st
     }
   }
 
-  // Fallback to Binary Import Wizard if a scope header failed auto-parse OR the extension is binary/SDR.
-  if (signature !== null || isBinaryFileExtension(fileName)) {
+  // Fallback to Binary Import Wizard if a scope header failed auto-parse, the extension is binary/SDR,
+  // or the file starts with binary bytes (e.g. headerless raw binary .dat / .raw / .wfm / .pcm).
+  const head = new Uint8Array(buffer, 0, Math.min(buffer.byteLength, BINARY_SNIFF_BYTES));
+  const hasBinaryBytes = head.some(byte => byte === 0 || (byte < 0x20 && byte !== 0x09 && byte !== 0x0a && byte !== 0x0d));
+  if (signature !== null || isBinaryFileExtension(fileName) || hasBinaryBytes) {
     const suggestedBinary = defaultBinaryConfig(fileName, buffer.byteLength, null);
     return {
       kind: 'data',

@@ -15,6 +15,7 @@ import {
   BINARY_RAW_PRESETS,
   channelsPerFrame,
   defaultBinaryConfig,
+  findBinaryDataStart,
   previewBinaryImport,
   rawTotalSamples,
   scopeFormatLabel,
@@ -41,45 +42,45 @@ import { CaretDownIcon } from '../shared/Icons';
 import { CONFIDENCE_ICON, CONFIDENCE_LABEL } from './WizardSettings';
 import { WizardPreviewPlot } from './WizardPreviewPlot';
 
-const SAMPLE_TYPES: readonly { value: BinarySampleType; label: string; ariaLabel: string }[] = [
-  { value: 'float32', label: 'f32', ariaLabel: 'Float 32-bit' },
-  { value: 'int16', label: 'i16', ariaLabel: 'Signed 16-bit integer' },
-  { value: 'int8', label: 'i8', ariaLabel: 'Signed 8-bit integer' },
-  { value: 'uint8', label: 'u8', ariaLabel: 'Unsigned 8-bit integer' },
+const SAMPLE_TYPES: readonly { value: BinarySampleType; label: string; ariaLabel: string; title: string }[] = [
+  { value: 'float32', label: 'f32', ariaLabel: 'Float 32-bit', title: 'IEEE-754 32-bit floating point (4 bytes/sample; standard for GNU Radio, Keysight, Rigol)' },
+  { value: 'int16', label: 'i16', ariaLabel: 'Signed 16-bit integer', title: 'Signed 16-bit integer (-32768..32767, 2 bytes/sample; common for ADCs, USRP, BladeRF, WAV)' },
+  { value: 'int8', label: 'i8', ariaLabel: 'Signed 8-bit integer', title: 'Signed 8-bit integer (-128..127, 1 byte/sample; HackRF & 8-bit oscilloscopes)' },
+  { value: 'uint8', label: 'u8', ariaLabel: 'Unsigned 8-bit integer', title: 'Unsigned 8-bit integer (0..255, 1 byte/sample; RTL-SDR .cu8 & raw 8-bit dumps)' },
 ];
 
-const EXTRA_SAMPLE_TYPES: readonly { value: BinarySampleType; label: string; ariaLabel: string }[] = [
-  { value: 'float64', label: 'f64', ariaLabel: 'Float 64-bit' },
-  { value: 'int32', label: 'i32', ariaLabel: 'Signed 32-bit integer' },
-  { value: 'uint32', label: 'u32', ariaLabel: 'Unsigned 32-bit integer' },
-  { value: 'uint16', label: 'u16', ariaLabel: 'Unsigned 16-bit integer' },
+const EXTRA_SAMPLE_TYPES: readonly { value: BinarySampleType; label: string; ariaLabel: string; title: string }[] = [
+  { value: 'float64', label: 'f64', ariaLabel: 'Float 64-bit', title: 'IEEE-754 64-bit double-precision float (8 bytes/sample; MATLAB / NumPy float64)' },
+  { value: 'int32', label: 'i32', ariaLabel: 'Signed 32-bit integer', title: 'Signed 32-bit integer (4 bytes/sample; FPGA / high-resolution DAQ dumps)' },
+  { value: 'uint32', label: 'u32', ariaLabel: 'Unsigned 32-bit integer', title: 'Unsigned 32-bit integer (4 bytes/sample; raw counters / unsigned ADC words)' },
+  { value: 'uint16', label: 'u16', ariaLabel: 'Unsigned 16-bit integer', title: 'Unsigned 16-bit integer (0..65535, 2 bytes/sample; unipolar ADCs)' },
 ];
 
-const ENDIANS: readonly { value: BinaryEndian; label: string; ariaLabel: string }[] = [
-  { value: 'le', label: 'LE', ariaLabel: 'Little-endian' },
-  { value: 'be', label: 'BE', ariaLabel: 'Big-endian' },
+const ENDIANS: readonly { value: BinaryEndian; label: string; ariaLabel: string; title: string }[] = [
+  { value: 'le', label: 'LE', ariaLabel: 'Little-endian', title: 'Little-endian: least-significant byte first (standard on x86/ARM PCs, Keysight, Rigol, GNU Radio)' },
+  { value: 'be', label: 'BE', ariaLabel: 'Big-endian', title: 'Big-endian: most-significant byte first (network byte order, older Tektronix/LeCroy scopes)' },
 ];
 
-const LAYOUTS: readonly { value: BinaryChannelLayout; label: string; ariaLabel: string }[] = [
-  { value: 'real', label: 'Real', ariaLabel: 'Single real channel' },
-  { value: 'iq', label: 'IQ', ariaLabel: 'Complex IQ (I and Q)' },
-  { value: 'interleaved', label: 'Interl.', ariaLabel: 'Interleaved multi-channel' },
-  { value: 'planar', label: 'Planar', ariaLabel: 'Sequential (planar) multi-channel' },
+const LAYOUTS: readonly { value: BinaryChannelLayout; label: string; ariaLabel: string; title: string }[] = [
+  { value: 'real', label: 'Real', ariaLabel: 'Single real channel', title: 'Single real-valued stream: [s0, s1, s2, …] plotted as CH1' },
+  { value: 'iq', label: 'IQ', ariaLabel: 'Complex IQ (I and Q)', title: 'Interleaved complex IQ pairs: [I0, Q0, I1, Q1, …] plotted as I and Q' },
+  { value: 'interleaved', label: 'Interl.', ariaLabel: 'Interleaved multi-channel', title: 'Interleaved multi-channel frames: [CH1, CH2, …, CH1, CH2, …] per sample instant' },
+  { value: 'planar', label: 'Planar', ariaLabel: 'Sequential (planar) multi-channel', title: 'Sequential (planar) blocks: all of CH1 stored back-to-back, followed by all of CH2, …' },
 ];
 
-const Y_QUICK: readonly { value: string; label: string; ariaLabel: string }[] = [
-  { value: '__auto', label: 'Auto', ariaLabel: 'Default unit' },
-  { value: 'V', label: 'V', ariaLabel: 'volts (V)' },
-  { value: 'mV', label: 'mV', ariaLabel: 'millivolts (mV)' },
-  { value: 'A', label: 'A', ariaLabel: 'amperes (A)' },
-  { value: 'dBm', label: 'dBm', ariaLabel: 'dB milliwatt (dBm)' },
+const Y_QUICK: readonly { value: string; label: string; ariaLabel: string; title: string }[] = [
+  { value: '__auto', label: 'Auto', ariaLabel: 'Default unit', title: 'Keep the unit declared by the file header (or unitless for raw binary)' },
+  { value: 'V', label: 'V', ariaLabel: 'volts (V)', title: 'Override vertical axis unit to volts (V)' },
+  { value: 'mV', label: 'mV', ariaLabel: 'millivolts (mV)', title: 'Override vertical axis unit to millivolts (mV)' },
+  { value: 'A', label: 'A', ariaLabel: 'amperes (A)', title: 'Override vertical axis unit to amperes (A) — e.g. current probe' },
+  { value: 'dBm', label: 'dBm', ariaLabel: 'dB milliwatt (dBm)', title: 'Override vertical axis unit to dBm' },
 ];
 
-const Y_EXTRA: readonly { value: string; label: string }[] = [
-  { value: 'dB', label: 'dB' },
-  { value: 'mA', label: 'mA' },
-  { value: 'W', label: 'W' },
-  { value: '', label: 'No unit' },
+const Y_EXTRA: readonly { value: string; label: string; title: string }[] = [
+  { value: 'dB', label: 'dB', title: 'Override vertical axis unit to decibels (dB)' },
+  { value: 'mA', label: 'mA', title: 'Override vertical axis unit to milliamperes (mA)' },
+  { value: 'W', label: 'W', title: 'Override vertical axis unit to watts (W)' },
+  { value: '', label: 'No unit', title: 'Display raw unitless numeric values' },
 ];
 
 const CHANNEL_UNITS: readonly { value: string | undefined; label: string }[] = [
@@ -94,18 +95,25 @@ const CHANNEL_UNITS: readonly { value: string | undefined; label: string }[] = [
   { value: '', label: 'None' },
 ];
 
-const EXPLICIT_PARSERS: readonly { value: BinaryFormat; label: string }[] = [
-  { value: 'wavebin', label: 'Keysight / Rigol (.bin)' },
-  { value: 'lecroy-trc', label: 'LeCroy (.trc)' },
-  { value: 'tek-isf', label: 'Tektronix (.isf)' },
-  { value: 'owon-bin', label: 'OWON (.bin)' },
+const EXPLICIT_PARSERS: readonly { value: BinaryFormat; label: string; title: string }[] = [
+  { value: 'wavebin', label: 'Keysight / Rigol (.bin)', title: 'Force Keysight/Agilent (AG) or Rigol (RG) binary waveform parser' },
+  { value: 'lecroy-trc', label: 'LeCroy (.trc)', title: 'Force Teledyne LeCroy WAVEDESC / LECROY_2_3 parser' },
+  { value: 'tek-isf', label: 'Tektronix (.isf)', title: 'Force Tektronix Internal Save Format (:WFMPRE: + :CURVE #) parser' },
+  { value: 'owon-bin', label: 'OWON (.bin)', title: 'Force OWON SPBXDS + JSON header parser' },
 ];
 
-const SKIP_NUDGES: readonly { delta: number; label: string }[] = [
-  { delta: -1, label: '−1' },
-  { delta: 1, label: '+1' },
-  { delta: 4, label: '+4' },
-  { delta: 16, label: '+16' },
+const SKIP_NUDGES: readonly { delta: number; label: string; title: string }[] = [
+  { delta: -1, label: '−1', title: 'Move data start back by 1 byte to check alignment' },
+  { delta: 1, label: '+1', title: 'Advance data start by 1 byte to check alignment' },
+  { delta: 4, label: '+4', title: 'Advance data start by 4 bytes (one 32-bit word)' },
+  { delta: 16, label: '+16', title: 'Advance data start by 16 bytes (one hex row)' },
+];
+
+const HEX_SIZES: readonly { bytes: number; label: string; title: string }[] = [
+  { bytes: 64, label: '64 B', title: 'Show 64 bytes (4 rows) in the hex/ASCII inspector' },
+  { bytes: 256, label: '256 B', title: 'Show 256 bytes (16 rows) in the hex/ASCII inspector' },
+  { bytes: 512, label: '512 B', title: 'Show 512 bytes (32 rows) in the hex/ASCII inspector' },
+  { bytes: 1024, label: '1 KB', title: 'Show 1,024 bytes (64 rows) in the hex/ASCII inspector' },
 ];
 
 function enterIsTaken(target: EventTarget | null): boolean {
@@ -275,7 +283,15 @@ export function BinaryWizardDialog({ entry, buffer, position, total, queue, prio
   const [config, setConfig] = useState<BinaryImportConfig>(
     () => entry.binaryConfig ?? defaultBinaryConfig(entry.fileName, buffer.byteLength, detectedScope),
   );
-  const preview = useMemo(() => previewBinaryImport(buffer, entry.fileName, config), [buffer, entry.fileName, config]);
+  const [hexSize, setHexSize] = useState<number>(64);
+  const [hexPageOffset, setHexPageOffset] = useState<number | null>(null);
+  const preview = useMemo(
+    () => previewBinaryImport(buffer, entry.fileName, config, {
+      ...(hexPageOffset !== null ? { offset: hexPageOffset } : {}),
+      maxBytes: hexSize,
+    }),
+    [buffer, entry.fileName, config, hexPageOffset, hexSize],
+  );
   const effectiveScope = config.mode === 'auto-scope'
     ? (config.parserOverride && config.parserOverride !== 'auto' ? config.parserOverride : detectedScope)
     : null;
@@ -307,6 +323,8 @@ export function BinaryWizardDialog({ entry, buffer, position, total, queue, prio
   const [chDrafts, setChDrafts] = useState<Record<string, string>>({});
 
   const skipId = useId();
+  const padId = useId();
+  const footerId = useId();
   const rateId = useId();
   const startId = useId();
   const countId = useId();
@@ -498,9 +516,19 @@ export function BinaryWizardDialog({ entry, buffer, position, total, queue, prio
   };
 
   const nudgeSkip = (delta: number) => {
+    setHexPageOffset(null);
     setConfig(prev => ({
       ...prev,
       headerBytes: Math.max(0, Math.min(Math.max(0, buffer.byteLength - 2), prev.headerBytes + delta)),
+    }));
+  };
+
+  const autoSkipHeader = () => {
+    const detected = findBinaryDataStart(buffer);
+    setHexPageOffset(null);
+    setConfig(prev => ({
+      ...prev,
+      headerBytes: Math.max(0, Math.min(Math.max(0, buffer.byteLength - 2), detected)),
     }));
   };
 
@@ -538,8 +566,11 @@ export function BinaryWizardDialog({ entry, buffer, position, total, queue, prio
   };
 
   const hexHeading = preview.hexOffset > 0
-    ? `Data bytes at 0x${preview.hexOffset.toString(16).padStart(4, '0')} (skip ${formatCount(preview.hexOffset)} B)`
-    : 'Header bytes (first 64 B)';
+    ? `Bytes at 0x${preview.hexOffset.toString(16).padStart(4, '0')} (${formatCount(preview.hexOffset)} B · showing ${formatCount(Math.min(hexSize, Math.max(0, buffer.byteLength - preview.hexOffset)))} B)`
+    : `Header bytes (first ${formatCount(Math.min(hexSize, buffer.byteLength))} B)`;
+  const canHexPrev = preview.hexOffset > 0;
+  const canHexNext = preview.hexOffset + hexSize < buffer.byteLength;
+  const hexDiffersFromSkip = config.mode === 'raw' && hexPageOffset !== null && preview.hexOffset !== config.headerBytes;
 
   const mainLabel = editing ? 'Apply' : `Add ${preview.channels.length} trace${preview.channels.length === 1 ? '' : 's'}`;
 
@@ -566,7 +597,7 @@ export function BinaryWizardDialog({ entry, buffer, position, total, queue, prio
                     active={config.mode === 'auto-scope'}
                     aria-checked={config.mode === 'auto-scope'}
                     disabled={!detectedScope && activeParserChoice === 'auto'}
-                    title={detectedScope ? `Scope header (${scopeFormatLabel(detectedScope)})` : 'Select a scope format from Format menu'}
+                    title={detectedScope ? `Parse using the oscilloscope file header (${scopeFormatLabel(detectedScope)})` : 'No scope header detected — pick a format from Format ▾ or use Raw binary'}
                     onClick={() => setConfig(prev => ({ ...prev, mode: 'auto-scope' }))}
                   >
                     Scope header
@@ -576,6 +607,7 @@ export function BinaryWizardDialog({ entry, buffer, position, total, queue, prio
                     variant="slate"
                     active={config.mode === 'raw'}
                     aria-checked={config.mode === 'raw'}
+                    title="Decode raw binary numbers directly with custom data type, endianness, layout, header skip, stride, and sample rate"
                     onClick={() => setConfig(prev => ({ ...prev, mode: 'raw' }))}
                   >
                     Raw binary
@@ -584,6 +616,7 @@ export function BinaryWizardDialog({ entry, buffer, position, total, queue, prio
                     variant="slate"
                     active={explicitParserActive || Boolean(parserMoreAnchor)}
                     aria-label="Choose parser format"
+                    title="Force a specific oscilloscope parser or switch to the Text / CSV importer"
                     aria-haspopup="menu"
                     aria-expanded={Boolean(parserMoreAnchor)}
                     onClick={event => {
@@ -665,6 +698,7 @@ export function BinaryWizardDialog({ entry, buffer, position, total, queue, prio
                           variant="slate"
                           small
                           aria-label={`${ch.label} unit`}
+                          title={`Override the vertical unit for ${ch.label} only (e.g. A for a current probe)`}
                           aria-haspopup="menu"
                           onClick={event => {
                             const target = event.currentTarget;
@@ -746,6 +780,7 @@ export function BinaryWizardDialog({ entry, buffer, position, total, queue, prio
                           active={active}
                           aria-checked={active}
                           aria-label={opt.ariaLabel}
+                          title={opt.title}
                           onClick={() => setConfig(prev => ({ ...prev, sampleType: opt.value }))}
                         >
                           {opt.label}
@@ -756,6 +791,7 @@ export function BinaryWizardDialog({ entry, buffer, position, total, queue, prio
                       variant="slate"
                       active={extraTypeActive || Boolean(typeMoreAnchor)}
                       aria-label="More data types"
+                      title="Additional binary sample formats: 64-bit float (f64), 32-bit int (i32/u32), unsigned 16-bit (u16)"
                       aria-haspopup="menu"
                       aria-expanded={Boolean(typeMoreAnchor)}
                       onClick={event => {
@@ -790,7 +826,7 @@ export function BinaryWizardDialog({ entry, buffer, position, total, queue, prio
                   </div>
                 </div>
                 {config.layout === 'iq' && (
-                  <label className="iw-check t-label">
+                  <label className="iw-check t-label" title="Swap I and Q sample order if the file stores [Q0, I0, Q1, I1, …]">
                     <input
                       type="checkbox"
                       checked={Boolean(config.swapIQ)}
@@ -801,7 +837,7 @@ export function BinaryWizardDialog({ entry, buffer, position, total, queue, prio
                 )}
                 {(config.layout === 'interleaved' || config.layout === 'planar') && (
                   <div className="iw-line">
-                    <label className="t-label t-muted" htmlFor={chCountId}>Channels</label>
+                    <label className="t-label t-muted" htmlFor={chCountId} title="Number of channels packed in the binary stream (2–8)">Channels</label>
                     <input
                       id={chCountId}
                       className="iw-input t-label"
@@ -809,6 +845,7 @@ export function BinaryWizardDialog({ entry, buffer, position, total, queue, prio
                       min={2}
                       max={8}
                       step={1}
+                      title="Number of channels in the binary file (2–8)"
                       value={config.channelCount}
                       onChange={event => {
                         const n = Math.max(2, Math.min(8, Math.floor(Number(event.target.value) || 2)));
@@ -818,7 +855,7 @@ export function BinaryWizardDialog({ entry, buffer, position, total, queue, prio
                   </div>
                 )}
                 <div className="iw-line">
-                  <label className="t-label t-muted" htmlFor={skipId}>Skip bytes</label>
+                  <label className="t-label t-muted" htmlFor={skipId} title="Leading header bytes to ignore before the first sample">Skip bytes</label>
                   <input
                     id={skipId}
                     className="iw-input iw-input--mult t-label"
@@ -826,9 +863,11 @@ export function BinaryWizardDialog({ entry, buffer, position, total, queue, prio
                     min={0}
                     max={Math.max(0, buffer.byteLength - 2)}
                     step={1}
+                    title="Number of leading header bytes to skip before reading samples"
                     value={config.headerBytes}
                     onChange={event => {
                       const n = Math.max(0, Math.floor(Number(event.target.value) || 0));
+                      setHexPageOffset(null);
                       setConfig(prev => ({ ...prev, headerBytes: n }));
                     }}
                   />
@@ -839,20 +878,66 @@ export function BinaryWizardDialog({ entry, buffer, position, total, queue, prio
                       key={item.label}
                       small
                       aria-label={`Skip ${item.label} bytes`}
+                      title={item.title}
                       onClick={() => nudgeSkip(item.delta)}
                     >
                       {item.label} B
                     </Btn>
                   ))}
+                  <Btn
+                    small
+                    aria-label="Auto-skip header"
+                    title="Scan for WAV 'data' chunk or leading ASCII header block and jump Skip bytes past it"
+                    onClick={autoSkipHeader}
+                  >
+                    Auto-skip
+                  </Btn>
+                </div>
+                {config.layout !== 'planar' && (
+                  <div className="iw-line">
+                    <label className="t-label t-muted" htmlFor={padId} title="Extra trailing bytes skipped after each sample frame (e.g. per-record timestamps, flags, or CRC)">Frame pad (B)</label>
+                    <input
+                      id={padId}
+                      className="iw-input iw-input--mult t-label"
+                      type="number"
+                      min={0}
+                      max={1024}
+                      step={1}
+                      title="Extra padding bytes to skip after each sample frame (0 = tightly packed)"
+                      value={config.framePadBytes ?? 0}
+                      onChange={event => {
+                        const n = Math.max(0, Math.floor(Number(event.target.value) || 0));
+                        setConfig(prev => ({ ...prev, framePadBytes: n }));
+                      }}
+                    />
+                  </div>
+                )}
+                <div className="iw-line">
+                  <label className="t-label t-muted" htmlFor={footerId} title="Trailing bytes to ignore at the end of the file (e.g. EOF metadata or checksums)">Footer (B)</label>
+                  <input
+                    id={footerId}
+                    className="iw-input iw-input--mult t-label"
+                    type="number"
+                    min={0}
+                    max={Math.max(0, buffer.byteLength - 2)}
+                    step={1}
+                    title="Number of trailing footer bytes to ignore at end-of-file (0 = read to end)"
+                    value={config.footerBytes ?? 0}
+                    onChange={event => {
+                      const n = Math.max(0, Math.floor(Number(event.target.value) || 0));
+                      setConfig(prev => ({ ...prev, footerBytes: n }));
+                    }}
+                  />
                 </div>
                 <div className="iw-line">
-                  <label className="t-label t-muted" htmlFor={rateId}>Rate (Hz)</label>
+                  <label className="t-label t-muted" htmlFor={rateId} title="Sample rate in Hz for the time axis (supports k, M, G suffixes; 0 plots raw sample index)">Rate (Hz)</label>
                   <input
                     id={rateId}
                     className="iw-input iw-input--mult t-label"
                     type="text"
                     inputMode="decimal"
                     placeholder="e.g. 1M or 0"
+                    title="Sample rate in Hz (e.g. 100k, 2.4M, 1G; enter 0 to plot against sample index)"
                     value={rateDraft}
                     onChange={event => {
                       const raw = event.target.value;
@@ -871,25 +956,27 @@ export function BinaryWizardDialog({ entry, buffer, position, total, queue, prio
             <section className="iw-group" aria-label="Sample window">
               <h3 className="t-section">Sample slice</h3>
               <div className="iw-line">
-                <label className="t-label t-muted" htmlFor={startId}>Start</label>
+                <label className="t-label t-muted" htmlFor={startId} title="0-based sample index to start importing from">Start</label>
                 <input
                   id={startId}
                   className="iw-input iw-input--mult t-label"
                   type="number"
                   min={0}
                   step={1}
+                  title="First sample index to read per channel (0 = start of waveform)"
                   value={config.startSample}
                   onChange={event => setConfig(prev => ({ ...prev, startSample: Math.max(0, Math.floor(Number(event.target.value) || 0)) }))}
                 />
               </div>
               <div className="iw-line">
-                <label className="t-label t-muted" htmlFor={countId}>Samples</label>
+                <label className="t-label t-muted" htmlFor={countId} title="Maximum number of samples per channel to import (0 = all available)">Samples</label>
                 <input
                   id={countId}
                   className="iw-input iw-input--mult t-label"
                   type="number"
                   min={0}
                   step={1}
+                  title="Maximum samples per channel to load (0 = import every sample from Start to end)"
                   value={config.sampleCount}
                   onChange={event => setConfig(prev => ({ ...prev, sampleCount: Math.max(0, Math.floor(Number(event.target.value) || 0)) }))}
                 />
@@ -911,6 +998,7 @@ export function BinaryWizardDialog({ entry, buffer, position, total, queue, prio
                         active={active}
                         aria-checked={active}
                         aria-label={opt.ariaLabel}
+                        title={opt.title}
                         onClick={() => setConfig(prev => ({ ...prev, yUnit: opt.value === '__auto' ? undefined : opt.value }))}
                       >
                         {opt.label}
@@ -921,6 +1009,7 @@ export function BinaryWizardDialog({ entry, buffer, position, total, queue, prio
                     variant="slate"
                     active={yQuickValue === null || Boolean(yMoreAnchor)}
                     aria-label="More Y unit overrides"
+                    title="More vertical axis unit overrides (dB, mA, W, No unit)"
                     aria-haspopup="menu"
                     aria-expanded={Boolean(yMoreAnchor)}
                     onClick={event => {
@@ -933,12 +1022,13 @@ export function BinaryWizardDialog({ entry, buffer, position, total, queue, prio
                 </div>
               </div>
               <div className="iw-line">
-                <label className="t-label t-muted" htmlFor={multId}>Y scale ×</label>
+                <label className="t-label t-muted" htmlFor={multId} title="Multiply all vertical values by this factor (e.g. 10 for a 10× probe or -1 to invert)">Y scale ×</label>
                 <input
                   id={multId}
                   className="iw-input iw-input--mult t-label"
                   type="text"
                   inputMode="decimal"
+                  title="Global vertical multiplier (applied before Y offset)"
                   value={yMultDraft}
                   onChange={event => {
                     const raw = event.target.value;
@@ -950,12 +1040,13 @@ export function BinaryWizardDialog({ entry, buffer, position, total, queue, prio
                 />
               </div>
               <div className="iw-line">
-                <label className="t-label t-muted" htmlFor={offId}>Y offset</label>
+                <label className="t-label t-muted" htmlFor={offId} title="Add a constant DC offset to every sample after Y scale">Y offset</label>
                 <input
                   id={offId}
                   className="iw-input iw-input--mult t-label"
                   type="text"
                   inputMode="decimal"
+                  title="Constant vertical offset added after Y scale"
                   value={yOffsetDraft}
                   onChange={event => {
                     const raw = event.target.value;
@@ -967,12 +1058,13 @@ export function BinaryWizardDialog({ entry, buffer, position, total, queue, prio
                 />
               </div>
               <div className="iw-line">
-                <label className="t-label t-muted" htmlFor={xMultId}>X scale ×</label>
+                <label className="t-label t-muted" htmlFor={xMultId} title="Multiply X axis (time/frequency) coordinates by this factor (fixes wrong scope timebase)">X scale ×</label>
                 <input
                   id={xMultId}
                   className="iw-input iw-input--mult t-label"
                   type="text"
                   inputMode="decimal"
+                  title="Horizontal scale multiplier (e.g. 0.5 or 2 if timebase is off)"
                   value={xMultDraft}
                   onChange={event => {
                     const raw = event.target.value;
@@ -984,13 +1076,14 @@ export function BinaryWizardDialog({ entry, buffer, position, total, queue, prio
                 />
               </div>
               <div className="iw-line">
-                <label className="t-label t-muted" htmlFor={xOffId}>X offset (t₀)</label>
+                <label className="t-label t-muted" htmlFor={xOffId} title="Shift the horizontal origin t₀ (e.g. -50u to centre a trigger)">X offset (t₀)</label>
                 <input
                   id={xOffId}
                   className="iw-input iw-input--mult t-label"
                   type="text"
                   inputMode="decimal"
                   placeholder="e.g. -50u or 0"
+                  title="Horizontal trigger/origin shift (supports suffixes like n, u, m)"
                   value={xOffsetDraft}
                   onChange={event => {
                     const raw = event.target.value;
@@ -1156,6 +1249,52 @@ export function BinaryWizardDialog({ entry, buffer, position, total, queue, prio
             )}
             <div className="iw-preview-head">
               <h3 className="t-section" data-testid="binary-wizard-hex-heading">{hexHeading}</h3>
+              <div className="iw-hex-tools" aria-label="Hex inspector controls">
+                {HEX_SIZES.map(opt => (
+                  <Btn
+                    key={opt.bytes}
+                    small
+                    variant="slate"
+                    active={hexSize === opt.bytes}
+                    title={opt.title}
+                    onClick={() => setHexSize(opt.bytes)}
+                  >
+                    {opt.label}
+                  </Btn>
+                ))}
+                <Btn
+                  small
+                  disabled={!canHexPrev}
+                  aria-label="Previous hex page"
+                  title={`Jump back ${hexSize} bytes in the hex inspector`}
+                  onClick={() => setHexPageOffset(Math.max(0, preview.hexOffset - hexSize))}
+                >
+                  ◀
+                </Btn>
+                <Btn
+                  small
+                  disabled={!canHexNext}
+                  aria-label="Next hex page"
+                  title={`Jump forward ${hexSize} bytes in the hex inspector`}
+                  onClick={() => setHexPageOffset(Math.min(Math.max(0, buffer.byteLength - 16), preview.hexOffset + hexSize))}
+                >
+                  ▶
+                </Btn>
+                {hexDiffersFromSkip && (
+                  <Btn
+                    small
+                    variant="slate"
+                    title={`Set Skip bytes to ${preview.hexOffset} B (0x${preview.hexOffset.toString(16)})`}
+                    onClick={() => {
+                      const target = preview.hexOffset;
+                      setHexPageOffset(null);
+                      setConfig(prev => ({ ...prev, headerBytes: target }));
+                    }}
+                  >
+                    Use offset
+                  </Btn>
+                )}
+              </div>
             </div>
             <pre className="iw-hex t-readout" data-testid="binary-wizard-hex">{preview.hexDump}</pre>
             {!blocker && (
@@ -1204,6 +1343,7 @@ export function BinaryWizardDialog({ entry, buffer, position, total, queue, prio
                   type="button"
                   role="menuitemradio"
                   aria-checked={config.mode === 'auto-scope' && activeParserChoice === opt.value}
+                  title={opt.title}
                   onClick={() => {
                     setConfig(prev => ({ ...prev, mode: 'auto-scope', parserOverride: opt.value }));
                     setParserMoreAnchor(null);
@@ -1216,6 +1356,7 @@ export function BinaryWizardDialog({ entry, buffer, position, total, queue, prio
                 type="button"
                 role="menuitemradio"
                 aria-checked={config.mode === 'raw'}
+                title="Decode raw binary samples directly using custom type, endianness, layout, and skip bytes"
                 onClick={() => {
                   setConfig(prev => ({ ...prev, mode: 'raw' }));
                   setParserMoreAnchor(null);
@@ -1227,6 +1368,7 @@ export function BinaryWizardDialog({ entry, buffer, position, total, queue, prio
               <button
                 type="button"
                 role="menuitem"
+                title="Re-interpret this file as UTF-8 text in the Tabular / CSV import wizard"
                 onClick={switchToText}
               >
                 Open as Text / CSV…
@@ -1253,6 +1395,7 @@ export function BinaryWizardDialog({ entry, buffer, position, total, queue, prio
                     active={config.sampleType === opt.value}
                     aria-checked={config.sampleType === opt.value}
                     aria-label={opt.ariaLabel}
+                    title={opt.title}
                     onClick={() => { setConfig(prev => ({ ...prev, sampleType: opt.value })); setTypeMoreAnchor(null); }}
                   >
                     {opt.label}
@@ -1280,6 +1423,7 @@ export function BinaryWizardDialog({ entry, buffer, position, total, queue, prio
                     small
                     active={config.yUnit === opt.value}
                     aria-checked={config.yUnit === opt.value}
+                    title={opt.title}
                     onClick={() => { setConfig(prev => ({ ...prev, yUnit: opt.value })); setYMoreAnchor(null); }}
                   >
                     {opt.label}

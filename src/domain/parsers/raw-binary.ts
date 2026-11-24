@@ -67,6 +67,10 @@ export interface BinaryImportConfig {
   readonly channelCount: number;
   /** Leading header bytes to skip in raw mode. */
   readonly headerBytes: number;
+  /** Optional trailing padding bytes to skip after each sample frame in raw mode (e.g. timestamps/CRC). */
+  readonly framePadBytes?: number;
+  /** Optional trailing footer bytes to ignore at end-of-file in raw mode. */
+  readonly footerBytes?: number;
   /** Sample rate in Hz in raw mode (<= 0 uses unitless sample index). */
   readonly sampleRateHz: number;
   /** First sample index to import (0-based). */
@@ -150,11 +154,58 @@ export function channelsPerFrame(config: Pick<BinaryImportConfig, "layout" | "ch
   return Math.max(2, Math.min(8, Math.floor(Number.isFinite(config.channelCount) ? config.channelCount : 2)));
 }
 
-export function rawTotalSamples(byteLength: number, config: Pick<BinaryImportConfig, "sampleType" | "layout" | "channelCount" | "headerBytes">): number {
+export function rawTotalSamples(
+  byteLength: number,
+  config: Pick<BinaryImportConfig, "sampleType" | "layout" | "channelCount" | "headerBytes" | "framePadBytes" | "footerBytes">,
+): number {
   const skip = Math.max(0, Math.floor(Number.isFinite(config.headerBytes) ? config.headerBytes : 0));
-  const remaining = Math.max(0, byteLength - skip);
-  const frameBytes = sampleTypeBytes(config.sampleType) * channelsPerFrame(config);
+  const footer = Math.max(0, Math.floor(Number.isFinite(config.footerBytes ?? 0) ? (config.footerBytes ?? 0) : 0));
+  const pad = Math.max(0, Math.floor(Number.isFinite(config.framePadBytes ?? 0) ? (config.framePadBytes ?? 0) : 0));
+  const remaining = Math.max(0, byteLength - skip - footer);
+  const frameBytes = sampleTypeBytes(config.sampleType) * channelsPerFrame(config) + (config.layout === "planar" ? 0 : pad);
   return frameBytes > 0 ? Math.floor(remaining / frameBytes) : 0;
+}
+
+/**
+ * Heuristic header-end finder for unknown binary files:
+ *  - RIFF/WAVE files: jumps directly past the "data" chunk header (+8 bytes).
+ *  - ASCII preamble followed by binary bytes: jumps past the leading printable text/NUL block
+ *    (rounded up to the next 4-byte boundary if NUL-padded).
+ */
+export function findBinaryDataStart(buffer: ArrayBuffer): number {
+  const bytes = new Uint8Array(buffer);
+  const len = bytes.byteLength;
+  if (len < 16) return 0;
+
+  // 1. RIFF / WAVE container ("RIFF....WAVE"): walk chunks until "data".
+  if (
+    bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46
+    && bytes[8] === 0x57 && bytes[9] === 0x41 && bytes[10] === 0x56 && bytes[11] === 0x45
+  ) {
+    const view = new DataView(buffer);
+    let pos = 12;
+    while (pos + 8 <= len) {
+      const isData = bytes[pos] === 0x64 && bytes[pos + 1] === 0x61 && bytes[pos + 2] === 0x74 && bytes[pos + 3] === 0x61;
+      const chunkSize = view.getUint32(pos + 4, true);
+      if (isData) return Math.min(len, pos + 8);
+      if (chunkSize > len) break;
+      pos += 8 + chunkSize + (chunkSize % 2);
+    }
+  }
+
+  // 2. Leading printable ASCII preamble (e.g. text header ending in newline/NUL before binary payload).
+  const isPrintableText = (b: number) => (b >= 0x20 && b <= 0x7e) || b === 0x09 || b === 0x0a || b === 0x0d;
+  const scanLimit = Math.min(len, 65_536);
+  let textRun = 0;
+  while (textRun < scanLimit && isPrintableText(bytes[textRun] ?? 0)) textRun += 1;
+  if (textRun >= 8 && textRun < len) {
+    let pos = textRun;
+    // Skip any trailing NUL padding right after an ASCII header block.
+    while (pos < scanLimit && bytes[pos] === 0) pos += 1;
+    return pos < len ? pos : textRun;
+  }
+
+  return 0;
 }
 
 /** Smart default configuration from binary signature and filename extension hints (e.g. .cf32, .sc16, .cu8). */
@@ -269,13 +320,15 @@ function parseRawBinary(
   reductionOverride?: BinaryReduction,
 ): BinaryParseResult {
   const skip = Math.max(0, Math.floor(Number.isFinite(config.headerBytes) ? config.headerBytes : 0));
-  if (skip >= buffer.byteLength) {
-    return { ok: false, error: `Header skip (${skip} bytes) exceeds file size (${buffer.byteLength} bytes).` };
+  const footer = Math.max(0, Math.floor(Number.isFinite(config.footerBytes ?? 0) ? (config.footerBytes ?? 0) : 0));
+  const pad = Math.max(0, Math.floor(Number.isFinite(config.framePadBytes ?? 0) ? (config.framePadBytes ?? 0) : 0));
+  if (skip + footer >= buffer.byteLength) {
+    return { ok: false, error: `Header skip (${skip} B) + footer (${footer} B) exceeds file size (${buffer.byteLength} bytes).` };
   }
   const elemBytes = sampleTypeBytes(config.sampleType);
   const nChannels = channelsPerFrame(config);
-  const frameBytes = elemBytes * nChannels;
-  const totalFrames = Math.floor((buffer.byteLength - skip) / frameBytes);
+  const frameBytes = elemBytes * nChannels + (config.layout === "planar" ? 0 : pad);
+  const totalFrames = Math.floor((buffer.byteLength - skip - footer) / frameBytes);
   if (totalFrames < 2) {
     return { ok: false, error: "Not enough bytes after the header to form at least two samples." };
   }
@@ -589,11 +642,16 @@ export function previewBinaryImport(
   buffer: ArrayBuffer,
   fileName: string,
   config: BinaryImportConfig,
+  hexView?: { readonly offset?: number; readonly maxBytes?: number },
 ): BinaryPreviewResult {
-  const hexOffset = config.mode === "raw"
+  const defaultOffset = config.mode === "raw"
     ? Math.max(0, Math.min(buffer.byteLength, Math.floor(Number.isFinite(config.headerBytes) ? config.headerBytes : 0)))
     : 0;
-  const hexDump = formatHexPreview(buffer, hexOffset, 64);
+  const hexOffset = hexView?.offset !== undefined
+    ? Math.max(0, Math.min(buffer.byteLength, Math.floor(Number.isFinite(hexView.offset) ? hexView.offset : defaultOffset)))
+    : defaultOffset;
+  const hexLength = Math.max(16, Math.min(4096, Math.floor(hexView?.maxBytes ?? 64)));
+  const hexDump = formatHexPreview(buffer, hexOffset, hexLength);
   const signature = effectiveScopeSignature(buffer, config);
 
   let allScopeChannels: BinaryPreviewChannel[] = [];

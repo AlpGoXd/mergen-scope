@@ -9,7 +9,7 @@ import { useAsk } from '../stores/dialog-store';
 import { replaceWorkspaceText, sameNameText, warnLargeFileText } from '../domain/confirm-text';
 import { classifyReadBinary, classifyReadFile, maxTraceSerial, workspaceCounts } from '../domain/open-file-read';
 import { BINARY_SNIFF_BYTES, detectBinarySignature } from '../domain/parsers/binary-detect';
-import { isBinaryFileExtension, isStrictRawBinaryExtension } from '../domain/parsers/raw-binary';
+import { isStrictRawBinaryExtension } from '../domain/parsers/raw-binary';
 import { copyName } from '../domain/open-files-plan';
 import { classifyFileSize, refuseLargeFileMessage } from '../domain/file-size-policy';
 import { usePaneLimit } from '../stores/pane-store';
@@ -58,7 +58,8 @@ export function useFileImport() {
         if (!workspaceRoute && typeof file.slice === 'function' && typeof file.arrayBuffer === 'function') {
           const head = new Uint8Array(await file.slice(0, BINARY_SNIFF_BYTES).arrayBuffer());
           const hasBinaryBytes = head.some(byte => byte === 0 || (byte < 0x20 && byte !== 0x09 && byte !== 0x0a && byte !== 0x0d));
-          if (detectBinarySignature(head) || isStrictRawBinaryExtension(file.name) || (isBinaryFileExtension(file.name) && hasBinaryBytes)) {
+          const isJsonLike = /\.json$/i.test(file.name);
+          if (detectBinarySignature(head) || isStrictRawBinaryExtension(file.name) || (!isJsonLike && hasBinaryBytes)) {
             return classifyReadBinary(file.name, await file.arrayBuffer(), id);
           }
         }

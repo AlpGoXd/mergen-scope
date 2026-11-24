@@ -99,7 +99,8 @@
 
 .iw-plot-range { color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .iw-header-summary { padding: var(--space-1) var(--space-2); border: 1px solid var(--border); border-radius: var(--radius-input); background: var(--panel); color: var(--text-muted); }
-.iw-hex { margin: 0; padding: var(--space-2); border: 1px solid var(--border); border-radius: var(--radius-card); background: var(--panel); color: var(--text-muted); overflow-x: auto; white-space: pre; }
+.iw-hex { margin: 0; max-height: 220px; padding: var(--space-2); border: 1px solid var(--border); border-radius: var(--radius-card); background: var(--panel); color: var(--text-muted); overflow: auto; white-space: pre; }
+.iw-hex-tools { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
 .iw-chan-list { display: grid; gap: var(--space-1); }
 .iw-chan-table { display: grid; gap: var(--space-1); }
 .iw-chan-row { display: grid; grid-template-columns: minmax(0, 1fr) auto 46px 46px; align-items: center; gap: 4px; }
