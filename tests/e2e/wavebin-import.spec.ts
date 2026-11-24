@@ -96,6 +96,7 @@ test('opens Keysight AG and Rigol RG .bin files directly without the wizard and 
   await expect(binWizard.getByTestId('binary-wizard-header-summary')).toContainText('Keysight / Agilent');
   await binWizard.getByRole('checkbox', { name: 'Enable CH2' }).uncheck();
   await binWizard.getByLabel('CH1 scale multiplier').fill('10');
+  await expect(binWizard.getByTestId('binary-wizard-scope-override-warn')).toContainText('CH1 scale ×10');
   await expect(binWizard.getByTestId('binary-wizard-range')).toContainText('9.975 V');
   await binWizard.getByTestId('import-wizard-confirm').click();
   await expect(binWizard).toHaveCount(0);

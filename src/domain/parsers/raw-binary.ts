@@ -45,7 +45,7 @@ export type BinarySampleType = "float32" | "float64" | "float16" | "int32" | "ui
 export type BinaryEndian = "le" | "be";
 export type BinaryChannelLayout = "real" | "iq" | "interleaved" | "planar";
 export type BinaryParserChoice = "auto" | BinaryFormat;
-export type BinaryXDomain = "time" | "frequency" | "index";
+export type BinaryXDomain = "time" | "frequency" | "angle" | "custom" | "index";
 
 export interface BinaryChannelOverride {
   /** false hides/omits this channel; true/undefined includes it. */
@@ -78,12 +78,18 @@ export interface BinaryImportConfig {
   readonly footerBytes?: number;
   /** Sample rate in Hz in raw mode (<= 0 uses unitless sample index when xDomain is omitted). */
   readonly sampleRateHz: number;
-  /** X axis domain in raw mode: 'time' (Rate Hz), 'frequency' (SA Start..Stop Hz), or 'index' (unitless sample index). */
+  /** X axis domain in raw mode (or explicit override in scope mode): 'time', 'frequency', 'angle', 'custom', or 'index'. */
   readonly xDomain?: BinaryXDomain;
+  /** Optional explicit X unit for 'angle' ('°' | 'rad') or 'custom' ('V', 'A', 'dBm', 'dB', 'Ohm'). */
+  readonly xUnit?: string;
   /** Start frequency in Hz when xDomain === 'frequency' (e.g. spectrum analyzer sweep start). */
   readonly freqStartHz?: number;
   /** Stop frequency in Hz when xDomain === 'frequency' (e.g. spectrum analyzer sweep stop). */
   readonly freqStopHz?: number;
+  /** Start X coordinate for 'angle' or 'custom' linear sweeps. */
+  readonly xStartValue?: number;
+  /** Stop X coordinate for 'angle' or 'custom' linear sweeps. */
+  readonly xStopValue?: number;
   /** First sample index to import (0-based). */
   readonly startSample: number;
   /** Max samples per channel to import (0 = all available). */
@@ -197,7 +203,7 @@ export function parseBinarySettings(
 
   const yMult = num(cfg["yMult"], fallback.yMult);
   const xMult = num(cfg["xMult"], fallback.xMult);
-  const xDomain = cfg["xDomain"] === "time" || cfg["xDomain"] === "frequency" || cfg["xDomain"] === "index"
+  const xDomain = cfg["xDomain"] === "time" || cfg["xDomain"] === "frequency" || cfg["xDomain"] === "angle" || cfg["xDomain"] === "custom" || cfg["xDomain"] === "index"
     ? cfg["xDomain"]
     : fallback.xDomain;
 
@@ -217,8 +223,11 @@ export function parseBinarySettings(
       footerBytes: nonNegInt(cfg["footerBytes"], fallback.footerBytes ?? 0),
       sampleRateHz: Math.max(0, num(cfg["sampleRateHz"], fallback.sampleRateHz)),
       ...(xDomain ? { xDomain } : {}),
+      ...(typeof cfg["xUnit"] === "string" ? { xUnit: cfg["xUnit"] } : {}),
       ...(cfg["freqStartHz"] !== undefined ? { freqStartHz: num(cfg["freqStartHz"], fallback.freqStartHz ?? 0) } : {}),
       ...(cfg["freqStopHz"] !== undefined ? { freqStopHz: num(cfg["freqStopHz"], fallback.freqStopHz ?? 1e9) } : {}),
+      ...(cfg["xStartValue"] !== undefined ? { xStartValue: num(cfg["xStartValue"], fallback.xStartValue ?? 0) } : {}),
+      ...(cfg["xStopValue"] !== undefined ? { xStopValue: num(cfg["xStopValue"], fallback.xStopValue ?? 360) } : {}),
       startSample: nonNegInt(cfg["startSample"], fallback.startSample),
       sampleCount: nonNegInt(cfg["sampleCount"], fallback.sampleCount),
       yUnit: typeof cfg["yUnit"] === "string" ? cfg["yUnit"] : undefined,
@@ -582,6 +591,22 @@ function parseRawBinary(
     xUnit = "Hz";
     domain = "frequency";
     family = "spectrum";
+  } else if (xDomain === "angle" || xDomain === "custom") {
+    const unit = xDomain === "angle"
+      ? (config.xUnit === "rad" ? "rad" : "°")
+      : (config.xUnit?.trim() || "V");
+    const defaultStop = xDomain === "angle" ? (unit === "rad" ? Math.PI * 2 : 360) : 1;
+    const xStartVal = Number.isFinite(config.xStartValue ?? 0) ? (config.xStartValue ?? 0) : 0;
+    const xStopVal = Number.isFinite(config.xStopValue ?? defaultStop) ? (config.xStopValue ?? defaultStop) : defaultStop;
+    if (xStopVal <= xStartVal) {
+      return { ok: false, error: `Stop ${unit} must be greater than start ${unit}.` };
+    }
+    const step = totalFrames > 1 ? (xStopVal - xStartVal) / (totalFrames - 1) : 1;
+    dt = step * xMult;
+    xStartBase = xStartVal * xMult + xOffset;
+    xUnit = unit;
+    domain = "frequency";
+    family = "spectrum";
   } else if (xDomain === "time" && fs > 0) {
     dt = (1 / fs) * xMult;
     xStartBase = xOffset;
@@ -754,8 +779,10 @@ export function parseBinaryWithConfig(
   const globalYMult = Number.isFinite(config.yMult) && config.yMult !== 0 ? config.yMult : 1;
   const globalYOffset = Number.isFinite(config.yOffset) ? config.yOffset : 0;
   const hasChannelOverrides = Boolean(config.channelOverrides && Object.keys(config.channelOverrides).length > 0);
+  const hasXDomainOverride = config.xDomain !== undefined;
   const hasOverrides = config.selectedChannels !== undefined
     || hasChannelOverrides
+    || hasXDomainOverride
     || xMult !== 1
     || xOffset !== 0
     || globalYMult !== 1
@@ -763,6 +790,19 @@ export function parseBinaryWithConfig(
     || config.yUnit !== undefined;
 
   if (!hasOverrides && !slice) return base;
+
+  if (hasXDomainOverride && config.xDomain === "frequency") {
+    const fStart = Number.isFinite(config.freqStartHz ?? 0) ? (config.freqStartHz ?? 0) : 0;
+    const fStop = Number.isFinite(config.freqStopHz ?? 1e9) ? (config.freqStopHz ?? 1e9) : 1e9;
+    if (fStop <= fStart) return { ok: false, error: "Stop frequency must be greater than start frequency." };
+  }
+  if (hasXDomainOverride && (config.xDomain === "angle" || config.xDomain === "custom")) {
+    const unit = config.xDomain === "angle" ? (config.xUnit === "rad" ? "rad" : "°") : (config.xUnit?.trim() || "V");
+    const defStop = config.xDomain === "angle" ? (unit === "rad" ? Math.PI * 2 : 360) : 1;
+    const s0 = Number.isFinite(config.xStartValue ?? 0) ? (config.xStartValue ?? 0) : 0;
+    const s1 = Number.isFinite(config.xStopValue ?? defStop) ? (config.xStopValue ?? defStop) : defStop;
+    if (s1 <= s0) return { ok: false, error: `Stop ${unit} must be greater than start ${unit}.` };
+  }
 
   const nextTraces: RawTrace[] = [];
   const nextIdentities: ColumnIdentity[] = [];
@@ -778,8 +818,58 @@ export function parseBinaryWithConfig(
     const yMult = globalYMult * chMult;
     const yOffset = globalYOffset + chOff;
 
+    let nextDomain = orig.domain;
+    let nextFamily = orig.family;
+    let nextXUnit = orig.units.x;
     let data = orig.data;
-    if (xMult !== 1 || xOffset !== 0 || yMult !== 1 || yOffset !== 0) {
+
+    if (hasXDomainOverride) {
+      const n = orig.data.length;
+      if (config.xDomain === "frequency") {
+        const fStart = Number.isFinite(config.freqStartHz ?? 0) ? (config.freqStartHz ?? 0) : 0;
+        const fStop = Number.isFinite(config.freqStopHz ?? 1e9) ? (config.freqStopHz ?? 1e9) : 1e9;
+        const step = n > 1 ? (fStop - fStart) / (n - 1) : 1;
+        nextDomain = "frequency";
+        nextFamily = "spectrum";
+        nextXUnit = "Hz";
+        data = normalizeTraceData(orig.data.map((pt, idx) => ({
+          freq: (fStart + idx * step) * xMult + xOffset,
+          amp: pt.amp * yMult + yOffset,
+        })));
+      } else if (config.xDomain === "angle" || config.xDomain === "custom") {
+        const unit = config.xDomain === "angle" ? (config.xUnit === "rad" ? "rad" : "°") : (config.xUnit?.trim() || "V");
+        const defStop = config.xDomain === "angle" ? (unit === "rad" ? Math.PI * 2 : 360) : 1;
+        const s0 = Number.isFinite(config.xStartValue ?? 0) ? (config.xStartValue ?? 0) : 0;
+        const s1 = Number.isFinite(config.xStopValue ?? defStop) ? (config.xStopValue ?? defStop) : defStop;
+        const step = n > 1 ? (s1 - s0) / (n - 1) : 1;
+        nextDomain = "frequency";
+        nextFamily = "spectrum";
+        nextXUnit = unit;
+        data = normalizeTraceData(orig.data.map((pt, idx) => ({
+          freq: (s0 + idx * step) * xMult + xOffset,
+          amp: pt.amp * yMult + yOffset,
+        })));
+      } else if (config.xDomain === "index") {
+        nextDomain = "time";
+        nextFamily = "waveform";
+        nextXUnit = "unitless";
+        data = normalizeTraceData(orig.data.map((pt, idx) => ({
+          freq: (start + idx) * xMult + xOffset,
+          amp: pt.amp * yMult + yOffset,
+        })));
+      } else if (config.xDomain === "time") {
+        nextDomain = "time";
+        nextFamily = "waveform";
+        nextXUnit = "s";
+        if (xMult !== 1 || xOffset !== 0 || yMult !== 1 || yOffset !== 0) {
+          data = normalizeTraceData(orig.data.map(pt => ({
+            freq: pt.freq * xMult + xOffset,
+            amp: pt.amp * yMult + yOffset,
+          })));
+        }
+      }
+      if (data.length < 2) continue;
+    } else if (xMult !== 1 || xOffset !== 0 || yMult !== 1 || yOffset !== 0) {
       const transformed: DataPoint[] = [];
       for (const pt of orig.data) {
         const freq = pt.freq * xMult + xOffset;
@@ -795,7 +885,9 @@ export function parseBinaryWithConfig(
 
     nextTraces.push({
       ...orig,
-      units: { x: orig.units.x, y: yUnit },
+      domain: nextDomain,
+      family: nextFamily,
+      units: { x: nextXUnit, y: yUnit },
       data,
     });
     const origIdentity = base.parsed.columnIdentities?.[i];

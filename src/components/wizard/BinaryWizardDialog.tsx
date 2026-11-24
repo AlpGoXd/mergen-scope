@@ -75,10 +75,20 @@ const LAYOUTS: readonly { value: BinaryChannelLayout; label: string; ariaLabel: 
   { value: 'planar', label: 'Planar', ariaLabel: 'Sequential (planar) multi-channel', title: 'Sequential (planar) blocks: all of CH1 stored back-to-back, followed by all of CH2, …' },
 ];
 
-const X_DOMAINS: readonly { value: BinaryXDomain; label: string; ariaLabel: string; title: string }[] = [
-  { value: 'time', label: 'Time (s)', ariaLabel: 'Time domain in seconds', title: 'Time-domain waveform spaced by Sample Rate (Hz)' },
-  { value: 'frequency', label: 'Freq (Hz)', ariaLabel: 'Frequency sweep in hertz', title: 'Spectrum analyzer / frequency sweep linearly spaced from Start freq to Stop freq (Hz)' },
-  { value: 'index', label: 'Index', ariaLabel: 'Unitless sample index', title: 'Plot raw sample index (0, 1, 2, …) without a physical X unit' },
+const X_PRIMARY_DOMAINS: readonly { value: 'frequency' | 'time' | 'angle'; label: string; ariaLabel: string; title: string }[] = [
+  { value: 'frequency', label: 'Freq', ariaLabel: 'Frequency sweep in hertz', title: 'Spectrum analyzer / frequency sweep linearly spaced from Start freq to Stop freq (Hz)' },
+  { value: 'time', label: 'Time', ariaLabel: 'Time domain in seconds', title: 'Time-domain waveform spaced by Sample Rate (Hz)' },
+  { value: 'angle', label: 'Angle', ariaLabel: 'Angle sweep in degrees', title: 'Angular sweep (e.g. antenna pattern from 0° to 360°)' },
+];
+
+const X_EXTRA_OPTIONS: readonly { id: string; domain: BinaryXDomain; unit?: string; label: string; face: string; defaultStop: number; title: string }[] = [
+  { id: 'index', domain: 'index', unit: 'unitless', label: 'Unitless (Index)', face: 'Index', defaultStop: 1, title: 'Plot raw sample index (0, 1, 2, …) without a physical X unit' },
+  { id: 'rad', domain: 'angle', unit: 'rad', label: 'Radians (rad)', face: 'rad', defaultStop: 6.283185, title: 'Angular sweep in radians' },
+  { id: 'V', domain: 'custom', unit: 'V', label: 'Voltage (V)', face: 'V', defaultStop: 5, title: 'Linear voltage sweep (e.g. I-V curve)' },
+  { id: 'A', domain: 'custom', unit: 'A', label: 'Current (A)', face: 'A', defaultStop: 1, title: 'Linear current sweep' },
+  { id: 'dBm', domain: 'custom', unit: 'dBm', label: 'Power (dBm)', face: 'dBm', defaultStop: 0, title: 'Power sweep in dBm' },
+  { id: 'dB', domain: 'custom', unit: 'dB', label: 'dB', face: 'dB', defaultStop: 10, title: 'Decibel axis sweep' },
+  { id: 'Ohm', domain: 'custom', unit: 'Ohm', label: 'Impedance (Ω)', face: 'Ω', defaultStop: 100, title: 'Impedance sweep in ohms' },
 ];
 
 const Y_QUICK: readonly { value: string; label: string; ariaLabel: string; title: string }[] = [
@@ -252,12 +262,15 @@ export function BinaryWizardDialog({ entry, buffer, position, total, others = []
 
   const [parserMoreAnchor, setParserMoreAnchor] = useState<HTMLElement | null>(null);
   const [typeMoreAnchor, setTypeMoreAnchor] = useState<HTMLElement | null>(null);
+  const [xMoreAnchor, setXMoreAnchor] = useState<HTMLElement | null>(null);
   const [yMoreAnchor, setYMoreAnchor] = useState<HTMLElement | null>(null);
   const [chUnitPopover, setChUnitPopover] = useState<{ index: number; anchor: HTMLElement } | null>(null);
 
   const [rateDraft, setRateDraft] = useState(() => (config.sampleRateHz > 0 ? String(config.sampleRateHz) : '0'));
   const [freqStartDraft, setFreqStartDraft] = useState(() => formatCompactNum(config.freqStartHz ?? 0));
   const [freqStopDraft, setFreqStopDraft] = useState(() => formatCompactNum(config.freqStopHz ?? 1e9));
+  const [xStartDraft, setXStartDraft] = useState(() => formatCompactNum(config.xStartValue ?? 0));
+  const [xStopDraft, setXStopDraft] = useState(() => formatCompactNum(config.xStopValue ?? 360));
   const [yMultDraft, setYMultDraft] = useState(() => formatCompactNum(config.yMult));
   const [yOffsetDraft, setYOffsetDraft] = useState(() => formatCompactNum(config.yOffset));
   const [xMultDraft, setXMultDraft] = useState(() => formatCompactNum(config.xMult));
@@ -270,6 +283,8 @@ export function BinaryWizardDialog({ entry, buffer, position, total, others = []
   const rateId = useId();
   const freqStartId = useId();
   const freqStopId = useId();
+  const xStartId = useId();
+  const xStopId = useId();
   const startId = useId();
   const countId = useId();
   const multId = useId();
@@ -516,6 +531,8 @@ export function BinaryWizardDialog({ entry, buffer, position, total, others = []
       setRateDraft(next.sampleRateHz > 0 ? String(next.sampleRateHz) : '0');
       setFreqStartDraft(formatCompactNum(next.freqStartHz ?? 0));
       setFreqStopDraft(formatCompactNum(next.freqStopHz ?? 1e9));
+      setXStartDraft(formatCompactNum(next.xStartValue ?? 0));
+      setXStopDraft(formatCompactNum(next.xStopValue ?? 360));
       setYMultDraft(formatCompactNum(next.yMult));
       setYOffsetDraft(formatCompactNum(next.yOffset));
       setXMultDraft(formatCompactNum(next.xMult));
@@ -570,6 +587,79 @@ export function BinaryWizardDialog({ entry, buffer, position, total, others = []
   };
 
   const activeXDomain: BinaryXDomain = config.xDomain ?? (config.sampleRateHz > 0 ? 'time' : 'index');
+  const scopeUsesHeaderX = config.mode === 'auto-scope' && config.xDomain === undefined;
+  const xIsExtra = !scopeUsesHeaderX && (
+    activeXDomain === 'index'
+    || activeXDomain === 'custom'
+    || (activeXDomain === 'angle' && config.xUnit === 'rad')
+  );
+  const activeXExtra = xIsExtra
+    ? X_EXTRA_OPTIONS.find(opt => opt.domain === activeXDomain && (opt.unit === undefined || opt.unit === config.xUnit || (activeXDomain === 'index' && opt.id === 'index')))
+    : undefined;
+  const xMoreFace = activeXExtra ? activeXExtra.face : 'More';
+  const activeCustomXUnit = activeXDomain === 'angle'
+    ? (config.xUnit === 'rad' ? 'rad' : '°')
+    : (config.xUnit ?? 'V');
+
+  const scopeOverrideReasons = useMemo(() => {
+    if (config.mode !== 'auto-scope' || !detectedScope) return [];
+    const reasons: string[] = [];
+    if (config.parserOverride && config.parserOverride !== 'auto' && config.parserOverride !== detectedScope) {
+      reasons.push(`parser (${scopeFormatLabel(config.parserOverride)})`);
+    }
+    if (config.xDomain !== undefined) {
+      const label = config.xDomain === 'frequency' ? 'Freq (Hz)'
+        : config.xDomain === 'time' ? 'Time (s)'
+        : config.xDomain === 'index' ? 'Index'
+        : config.xDomain === 'angle' ? `Angle (${config.xUnit === 'rad' ? 'rad' : '°'})`
+        : (config.xUnit ?? 'Custom');
+      reasons.push(`X axis (${label})`);
+    }
+    if (config.xMult !== 1) reasons.push(`X scale ×${formatCompactNum(config.xMult)}`);
+    if ((config.xOffset ?? 0) !== 0) reasons.push(`X offset ${formatCompactNum(config.xOffset ?? 0)}`);
+    if (config.yUnit !== undefined) reasons.push(`Y unit (${config.yUnit === '' ? 'None' : config.yUnit})`);
+    if (config.yMult !== 1) reasons.push(`Y scale ×${formatCompactNum(config.yMult)}`);
+    if (config.yOffset !== 0) reasons.push(`Y offset ${formatCompactNum(config.yOffset)}`);
+    if (config.channelOverrides) {
+      for (const [idxStr, ov] of Object.entries(config.channelOverrides)) {
+        const chIdx = Number(idxStr);
+        const chName = preview.allScopeChannels.find(c => c.index === chIdx)?.label ?? `CH${chIdx + 1}`;
+        if (ov.yUnit !== undefined) reasons.push(`${chName} unit (${ov.yUnit === '' ? 'None' : ov.yUnit})`);
+        if (ov.yMult !== undefined && ov.yMult !== 1) reasons.push(`${chName} scale ×${formatCompactNum(ov.yMult)}`);
+        if (ov.yOffset !== undefined && ov.yOffset !== 0) reasons.push(`${chName} offset ${formatCompactNum(ov.yOffset)}`);
+      }
+    }
+    return reasons;
+  }, [config, detectedScope, preview.allScopeChannels]);
+
+  const resetScopeOverrides = () => {
+    setConfig(prev => {
+      const nextOverrides: Record<number, BinaryChannelOverride> = {};
+      if (prev.channelOverrides) {
+        for (const [k, ov] of Object.entries(prev.channelOverrides)) {
+          if (ov.enabled !== undefined) nextOverrides[Number(k)] = { enabled: ov.enabled };
+        }
+      }
+      return {
+        ...prev,
+        parserOverride: 'auto',
+        xDomain: undefined,
+        xUnit: undefined,
+        xMult: 1,
+        xOffset: 0,
+        yUnit: undefined,
+        yMult: 1,
+        yOffset: 0,
+        channelOverrides: Object.keys(nextOverrides).length > 0 ? nextOverrides : undefined,
+      };
+    });
+    setYMultDraft('1');
+    setYOffsetDraft('0');
+    setXMultDraft('1');
+    setXOffsetDraft('0');
+    setChDrafts({});
+  };
+
   const mainLabel = editing ? 'Apply' : `Add ${preview.channels.length} trace${preview.channels.length === 1 ? '' : 's'}`;
 
   return (
@@ -641,10 +731,10 @@ export function BinaryWizardDialog({ entry, buffer, position, total, others = []
                     active={config.mode === 'auto-scope'}
                     aria-checked={config.mode === 'auto-scope'}
                     disabled={!detectedScope && activeParserChoice === 'auto'}
-                    title={detectedScope ? `Parse using the oscilloscope file header (${scopeFormatLabel(detectedScope)})` : 'No scope header detected — pick a format from Format ▾ or use Custom'}
+                    title={detectedScope ? `Parse using the embedded file header (${scopeFormatLabel(detectedScope)})` : 'No recognized file header detected — pick a format from Format ▾ or use Custom'}
                     onClick={() => setConfig(prev => ({ ...prev, mode: 'auto-scope' }))}
                   >
-                    Scope header
+                    File header
                   </Btn>
                   <Btn
                     role="radio"
@@ -886,129 +976,33 @@ export function BinaryWizardDialog({ entry, buffer, position, total, others = []
                     />
                   </div>
                 )}
-                <div className="iw-line">
-                  <span className="t-label t-muted" title="Physical quantity of the X axis (Time waveform, Spectrum Analyzer frequency sweep, or plain sample index)">X axis</span>
-                  <div className="iw-seg">
-                    <Segmented
-                      label="Binary X axis domain"
-                      options={X_DOMAINS}
-                      value={activeXDomain}
-                      onChange={xDomain => {
-                        setConfig(prev => ({
-                          ...prev,
-                          xDomain,
-                          ...(xDomain === 'time' && prev.sampleRateHz <= 0 ? { sampleRateHz: 1_000_000 } : {}),
-                          ...(xDomain === 'frequency' && prev.freqStartHz === undefined && prev.freqStopHz === undefined
-                            ? { freqStartHz: 0, freqStopHz: 1_000_000_000 }
-                            : {}),
-                        }));
-                        if (xDomain === 'time' && config.sampleRateHz <= 0) setRateDraft('1000000');
+                <div className="iw-field">
+                  <label className="t-caption" htmlFor={skipId} title="Leading header bytes to ignore before the first sample">Skip bytes</label>
+                  <div className="iw-inline-row">
+                    <input
+                      id={skipId}
+                      className="iw-input t-label"
+                      type="number"
+                      min={0}
+                      max={Math.max(0, buffer.byteLength - 2)}
+                      step={1}
+                      title="Number of leading header bytes to skip before reading samples"
+                      value={config.headerBytes}
+                      onChange={event => {
+                        const n = Math.max(0, Math.floor(Number(event.target.value) || 0));
+                        setHexPageOffset(null);
+                        setAutoSkipHint(null);
+                        setConfig(prev => ({ ...prev, headerBytes: n }));
                       }}
                     />
-                  </div>
-                </div>
-                {activeXDomain === 'frequency' && (
-                  <div className="iw-pair-grid">
-                    <div className="iw-field">
-                      <label className="t-caption" htmlFor={freqStartId} title="Spectrum sweep start frequency in Hz (supports k, M, G suffixes, e.g. 100M)">Start freq (Hz)</label>
-                      <input
-                        id={freqStartId}
-                        className="iw-input t-label"
-                        type="text"
-                        inputMode="decimal"
-                        placeholder="e.g. 100M"
-                        title="Start frequency of the binary spectrum sweep (e.g. 0, 100M, 2.4G)"
-                        value={freqStartDraft}
-                        onChange={event => {
-                          const raw = event.target.value;
-                          setFreqStartDraft(raw);
-                          const parsed = parseEngInput(raw, { baseUnit: 'Hz' });
-                          if (parsed.ok && Number.isFinite(parsed.value)) {
-                            setConfig(prev => ({ ...prev, xDomain: 'frequency', freqStartHz: parsed.value }));
-                          }
-                        }}
-                        onBlur={() => setFreqStartDraft(formatCompactNum(config.freqStartHz ?? 0))}
-                      />
-                    </div>
-                    <div className="iw-field">
-                      <label className="t-caption" htmlFor={freqStopId} title="Spectrum sweep stop frequency in Hz (supports k, M, G suffixes, e.g. 2.4G)">Stop freq (Hz)</label>
-                      <input
-                        id={freqStopId}
-                        className="iw-input t-label"
-                        type="text"
-                        inputMode="decimal"
-                        placeholder="e.g. 2.4G"
-                        title="Stop frequency of the binary spectrum sweep (must be greater than Start freq)"
-                        value={freqStopDraft}
-                        onChange={event => {
-                          const raw = event.target.value;
-                          setFreqStopDraft(raw);
-                          const parsed = parseEngInput(raw, { baseUnit: 'Hz' });
-                          if (parsed.ok && Number.isFinite(parsed.value)) {
-                            setConfig(prev => ({ ...prev, xDomain: 'frequency', freqStopHz: parsed.value }));
-                          }
-                        }}
-                        onBlur={() => setFreqStopDraft(formatCompactNum(config.freqStopHz ?? 1e9))}
-                      />
-                    </div>
-                  </div>
-                )}
-                <div className="iw-pair-grid">
-                  {activeXDomain === 'time' && (
-                    <div className="iw-field">
-                      <label className="t-caption" htmlFor={rateId} title="Sample rate in Hz for the time axis (supports k, M, G suffixes; 0 switches to sample index)">Rate (Hz)</label>
-                      <input
-                        id={rateId}
-                        className="iw-input t-label"
-                        type="text"
-                        inputMode="decimal"
-                        placeholder="e.g. 1M or 0"
-                        title="Sample rate in Hz (e.g. 100k, 2.4M, 1G; enter 0 to plot against sample index)"
-                        value={rateDraft}
-                        onChange={event => {
-                          const raw = event.target.value;
-                          setRateDraft(raw);
-                          const parsed = parseEngInput(raw, { baseUnit: 'Hz' });
-                          if (parsed.ok && parsed.value >= 0) {
-                            setConfig(prev => ({
-                              ...prev,
-                              xDomain: parsed.value > 0 ? 'time' : 'index',
-                              sampleRateHz: parsed.value,
-                            }));
-                          }
-                        }}
-                        onBlur={() => setRateDraft(String(config.sampleRateHz))}
-                      />
-                    </div>
-                  )}
-                  <div className="iw-field">
-                    <label className="t-caption" htmlFor={skipId} title="Leading header bytes to ignore before the first sample">Skip bytes</label>
-                    <div className="iw-inline-row">
-                      <input
-                        id={skipId}
-                        className="iw-input t-label"
-                        type="number"
-                        min={0}
-                        max={Math.max(0, buffer.byteLength - 2)}
-                        step={1}
-                        title="Number of leading header bytes to skip before reading samples"
-                        value={config.headerBytes}
-                        onChange={event => {
-                          const n = Math.max(0, Math.floor(Number(event.target.value) || 0));
-                          setHexPageOffset(null);
-                          setAutoSkipHint(null);
-                          setConfig(prev => ({ ...prev, headerBytes: n }));
-                        }}
-                      />
-                      <Btn
-                        small
-                        aria-label="Auto-skip header"
-                        title="Scan for WAV, NumPy .npy, oscilloscope headers, IEEE #block, or leading ASCII preamble and jump Skip bytes past it"
-                        onClick={autoSkipHeader}
-                      >
-                        Auto
-                      </Btn>
-                    </div>
+                    <Btn
+                      small
+                      aria-label="Auto-skip header"
+                      title="Scan for WAV, NumPy .npy, oscilloscope headers, IEEE #block, or leading ASCII preamble and jump Skip bytes past it"
+                      onClick={autoSkipHeader}
+                    >
+                      Auto
+                    </Btn>
                   </div>
                 </div>
                 {autoSkipHint && (
@@ -1062,6 +1056,262 @@ export function BinaryWizardDialog({ entry, buffer, position, total, others = []
               </section>
             )}
 
+            <section className="iw-group" aria-label="X axis">
+              <h3 className="t-section">X axis</h3>
+              <div className="iw-seg">
+                <div className="ui-segmented" role="radiogroup" aria-label="Binary X axis domain">
+                  {config.mode === 'auto-scope' && (
+                    <Btn
+                      role="radio"
+                      variant="slate"
+                      active={scopeUsesHeaderX}
+                      aria-checked={scopeUsesHeaderX}
+                      title="Use the X axis domain and timing declared in the file header"
+                      onClick={() => setConfig(prev => ({ ...prev, xDomain: undefined, xUnit: undefined }))}
+                    >
+                      Header
+                    </Btn>
+                  )}
+                  {X_PRIMARY_DOMAINS.map(opt => {
+                    const active = !scopeUsesHeaderX && activeXDomain === opt.value && !(opt.value === 'angle' && config.xUnit === 'rad');
+                    return (
+                      <Btn
+                        key={opt.value}
+                        role="radio"
+                        variant="slate"
+                        active={active}
+                        aria-checked={active}
+                        aria-label={opt.ariaLabel}
+                        title={opt.title}
+                        onClick={() => {
+                          setConfig(prev => ({
+                            ...prev,
+                            xDomain: opt.value,
+                            xUnit: opt.value === 'angle' ? '°' : undefined,
+                            ...(opt.value === 'time' && prev.sampleRateHz <= 0 ? { sampleRateHz: 1_000_000 } : {}),
+                            ...(opt.value === 'frequency' && prev.freqStartHz === undefined && prev.freqStopHz === undefined
+                              ? { freqStartHz: 0, freqStopHz: 1_000_000_000 }
+                              : {}),
+                            ...(opt.value === 'angle' && prev.xStartValue === undefined && prev.xStopValue === undefined
+                              ? { xStartValue: 0, xStopValue: 360 }
+                              : {}),
+                          }));
+                          if (opt.value === 'time' && config.sampleRateHz <= 0) setRateDraft('1000000');
+                          if (opt.value === 'angle' && config.xStopValue === undefined) {
+                            setXStartDraft('0');
+                            setXStopDraft('360');
+                          }
+                        }}
+                      >
+                        {opt.label}
+                      </Btn>
+                    );
+                  })}
+                  <Btn
+                    variant="slate"
+                    active={xIsExtra || Boolean(xMoreAnchor)}
+                    aria-label="More X axis units"
+                    title="Unitless index, radians, or electrical X sweep units (V, A, dBm, dB, Ω)"
+                    aria-haspopup="menu"
+                    aria-expanded={Boolean(xMoreAnchor)}
+                    onClick={event => {
+                      const target = event.currentTarget;
+                      setXMoreAnchor(cur => (cur ? null : target));
+                    }}
+                  >
+                    <span className="iw-more-face">{xMoreFace}<CaretDownIcon /></span>
+                  </Btn>
+                </div>
+              </div>
+
+              {!scopeUsesHeaderX && activeXDomain === 'time' && config.mode === 'raw' && (
+                <div className="iw-pair-grid">
+                  <div className="iw-field">
+                    <label className="t-caption" htmlFor={rateId} title="Sample rate in Hz for the time axis (supports k, M, G suffixes; 0 switches to Index)">Rate (Hz)</label>
+                    <input
+                      id={rateId}
+                      className="iw-input t-label"
+                      type="text"
+                      inputMode="decimal"
+                      placeholder="e.g. 1M or 0"
+                      title="Sample rate in Hz (e.g. 100k, 2.4M, 1G; enter 0 to plot against sample index)"
+                      value={rateDraft}
+                      onChange={event => {
+                        const raw = event.target.value;
+                        setRateDraft(raw);
+                        const parsed = parseEngInput(raw, { baseUnit: 'Hz' });
+                        if (parsed.ok && parsed.value >= 0) {
+                          setConfig(prev => ({
+                            ...prev,
+                            xDomain: parsed.value > 0 ? 'time' : 'index',
+                            sampleRateHz: parsed.value,
+                          }));
+                        }
+                      }}
+                      onBlur={() => setRateDraft(String(config.sampleRateHz))}
+                    />
+                  </div>
+                  <div className="iw-field">
+                    <label className="t-caption" htmlFor={xOffId} title="Shift the horizontal origin t₀ (e.g. -50u to centre a trigger)">X offset (t₀)</label>
+                    <input
+                      id={xOffId}
+                      className="iw-input t-label"
+                      type="text"
+                      inputMode="decimal"
+                      placeholder="e.g. -50u or 0"
+                      title="Horizontal trigger/origin shift (supports suffixes like n, u, m)"
+                      value={xOffsetDraft}
+                      onChange={event => {
+                        const raw = event.target.value;
+                        setXOffsetDraft(raw);
+                        const parsed = parseEngInput(raw, { baseUnit: 's' });
+                        if (parsed.ok) {
+                          setConfig(prev => ({ ...prev, xOffset: parsed.value }));
+                        } else {
+                          const n = Number(raw.trim());
+                          if (Number.isFinite(n)) setConfig(prev => ({ ...prev, xOffset: n }));
+                        }
+                      }}
+                      onBlur={() => setXOffsetDraft(formatCompactNum(config.xOffset ?? 0))}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {!scopeUsesHeaderX && activeXDomain === 'frequency' && (
+                <div className="iw-pair-grid">
+                  <div className="iw-field">
+                    <label className="t-caption" htmlFor={freqStartId} title="Spectrum sweep start frequency in Hz (supports k, M, G suffixes, e.g. 100M)">Start freq (Hz)</label>
+                    <input
+                      id={freqStartId}
+                      className="iw-input t-label"
+                      type="text"
+                      inputMode="decimal"
+                      placeholder="e.g. 100M"
+                      title="Start frequency of the binary spectrum sweep (e.g. 0, 100M, 2.4G)"
+                      value={freqStartDraft}
+                      onChange={event => {
+                        const raw = event.target.value;
+                        setFreqStartDraft(raw);
+                        const parsed = parseEngInput(raw, { baseUnit: 'Hz' });
+                        if (parsed.ok && Number.isFinite(parsed.value)) {
+                          setConfig(prev => ({ ...prev, xDomain: 'frequency', freqStartHz: parsed.value }));
+                        }
+                      }}
+                      onBlur={() => setFreqStartDraft(formatCompactNum(config.freqStartHz ?? 0))}
+                    />
+                  </div>
+                  <div className="iw-field">
+                    <label className="t-caption" htmlFor={freqStopId} title="Spectrum sweep stop frequency in Hz (supports k, M, G suffixes, e.g. 2.4G)">Stop freq (Hz)</label>
+                    <input
+                      id={freqStopId}
+                      className="iw-input t-label"
+                      type="text"
+                      inputMode="decimal"
+                      placeholder="e.g. 2.4G"
+                      title="Stop frequency of the binary spectrum sweep (must be greater than Start freq)"
+                      value={freqStopDraft}
+                      onChange={event => {
+                        const raw = event.target.value;
+                        setFreqStopDraft(raw);
+                        const parsed = parseEngInput(raw, { baseUnit: 'Hz' });
+                        if (parsed.ok && Number.isFinite(parsed.value)) {
+                          setConfig(prev => ({ ...prev, xDomain: 'frequency', freqStopHz: parsed.value }));
+                        }
+                      }}
+                      onBlur={() => setFreqStopDraft(formatCompactNum(config.freqStopHz ?? 1e9))}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {!scopeUsesHeaderX && (activeXDomain === 'angle' || activeXDomain === 'custom') && (
+                <div className="iw-pair-grid">
+                  <div className="iw-field">
+                    <label className="t-caption" htmlFor={xStartId} title={`Sweep start value in ${activeCustomXUnit}`}>Start ({activeCustomXUnit})</label>
+                    <input
+                      id={xStartId}
+                      className="iw-input t-label"
+                      type="text"
+                      inputMode="decimal"
+                      value={xStartDraft}
+                      onChange={event => {
+                        const raw = event.target.value;
+                        setXStartDraft(raw);
+                        const n = Number(raw.trim());
+                        if (Number.isFinite(n)) setConfig(prev => ({ ...prev, xStartValue: n }));
+                      }}
+                      onBlur={() => setXStartDraft(formatCompactNum(config.xStartValue ?? 0))}
+                    />
+                  </div>
+                  <div className="iw-field">
+                    <label className="t-caption" htmlFor={xStopId} title={`Sweep stop value in ${activeCustomXUnit}`}>Stop ({activeCustomXUnit})</label>
+                    <input
+                      id={xStopId}
+                      className="iw-input t-label"
+                      type="text"
+                      inputMode="decimal"
+                      value={xStopDraft}
+                      onChange={event => {
+                        const raw = event.target.value;
+                        setXStopDraft(raw);
+                        const n = Number(raw.trim());
+                        if (Number.isFinite(n)) setConfig(prev => ({ ...prev, xStopValue: n }));
+                      }}
+                      onBlur={() => setXStopDraft(formatCompactNum(config.xStopValue ?? 360))}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {(scopeUsesHeaderX || activeXDomain === 'index' || (config.mode === 'auto-scope' && activeXDomain === 'time')) && (
+                <div className="iw-pair-grid">
+                  <div className="iw-field">
+                    <label className="t-caption" htmlFor={xMultId} title="Multiply X axis coordinates by this factor (fixes wrong scope timebase)">X scale ×</label>
+                    <input
+                      id={xMultId}
+                      className="iw-input t-label"
+                      type="text"
+                      inputMode="decimal"
+                      title="Horizontal scale multiplier (e.g. 0.5 or 2 if timebase is off)"
+                      value={xMultDraft}
+                      onChange={event => {
+                        const raw = event.target.value;
+                        setXMultDraft(raw);
+                        const n = Number(raw.trim());
+                        if (Number.isFinite(n) && n !== 0) setConfig(prev => ({ ...prev, xMult: n }));
+                      }}
+                      onBlur={() => setXMultDraft(formatCompactNum(config.xMult))}
+                    />
+                  </div>
+                  <div className="iw-field">
+                    <label className="t-caption" htmlFor={xOffId} title="Shift the horizontal origin t₀ (e.g. -50u to centre a trigger)">X offset (t₀)</label>
+                    <input
+                      id={xOffId}
+                      className="iw-input t-label"
+                      type="text"
+                      inputMode="decimal"
+                      placeholder="e.g. -50u or 0"
+                      title="Horizontal trigger/origin shift (supports suffixes like n, u, m)"
+                      value={xOffsetDraft}
+                      onChange={event => {
+                        const raw = event.target.value;
+                        setXOffsetDraft(raw);
+                        const parsed = parseEngInput(raw, { baseUnit: 's' });
+                        if (parsed.ok) {
+                          setConfig(prev => ({ ...prev, xOffset: parsed.value }));
+                        } else {
+                          const n = Number(raw.trim());
+                          if (Number.isFinite(n)) setConfig(prev => ({ ...prev, xOffset: n }));
+                        }
+                      }}
+                      onBlur={() => setXOffsetDraft(formatCompactNum(config.xOffset ?? 0))}
+                    />
+                  </div>
+                </div>
+              )}
+            </section>
+
             <section className="iw-group" aria-label="Sample window">
               <h3 className="t-section">Sample slice</h3>
               <div className="iw-pair-grid">
@@ -1095,8 +1345,8 @@ export function BinaryWizardDialog({ entry, buffer, position, total, others = []
               <span className="t-caption">0 = all ({formatCount(preview.totalAvailableSamples)} available)</span>
             </section>
 
-            <section className="iw-group" aria-label="Scaling and units">
-              <h3 className="t-section">{config.mode === 'auto-scope' ? 'Global scaling & X axis' : 'Units & scaling'}</h3>
+            <section className="iw-group" aria-label="Y axis">
+              <h3 className="t-section">Y axis</h3>
               <div className="iw-seg">
                 <div className="ui-segmented" role="radiogroup" aria-label="Y unit override">
                   {Y_QUICK.map(opt => {
@@ -1169,48 +1419,6 @@ export function BinaryWizardDialog({ entry, buffer, position, total, others = []
                     onBlur={() => setYOffsetDraft(formatCompactNum(config.yOffset))}
                   />
                 </div>
-                <div className="iw-field">
-                  <label className="t-caption" htmlFor={xMultId} title="Multiply X axis (time/frequency) coordinates by this factor (fixes wrong scope timebase)">X scale ×</label>
-                  <input
-                    id={xMultId}
-                    className="iw-input t-label"
-                    type="text"
-                    inputMode="decimal"
-                    title="Horizontal scale multiplier (e.g. 0.5 or 2 if timebase is off)"
-                    value={xMultDraft}
-                    onChange={event => {
-                      const raw = event.target.value;
-                      setXMultDraft(raw);
-                      const n = Number(raw.trim());
-                      if (Number.isFinite(n) && n !== 0) setConfig(prev => ({ ...prev, xMult: n }));
-                    }}
-                    onBlur={() => setXMultDraft(formatCompactNum(config.xMult))}
-                  />
-                </div>
-                <div className="iw-field">
-                  <label className="t-caption" htmlFor={xOffId} title="Shift the horizontal origin t₀ (e.g. -50u to centre a trigger)">X offset (t₀)</label>
-                  <input
-                    id={xOffId}
-                    className="iw-input t-label"
-                    type="text"
-                    inputMode="decimal"
-                    placeholder="e.g. -50u or 0"
-                    title="Horizontal trigger/origin shift (supports suffixes like n, u, m)"
-                    value={xOffsetDraft}
-                    onChange={event => {
-                      const raw = event.target.value;
-                      setXOffsetDraft(raw);
-                      const parsed = parseEngInput(raw, { baseUnit: 's' });
-                      if (parsed.ok) {
-                        setConfig(prev => ({ ...prev, xOffset: parsed.value }));
-                      } else {
-                        const n = Number(raw.trim());
-                        if (Number.isFinite(n)) setConfig(prev => ({ ...prev, xOffset: n }));
-                      }
-                    }}
-                    onBlur={() => setXOffsetDraft(formatCompactNum(config.xOffset ?? 0))}
-                  />
-                </div>
               </div>
             </section>
           </div>
@@ -1235,6 +1443,20 @@ export function BinaryWizardDialog({ entry, buffer, position, total, others = []
             {config.mode === 'auto-scope' && preview.headerSummary && (
               <div className="iw-header-summary t-caption" data-testid="binary-wizard-header-summary">
                 {preview.headerSummary}
+              </div>
+            )}
+            {scopeOverrideReasons.length > 0 && (
+              <div data-testid="binary-wizard-scope-override-warn">
+                <MessageBar status="warning">
+                  <span>
+                    <strong>Header override:</strong> File header reports{' '}
+                    {preview.headerSummary ?? scopeFormatLabel(detectedScope)}, but you changed{' '}
+                    {scopeOverrideReasons.join(', ')}. Make sure overriding the header values is intentional.{' '}
+                  </span>
+                  <Btn small onClick={resetScopeOverrides} title="Restore all header-declared units, axes, and scale factors">
+                    Reset to header
+                  </Btn>
+                </MessageBar>
               </div>
             )}
             <BinaryPointBudgetBanner
@@ -1447,6 +1669,49 @@ export function BinaryWizardDialog({ entry, buffer, position, total, others = []
                     {opt.label}
                   </Btn>
                 ))}
+              </div>
+            </div>
+          </PopoverAt>
+        )}
+
+        {xMoreAnchor && (
+          <PopoverAt
+            label="More X axis units"
+            at={xMoreAnchor}
+            onClose={() => setXMoreAnchor(null)}
+            onEscape={() => { const at = xMoreAnchor; setXMoreAnchor(null); at.focus(); }}
+          >
+            <div className="iw-unit-pop" role="menu" aria-label="More X axis units">
+              <div className="iw-unit-grid">
+                {X_EXTRA_OPTIONS.map(opt => {
+                  const active = activeXExtra?.id === opt.id;
+                  return (
+                    <Btn
+                      key={opt.id}
+                      role="menuitemradio"
+                      variant="slate"
+                      small
+                      active={active}
+                      aria-checked={active}
+                      title={opt.title}
+                      onClick={() => {
+                        setConfig(prev => ({
+                          ...prev,
+                          xDomain: opt.domain,
+                          xUnit: opt.unit,
+                          ...(opt.domain !== 'index' ? { xStartValue: 0, xStopValue: opt.defaultStop } : {}),
+                        }));
+                        if (opt.domain !== 'index') {
+                          setXStartDraft('0');
+                          setXStopDraft(formatCompactNum(opt.defaultStop));
+                        }
+                        setXMoreAnchor(null);
+                      }}
+                    >
+                      {opt.label}
+                    </Btn>
+                  );
+                })}
               </div>
             </div>
           </PopoverAt>
