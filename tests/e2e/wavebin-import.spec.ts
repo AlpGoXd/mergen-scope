@@ -301,14 +301,24 @@ test('unified Text/Binary toggle, clickable hex byte cursor, batch binary apply,
   await expect(binWizard.getByTestId('binary-wizard-hex-cursor')).toContainText('@8 B');
   await expect(binWizard.getByRole('button', { name: 'Set skip = 8 B' })).toBeEnabled();
 
-  // Flip Binary -> Text -> Binary via unified header toggle without losing the buffer.
-  await binWizard.getByRole('radiogroup', { name: 'Import mode' }).getByRole('radio', { name: 'Text' }).click();
+  // Flip Binary -> Text -> Binary via explicit top mode bar; dialog keeps identical width & height (no proportion jump).
+  const binBox = await binWizard.boundingBox();
+  await binWizard.getByRole('radiogroup', { name: 'Import mode' }).getByRole('radio', { name: 'Text / Table' }).click();
   const textWizard = page.getByTestId('import-wizard');
   await expect(textWizard).toBeVisible();
-  await textWizard.getByRole('radiogroup', { name: 'Import mode' }).getByRole('radio', { name: 'Binary' }).click();
+  const textBox = await textWizard.boundingBox();
+  expect(textBox?.width).toBeCloseTo(binBox?.width ?? -1, 0);
+  expect(textBox?.height).toBeCloseTo(binBox?.height ?? -1, 0);
+  await textWizard.getByRole('radiogroup', { name: 'Import mode' }).getByRole('radio', { name: 'Binary / Waveform' }).click();
   await expect(binWizard).toBeVisible();
   await binWizard.getByRole('button', { name: 'Auto-skip header' }).click();
   await expect(binWizard.getByTestId('binary-wizard-autoskip-hint')).toContainText(`${longHeader.byteLength} B`);
+  // Switch X axis to Freq (Hz) for SA sweep preview, then back to Time (s) and import.
+  await binWizard.getByRole('radiogroup', { name: 'Binary X axis domain' }).getByRole('radio', { name: 'Frequency sweep in hertz' }).click();
+  await binWizard.getByLabel('Start freq (Hz)').fill('100M');
+  await binWizard.getByLabel('Stop freq (Hz)').fill('500M');
+  await expect(binWizard.getByTestId('binary-wizard-range')).toContainText('MHz');
+  await binWizard.getByRole('radiogroup', { name: 'Binary X axis domain' }).getByRole('radio', { name: 'Time domain in seconds' }).click();
   await binWizard.getByTestId('import-wizard-confirm').click();
   await expect(binWizard).toHaveCount(0);
 

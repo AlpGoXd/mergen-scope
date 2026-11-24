@@ -45,6 +45,7 @@ export type BinarySampleType = "float32" | "float64" | "float16" | "int32" | "ui
 export type BinaryEndian = "le" | "be";
 export type BinaryChannelLayout = "real" | "iq" | "interleaved" | "planar";
 export type BinaryParserChoice = "auto" | BinaryFormat;
+export type BinaryXDomain = "time" | "frequency" | "index";
 
 export interface BinaryChannelOverride {
   /** false hides/omits this channel; true/undefined includes it. */
@@ -75,8 +76,14 @@ export interface BinaryImportConfig {
   readonly framePadBytes?: number;
   /** Optional trailing footer bytes to ignore at end-of-file in raw mode. */
   readonly footerBytes?: number;
-  /** Sample rate in Hz in raw mode (<= 0 uses unitless sample index). */
+  /** Sample rate in Hz in raw mode (<= 0 uses unitless sample index when xDomain is omitted). */
   readonly sampleRateHz: number;
+  /** X axis domain in raw mode: 'time' (Rate Hz), 'frequency' (SA Start..Stop Hz), or 'index' (unitless sample index). */
+  readonly xDomain?: BinaryXDomain;
+  /** Start frequency in Hz when xDomain === 'frequency' (e.g. spectrum analyzer sweep start). */
+  readonly freqStartHz?: number;
+  /** Stop frequency in Hz when xDomain === 'frequency' (e.g. spectrum analyzer sweep stop). */
+  readonly freqStopHz?: number;
   /** First sample index to import (0-based). */
   readonly startSample: number;
   /** Max samples per channel to import (0 = all available). */
@@ -190,6 +197,9 @@ export function parseBinarySettings(
 
   const yMult = num(cfg["yMult"], fallback.yMult);
   const xMult = num(cfg["xMult"], fallback.xMult);
+  const xDomain = cfg["xDomain"] === "time" || cfg["xDomain"] === "frequency" || cfg["xDomain"] === "index"
+    ? cfg["xDomain"]
+    : fallback.xDomain;
 
   return {
     ok: true,
@@ -206,6 +216,9 @@ export function parseBinarySettings(
       framePadBytes: nonNegInt(cfg["framePadBytes"], fallback.framePadBytes ?? 0),
       footerBytes: nonNegInt(cfg["footerBytes"], fallback.footerBytes ?? 0),
       sampleRateHz: Math.max(0, num(cfg["sampleRateHz"], fallback.sampleRateHz)),
+      ...(xDomain ? { xDomain } : {}),
+      ...(cfg["freqStartHz"] !== undefined ? { freqStartHz: num(cfg["freqStartHz"], fallback.freqStartHz ?? 0) } : {}),
+      ...(cfg["freqStopHz"] !== undefined ? { freqStopHz: num(cfg["freqStopHz"], fallback.freqStopHz ?? 1e9) } : {}),
       startSample: nonNegInt(cfg["startSample"], fallback.startSample),
       sampleCount: nonNegInt(cfg["sampleCount"], fallback.sampleCount),
       yUnit: typeof cfg["yUnit"] === "string" ? cfg["yUnit"] : undefined,
@@ -542,14 +555,46 @@ function parseRawBinary(
   const view = new DataView(buffer);
   const le = config.endian === "le";
   const fs = Number.isFinite(config.sampleRateHz) && config.sampleRateHz > 0 ? config.sampleRateHz : 0;
+  const xDomain: BinaryXDomain = config.xDomain ?? (fs > 0 ? "time" : "index");
   const xMult = Number.isFinite(config.xMult) && config.xMult !== 0 ? config.xMult : 1;
   const xOffset = Number.isFinite(config.xOffset ?? 0) ? (config.xOffset ?? 0) : 0;
   const yMult = Number.isFinite(config.yMult) && config.yMult !== 0 ? config.yMult : 1;
   const yOffset = Number.isFinite(config.yOffset) ? config.yOffset : 0;
-  const dt = fs > 0 ? (1 / fs) * xMult : xMult;
-  const xUnit = fs > 0 ? "s" : "unitless";
-  const domain = fs > 0 ? ("time" as const) : ("frequency" as const);
-  const family = fs > 0 ? ("waveform" as const) : ("spectrum" as const);
+
+  let dt: number;
+  let xStartBase: number;
+  let xUnit: string;
+  let domain: "time" | "frequency";
+  let family: "waveform" | "spectrum";
+  let freqStepHz: number | null = null;
+  let freqStartHz = 0;
+  let freqStopHz = 0;
+
+  if (xDomain === "frequency") {
+    freqStartHz = Number.isFinite(config.freqStartHz ?? 0) ? (config.freqStartHz ?? 0) : 0;
+    freqStopHz = Number.isFinite(config.freqStopHz ?? 1e9) ? (config.freqStopHz ?? 1e9) : 1e9;
+    if (freqStopHz <= freqStartHz) {
+      return { ok: false, error: "Stop frequency must be greater than start frequency." };
+    }
+    freqStepHz = totalFrames > 1 ? (freqStopHz - freqStartHz) / (totalFrames - 1) : 1;
+    dt = freqStepHz * xMult;
+    xStartBase = freqStartHz * xMult + xOffset;
+    xUnit = "Hz";
+    domain = "frequency";
+    family = "spectrum";
+  } else if (xDomain === "time" && fs > 0) {
+    dt = (1 / fs) * xMult;
+    xStartBase = xOffset;
+    xUnit = "s";
+    domain = "time";
+    family = "waveform";
+  } else {
+    dt = xMult;
+    xStartBase = xOffset;
+    xUnit = "unitless";
+    domain = "time";
+    family = "waveform";
+  }
   const yUnit = config.yUnit === undefined ? null : config.yUnit === "" ? null : config.yUnit;
 
   const labels = config.layout === "real"
@@ -579,7 +624,7 @@ function parseRawBinary(
 
     const reduced = reduceBinarySeries({
       count,
-      xStart: start * dt + xOffset,
+      xStart: xStartBase + start * dt,
       dt,
       readY: readVal,
       reduction: effectiveReduction,
@@ -622,7 +667,12 @@ function parseRawBinary(
     Points: String(count),
     "Total Samples": String(totalFrames),
   };
-  if (fs > 0) meta["Sample Rate"] = { value: fs, unit: "Hz" };
+  if (xDomain === "frequency" && freqStepHz !== null) {
+    meta["Freq Range"] = `${formatScalarWithUnit(freqStartHz, "Hz", { digits: 4 })} → ${formatScalarWithUnit(freqStopHz, "Hz", { digits: 4 })}`;
+    meta["Freq Step"] = { value: freqStepHz, unit: "Hz" };
+  } else if (xDomain === "time" && fs > 0) {
+    meta["Sample Rate"] = { value: fs, unit: "Hz" };
+  }
   if (skip > 0) meta["Header Skip"] = `${skip} bytes`;
   if (xOffset !== 0) meta["X Offset"] = `${xOffset}`;
   if (start > 0 || count < totalFrames) meta["Slice"] = `${start} .. ${start + count - 1}`;
@@ -642,7 +692,11 @@ function parseRawBinary(
     `Format: ${String(meta["Format"])}`,
     `Layout: ${String(meta["Layout"])}`,
     `File Size: ${buffer.byteLength} bytes (${totalFrames} total frames)`,
-    ...(fs > 0 ? [`Sample Rate: ${fs} Hz`] : ["X Axis: sample index"]),
+    ...(xDomain === "frequency"
+      ? [`Frequency Sweep: ${formatScalarWithUnit(freqStartHz, "Hz", { digits: 4 })} → ${formatScalarWithUnit(freqStopHz, "Hz", { digits: 4 })}`]
+      : xDomain === "time" && fs > 0
+        ? [`Sample Rate: ${fs} Hz`]
+        : ["X Axis: sample index"]),
     `Slice: start=${start}, count=${count}, headerSkip=${skip} B`,
   ].join("\n");
 
@@ -832,6 +886,8 @@ function formatScopeHeaderSummary(meta: FileMetadata): string {
 }
 
 function computeRawRateAndDt(config: BinaryImportConfig): { readonly sampleRateHz: number | null; readonly dtSeconds: number | null } {
+  const xDomain: BinaryXDomain = config.xDomain ?? (config.sampleRateHz > 0 ? "time" : "index");
+  if (xDomain !== "time") return { sampleRateHz: null, dtSeconds: null };
   const fs = Number.isFinite(config.sampleRateHz) && config.sampleRateHz > 0 ? config.sampleRateHz : 0;
   if (fs <= 0) return { sampleRateHz: null, dtSeconds: null };
   const absXMult = Number.isFinite(config.xMult) && config.xMult !== 0 ? Math.abs(config.xMult) : 1;

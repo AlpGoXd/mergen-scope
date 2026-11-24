@@ -205,17 +205,25 @@ function WizardDialog({ entry, position, total, others, queue, priorFile }: Wiza
           <h2 id="import-wizard-title" className="iw-title t-title">
             {editing ? 'Import settings' : 'Open'} <span className="iw-file" title={entry.fileName}>{entry.fileName}</span>
           </h2>
-          <div className="iw-mode-switch" title="Switch between Text / CSV table import and Binary / Waveform import">
+          {total > 1 && <span className="t-caption" data-testid="import-wizard-queue">File {position} of {total}</span>}
+          <button type="button" className="iw-close" aria-label="Close" title="Cancel (Esc)" onClick={cancel}><Icon name="close" /></button>
+        </header>
+
+        <div className="iw-mode-bar" data-testid="import-wizard-mode-bar">
+          <span className="t-label t-muted">Import as</span>
+          <div className="iw-mode-switch">
             <Segmented
               label="Import mode"
-              options={[{ value: 'text', label: 'Text' }, { value: 'binary', label: 'Binary' }]}
+              options={[
+                { value: 'text', label: 'Text / Table', title: 'Parse delimited CSV, TSV, or ASCII table columns' },
+                { value: 'binary', label: 'Binary / Waveform', title: 'Decode binary oscilloscope, WAV, NumPy, SDR IQ, SA sweep, or raw binary streams' },
+              ]}
               value="text"
               onChange={mode => { if (mode === 'binary') fileDispatch({ type: 'SWITCH_WIZARD_TO_BINARY', payload: { id: entry.id } }); }}
             />
           </div>
-          {total > 1 && <span className="t-caption" data-testid="import-wizard-queue">File {position} of {total}</span>}
-          <button type="button" className="iw-close" aria-label="Close" title="Cancel (Esc)" onClick={cancel}><Icon name="close" /></button>
-        </header>
+          <span className="t-caption t-muted iw-mode-hint">Wrong view? Switch anytime without losing the file.</span>
+        </div>
 
         <div className="iw-body">
           <WizardSettings

@@ -1,15 +1,11 @@
-/* Import wizard / Edit columns (board C06): settings left, live preview right.
+/* Import wizard / Edit columns (board C06): unified fixed responsive shell shared identically by Text & Binary views so flipping modes never jumps size or proportions.
    Sizes and type come from tokens (index.css) and text roles (text-roles.css) only. */
-.ui-dialog.iw-dialog { width: min(880px, calc(100vw - 32px)); max-height: calc(100vh - 32px); padding: 0; gap: 0; grid-template-rows: auto minmax(0, auto) auto; overflow: hidden; outline: none; }
+.ui-dialog.iw-dialog { width: min(960px, calc(100vw - 32px)); height: min(680px, calc(100vh - 32px)); max-width: calc(100vw - 16px); max-height: calc(100vh - 16px); padding: 0; gap: 0; grid-template-rows: auto auto minmax(0, 1fr) auto; overflow: hidden; outline: none; }
 .ui-dialog.iw-dialog:focus-visible { outline: none; }
 
-/* Binary wizard: fixed responsive box with independent left/right scrolling so preview never scrolls away or overflows small screens. */
-.ui-dialog.iw-dialog.iw-dialog--binary { width: min(960px, calc(100vw - 32px)); height: min(680px, calc(100vh - 32px)); max-width: calc(100vw - 16px); max-height: calc(100vh - 16px); grid-template-rows: auto minmax(0, 1fr) auto; }
-.iw-dialog--binary .iw-body { grid-template-columns: clamp(296px, 36%, 352px) minmax(0, 1fr); overflow: hidden; }
-.iw-dialog--binary .iw-settings { overflow-y: auto; min-height: 0; gap: var(--space-3); }
-.iw-dialog--binary .iw-main { overflow-y: auto; min-height: 0; }
-.iw-dialog--binary .ui-btn { transition: transform 60ms ease, background-color 80ms ease, border-color 80ms ease; }
-.iw-dialog--binary .ui-btn:active:not(:disabled) { transform: translateY(1px) scale(0.97); background: var(--sel-bg); border-color: var(--sel-line); }
+.iw-dialog .ui-btn { transition: transform 60ms ease, background-color 80ms ease, border-color 80ms ease; }
+.iw-dialog .ui-btn:active:not(:disabled) { transform: translateY(1px) scale(0.97); background: var(--sel-bg); border-color: var(--sel-line); }
+.iw-dialog--binary .iw-settings { gap: var(--space-3); }
 .iw-pair-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); }
 .iw-field { display: grid; gap: 3px; min-width: 0; }
 .iw-field .iw-input { width: 100%; min-width: 0; }
@@ -24,24 +20,28 @@
 .iw-chan-head { display: grid; grid-template-columns: minmax(0, 1fr) 44px 48px 48px; align-items: center; gap: 4px; color: var(--text-muted); padding-bottom: 2px; border-bottom: 1px solid var(--border); }
 .iw-chan-head > span:nth-child(n+2) { text-align: center; }
 
-/* Header: "Open" + file name (Mono 400) · Text|Binary · File 1 of 3 · × */
+/* Header: "Open" + file name (Mono 400) · File 1 of 3 · × */
 .iw-head { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--border); min-width: 0; }
 .iw-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .iw-file { font-family: var(--font-mono); font-weight: var(--fw-regular); }
-.iw-mode-switch { flex: none; }
-.iw-mode-switch .ui-segmented { gap: 0; flex-wrap: nowrap; }
-.iw-mode-switch .ui-btn { min-height: var(--control-sm-height); padding: 0 var(--space-2); border-radius: 0; margin-left: -1px; }
-.iw-mode-switch .ui-btn:first-child { margin-left: 0; border-radius: var(--radius-control) 0 0 var(--radius-control); }
-.iw-mode-switch .ui-btn:last-child { border-radius: 0 var(--radius-control) var(--radius-control) 0; }
-.iw-mode-switch .ui-btn.is-active, .iw-mode-switch .ui-btn:focus-visible { position: relative; z-index: 1; }
 .iw-head > .t-caption { white-space: nowrap; }
 .iw-close { flex: none; width: var(--control-sm-height); height: var(--control-sm-height); display: inline-grid; place-items: center; padding: 0; border: 0; border-radius: var(--radius-control); background: transparent; color: var(--text-muted); cursor: pointer; }
 .iw-close:hover { background: var(--panel); color: var(--text); }
 
-.iw-body { display: grid; grid-template-columns: 288px minmax(0, 1fr); min-height: 0; overflow: auto; }
+/* Dedicated explicit top mode switcher spanning full width right under the dialog header. */
+.iw-mode-bar { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-2) var(--space-4); background: var(--panel); border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+.iw-mode-switch { flex: none; }
+.iw-mode-switch .ui-segmented { gap: 0; flex-wrap: nowrap; }
+.iw-mode-switch .ui-btn { min-height: var(--control-sm-height); padding: 0 var(--space-3); border-radius: 0; margin-left: -1px; }
+.iw-mode-switch .ui-btn:first-child { margin-left: 0; border-radius: var(--radius-control) 0 0 var(--radius-control); }
+.iw-mode-switch .ui-btn:last-child { border-radius: 0 var(--radius-control) var(--radius-control) 0; }
+.iw-mode-switch .ui-btn.is-active, .iw-mode-switch .ui-btn:focus-visible { position: relative; z-index: 1; }
+.iw-mode-hint { margin-left: auto; }
+
+.iw-body { display: grid; grid-template-columns: clamp(296px, 34%, 336px) minmax(0, 1fr); min-height: 0; overflow: hidden; }
 
 /* Settings: compact label / control rows */
-.iw-settings { display: grid; align-content: start; gap: var(--space-4); padding: var(--space-3) var(--space-4); background: var(--panel); border-right: 1px solid var(--border); }
+.iw-settings { display: grid; align-content: start; gap: var(--space-4); padding: var(--space-3) var(--space-4); background: var(--panel); border-right: 1px solid var(--border); overflow-y: auto; min-height: 0; }
 .iw-group { display: grid; gap: var(--space-2); }
 .iw-line { display: grid; grid-template-columns: 74px minmax(0, 1fr); align-items: center; column-gap: var(--space-2); min-height: var(--control-sm-height); }
 .iw-line > :last-child { justify-self: start; max-width: 100%; }
@@ -79,7 +79,7 @@
 .iw-input--mult { width: 12ch; }
 
 /* Preview */
-.iw-main { display: grid; align-content: start; gap: var(--space-2); padding: var(--space-3) var(--space-4); min-width: 0; }
+.iw-main { display: grid; align-content: start; gap: var(--space-2); padding: var(--space-3) var(--space-4); min-width: 0; overflow-y: auto; min-height: 0; }
 .iw-main .ui-message { align-items: flex-start; }
 .iw-preview-head { display: flex; align-items: baseline; gap: var(--space-2); flex-wrap: wrap; }
 .iw-table-wrap { border: 1px solid var(--border); border-radius: var(--radius-card); max-height: 260px; overflow: auto; background: var(--raised); }
@@ -176,10 +176,10 @@
 .iw-blocker { color: var(--danger-ink); text-align: right; }
 
 @media (max-width: 720px) {
-  .ui-dialog.iw-dialog.iw-dialog--binary { width: calc(100vw - 16px); height: calc(100vh - 16px); }
-  .iw-dialog--binary .iw-body { grid-template-columns: minmax(0, 1fr); overflow-y: auto; }
-  .iw-dialog--binary .iw-settings, .iw-dialog--binary .iw-main { overflow: visible; }
-  .iw-body { grid-template-columns: minmax(0, 1fr); }
+  .ui-dialog.iw-dialog { width: calc(100vw - 16px); height: calc(100vh - 16px); }
+  .iw-body { grid-template-columns: minmax(0, 1fr); overflow-y: auto; }
+  .iw-settings, .iw-main { overflow: visible; }
   .iw-settings { border-right: 0; border-bottom: 1px solid var(--border); }
   .iw-hex-head { flex-wrap: wrap; }
+  .iw-mode-hint { display: none; }
 }

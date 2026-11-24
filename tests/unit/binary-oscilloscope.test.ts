@@ -784,5 +784,36 @@ describe('Phase 2 binary oscilloscope formats (.trc, .isf, OWON .bin) + shipped 
     const nanPrev = previewBinaryImport(nanAb, 'bad.f32', defaultBinaryConfig('bad.f32', nanAb.byteLength, null));
     expect(nanPrev.encodingWarning).not.toBeNull();
     expect(nanPrev.encodingWarning?.message).toContain('NaN');
+
+    // Spectrum Analyzer binary sweep (xDomain: 'frequency', Start..Stop Hz) produces a frequency-domain spectrum trace.
+    const saBuf = Buffer.alloc(11 * 4);
+    for (let i = 0; i < 11; i++) saBuf.writeFloatLE(-60 + (i === 5 ? 40 : 0), i * 4);
+    const saAb = saBuf.buffer.slice(saBuf.byteOffset, saBuf.byteOffset + saBuf.byteLength);
+    const saCfg = {
+      ...defaultBinaryConfig('sa_sweep.dat', saAb.byteLength, null),
+      xDomain: 'frequency' as const,
+      freqStartHz: 100e6,
+      freqStopHz: 200e6,
+      yUnit: 'dBm',
+    };
+    const saParsed = parseBinaryWithConfig(saAb, 'sa_sweep.dat', saCfg);
+    expect(saParsed.ok).toBe(true);
+    if (!saParsed.ok) return;
+    expect(saParsed.parsed.traces[0]?.domain).toBe('frequency');
+    expect(saParsed.parsed.traces[0]?.family).toBe('spectrum');
+    expect(saParsed.parsed.traces[0]?.units).toEqual({ x: 'Hz', y: 'dBm' });
+    expect(saParsed.parsed.traces[0]?.data[0]?.freq).toBeCloseTo(100e6, 3);
+    expect(saParsed.parsed.traces[0]?.data[5]?.freq).toBeCloseTo(150e6, 3);
+    expect(saParsed.parsed.traces[0]?.data[10]?.freq).toBeCloseTo(200e6, 3);
+    // Invalid stop <= start returns a clear error.
+    expect(parseBinaryWithConfig(saAb, 'sa_sweep.dat', { ...saCfg, freqStartHz: 200e6, freqStopHz: 100e6 }).ok).toBe(false);
+    // Round-trips xDomain / freqStartHz / freqStopHz via JSON settings export/import.
+    const saLoaded = parseBinarySettings(serializeBinarySettings(saCfg), defaultBinaryConfig('other.dat', saAb.byteLength, null));
+    expect(saLoaded.ok).toBe(true);
+    if (saLoaded.ok) {
+      expect(saLoaded.config.xDomain).toBe('frequency');
+      expect(saLoaded.config.freqStartHz).toBe(100e6);
+      expect(saLoaded.config.freqStopHz).toBe(200e6);
+    }
   });
 });

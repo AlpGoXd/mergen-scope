@@ -30,6 +30,7 @@ import type {
   BinaryParserChoice,
   BinaryPreviewChannel,
   BinarySampleType,
+  BinaryXDomain,
 } from '../../domain/parsers/raw-binary';
 import { defaultBinaryReduction } from '../../domain/parsers/binary-reduce';
 import { pointBudget, recommendedDecimateFactor } from '../../domain/point-budget';
@@ -72,6 +73,12 @@ const LAYOUTS: readonly { value: BinaryChannelLayout; label: string; ariaLabel: 
   { value: 'iq', label: 'IQ', ariaLabel: 'Complex IQ (I and Q)', title: 'Interleaved complex IQ pairs: [I0, Q0, I1, Q1, …] plotted as I and Q' },
   { value: 'interleaved', label: 'Interl.', ariaLabel: 'Interleaved multi-channel', title: 'Interleaved multi-channel frames: [CH1, CH2, …, CH1, CH2, …] per sample instant' },
   { value: 'planar', label: 'Planar', ariaLabel: 'Sequential (planar) multi-channel', title: 'Sequential (planar) blocks: all of CH1 stored back-to-back, followed by all of CH2, …' },
+];
+
+const X_DOMAINS: readonly { value: BinaryXDomain; label: string; ariaLabel: string; title: string }[] = [
+  { value: 'time', label: 'Time (s)', ariaLabel: 'Time domain in seconds', title: 'Time-domain waveform spaced by Sample Rate (Hz)' },
+  { value: 'frequency', label: 'Freq (Hz)', ariaLabel: 'Frequency sweep in hertz', title: 'Spectrum analyzer / frequency sweep linearly spaced from Start freq to Stop freq (Hz)' },
+  { value: 'index', label: 'Index', ariaLabel: 'Unitless sample index', title: 'Plot raw sample index (0, 1, 2, …) without a physical X unit' },
 ];
 
 const Y_QUICK: readonly { value: string; label: string; ariaLabel: string; title: string }[] = [
@@ -249,6 +256,8 @@ export function BinaryWizardDialog({ entry, buffer, position, total, others = []
   const [chUnitPopover, setChUnitPopover] = useState<{ index: number; anchor: HTMLElement } | null>(null);
 
   const [rateDraft, setRateDraft] = useState(() => (config.sampleRateHz > 0 ? String(config.sampleRateHz) : '0'));
+  const [freqStartDraft, setFreqStartDraft] = useState(() => formatCompactNum(config.freqStartHz ?? 0));
+  const [freqStopDraft, setFreqStopDraft] = useState(() => formatCompactNum(config.freqStopHz ?? 1e9));
   const [yMultDraft, setYMultDraft] = useState(() => formatCompactNum(config.yMult));
   const [yOffsetDraft, setYOffsetDraft] = useState(() => formatCompactNum(config.yOffset));
   const [xMultDraft, setXMultDraft] = useState(() => formatCompactNum(config.xMult));
@@ -259,6 +268,8 @@ export function BinaryWizardDialog({ entry, buffer, position, total, others = []
   const padId = useId();
   const footerId = useId();
   const rateId = useId();
+  const freqStartId = useId();
+  const freqStopId = useId();
   const startId = useId();
   const countId = useId();
   const multId = useId();
@@ -503,6 +514,8 @@ export function BinaryWizardDialog({ entry, buffer, position, total, others = []
       setHexPageOffset(null);
       setConfig(next);
       setRateDraft(next.sampleRateHz > 0 ? String(next.sampleRateHz) : '0');
+      setFreqStartDraft(formatCompactNum(next.freqStartHz ?? 0));
+      setFreqStopDraft(formatCompactNum(next.freqStopHz ?? 1e9));
       setYMultDraft(formatCompactNum(next.yMult));
       setYOffsetDraft(formatCompactNum(next.yOffset));
       setXMultDraft(formatCompactNum(next.xMult));
@@ -556,6 +569,7 @@ export function BinaryWizardDialog({ entry, buffer, position, total, others = []
     ));
   };
 
+  const activeXDomain: BinaryXDomain = config.xDomain ?? (config.sampleRateHz > 0 ? 'time' : 'index');
   const mainLabel = editing ? 'Apply' : `Add ${preview.channels.length} trace${preview.channels.length === 1 ? '' : 's'}`;
 
   return (
@@ -565,17 +579,25 @@ export function BinaryWizardDialog({ entry, buffer, position, total, others = []
           <h2 id="binary-wizard-title" className="iw-title t-title">
             {editing ? 'Import settings' : 'Open'} <span className="iw-file" title={entry.fileName}>{entry.fileName}</span>
           </h2>
-          <div className="iw-mode-switch" title="Switch between Text / CSV table import and Binary / Waveform import">
+          {total > 1 && <span className="t-caption" data-testid="import-wizard-queue">File {position} of {total}</span>}
+          <button type="button" className="iw-close" aria-label="Close" title="Cancel (Esc)" onClick={cancel}><Icon name="close" /></button>
+        </header>
+
+        <div className="iw-mode-bar" data-testid="import-wizard-mode-bar">
+          <span className="t-label t-muted">Import as</span>
+          <div className="iw-mode-switch">
             <Segmented
               label="Import mode"
-              options={[{ value: 'text', label: 'Text' }, { value: 'binary', label: 'Binary' }]}
+              options={[
+                { value: 'text', label: 'Text / Table', title: 'Parse delimited CSV, TSV, or ASCII table columns' },
+                { value: 'binary', label: 'Binary / Waveform', title: 'Decode binary oscilloscope, WAV, NumPy, SDR IQ, SA sweep, or raw binary streams' },
+              ]}
               value="binary"
               onChange={mode => { if (mode === 'text') switchToText(); }}
             />
           </div>
-          {total > 1 && <span className="t-caption" data-testid="import-wizard-queue">File {position} of {total}</span>}
-          <button type="button" className="iw-close" aria-label="Close" title="Cancel (Esc)" onClick={cancel}><Icon name="close" /></button>
-        </header>
+          <span className="t-caption t-muted iw-mode-hint">Wrong view? Switch anytime without losing the file.</span>
+        </div>
 
         <div className="iw-body">
           <div className="iw-settings">
@@ -864,28 +886,101 @@ export function BinaryWizardDialog({ entry, buffer, position, total, others = []
                     />
                   </div>
                 )}
-                <div className="iw-pair-grid">
-                  <div className="iw-field">
-                    <label className="t-caption" htmlFor={rateId} title="Sample rate in Hz for the time axis (supports k, M, G suffixes; 0 plots raw sample index)">Rate (Hz)</label>
-                    <input
-                      id={rateId}
-                      className="iw-input t-label"
-                      type="text"
-                      inputMode="decimal"
-                      placeholder="e.g. 1M or 0"
-                      title="Sample rate in Hz (e.g. 100k, 2.4M, 1G; enter 0 to plot against sample index)"
-                      value={rateDraft}
-                      onChange={event => {
-                        const raw = event.target.value;
-                        setRateDraft(raw);
-                        const parsed = parseEngInput(raw, { baseUnit: 'Hz' });
-                        if (parsed.ok && parsed.value >= 0) {
-                          setConfig(prev => ({ ...prev, sampleRateHz: parsed.value }));
-                        }
+                <div className="iw-line">
+                  <span className="t-label t-muted" title="Physical quantity of the X axis (Time waveform, Spectrum Analyzer frequency sweep, or plain sample index)">X axis</span>
+                  <div className="iw-seg">
+                    <Segmented
+                      label="Binary X axis domain"
+                      options={X_DOMAINS}
+                      value={activeXDomain}
+                      onChange={xDomain => {
+                        setConfig(prev => ({
+                          ...prev,
+                          xDomain,
+                          ...(xDomain === 'time' && prev.sampleRateHz <= 0 ? { sampleRateHz: 1_000_000 } : {}),
+                          ...(xDomain === 'frequency' && prev.freqStartHz === undefined && prev.freqStopHz === undefined
+                            ? { freqStartHz: 0, freqStopHz: 1_000_000_000 }
+                            : {}),
+                        }));
+                        if (xDomain === 'time' && config.sampleRateHz <= 0) setRateDraft('1000000');
                       }}
-                      onBlur={() => setRateDraft(String(config.sampleRateHz))}
                     />
                   </div>
+                </div>
+                {activeXDomain === 'frequency' && (
+                  <div className="iw-pair-grid">
+                    <div className="iw-field">
+                      <label className="t-caption" htmlFor={freqStartId} title="Spectrum sweep start frequency in Hz (supports k, M, G suffixes, e.g. 100M)">Start freq (Hz)</label>
+                      <input
+                        id={freqStartId}
+                        className="iw-input t-label"
+                        type="text"
+                        inputMode="decimal"
+                        placeholder="e.g. 100M"
+                        title="Start frequency of the binary spectrum sweep (e.g. 0, 100M, 2.4G)"
+                        value={freqStartDraft}
+                        onChange={event => {
+                          const raw = event.target.value;
+                          setFreqStartDraft(raw);
+                          const parsed = parseEngInput(raw, { baseUnit: 'Hz' });
+                          if (parsed.ok && Number.isFinite(parsed.value)) {
+                            setConfig(prev => ({ ...prev, xDomain: 'frequency', freqStartHz: parsed.value }));
+                          }
+                        }}
+                        onBlur={() => setFreqStartDraft(formatCompactNum(config.freqStartHz ?? 0))}
+                      />
+                    </div>
+                    <div className="iw-field">
+                      <label className="t-caption" htmlFor={freqStopId} title="Spectrum sweep stop frequency in Hz (supports k, M, G suffixes, e.g. 2.4G)">Stop freq (Hz)</label>
+                      <input
+                        id={freqStopId}
+                        className="iw-input t-label"
+                        type="text"
+                        inputMode="decimal"
+                        placeholder="e.g. 2.4G"
+                        title="Stop frequency of the binary spectrum sweep (must be greater than Start freq)"
+                        value={freqStopDraft}
+                        onChange={event => {
+                          const raw = event.target.value;
+                          setFreqStopDraft(raw);
+                          const parsed = parseEngInput(raw, { baseUnit: 'Hz' });
+                          if (parsed.ok && Number.isFinite(parsed.value)) {
+                            setConfig(prev => ({ ...prev, xDomain: 'frequency', freqStopHz: parsed.value }));
+                          }
+                        }}
+                        onBlur={() => setFreqStopDraft(formatCompactNum(config.freqStopHz ?? 1e9))}
+                      />
+                    </div>
+                  </div>
+                )}
+                <div className="iw-pair-grid">
+                  {activeXDomain === 'time' && (
+                    <div className="iw-field">
+                      <label className="t-caption" htmlFor={rateId} title="Sample rate in Hz for the time axis (supports k, M, G suffixes; 0 switches to sample index)">Rate (Hz)</label>
+                      <input
+                        id={rateId}
+                        className="iw-input t-label"
+                        type="text"
+                        inputMode="decimal"
+                        placeholder="e.g. 1M or 0"
+                        title="Sample rate in Hz (e.g. 100k, 2.4M, 1G; enter 0 to plot against sample index)"
+                        value={rateDraft}
+                        onChange={event => {
+                          const raw = event.target.value;
+                          setRateDraft(raw);
+                          const parsed = parseEngInput(raw, { baseUnit: 'Hz' });
+                          if (parsed.ok && parsed.value >= 0) {
+                            setConfig(prev => ({
+                              ...prev,
+                              xDomain: parsed.value > 0 ? 'time' : 'index',
+                              sampleRateHz: parsed.value,
+                            }));
+                          }
+                        }}
+                        onBlur={() => setRateDraft(String(config.sampleRateHz))}
+                      />
+                    </div>
+                  )}
                   <div className="iw-field">
                     <label className="t-caption" htmlFor={skipId} title="Leading header bytes to ignore before the first sample">Skip bytes</label>
                     <div className="iw-inline-row">
