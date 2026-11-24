@@ -20,7 +20,7 @@ Exact colour values (OKLCH) for every theme are in [colour-values.md](colour-val
 
 ## How to view
 
-- View it online at [mergenscope.com/design-review.html](https://mergenscope.com/design-review.html).
+- It is not published on mergenscope.com.
 - GitHub shows HTML files as source, so to read it offline, download `design-review.html` (Raw → save) or clone the repo, then open it in a browser.
 - Fonts (IBM Plex Sans, JetBrains Mono) load from Google Fonts when you're online; offline, a system font is used.
 - Interactive parts (the toolbar demo, the landing page) are saved in one state.

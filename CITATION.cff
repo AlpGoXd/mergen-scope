@@ -1,0 +1,25 @@
+cff-version: 1.2.0
+message: "If you use Mergen Scope in a paper, lab report, or RF measurement workflow, please cite it as below."
+title: "Mergen Scope"
+abstract: "A free, open-source, offline-capable browser workspace for viewing and analyzing spectrum analyzer, VNA Touchstone (.s1p–.s16p) and oscilloscope measurement files, with Smith chart, RF analysis and publication-ready LaTeX (pgfplots/TikZ) export."
+type: software
+authors:
+  - family-names: Gokalp
+    given-names: Alp
+repository-code: "https://github.com/AlpGoXd/mergen-scope"
+url: "https://mergenscope.com/"
+license: Apache-2.0
+version: "1.0.0-beta.4"
+date-released: "2026-11-23"
+keywords:
+  - rf-engineering
+  - spectrum-analyzer
+  - rohde-schwarz
+  - touchstone
+  - s-parameters
+  - smith-chart
+  - vna
+  - oscilloscope
+  - waveform-viewer
+  - pgfplots
+  - latex

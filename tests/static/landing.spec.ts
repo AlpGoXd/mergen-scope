@@ -77,7 +77,7 @@ test('the landing uses content-versioned URLs for its cacheable assets', async (
 test('structured FAQ matches the visible questions and answers', async ({ page }) => {
   await page.goto('/');
   const blocks = await page.locator('head script[type="application/ld+json"]').allTextContents();
-  expect(blocks).toHaveLength(2);
+  expect(blocks).toHaveLength(3);
   const structured = blocks.map(block => JSON.parse(block) as { '@type': string; mainEntity?: { name: string; acceptedAnswer: { text: string } }[] });
   const faq = structured.find(block => block['@type'] === 'FAQPage');
   expect(faq?.mainEntity).toBeDefined();
@@ -89,10 +89,25 @@ test('structured FAQ matches the visible questions and answers', async ({ page }
   expect(visible).toEqual(faq?.mainEntity?.map(item => ({ name: item.name, answer: item.acceptedAnswer.text })));
 });
 
-test('serves llms.txt', async ({ request }) => {
-  const response = await request.get('/llms.txt');
-  expect(response.status()).toBe(200);
-  expect(await response.text()).toMatch(/^# Mergen Scope(?:\r?\n|$)/);
+test('serves llms.txt and llms-full.txt', async ({ request }) => {
+  const summary = await request.get('/llms.txt');
+  expect(summary.status()).toBe(200);
+  expect(await summary.text()).toMatch(/^# Mergen Scope(?:\r?\n|$)/);
+
+  const full = await request.get('/llms-full.txt');
+  expect(full.status()).toBe(200);
+  const fullText = await full.text();
+  expect(fullText).toMatch(/^# Mergen Scope/);
+  expect(fullText).toContain('Rohde & Schwarz');
+  expect(fullText).toContain('Touchstone');
+  expect(fullText).toContain('spectrum analyzer');
+
+  const indexNowKey = process.env.INDEXNOW_KEY?.trim();
+  if (indexNowKey) {
+    const keyResp = await request.get(`/${indexNowKey}.txt`);
+    expect(keyResp.status()).toBe(200);
+    expect((await keyResp.text()).trim()).toBe(indexNowKey);
+  }
 });
 
 test('internal landing links resolve', async ({ page, request }) => {

@@ -80,6 +80,7 @@ function copyRuntimeAssets(): Plugin {
     "_headers",
     "robots.txt",
     "llms.txt",
+    "llms-full.txt",
     "sitemap.xml",
   ];
   const staticDirs = [
@@ -120,14 +121,20 @@ function copyRuntimeAssets(): Plugin {
           }
         }
       }
-      // The design review lives with the design docs but is also published on the site.
-      const designReview = resolve(__dirname, "docs/design/design-review.html");
-      if (existsSync(designReview)) copyFileSync(designReview, resolve(outputDir, "design-review.html"));
       for (const dir of staticDirs) {
         const src = resolve(__dirname, dir);
         if (existsSync(src)) {
           cpSync(src, resolve(outputDir, dir), { recursive: true });
         }
+      }
+      // Optional IndexNow domain-verification key injected at deploy time (e.g. Cloudflare Pages env var)
+      // so the live key filename is never committed to the public repository.
+      const indexNowKey = process.env.INDEXNOW_KEY?.trim();
+      if (indexNowKey) {
+        if (!/^[a-zA-Z0-9-]{8,128}$/.test(indexNowKey)) {
+          throw new Error("INDEXNOW_KEY must be 8-128 characters using only a-z, A-Z, 0-9, and '-'.");
+        }
+        writeFileSync(resolve(outputDir, `${indexNowKey}.txt`), indexNowKey, "utf8");
       }
     },
   };
