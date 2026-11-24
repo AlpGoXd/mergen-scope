@@ -83,7 +83,7 @@ describe('NumPy .npy binary parser (npy-bin)', () => {
       const trace = res.parsed.traces[0];
       expect(trace?.domain).toBe('time');
       expect(trace?.family).toBe('waveform');
-      expect(trace?.units).toEqual({ x: '', y: '' });
+      expect(trace?.units).toEqual({ x: 'unitless', y: null });
       expect(trace?.data).toEqual([
         { freq: 0, amp: 1.5 },
         { freq: 1, amp: -2.25 },

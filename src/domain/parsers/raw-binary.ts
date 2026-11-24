@@ -820,6 +820,12 @@ function formatScopeHeaderSummary(meta: FileMetadata): string {
   if (sr && typeof sr === "object" && "value" in sr && Number.isFinite(sr.value)) {
     parts.push(formatScalarWithUnit(sr.value, "Sa/s", { digits: 3 }));
   }
+  const dtype = meta["Dtype"];
+  if (typeof dtype === "string" && dtype) parts.push(dtype);
+  const shape = meta["Shape"];
+  if (typeof shape === "string" && shape) parts.push(shape);
+  const bitDepth = meta["Bit Depth"];
+  if (typeof bitDepth === "string" && bitDepth) parts.push(bitDepth);
   const enc = meta["Encoding"];
   if (typeof enc === "string" && enc) parts.push(enc);
   return parts.join(" · ");

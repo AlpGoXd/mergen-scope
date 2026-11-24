@@ -130,7 +130,7 @@ describe("RIFF/WAVE (.wav) binary waveform parser", () => {
     const trace = res.parsed.traces[0];
     expect(trace?.domain).toBe("time");
     expect(trace?.family).toBe("waveform");
-    expect(trace?.units).toEqual({ x: "s", y: "" });
+    expect(trace?.units).toEqual({ x: "s", y: null });
     expect(trace?.dn).toBe("pcm8.wav CH1");
     expect(trace?.data.map((p) => p.freq)).toEqual([0, 0.001, 0.002, 0.003]);
     expect(trace?.data.map((p) => p.amp)).toEqual([-1, 0, 127 / 128, -0.5]);

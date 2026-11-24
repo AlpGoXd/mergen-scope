@@ -621,7 +621,7 @@ export function parseNpyBin(
       isUniform: reduced.isUniform,
       ...(reduced.envelopeOf !== undefined ? { envelopeOf: reduced.envelopeOf } : {}),
       dn: `${fileName} ${label}`,
-      units: { x: "", y: "" },
+      units: { x: "unitless", y: null },
       data: normalized,
     });
     columnIdentities.push({ index: traces.length - 1, header: label });

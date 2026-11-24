@@ -302,7 +302,7 @@ export function parseWavBin(
       isUniform: reduced.isUniform,
       ...(reduced.envelopeOf !== undefined ? { envelopeOf: reduced.envelopeOf } : {}),
       dn: `${fileName} ${label}`,
-      units: { x: "s", y: "" },
+      units: { x: "s", y: null },
       data: normalized,
     });
     columnIdentities.push({ index: traces.length - 1, header: label });
