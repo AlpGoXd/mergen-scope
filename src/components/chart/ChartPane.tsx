@@ -1201,13 +1201,6 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
     );
   }
 
-  const samplesDenseZoomHint = settings.showSampleDots && !allEnvelopes && !isRadial && Boolean(plotView && plotView.plot.width > 0)
-    && paneTraces.some(trace => {
-      if (isEnvelopeTrace(trace)) return false;
-      const points = visibleSampleCount(trace.data, plotView?.x ?? null);
-      return points > 0 && !sampleDotsVisible(points, plotView?.plot.width ?? 0);
-    });
-
   return (
     <div
       ref={paneRootRef}
@@ -1237,21 +1230,29 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
           onScaleClick={axes ? anchor => { setTypeAnchor(null); setSettingsAnchor(null); setAxisMenu(null); setScaleAnchor(current => current ? null : anchor); } : null}
           scaleOpen={scaleAnchor !== null}
           link={traceNamesInPane.length > 0 ? iconOnly => <XLinkChip paneId={paneId} iconOnly={iconOnly} /> : null}
-          samples={TableRenderer ? null : iconOnly => (
-            <Btn
-              variant={settings.showSampleDots && !allEnvelopes ? 'armed' : 'neutral'}
-              tone="pane"
-              small
-              className={`ph-samples${iconOnly ? ' is-icon' : ''}`}
-              aria-label="Samples"
-              aria-pressed={settings.showSampleDots && !allEnvelopes}
-              disabled={allEnvelopes}
-              title={allEnvelopes ? ENVELOPE_SAMPLES_TITLE : samplesDenseZoomHint ? 'Zoom in to see the sample points' : 'Show the measured sample points'}
-              data-testid="samples-toggle"
-              onClick={e => { e.stopPropagation(); paneDispatch({ type: 'SET_PANE_SETTINGS', payload: { paneId, patch: { showSampleDots: !settings.showSampleDots } } }); }}>
-              {iconOnly ? <SamplesIcon /> : 'Samples'}
-            </Btn>
-          )}
+          samples={TableRenderer ? null : iconOnly => {
+            const denseNonEnvelope = settings.showSampleDots && !isRadial && plotView && plotView.plot.width > 0
+              && paneTraces.some(trace => {
+                if (isEnvelopeTrace(trace)) return false;
+                const points = visibleSampleCount(trace.data, plotView.x);
+                return points > 0 && !sampleDotsVisible(points, plotView.plot.width);
+              });
+            return (
+              <Btn
+                variant={settings.showSampleDots && !allEnvelopes ? 'armed' : 'neutral'}
+                tone="pane"
+                small
+                className={`ph-samples${iconOnly ? ' is-icon' : ''}`}
+                aria-label="Samples"
+                aria-pressed={settings.showSampleDots && !allEnvelopes}
+                disabled={allEnvelopes}
+                title={allEnvelopes ? ENVELOPE_SAMPLES_TITLE : denseNonEnvelope ? 'Zoom in to see the sample points' : 'Show the measured sample points'}
+                data-testid="samples-toggle"
+                onClick={e => { e.stopPropagation(); paneDispatch({ type: 'SET_PANE_SETTINGS', payload: { paneId, patch: { showSampleDots: !settings.showSampleDots } } }); }}>
+                {iconOnly ? <SamplesIcon /> : 'Samples'}
+              </Btn>
+            );
+          }}
           chip={fit => (
             <PaneChartTypeControl
               fit={fit} icon={paneTypes[currentType].iconKey} label={currentType === 'eye' ? 'Eye · CH1' : paneTypes[currentType].title}
@@ -1303,18 +1304,13 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
         ) : mergedData.length === 0 ? (
           <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--dim)', fontSize: 'var(--font-title)' }}>No visible traces in this pane.</div>
         ) : (
-          <div data-testid={`chart-plot-${paneId}`} data-line-labels={settings.showLineLabels ? 'on' : 'off'} ref={chartAreaRef} onWheel={handleWheel} onMouseDownCapture={(e) => { lastPointerClientXRef.current = e.clientX; lastPointerClientYRef.current = e.clientY; lastPointerButtonRef.current = e.button; lastCtrlPanRef.current = e.button === 0 && e.ctrlKey; }} onDoubleClick={handleDoubleClick} onMouseMoveCapture={(e) => { lastPointerClientXRef.current = e.clientX; lastPointerClientYRef.current = e.clientY; legendDodge.onPointerMove(e.clientX, e.clientY, hoverRows.map(row => ({ x: row.placement.freq, y: row.placement.amp }))); }} onMouseDown={handleContainerMouseDown} style={{ height: '100%', position: 'relative', background: 'var(--plot)', cursor: draggingRefLineId !== null ? 'grabbing' : hoveredRefLineId !== null ? (refLines.find(l => l.id === hoveredRefLineId)?.type === 'h' ? 'ns-resize' : 'ew-resize') : undefined }}>
+          <div data-testid={`chart-plot-${paneId}`} data-line-labels={settings.showLineLabels ? 'on' : 'off'} ref={chartAreaRef} onWheel={handleWheel} onMouseDownCapture={(e) => { lastPointerClientXRef.current = e.clientX; lastPointerClientYRef.current = e.clientY; lastPointerButtonRef.current = e.button; lastCtrlPanRef.current = e.button === 0 && e.ctrlKey; }} onDoubleClick={handleDoubleClick} onMouseMoveCapture={(e) => { lastPointerClientXRef.current = e.clientX; lastPointerClientYRef.current = e.clientY; legendDodge.onPointerMove(e.clientX, e.clientY, hoverRows.map(row => ({ x: row.placement.freq, y: row.placement.amp }))); }} onMouseDown={handleContainerMouseDown} style={{ height: '100%', background: 'var(--plot)', cursor: draggingRefLineId !== null ? 'grabbing' : hoveredRefLineId !== null ? (refLines.find(l => l.id === hoveredRefLineId)?.type === 'h' ? 'ns-resize' : 'ew-resize') : undefined }}>
             <div style={{ height: omitted ? 'calc(100% - 18px)' : '100%' }} onClick={event => {
               const target = event.target;
               if (!(target instanceof Element) || !target.closest('.recharts-cartesian-axis-tick-value')) return;
               const axis = target.closest('.recharts-xAxis') ? 'x' : 'y';
               setAxisMenu({ axis, at: { x: event.clientX, y: event.clientY } });
             }}>{chartPlot}</div>
-            {samplesDenseZoomHint && (
-              <div className="ph-samples-zoom-hint t-caption" data-testid="samples-zoom-hint" role="status">
-                Samples on · zoom in to see points
-              </div>
-            )}
             {omitted > 0 && <div className="t-caption" style={{ color: 'var(--text-muted)', textAlign: 'center' }}>{omitted} points ≤ 0 not shown</div>}
             {axisMenu && axes && <PopoverAt label={`${axisMenu.axis.toUpperCase()} axis`} at={axisMenu.at} onClose={() => setAxisMenu(null)}>
               <div className="axis-pop" onClick={event => event.stopPropagation()}>

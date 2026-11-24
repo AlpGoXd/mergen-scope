@@ -149,9 +149,6 @@ test('opens shipped binary oscilloscope fixtures (Keysight, Rigol, LeCroy, Tektr
   await expect(page.locator('.lp-file--header')).toHaveCount(5);
   // 2 (Keysight) + 2 (Rigol) + 1 (LeCroy) + 1 (Tektronix) + 1 (OWON) = 7 traces in Pane 1.
   await expect(page.getByTestId('chart-plot-pane-1').locator('.trace-source .recharts-line-curve')).toHaveCount(7);
-  // Toggling Samples ON while zoomed out on 2048-point captures shows a clear corner hint to zoom in.
-  await page.getByTestId('chart-pane-header-pane-1').getByTestId('samples-toggle').click();
-  await expect(page.getByTestId('chart-plot-pane-1').getByTestId('samples-zoom-hint')).toContainText('Samples on');
 });
 
 test('Close all files… removes linked derived child traces (e.g. FFT) alongside their parent files and is undoable', async ({ page }) => {
