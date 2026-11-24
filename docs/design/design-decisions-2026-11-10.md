@@ -138,6 +138,21 @@ This file is the written design source of truth. Newer decisions in the sections
 - **Empty state after choosing a type:** centred type icon (28), a name, one sentence and one action. Chart: "Empty chart"; "Drop a file here, or tick traces in the Traces list and use Show in › Pane N."; Open file…. Table (P2): "Empty table"; "Follow another pane's traces and cursor, or add traces of your own."; Follow Pane 1 and Add traces….
 - **Samples:** a small text toggle labelled "Samples" (no icon) in the pane header next to the sliders button; pressed = on, filled in the Pane hue, `aria-pressed`, tooltip "Show the measured sample points". The first section of pane settings is Display, with a "Samples" chip that always matches the header button. No item in the pane's ⋯ menu. Narrow pane headers keep this button (they drop the scale text and the trace count first). The minor-grid switch is gone.
 
+## Eye diagram (24 Nov)
+
+Designed, not built. The full guide, with every setting, measurement and state, is [eye-diagram.md](eye-diagram.md); it replaces the Eye section of board P8 where they differ.
+
+- **Analysis tool with an owned pane.** "+ Add analysis › Eye diagram" adds the card and opens an Eye pane for it. The Eye pane is never in the picker or the type popover, its type is locked, it shows exactly one trace and refuses drops. One card, one pane, one trace; two traces means two cards. Eye panes count toward `MAX_PANES`.
+- **Closing:** closing the Eye pane keeps the card ("Not shown · Show in a pane"); × on the card removes both, with Undo.
+- **Card settings:** Levels (Auto · NRZ · PAM3 · PAM4 · PAM6 · PAM8 · Custom), Bit timing (Auto · Manual: offset and bit length), Clock (Constant · PLL, default PLL at bit rate ÷ 1667), UI shown (1 – 8, default 2), Range, Mask (searchable presets by standard, TX / RX, Custom, Import), Shading. No show/hide eye button on this card.
+- **Bit lines:** in Manual the first bit is set by dragging two solid vertical lines in the source pane (Analysis ink, light band, grips, axis tags); later bits show as faint edge ticks. Dragging in Auto switches to Manual.
+- **Results are grouped** (Amplitude · Timing · ISI and equalization · Mask · Statistics, plus per-eye groups for PAM-N), each collapsible with a one-line summary. Statistics are always tagged *estimated*.
+- **Equalization check:** bits right after a transition vs inside a run, compared at the eye centre: below −0.4 dB Under, above +0.4 dB Over, else Balanced.
+- **Eye pane:** intensity shading (Log density by default), X in UI, Y in the trace's unit. The opening is drawn as height and width bars in the trace colour with a halo, never a diamond; crossings as hollow dots; masks dashed "6 4" in Danger ink.
+- **Shading:** one setting shown in the card and in pane settings, always equal. Six maps: Trace hue (default) and Grey follow the theme; Viridis, Inferno, Cividis and Scope use a dark plot in both themes. Scope is marked uneven and not colour-blind safe.
+- **Created traces** are buttons in the card (Bathtub, Pulse response, TIE, Jitter histogram, Jitter spectrum, Level histogram). One live output of each kind per card: asking again selects the existing trace. Freeze as a copy for snapshots. Each brings its own units and goes to a pane with the same X and Y unit, else a new pane.
+- **Chart additions it needs:** "UI" as an X unit and a Log Y scale. New saved state needs a v5 workspace migration and test.
+
 ## Still open
 
 - **PDF export:** needs a new library; bring a proposal at the start of Phase 6.
