@@ -25,7 +25,8 @@ test('Waveform measures a scope trace, FFT creates its spectrum in a frequency p
   await expect(page.getByTestId('analysis-shape-level')).toHaveCount(2);
   await expect(page.getByTestId('analysis-shape-band')).toHaveCount(1);
   await waveform.locator('.an-card__head').click();
-  await expect(page.getByTestId('analysis-shape-level')).toHaveCount(0);
+  await expect(waveform.locator('.an-card__head')).toHaveAttribute('aria-expanded', 'false');
+  await expect(page.getByTestId('analysis-shape-level')).toHaveCount(2); // collapsing keeps the shapes; only the eye hides them
 
   const fft = await addAnalysis(page, 'FFT');
   await expect(fft.locator('.an-create')).toContainText('FFT · CH1');

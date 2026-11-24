@@ -50,7 +50,8 @@ export function AnalysisEmpty({ onAdd }: { onAdd: (anchor: HTMLElement) => void 
 
 /* ---------- card ---------- */
 export function AnalysisCard(p: AnalysisCardProps): ReactElement {
-  const cls = `an-card${p.collapsed ? ' is-collapsed' : ''}${p.selected ? ' is-selected' : ''}`;
+  const showSummary = Boolean(p.collapsed && p.summary);
+  const cls = `an-card${p.collapsed ? ' is-collapsed' : ''}${showSummary ? ' has-summary' : ''}${p.selected ? ' is-selected' : ''}`;
   const bodyId = `an-card-body-${p.id}`;
   return (
     <article {...p.dropTarget} className={cls} aria-label={p.title} data-testid={`analysis-card-${p.id}`}>
@@ -59,11 +60,11 @@ export function AnalysisCard(p: AnalysisCardProps): ReactElement {
         onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); p.onToggle?.(); } }}>
         {p.dragHandle}
         <span className="an-card__kind" title={p.kind === 'math' ? 'Math: makes a trace' : 'Measure: reads values'}><KindIcon kind={p.kind} /></span>
-        <span className="an-card__title">{p.title}</span>
+        <span className="an-card__title" title={p.title}>{p.title}</span>
         <span className="an-card__source" title={p.source}>
-          {p.sourceHue !== undefined ? <span className="an-swatch" style={hueStyle(p.sourceHue)} aria-hidden="true" /> : null}{p.source}
+          {p.sourceHue !== undefined ? <span className="an-swatch" style={hueStyle(p.sourceHue)} aria-hidden="true" /> : null}{showSummary ? null : p.source}
         </span>
-        {p.collapsed && p.summary ? <span className="an-card__summary">{p.summary}</span> : null}
+        {showSummary ? <span className="an-card__summary" title={p.summary}>{p.summary}</span> : null}
         {p.overlay ? (
           <button type="button" className="an-icon-btn" aria-pressed={p.overlay.on}
             aria-label={p.overlay.on ? `Hide ${p.title} on the chart` : `Show ${p.title} on the chart`}

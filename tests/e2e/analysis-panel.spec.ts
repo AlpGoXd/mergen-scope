@@ -161,3 +161,28 @@ test('the top bar Export is disabled without traces and downloads the visible tr
   await page.getByTestId('app-open-input').setInputFiles(resolve('test files/cascade_ip3_-12dBm.DAT'));
   await expect(page.getByRole('button', { name: 'Export', exact: true })).toBeEnabled();
 });
+
+test('a collapsed header keeps its buttons inside the card: a long summary shrinks with an ellipsis', async ({ page }) => {
+  await loaded(page);
+  const card = await addAnalysis(page, 'Smooth');
+  await card.getByRole('button', { name: 'Create trace' }).click();
+  const handle = page.getByRole('separator', { name: 'Resize right panel' });
+  const box = await handle.boundingBox();
+  if (!box) throw new Error('no resize handle');
+  // Drag the right panel to its narrowest.
+  await page.mouse.move(box.x + box.width / 2, box.y + 200);
+  await page.mouse.down();
+  await page.mouse.move(1400, box.y + 200, { steps: 4 });
+  await page.mouse.up();
+  for (const collapsed of [false, true]) {
+    if (collapsed) await card.locator('.an-card__title').click();
+    await expect(card.locator('.an-card__head')).toHaveAttribute('aria-expanded', String(!collapsed));
+    if (collapsed) await expect(card.locator('.an-card__summary')).toContainText('smoothed');
+    const overflow = await card.evaluate(el => {
+      const right = el.getBoundingClientRect().right;
+      return [...el.querySelectorAll('.an-card__head > *')].filter(child => child.getBoundingClientRect().right > right + 0.5).map(child => child.className);
+    });
+    expect(overflow).toEqual([]);
+    await expect(card.getByRole('button', { name: 'Remove Smooth', exact: true })).toBeInViewport({ ratio: 1 });
+  }
+});
