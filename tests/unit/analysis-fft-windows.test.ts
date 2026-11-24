@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { computeFft, fftAny, windowCoefficients, windowFacts } from '../../src/domain/analysis/fft';
+import { canComputeFftSegments, computeFft, fftAny, isEvenlySpaced, windowCoefficients, windowFacts } from '../../src/domain/analysis/fft';
 import type { FftOptions, WindowSpec } from '../../src/domain/analysis/fft';
 import type { DataPoint } from '../../src/types/trace';
 
@@ -190,5 +190,92 @@ describe('scales', () => {
     const meanPower = vrthz.reduce((s, p) => s + p.amp ** 2, 0) / vrthz.length;
     expect(Math.abs(10 * Math.log10(meanPower) - 10 * Math.log10((2 * sigma ** 2) / fs))).toBeLessThan(0.2);
     expect(mean('dbmhz') - mean('dbvhz')).toBeCloseTo(10 * Math.log10(1 / 50 / 1e-3), 6);
+  });
+});
+
+describe('even-length real FFT packing and spacing checks', () => {
+  it.each([12, 100, 300])('matches full complex fftAny spectrum for %i-sample real signals', n => {
+    const dt = 1e-6;
+    const next = gaussian(n + 5);
+    const data = sampled(n, dt, () => next());
+    const outcome = computeFft(data, { window: 'rectangular', points: 'auto', scale: 'v' });
+    if (!outcome.ok) throw new Error(outcome.reason);
+    const re = Float64Array.from(data, p => p.amp);
+    const im = new Float64Array(n);
+    fftAny(re, im);
+    const half = Math.floor(n / 2);
+    for (let k = 0; k <= half; k++) {
+      const mag2 = ((re[k] ?? 0) ** 2 + (im[k] ?? 0) ** 2) / (n * n);
+      const expectedPower = k === 0 || k === half ? mag2 : 2 * mag2;
+      expect(outcome.result.power[k]).toBeCloseTo(expectedPower, 10);
+    }
+  });
+
+  it.each([15, 24, 30, 45, 50, 60, 100, 150, 300, 258])('matches the direct DFT for smooth and composite length %i', n => {
+    const next = gaussian(n + 19);
+    const re = Array.from({ length: n }, () => next());
+    const im = Array.from({ length: n }, () => next());
+    const fr = Float64Array.from(re);
+    const fi = Float64Array.from(im);
+    fftAny(fr, fi);
+    for (let k = 0; k < n; k++) {
+      let sr = 0;
+      let si = 0;
+      for (let t = 0; t < n; t++) {
+        const a = (-2 * Math.PI * k * t) / n;
+        sr += (re[t] ?? 0) * Math.cos(a) - (im[t] ?? 0) * Math.sin(a);
+        si += (re[t] ?? 0) * Math.sin(a) + (im[t] ?? 0) * Math.cos(a);
+      }
+      expect(fr[k]).toBeCloseTo(sr, 9);
+      expect(fi[k]).toBeCloseTo(si, 9);
+    }
+  });
+
+  it('validates uniform, 1%-tolerant jittered, and uneven sample spacing', () => {
+    const uniform = sampled(50, 1e-6, t => Math.sin(t));
+    expect(isEvenlySpaced(uniform)).toBe(true);
+    const smallJitter = uniform.map((p, i) => ({ ...p, freq: p.freq + (i === 10 ? 5e-9 : 0) }));
+    expect(isEvenlySpaced(smallJitter)).toBe(true);
+    const badJitter = uniform.map((p, i) => ({ ...p, freq: p.freq + (i === 10 ? 2e-8 : 0) }));
+    expect(isEvenlySpaced(badJitter)).toBe(false);
+    expect(isEvenlySpaced([{ freq: 0, amp: 1 }, { freq: 0, amp: 2 }])).toBe(false);
+  });
+
+  it('rejects NaN, non-finite, and non-positive steps even after early 1e-4 jitter', () => {
+    expect(isEvenlySpaced([
+      { freq: 0, amp: 0 },
+      { freq: 1, amp: 0 },
+      { freq: 2.0001, amp: 0 },
+      { freq: Number.NaN, amp: 0 },
+    ])).toBe(false);
+    expect(isEvenlySpaced([
+      { freq: 0, amp: 0 },
+      { freq: 1, amp: 0 },
+      { freq: 2.0001, amp: 0 },
+      { freq: Number.POSITIVE_INFINITY, amp: 0 },
+    ])).toBe(false);
+    expect(isEvenlySpaced([
+      { freq: 0, amp: 0 },
+      { freq: 1, amp: 0 },
+      { freq: 2.0001, amp: 0 },
+      { freq: 2.0001, amp: 0 },
+    ])).toBe(false);
+    expect(isEvenlySpaced([
+      { freq: 0, amp: 0 },
+      { freq: 1, amp: 0 },
+      { freq: 2.0001, amp: 0 },
+      { freq: 1.5, amp: 0 },
+    ])).toBe(false);
+    const longWithNaN = sampled(100, 1, t => Math.sin(t));
+    longWithNaN[2] = { freq: 2.0001, amp: 0 };
+    longWithNaN[50] = { freq: Number.NaN, amp: 0 };
+    expect(isEvenlySpaced(longWithNaN)).toBe(false);
+  });
+
+  it('checks FFT segment validity without allocating copies', () => {
+    const data = sine(64, 1e-6, 10_000);
+    expect(canComputeFftSegments(data, null, 'auto', 'off')).toEqual({ ok: true });
+    expect(canComputeFftSegments(data, { left: 10e-6, right: 50e-6 }, 'auto', 'off')).toEqual({ ok: true });
+    expect(canComputeFftSegments(data, { left: 0, right: 2e-6 }, 'auto', 'off').ok).toBe(false);
   });
 });

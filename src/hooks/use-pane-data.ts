@@ -1,12 +1,20 @@
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import { mergePaneData } from '../domain/pane-data';
 import { useTraceState } from '../stores/trace-store';
+import type { Trace } from '../types/trace';
 
 /** Prepare full-resolution interaction data and bounded-size chart data. */
 export function usePaneData(traceNames: string[], xRange?: { left: number; right: number } | null) {
   const { allTraces, vis } = useTraceState();
+  const prevTracesRef = useRef<Trace[]>([]);
   const paneTraces = useMemo(() => {
-    return allTraces.filter(t => traceNames.includes(t.name) && vis[t.name]);
+    const next = allTraces.filter(t => traceNames.includes(t.name) && vis[t.name]);
+    const prev = prevTracesRef.current;
+    if (next.length === prev.length && next.every((trace, index) => trace === prev[index])) {
+      return prev;
+    }
+    prevTracesRef.current = next;
+    return next;
   }, [allTraces, traceNames, vis]);
   const left = xRange?.left;
   const right = xRange?.right;

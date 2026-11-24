@@ -7,6 +7,7 @@ import { forcesHollowTraceSymbol } from '../../domain/trace-colors';
 import { useUiState } from '../../stores/ui-store';
 import { DOT_RADIUS, planDotsAndSymbols, sampleDotsVisible, visibleSampleCount } from '../../domain/dots-and-symbols';
 import { decimateMinMax, traceBound } from '../../domain/trace-math';
+import { isEnvelopeTrace } from '../../domain/trace-model';
 import { TraceSymbol } from '../shared/TraceSymbol';
 import { useTraceSymbols } from '../../hooks/use-trace-symbols';
 import { useTraceColors } from '../../hooks/use-trace-colors';
@@ -34,7 +35,7 @@ function TraceMarks({ trace, kind, color, markScale, showDots, forceHollow, x, y
   const { width } = plot;
   // One bucket per pixel. Below two samples per bucket this keeps every point in view and one on each side.
   const samples = useMemo(() => decimateMinMax(trace.data, left, right, width), [trace.data, left, right, width]);
-  const dotsVisible = showDots && sampleDotsVisible(visibleSampleCount(trace.data, range), width);
+  const dotsVisible = showDots && !isEnvelopeTrace(trace) && sampleDotsVisible(visibleSampleCount(trace.data, range), width);
   const points = samples.map(point => {
     const px = x(point.freq);
     return px < plot.left || px > plot.left + width ? { x: NaN, y: NaN } : { x: px, y: y(point.amp) };

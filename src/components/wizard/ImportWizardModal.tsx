@@ -22,6 +22,7 @@ import { Icon, MessageBar } from '../shared/Controls';
 import { WizardPreviewTable, PREVIEW_ROWS } from './WizardPreviewTable';
 import { WizardSettings } from './WizardSettings';
 import { WizardPreviewPlot } from './WizardPreviewPlot';
+import { BinaryWizardDialog } from './BinaryWizardDialog';
 import './import-wizard.css';
 
 function configFor(entry: WizardEntry): WizardConfig {
@@ -47,7 +48,13 @@ export function ImportWizardModal() {
   if (!active) return null;
   const total = Math.max(1, seen.current.size);
   const queued = wizardQueue.filter(entry => entry.mode !== 'edit').length;
-  return <WizardDialog key={active.id} entry={active} position={active.mode === 'edit' ? 1 : total - queued + 1} total={active.mode === 'edit' ? 1 : total} others={wizardQueue.slice(1).filter(entry => entry.mode !== 'edit')} queue={wizardQueue} priorFile={active.mode === 'edit' ? files.find(file => String(file.id) === active.id) : undefined} />;
+  const position = active.mode === 'edit' ? 1 : total - queued + 1;
+  const displayTotal = active.mode === 'edit' ? 1 : total;
+  const priorFile = active.mode === 'edit' ? files.find(file => String(file.id) === active.id) : undefined;
+  if (active.rawBinary) {
+    return <BinaryWizardDialog key={active.id} entry={active} buffer={active.rawBinary} position={position} total={displayTotal} queue={wizardQueue} priorFile={priorFile} />;
+  }
+  return <WizardDialog key={active.id} entry={active} position={position} total={displayTotal} others={wizardQueue.slice(1).filter(entry => entry.mode !== 'edit' && !entry.rawBinary)} queue={wizardQueue} priorFile={priorFile} />;
 }
 
 interface WizardDialogProps {

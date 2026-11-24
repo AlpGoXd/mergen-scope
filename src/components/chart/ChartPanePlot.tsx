@@ -10,6 +10,7 @@ import type { MergedPaneRow } from '../../domain/pane-data';
 import { computeHorizontalIntersections, computeVerticalIntersections } from '../../domain/ref-lines';
 import { traceWidth } from '../../domain/trace-palette';
 import { placeMarker } from '../../domain/markers';
+import { isEnvelopeTrace } from '../../domain/trace-model';
 import type { TraceColorAssignment } from '../../domain/trace-palette';
 import type { AnalysisOverlay } from '../../hooks/use-analysis-overlays';
 import type { useTraceSymbols } from '../../hooks/use-trace-symbols';
@@ -123,7 +124,7 @@ export function ChartPanePlot({
       {displayTraces.map((trace) => (
         <Line key={trace.name} className={trace.kind === 'derived' ? 'trace-created' : 'trace-source'} type="linear" dataKey={trace.name} name={trace.dn || trace.name} stroke={resolveTraceColor(trace.name)}
           data={logRows.get(trace.name)}
-          dot={settings.showSampleDots && traceSymbol(trace.id) === null && plotView
+          dot={settings.showSampleDots && !isEnvelopeTrace(trace) && traceSymbol(trace.id) === null && plotView
             && sampleDotsVisible(visibleSampleCount(trace.data, plotView.x), plotView.plot.width)
             ? <MeasuredSampleDot data={trace.data} /> : false} activeDot={false} isAnimationActive={false} connectNulls={!logRows.has(trace.name)} strokeWidth={exportView?.paper ? ptToCssPx(appearance?.paperLine ?? PAPER_LINE_PT) : colorAssignments.get(trace.id) ? traceWidth(colorAssignments.get(trace.id) as NonNullable<ReturnType<typeof colorAssignments.get>>) : 1.5} />
       ))}

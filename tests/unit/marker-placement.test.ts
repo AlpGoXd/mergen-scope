@@ -123,6 +123,17 @@ describe('auto marker trace picking', () => {
     expect(pickPlacementTraceIndex(ticks, [NaN, NaN], 60, fallback)).toBe(0);
     expect(pickPlacementTraceIndex(ticks, [40, 60], NaN, fallback)).toBe(0);
   });
+
+  it('handles large traces (250k+ points) in fallback amplitude scanning without stack overflow', () => {
+    const count = 250_000;
+    const points = Array.from({ length: count }, (_, i) => ({
+      freq: i,
+      amp: i === 0 ? 0 : i === count - 1 ? 100 : 50,
+    }));
+    const largeFallback = { ...fallback, traces: [{ data: points }] };
+    expect(pickPlacementTraceIndex([], [20, 80], 25, largeFallback)).toBe(1);
+    expect(pickPlacementTraceIndex([], [20, 80], 115, largeFallback)).toBe(0);
+  });
 });
 
 describe('nearest marker sample pixel distance', () => {

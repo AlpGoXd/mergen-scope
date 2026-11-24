@@ -88,6 +88,7 @@ export interface WorkspaceDatasetBase {
   readonly fileName?: string | null;
   readonly hidden?: boolean;
   readonly isUniform?: boolean;
+  readonly envelopeOf?: number;
   readonly provenance: WorkspaceProvenance;
   readonly capabilities: WorkspaceDatasetCapabilities;
 }
@@ -172,6 +173,7 @@ export interface WorkspaceDisplayTraceBase {
   readonly family: WorkspaceDatasetFamily;
   readonly hidden?: boolean;
   readonly isUniform?: boolean;
+  readonly envelopeOf?: number;
   readonly interpolation?: InterpolationStrategy;
   readonly provenance: WorkspaceDisplayTraceProvenance;
   readonly source: WorkspaceDisplayTraceSourceRef;

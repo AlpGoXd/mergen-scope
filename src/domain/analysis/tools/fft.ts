@@ -1,9 +1,8 @@
-import type { AnalysisInputs, AnalysisTool, ParameterValues } from '../../../types/registry-contract';
+import type { AnalysisOutput, AnalysisTool, Capability, ParameterValues } from '../../../types/registry-contract';
 import type { DataPoint, Trace } from '../../../types/trace';
 import { normalizeUnitName } from '../../units';
-import { FFT_SCALE_UNITS, computeFft, fftSegments } from '../fft';
+import { FFT_SCALE_UNITS, canComputeFftSegments, computeFft } from '../fft';
 import type { WindowSpec } from '../fft';
-import { sliceTraceToRange } from '../range-stats';
 import { allowed, denied, derived, sourceVisibleRange, timeTraceOnly } from './shared';
 
 export const FFT_POINT_OPTIONS = ['auto', '64', '128', '256', '512', '1024', '2048', '4096', '8192', '16384', '32768', '65536'] as const;
@@ -29,12 +28,59 @@ export const FFT_DEFAULTS: FftParams = { window: 'hann', terms: '4', beta: 8.6, 
 
 /** Samples are read as volts; a prefixed volt unit is scaled to volts. */
 const VOLT_FACTORS: Readonly<Record<string, number>> = { v: 1, mv: 1e-3, uv: 1e-6, 'µv': 1e-6, 'μv': 1e-6, kv: 1e3 };
+const FFT_CACHE_MIN_POINTS = 16_384;
 
-function samplesInRange(inputs: AnalysisInputs, trace: Trace, p: FftParams): DataPoint[] {
-  const data = sliceTraceToRange(trace.data, p.range === 'visible' ? sourceVisibleRange(inputs, trace) : null);
-  const factor = VOLT_FACTORS[normalizeUnitName(trace.units.y)] ?? 1;
-  return factor === 1 ? data : data.map(point => ({ freq: point.freq, amp: point.amp * factor }));
+interface CachedFftEntry {
+  readonly key: string;
+  readonly capability: Capability;
+  readonly outputs: readonly AnalysisOutput[];
 }
+
+const fftOutputCache = new WeakMap<readonly DataPoint[], CachedFftEntry>();
+
+function validRange(range: { readonly left: number; readonly right: number } | null): { readonly left: number; readonly right: number } | null {
+  return range && Number.isFinite(range.left) && Number.isFinite(range.right) && range.right >= range.left ? range : null;
+}
+
+function samplesInRange(trace: Trace, range: { readonly left: number; readonly right: number } | null, factor: number): readonly DataPoint[] {
+  const data = trace.data;
+  if (!range && factor === 1) return data;
+  const out: DataPoint[] = [];
+  for (let i = 0; i < data.length; i++) {
+    const point = data[i];
+    if (!point || !Number.isFinite(point.freq) || !Number.isFinite(point.amp)) continue;
+    if (range && (point.freq < range.left || point.freq > range.right)) continue;
+    out.push(factor === 1 ? point : { freq: point.freq, amp: point.amp * factor });
+  }
+  return out;
+}
+
+function fftCacheKey(
+  trace: Trace,
+  factor: number,
+  range: { readonly left: number; readonly right: number } | null,
+  p: FftParams,
+): string {
+  return [
+    trace.id,
+    trace.name,
+    trace.dn ?? '',
+    factor,
+    range ? `${range.left}:${range.right}` : 'all',
+    p.window,
+    p.terms,
+    p.beta,
+    p.sigma,
+    p.alpha,
+    p.sidelobe,
+    p.points,
+    p.averaging,
+    p.scale,
+    p.impedance,
+    p.detrend,
+  ].join('|');
+}
+
 const pointsOf = (p: FftParams): 'auto' | number => p.points === 'auto' ? 'auto' : Number(p.points);
 export function windowSpecOf(p: Pick<FftParams, 'window' | 'terms' | 'beta' | 'sigma' | 'alpha' | 'sidelobe'>): WindowSpec {
   return { kind: p.window, terms: Number(p.terms) as 3 | 4 | 7, beta: p.beta, sigma: p.sigma, alpha: p.alpha, sidelobeDb: p.sidelobe };
@@ -47,19 +93,34 @@ export const fftTool: AnalysisTool<typeof params> = {
   appliesToInputs: (inputs, p = FFT_DEFAULTS) => {
     const trace = inputs.traces[0];
     if (!trace) return allowed;
-    const chosen = fftSegments(samplesInRange(inputs, trace, p), pointsOf(p), p.averaging);
+    const range = p.range === 'visible' ? validRange(sourceVisibleRange(inputs, trace)) : null;
+    const factor = VOLT_FACTORS[normalizeUnitName(trace.units.y)] ?? 1;
+    const key = fftCacheKey(trace, factor, range, p);
+    const cached = trace.data.length >= FFT_CACHE_MIN_POINTS ? fftOutputCache.get(trace.data) : undefined;
+    if (cached && cached.key === key) return cached.capability;
+    const chosen = canComputeFftSegments(trace.data, range, pointsOf(p), p.averaging);
     return chosen.ok ? allowed : denied(chosen.reason);
   },
   compute: (inputs, p) => {
     const trace = inputs.traces[0];
     if (!trace) return [];
-    const outcome = computeFft(samplesInRange(inputs, trace, p), { window: windowSpecOf(p), points: pointsOf(p), scale: p.scale, impedance: p.impedance, averaging: p.averaging, detrend: p.detrend });
-    if (!outcome.ok) return [];
+    const range = p.range === 'visible' ? validRange(sourceVisibleRange(inputs, trace)) : null;
+    const factor = VOLT_FACTORS[normalizeUnitName(trace.units.y)] ?? 1;
+    const key = fftCacheKey(trace, factor, range, p);
+    const cached = trace.data.length >= FFT_CACHE_MIN_POINTS ? fftOutputCache.get(trace.data) : undefined;
+    if (cached && cached.key === key) return cached.outputs;
+    const outcome = computeFft(samplesInRange(trace, range, factor), { window: windowSpecOf(p), points: pointsOf(p), scale: p.scale, impedance: p.impedance, averaging: p.averaging, detrend: p.detrend });
+    if (!outcome.ok) {
+      if (trace.data.length >= FFT_CACHE_MIN_POINTS) {
+        fftOutputCache.set(trace.data, { key, capability: denied(outcome.reason), outputs: [] });
+      }
+      return [];
+    }
     const r = outcome.result, facts = r.facts;
     // The created trace carries what Harmonics needs to read tone power and noise exactly.
     const fft = { enbw: facts.enbw, lobe: facts.lobe, binHz: r.binHz, sampleRate: r.sampleRate };
     const spectrum = derived(trace, r.spectrum, 'derived', { ...p, transform: 'fft', points: r.points, fft });
-    return [
+    const outputs: readonly AnalysisOutput[] = [
       { type: 'numbers', values: {
         fundamentalHz: r.fundamental?.freq ?? NaN, fundamentalLevel: r.fundamental?.level ?? NaN,
         binHz: r.binHz, points: r.points, segments: r.segments,
@@ -67,5 +128,9 @@ export const fftTool: AnalysisTool<typeof params> = {
       } },
       { type: 'trace', trace: { ...spectrum, domain: 'frequency', family: 'spectrum', isUniform: true, units: { x: 'Hz', y: FFT_SCALE_UNITS[p.scale] } } },
     ];
+    if (trace.data.length >= FFT_CACHE_MIN_POINTS) {
+      fftOutputCache.set(trace.data, { key, capability: allowed, outputs });
+    }
+    return outputs;
   },
 };

@@ -67,6 +67,7 @@ export interface DisplayTraceBase {
   readonly family: DatasetFamily;
   readonly hidden?: boolean;
   readonly isUniform?: boolean;
+  readonly envelopeOf?: number;
   readonly interpolation?: InterpolationStrategy;
   readonly provenance: {
     readonly parentDatasetId: string;
@@ -134,6 +135,7 @@ export function makeScalarDisplayTrace(
     hidden?: boolean;
     family?: DatasetFamily;
     isUniform?: boolean;
+    envelopeOf?: number;
     interpolation?: InterpolationStrategy;
     supportedViews?: readonly DisplayViewMode[];
     defaultView?: DisplayViewMode;
@@ -152,6 +154,7 @@ export function makeScalarDisplayTrace(
     family: options.family ?? 'spectrum',
     hidden: options.hidden ?? false,
     isUniform: options.isUniform ?? false,
+    ...(options.envelopeOf !== undefined ? { envelopeOf: options.envelopeOf } : {}),
     interpolation: options.interpolation,
     provenance:
       options.provenance ?? makeDisplayTraceProvenance(datasetId, [], []),

@@ -2,7 +2,8 @@ import type { AnalysisInstance } from '../../types/analysis-instance';
 import type { AnalysisInputs, AnalysisOutput, AnalysisTool, ParameterSchema, ParameterValue } from '../../types/registry-contract';
 import type { DerivedTrace, Trace } from '../../types/trace';
 import { validateParameters } from './tool-contract';
-import { getAnalysisTool } from './tool-registry';
+import { getAnalysisTool, toolAppliesTo } from './tool-registry';
+import { isIP3Label } from './ip3';
 import { computeBinaryTraceMathData } from '../trace-ops';
 import type { BinaryOp } from '../trace-ops';
 import { alignAndCompute, describeStimulus } from './trace-math-align';
@@ -52,11 +53,40 @@ export function computeInstance(instance: AnalysisInstance, inputs: AnalysisInpu
   const second = inputs.traces.find(trace => trace.id === instance.source.secondTraceId);
   if (!primary && instance.toolId !== 'line-crossings' && instance.toolId !== 'ip3') return { reason: 'Select a source trace.' };
   if (instance.source.secondTraceId && !second) return { reason: 'Select a second source trace.' };
-  const selected = instance.toolId === 'line-crossings' ? inputs.traces : [primary, second].filter((trace): trace is Trace => trace !== undefined);
+  if (primary) { const capability = toolAppliesTo(tool, primary); if (!capability.allowed) return { reason: capability.reason }; }
+  if (second) { const capability = toolAppliesTo(tool, second); if (!capability.allowed) return { reason: capability.reason }; }
+  if (instance.toolId === 'ip3' && !primary && inputs.markers) {
+    const roleTraceNames = new Set(inputs.markers.filter(marker => isIP3Label(marker.label)).map(marker => marker.trace));
+    for (const trace of inputs.traces) {
+      if (!roleTraceNames.has(trace.name)) continue;
+      const capability = toolAppliesTo(tool, trace);
+      if (!capability.allowed) return { reason: capability.reason };
+    }
+  }
+  let selected: readonly Trace[];
+  if (instance.toolId === 'line-crossings') {
+    const line = inputs.lines?.find(item => item.id === instance.source.lineId);
+    const tracePaneMap = inputs.tracePaneMap;
+    const scopedTraces = line && tracePaneMap
+      ? inputs.traces.filter(trace => (!inputs.vis || inputs.vis[trace.name]) && line.paneIds.some(pid => tracePaneMap[trace.name]?.includes(pid)))
+      : inputs.traces;
+    const allowedTraces: Trace[] = [];
+    let firstDenialReason: string | null = null;
+    for (const trace of scopedTraces) {
+      const traceCap = toolAppliesTo(tool, trace);
+      if (traceCap.allowed) allowedTraces.push(trace);
+      else if (firstDenialReason === null) firstDenialReason = traceCap.reason;
+    }
+    if (scopedTraces.length > 0 && allowedTraces.length === 0 && firstDenialReason !== null) {
+      return { reason: firstDenialReason };
+    }
+    selected = allowedTraces;
+  } else {
+    selected = [primary, second].filter((trace): trace is Trace => trace !== undefined);
+  }
   // IP3 role markers (F1, F2, IM3L, IM3U) belong to one trace each, so a card only reads the markers on its own source.
   const markers = instance.toolId === 'ip3' && primary && inputs.markers ? inputs.markers.filter(marker => marker.trace === primary.name) : inputs.markers;
   const resolved: AnalysisInputs = { ...inputs, traces: selected, lineId: instance.source.lineId, ...(markers ? { markers } : {}) };
-  if (primary) { const capability = tool.appliesTo(primary); if (!capability.allowed) return { reason: capability.reason }; }
   const capability = tool.appliesToInputs?.(resolved, validated.values);
   if (capability && !capability.allowed) return { reason: capability.reason };
   if (instance.toolId === 'trace-math' && primary && second) {
@@ -146,6 +176,36 @@ export function paneRangesOf(views: Readonly<Record<string, { readonly x: readon
 /** Some created output depends on what a pane shows, so a pan or zoom must recompute it. */
 export function outputsFollowView(analyses: readonly AnalysisInstance[]): boolean {
   return analyses.some(instance => instance.outputTraceId !== null && instance.params['range'] === 'visible');
+}
+
+/** True when any `range: 'visible'` output's source trace moved panes or had its pane X view change. */
+export function visibleOutputSourceChanged(
+  analyses: readonly AnalysisInstance[],
+  traces: readonly Trace[],
+  prevMap: Readonly<Record<string, readonly string[]>>,
+  nextMap: Readonly<Record<string, readonly string[]>>,
+  prevViews: Readonly<Record<string, { readonly x: readonly [number, number] | null }>>,
+  nextViews: Readonly<Record<string, { readonly x: readonly [number, number] | null }>>,
+): boolean {
+  const traceById = new Map(traces.map(trace => [trace.id, trace]));
+  for (const instance of analyses) {
+    if (instance.outputTraceId === null || instance.params['range'] !== 'visible') continue;
+    for (const id of [instance.source.traceId, instance.source.secondTraceId]) {
+      if (!id) continue;
+      const trace = traceById.get(id);
+      if (!trace) continue;
+      const prevPanes = prevMap[trace.name] ?? [];
+      const nextPanes = nextMap[trace.name] ?? [];
+      if (prevPanes.length !== nextPanes.length || prevPanes.some((p, i) => p !== nextPanes[i])) return true;
+      for (const paneId of nextPanes) {
+        const px = prevViews[paneId]?.x ?? null;
+        const nx = nextViews[paneId]?.x ?? null;
+        if (px === nx) continue;
+        if (!px || !nx || px[0] !== nx[0] || px[1] !== nx[1]) return true;
+      }
+    }
+  }
+  return false;
 }
 
 export function recomputeOutputs(state: AnalysisOutputState): { analyses: AnalysisInstance[]; derivedTraces: Trace[] } {

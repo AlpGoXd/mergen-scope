@@ -54,6 +54,7 @@ export interface DatasetBase {
   readonly fileName?: string | null;
   readonly hidden?: boolean;
   readonly isUniform?: boolean;
+  readonly envelopeOf?: number;
   readonly provenance: Provenance;
   readonly capabilities: DatasetCapabilities;
 }
@@ -140,6 +141,7 @@ export function makeDatasetBase(
     fileName?: string | null;
     hidden?: boolean;
     isUniform?: boolean;
+    envelopeOf?: number;
     provenance?: Provenance;
     capabilities?: Partial<DatasetCapabilities>;
   } = {},
@@ -158,6 +160,7 @@ export function makeDatasetBase(
     fileName: options.fileName ?? null,
     hidden: options.hidden ?? false,
     isUniform: options.isUniform ?? false,
+    ...(options.envelopeOf !== undefined ? { envelopeOf: options.envelopeOf } : {}),
     provenance,
     capabilities,
   };
@@ -188,6 +191,7 @@ export function makeSpectrumDataset(
     fileName?: string | null;
     hidden?: boolean;
     isUniform?: boolean;
+    envelopeOf?: number;
     provenance?: Provenance;
     capabilities?: Partial<DatasetCapabilities>;
   } = {},
@@ -210,6 +214,7 @@ export function makeWaveformDataset(
     fileName?: string | null;
     hidden?: boolean;
     isUniform?: boolean;
+    envelopeOf?: number;
     provenance?: Provenance;
     capabilities?: Partial<DatasetCapabilities>;
   } = {},

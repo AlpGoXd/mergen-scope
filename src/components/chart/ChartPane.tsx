@@ -41,6 +41,7 @@ import { formatEngineeringValue, formatPerDivision, makeYAxisTickFormatter } fro
 import { placeMarker } from '../../domain/markers';
 import { nextLineLabel } from '../../domain/ref-lines';
 import { makeNiceTicks, NICE_TICK_COUNT } from '../../domain/trace-math';
+import { isEnvelopeTrace } from '../../domain/trace-model';
 import { sampleDotsVisible, visibleSampleCount } from '../../domain/dots-and-symbols';
 import { allocateTraceColors } from '../../domain/trace-palette';
 import { Btn } from '../shared/Btn';
@@ -88,6 +89,7 @@ export interface ChartPaneProps {
 const CHART_MARGIN_RIGHT = 20;
 const CHART_MARGIN_TOP = 10;
 const CHART_X_AXIS_HEIGHT = 35; // approximate height for x-axis ticks + label
+const ENVELOPE_SAMPLES_TITLE = 'This trace is a display envelope, not measured samples. Re-import with Keep all to see samples.';
 
 export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportView }: ChartPaneProps) {
   const isExport = exportView !== undefined;
@@ -229,6 +231,7 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
   const gainConverted = gain.traces !== paneMembers;
   const paneTraces = useMemo(() => gainConverted ? gain.traces.filter(trace => vis[trace.name]) : sourceTraces,
     [gainConverted, gain.traces, vis, sourceTraces]);
+  const allEnvelopes = paneTraces.length > 0 && paneTraces.every(isEnvelopeTrace);
   const mergedData = useMemo(() => gainConverted
     ? mergePaneData(paneTraces, currentXZoom, false) : sourceRows, [gainConverted, paneTraces, currentXZoom, sourceRows]);
   const xReason = useMemo(() => logXReason(paneTraces), [paneTraces]);
@@ -525,11 +528,19 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
     if (Array.isArray(yDomain) && yDomain[0] !== 'auto') {
       return { min: yDomain[0], max: yDomain[1] };
     }
-    const amps = mergedData.flatMap((row) =>
-      paneTraces.map((tr) => row[tr.name] as number | undefined).filter((v): v is number => v != null && Number.isFinite(v))
-    );
-    if (!amps.length) return null;
-    return paddedYDomain(Math.min(...amps), Math.max(...amps), 0.05);
+    let min = Infinity;
+    let max = -Infinity;
+    for (const row of mergedData) {
+      for (const tr of paneTraces) {
+        const v = row[tr.name];
+        if (v != null && Number.isFinite(v)) {
+          if (v < min) min = v;
+          if (v > max) max = v;
+        }
+      }
+    }
+    if (!Number.isFinite(min) || !Number.isFinite(max)) return null;
+    return paddedYDomain(min, max, 0.05);
   }, [mergedData, paneTraces, yDomain]);
 
   // The line layer reports the plot rectangle and the real scale domains: they feed the edge tags here and the rows' "off view" text.
@@ -1219,16 +1230,29 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
           onScaleClick={axes ? anchor => { setTypeAnchor(null); setSettingsAnchor(null); setAxisMenu(null); setScaleAnchor(current => current ? null : anchor); } : null}
           scaleOpen={scaleAnchor !== null}
           link={traceNamesInPane.length > 0 ? iconOnly => <XLinkChip paneId={paneId} iconOnly={iconOnly} /> : null}
-          samples={TableRenderer ? null : iconOnly => (
-            <Btn variant={settings.showSampleDots ? 'armed' : 'neutral'} tone="pane" small className={`ph-samples${iconOnly ? ' is-icon' : ''}`} aria-label="Samples" aria-pressed={settings.showSampleDots}
-              title={settings.showSampleDots && !isRadial && plotView && plotView.plot.width > 0 && paneTraces.some(trace => {
+          samples={TableRenderer ? null : iconOnly => {
+            const denseNonEnvelope = settings.showSampleDots && !isRadial && plotView && plotView.plot.width > 0
+              && paneTraces.some(trace => {
+                if (isEnvelopeTrace(trace)) return false;
                 const points = visibleSampleCount(trace.data, plotView.x);
                 return points > 0 && !sampleDotsVisible(points, plotView.plot.width);
-              }) ? 'Zoom in to see the sample points' : 'Show the measured sample points'} data-testid="samples-toggle"
-              onClick={e => { e.stopPropagation(); paneDispatch({ type: 'SET_PANE_SETTINGS', payload: { paneId, patch: { showSampleDots: !settings.showSampleDots } } }); }}>
-              {iconOnly ? <SamplesIcon /> : 'Samples'}
-            </Btn>
-          )}
+              });
+            return (
+              <Btn
+                variant={settings.showSampleDots && !allEnvelopes ? 'armed' : 'neutral'}
+                tone="pane"
+                small
+                className={`ph-samples${iconOnly ? ' is-icon' : ''}`}
+                aria-label="Samples"
+                aria-pressed={settings.showSampleDots && !allEnvelopes}
+                disabled={allEnvelopes}
+                title={allEnvelopes ? ENVELOPE_SAMPLES_TITLE : denseNonEnvelope ? 'Zoom in to see the sample points' : 'Show the measured sample points'}
+                data-testid="samples-toggle"
+                onClick={e => { e.stopPropagation(); paneDispatch({ type: 'SET_PANE_SETTINGS', payload: { paneId, patch: { showSampleDots: !settings.showSampleDots } } }); }}>
+                {iconOnly ? <SamplesIcon /> : 'Samples'}
+              </Btn>
+            );
+          }}
           chip={fit => (
             <PaneChartTypeControl
               fit={fit} icon={paneTypes[currentType].iconKey} label={currentType === 'eye' ? 'Eye · CH1' : paneTypes[currentType].title}
@@ -1253,6 +1277,7 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
             onAnchorChange={anchor => { setTypeChange(null); returnToTileRef.current = null; setTypeAnchor(null); setSettingsAnchor(anchor); if (anchor) typeTriggerRef.current = anchor; else { typeTriggerRef.current?.focus({ preventScroll: true }); typeTriggerRef.current = null; } }}
             onChoose={choosePaneType} onConfirm={confirmPaneType} onCancel={cancelTypeChange}
             table={TableRenderer ? { settings: tableView.settings, visible: tableView.visible } : null}
+            samplesDisabledReason={allEnvelopes ? ENVELOPE_SAMPLES_TITLE : undefined}
             axes={axes}
             resolvedPolarRadius={isPolar ? polarRadius((settings.polar ?? DEFAULT_POLAR_SETTINGS).radius, paneTraces) : undefined}
             onFit={isRadial && paneTraces.length > 0 ? () => setRadialFitRequest(value => value + 1) : null}

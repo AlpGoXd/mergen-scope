@@ -7,13 +7,20 @@ import { useAggregateWorkspace } from '../stores/aggregate-workspace-store';
 import type { OpenDataCommand } from '../stores/aggregate-workspace-store';
 import { useAsk } from '../stores/dialog-store';
 import { replaceWorkspaceText, sameNameText, warnLargeFileText } from '../domain/confirm-text';
-import { classifyReadFile, maxTraceSerial, workspaceCounts } from '../domain/open-file-read';
+import { classifyReadBinary, classifyReadFile, maxTraceSerial, workspaceCounts } from '../domain/open-file-read';
+import { BINARY_SNIFF_BYTES, detectBinarySignature } from '../domain/parsers/binary-detect';
+import { isBinaryFileExtension, isStrictRawBinaryExtension } from '../domain/parsers/raw-binary';
 import { copyName } from '../domain/open-files-plan';
 import { classifyFileSize, refuseLargeFileMessage } from '../domain/file-size-policy';
 import { usePaneLimit } from '../stores/pane-store';
 import type { OpenChoice } from '../types/open-files-plan';
 
-export const DATA_FILE_ACCEPT = ['.csv', '.tsv', '.txt', '.dat', ...Array.from({ length: 16 }, (_, i) => `.s${i + 1}p`)].join(',');
+export const DATA_FILE_ACCEPT = [
+  '.csv', '.tsv', '.txt', '.dat',
+  '.bin', '.trc', '.isf',
+  '.cfile', '.cf32', '.fc32', '.sc16', '.cs16', '.cu8', '.cs8', '.iq', '.f32', '.f64', '.i32', '.u32', '.i16', '.u8',
+  ...Array.from({ length: 16 }, (_, i) => `.s${i + 1}p`),
+].join(',');
 let issuedImportId = 0;
 function nextImportId(): string { issuedImportId += 1; return `import-${Date.now()}-${issuedImportId}`; }
 
@@ -48,6 +55,13 @@ export function useFileImport() {
     const read = await Promise.all(accepted.map(async file => {
       const id=nextImportId();
       try {
+        if (!workspaceRoute && typeof file.slice === 'function' && typeof file.arrayBuffer === 'function') {
+          const head = new Uint8Array(await file.slice(0, BINARY_SNIFF_BYTES).arrayBuffer());
+          const hasBinaryBytes = head.some(byte => byte === 0 || (byte < 0x20 && byte !== 0x09 && byte !== 0x0a && byte !== 0x0d));
+          if (detectBinarySignature(head) || isStrictRawBinaryExtension(file.name) || (isBinaryFileExtension(file.name) && hasBinaryBytes)) {
+            return classifyReadBinary(file.name, await file.arrayBuffer(), id);
+          }
+        }
         const text=await file.text();
         return classifyReadFile(file.name, text, workspaceRoute, id);
       } catch(error) {

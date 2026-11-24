@@ -121,6 +121,9 @@ export interface TraceBase {
   /** True when the source x-samples are uniformly spaced within tolerance. */
   readonly isUniform?: boolean;
 
+  /** Original sample count when this trace is a min-max display envelope. */
+  readonly envelopeOf?: number;
+
   /** Optional per-trace interpolation override. */
   readonly interpolation?: InterpolationStrategy;
 }

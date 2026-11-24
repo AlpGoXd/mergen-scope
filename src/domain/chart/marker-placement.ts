@@ -62,11 +62,21 @@ export function pickPlacementTraceIndex(
     if (tickVals.length < 2) {
       const left = fallback.xZoom?.left ?? -Infinity;
       const right = fallback.xZoom?.right ?? Infinity;
-      const allAmps = fallback.traces.flatMap(trace =>
-        trace.data.filter(point => point.freq >= left && point.freq <= right)
-          .map(point => point.amp).filter(Number.isFinite)
-      );
-      tickVals.push(...(allAmps.length ? [Math.min(...allAmps), Math.max(...allAmps)] : [0, 1]));
+      let ampMin = Infinity;
+      let ampMax = -Infinity;
+      for (const trace of fallback.traces) {
+        for (const point of trace.data) {
+          if (point.freq >= left && point.freq <= right && Number.isFinite(point.amp)) {
+            if (point.amp < ampMin) ampMin = point.amp;
+            if (point.amp > ampMax) ampMax = point.amp;
+          }
+        }
+      }
+      if (Number.isFinite(ampMin) && Number.isFinite(ampMax)) {
+        tickVals.push(ampMin, ampMax);
+      } else {
+        tickVals.push(0, 1);
+      }
     }
     const yMin = Math.min(...tickVals);
     const yMax = Math.max(...tickVals);
