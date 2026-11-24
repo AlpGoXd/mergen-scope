@@ -636,63 +636,12 @@ export function BinaryWizardDialog({ entry, buffer, position, total, queue, prio
 
         <div className="iw-body">
           <div className="iw-settings">
-            <section className="iw-group" aria-label="Parser">
-              <h3 className="t-section">Parser</h3>
-              <div className="iw-seg">
-                <div className="ui-segmented" role="radiogroup" aria-label="Parser mode">
-                  <Btn
-                    role="radio"
-                    variant="slate"
-                    active={config.mode === 'auto-scope'}
-                    aria-checked={config.mode === 'auto-scope'}
-                    disabled={!detectedScope && activeParserChoice === 'auto'}
-                    title={detectedScope ? `Parse using the oscilloscope file header (${scopeFormatLabel(detectedScope)})` : 'No scope header detected — pick a format from Format ▾ or use Raw binary'}
-                    onClick={() => setConfig(prev => ({ ...prev, mode: 'auto-scope' }))}
-                  >
-                    Scope header
-                  </Btn>
-                  <Btn
-                    role="radio"
-                    variant="slate"
-                    active={config.mode === 'raw'}
-                    aria-checked={config.mode === 'raw'}
-                    aria-label="Custom raw binary"
-                    title="Custom binary mode: decode any raw/proprietary binary file with custom data type, endianness, layout, header skip, frame pad, footer, and sample rate"
-                    onClick={() => setConfig(prev => ({ ...prev, mode: 'raw' }))}
-                  >
-                    Custom
-                  </Btn>
-                  <Btn
-                    variant="slate"
-                    active={explicitParserActive || Boolean(parserMoreAnchor)}
-                    aria-label="Choose parser format"
-                    title="Force a specific oscilloscope parser or switch to the Text / CSV importer"
-                    aria-haspopup="menu"
-                    aria-expanded={Boolean(parserMoreAnchor)}
-                    onClick={event => {
-                      const target = event.currentTarget;
-                      setParserMoreAnchor(cur => (cur ? null : target));
-                    }}
-                  >
-                    <span className="iw-more-face">{parserMoreFace}<CaretDownIcon /></span>
-                  </Btn>
-                </div>
-              </div>
-              <span className="t-caption" data-testid="binary-wizard-detected">
-                {config.mode === 'raw'
-                  ? 'Decoding raw samples directly'
-                  : activeParserChoice !== 'auto'
-                    ? `Forced: ${scopeFormatLabel(activeParserChoice)}`
-                    : `Detected: ${scopeFormatLabel(detectedScope)}`}
-              </span>
-            </section>
-
             <section className="iw-group" aria-label="Auto-detect confidence">
-              <h3 className="t-section">Auto-detect</h3>
               <div
                 className={`iw-detect is-${confidence.level}`}
                 data-testid="binary-wizard-confidence"
                 data-confidence-level={confidence.level}
+                title="How confident Mergen Scope is in the detected binary format"
               >
                 <span className={`iw-detect-icon is-${confidence.level}`}>
                   <Icon name={CONFIDENCE_ICON[confidence.level]} />
@@ -717,10 +666,67 @@ export function BinaryWizardDialog({ entry, buffer, position, total, queue, prio
               )}
             </section>
 
+            <section className="iw-group" aria-label="Parser">
+              <h3 className="t-section">File format</h3>
+              <div className="iw-seg">
+                <div className="ui-segmented" role="radiogroup" aria-label="Parser mode">
+                  <Btn
+                    role="radio"
+                    variant="slate"
+                    active={config.mode === 'auto-scope'}
+                    aria-checked={config.mode === 'auto-scope'}
+                    disabled={!detectedScope && activeParserChoice === 'auto'}
+                    title={detectedScope ? `Parse using the oscilloscope file header (${scopeFormatLabel(detectedScope)})` : 'No scope header detected — pick a format from Format ▾ or use Custom'}
+                    onClick={() => setConfig(prev => ({ ...prev, mode: 'auto-scope' }))}
+                  >
+                    Scope header
+                  </Btn>
+                  <Btn
+                    role="radio"
+                    variant="slate"
+                    active={config.mode === 'raw'}
+                    aria-checked={config.mode === 'raw'}
+                    aria-label="Custom raw binary"
+                    title="Custom binary mode: decode any raw/proprietary binary file with custom data type, endianness, layout, header skip, frame pad, footer, and sample rate"
+                    onClick={() => setConfig(prev => ({ ...prev, mode: 'raw' }))}
+                  >
+                    Custom
+                  </Btn>
+                  <Btn
+                    variant="slate"
+                    active={explicitParserActive || Boolean(parserMoreAnchor)}
+                    aria-label="Choose parser format"
+                    title="Force a specific instrument parser or switch to the Text / CSV importer"
+                    aria-haspopup="menu"
+                    aria-expanded={Boolean(parserMoreAnchor)}
+                    onClick={event => {
+                      const target = event.currentTarget;
+                      setParserMoreAnchor(cur => (cur ? null : target));
+                    }}
+                  >
+                    <span className="iw-more-face">{parserMoreFace}<CaretDownIcon /></span>
+                  </Btn>
+                </div>
+              </div>
+              <span className="t-caption" data-testid="binary-wizard-detected">
+                {config.mode === 'raw'
+                  ? 'Custom binary decoding'
+                  : activeParserChoice !== 'auto'
+                    ? `Forced: ${scopeFormatLabel(activeParserChoice)}`
+                    : `Detected: ${scopeFormatLabel(detectedScope)}`}
+              </span>
+            </section>
+
             {config.mode === 'auto-scope' && preview.allScopeChannels.length > 0 && (
               <section className="iw-group" aria-label="Channels">
-                <h3 className="t-section">Channels (probe &amp; unit)</h3>
+                <h3 className="t-section">Channels</h3>
                 <div className="iw-chan-table" data-testid="binary-wizard-channels">
+                  <div className="iw-chan-head t-caption" aria-hidden="true">
+                    <span>Channel</span>
+                    <span>Unit</span>
+                    <span>Scale ×</span>
+                    <span>Offset</span>
+                  </div>
                   {preview.allScopeChannels.map(ch => {
                     const ov = config.channelOverrides?.[ch.index];
                     const checked = ov?.enabled !== undefined
@@ -735,7 +741,7 @@ export function BinaryWizardDialog({ entry, buffer, position, total, queue, prio
                     const offVal = chDrafts[offKey] ?? formatCompactNum(ov?.yOffset ?? 0);
                     return (
                       <div key={ch.index} className="iw-chan-row" data-testid={`binary-ch-row-${ch.index}`}>
-                        <label className="iw-check t-label iw-chan-name" title={ch.label}>
+                        <label className="iw-check t-label iw-chan-name" title={`Include or omit ${ch.label}`}>
                           <input
                             type="checkbox"
                             checked={checked}
@@ -762,7 +768,7 @@ export function BinaryWizardDialog({ entry, buffer, position, total, queue, prio
                           type="text"
                           inputMode="decimal"
                           aria-label={`${ch.label} scale multiplier`}
-                          title="Channel Y scale multiplier (e.g. 10 for 10× probe)"
+                          title={`Multiply ${ch.label} values (e.g. 10 for a 10× probe)`}
                           value={multVal}
                           onChange={event => {
                             const raw = event.target.value;
@@ -781,7 +787,7 @@ export function BinaryWizardDialog({ entry, buffer, position, total, queue, prio
                           type="text"
                           inputMode="decimal"
                           aria-label={`${ch.label} Y offset`}
-                          title="Channel Y offset"
+                          title={`Add a constant offset to ${ch.label}`}
                           value={offVal}
                           onChange={event => {
                             const raw = event.target.value;
@@ -798,69 +804,74 @@ export function BinaryWizardDialog({ entry, buffer, position, total, queue, prio
                       </div>
                     );
                   })}
-                  <span className="t-caption">Columns: Channel · Unit · Scale × · Offset</span>
                 </div>
               </section>
             )}
 
             {config.mode === 'raw' && (
               <section className="iw-group" aria-label="Binary format">
-                <h3 className="t-section">Binary format</h3>
-                <div className="iw-presets" aria-label="SDR presets">
-                  {BINARY_RAW_PRESETS.map(preset => {
-                    const active = isPresetActive(preset.patch);
-                    return (
-                      <Btn
-                        key={preset.id}
-                        small
-                        variant="slate"
-                        active={active}
-                        aria-pressed={active}
-                        title={preset.title}
-                        onClick={() => applyRawPreset(preset.patch)}
-                      >
-                        {preset.label}
-                      </Btn>
-                    );
-                  })}
-                </div>
-                <div className="iw-seg">
-                  <div className="ui-segmented" role="radiogroup" aria-label="Sample data type">
-                    {SAMPLE_TYPES.map(opt => {
-                      const active = config.sampleType === opt.value;
+                <h3 className="t-section">Sample encoding</h3>
+                <div className="iw-line">
+                  <span className="t-label t-muted" title="One-click shortcuts for common SDR / GNU Radio IQ files">Presets</span>
+                  <div className="iw-presets" aria-label="SDR presets">
+                    {BINARY_RAW_PRESETS.map(preset => {
+                      const active = isPresetActive(preset.patch);
                       return (
                         <Btn
-                          key={opt.value}
-                          role="radio"
+                          key={preset.id}
+                          small
                           variant="slate"
                           active={active}
-                          aria-checked={active}
-                          aria-label={opt.ariaLabel}
-                          title={opt.title}
-                          onClick={() => setConfig(prev => ({ ...prev, sampleType: opt.value }))}
+                          aria-pressed={active}
+                          title={preset.title}
+                          onClick={() => applyRawPreset(preset.patch)}
                         >
-                          {opt.label}
+                          {preset.label}
                         </Btn>
                       );
                     })}
-                    <Btn
-                      variant="slate"
-                      active={extraTypeActive || Boolean(typeMoreAnchor)}
-                      aria-label="More data types"
-                      title="Additional binary sample formats: 64-bit float (f64), 32-bit int (i32/u32), unsigned 16-bit (u16)"
-                      aria-haspopup="menu"
-                      aria-expanded={Boolean(typeMoreAnchor)}
-                      onClick={event => {
-                        const target = event.currentTarget;
-                        setTypeMoreAnchor(cur => (cur ? null : target));
-                      }}
-                    >
-                      <span className="iw-more-face">{extraTypeFace}<CaretDownIcon /></span>
-                    </Btn>
                   </div>
                 </div>
                 <div className="iw-line">
-                  <span className="t-label t-muted">Byte order</span>
+                  <span className="t-label t-muted" title="Numeric encoding of each sample in the binary stream">Type</span>
+                  <div className="iw-seg">
+                    <div className="ui-segmented" role="radiogroup" aria-label="Sample data type">
+                      {SAMPLE_TYPES.map(opt => {
+                        const active = config.sampleType === opt.value;
+                        return (
+                          <Btn
+                            key={opt.value}
+                            role="radio"
+                            variant="slate"
+                            active={active}
+                            aria-checked={active}
+                            aria-label={opt.ariaLabel}
+                            title={opt.title}
+                            onClick={() => setConfig(prev => ({ ...prev, sampleType: opt.value }))}
+                          >
+                            {opt.label}
+                          </Btn>
+                        );
+                      })}
+                      <Btn
+                        variant="slate"
+                        active={extraTypeActive || Boolean(typeMoreAnchor)}
+                        aria-label="More data types"
+                        title="Additional binary sample formats: 64-bit float (f64), 32-bit int (i32/u32), unsigned 16-bit (u16)"
+                        aria-haspopup="menu"
+                        aria-expanded={Boolean(typeMoreAnchor)}
+                        onClick={event => {
+                          const target = event.currentTarget;
+                          setTypeMoreAnchor(cur => (cur ? null : target));
+                        }}
+                      >
+                        <span className="iw-more-face">{extraTypeFace}<CaretDownIcon /></span>
+                      </Btn>
+                    </div>
+                  </div>
+                </div>
+                <div className="iw-line">
+                  <span className="t-label t-muted" title="Multi-byte integer/float byte order">Byte order</span>
                   <div className="iw-seg">
                     <Segmented
                       label="Byte order"
@@ -871,7 +882,7 @@ export function BinaryWizardDialog({ entry, buffer, position, total, queue, prio
                   </div>
                 </div>
                 <div className="iw-line">
-                  <span className="t-label t-muted">Layout</span>
+                  <span className="t-label t-muted" title="How channels are arranged inside the binary stream">Layout</span>
                   <div className="iw-seg">
                     <Segmented
                       label="Channel layout"
@@ -910,138 +921,138 @@ export function BinaryWizardDialog({ entry, buffer, position, total, queue, prio
                     />
                   </div>
                 )}
-                <div className="iw-line">
-                  <label className="t-label t-muted" htmlFor={skipId} title="Leading header bytes to ignore before the first sample">Skip bytes</label>
-                  <input
-                    id={skipId}
-                    className="iw-input iw-input--mult t-label"
-                    type="number"
-                    min={0}
-                    max={Math.max(0, buffer.byteLength - 2)}
-                    step={1}
-                    title="Number of leading header bytes to skip before reading samples"
-                    value={config.headerBytes}
-                    onChange={event => {
-                      const n = Math.max(0, Math.floor(Number(event.target.value) || 0));
-                      setHexPageOffset(null);
-                      setConfig(prev => ({ ...prev, headerBytes: n }));
-                    }}
-                  />
-                </div>
-                <div className="iw-nudges" aria-label="Header skip step">
-                  {SKIP_NUDGES.map(item => (
-                    <Btn
-                      key={item.label}
-                      small
-                      aria-label={`Skip ${item.label} bytes`}
-                      title={item.title}
-                      onClick={() => nudgeSkip(item.delta)}
-                    >
-                      {item.label} B
-                    </Btn>
-                  ))}
-                  <Btn
-                    small
-                    aria-label="Auto-skip header"
-                    title="Scan for WAV 'data' chunk or leading ASCII header block and jump Skip bytes past it"
-                    onClick={autoSkipHeader}
-                  >
-                    Auto-skip
-                  </Btn>
-                </div>
-                {config.layout !== 'planar' && (
-                  <div className="iw-line">
-                    <label className="t-label t-muted" htmlFor={padId} title="Extra trailing bytes skipped after each sample frame (e.g. per-record timestamps, flags, or CRC)">Frame pad (B)</label>
+                <div className="iw-pair-grid">
+                  <div className="iw-field">
+                    <label className="t-caption" htmlFor={rateId} title="Sample rate in Hz for the time axis (supports k, M, G suffixes; 0 plots raw sample index)">Rate (Hz)</label>
                     <input
-                      id={padId}
-                      className="iw-input iw-input--mult t-label"
-                      type="number"
-                      min={0}
-                      max={1024}
-                      step={1}
-                      title="Extra padding bytes to skip after each sample frame (0 = tightly packed)"
-                      value={config.framePadBytes ?? 0}
+                      id={rateId}
+                      className="iw-input t-label"
+                      type="text"
+                      inputMode="decimal"
+                      placeholder="e.g. 1M or 0"
+                      title="Sample rate in Hz (e.g. 100k, 2.4M, 1G; enter 0 to plot against sample index)"
+                      value={rateDraft}
                       onChange={event => {
-                        const n = Math.max(0, Math.floor(Number(event.target.value) || 0));
-                        setConfig(prev => ({ ...prev, framePadBytes: n }));
+                        const raw = event.target.value;
+                        setRateDraft(raw);
+                        const parsed = parseEngInput(raw, { baseUnit: 'Hz' });
+                        if (parsed.ok && parsed.value >= 0) {
+                          setConfig(prev => ({ ...prev, sampleRateHz: parsed.value }));
+                        }
                       }}
+                      onBlur={() => setRateDraft(String(config.sampleRateHz))}
                     />
                   </div>
-                )}
-                <div className="iw-line">
-                  <label className="t-label t-muted" htmlFor={footerId} title="Trailing bytes to ignore at the end of the file (e.g. EOF metadata or checksums)">Footer (B)</label>
-                  <input
-                    id={footerId}
-                    className="iw-input iw-input--mult t-label"
-                    type="number"
-                    min={0}
-                    max={Math.max(0, buffer.byteLength - 2)}
-                    step={1}
-                    title="Number of trailing footer bytes to ignore at end-of-file (0 = read to end)"
-                    value={config.footerBytes ?? 0}
-                    onChange={event => {
-                      const n = Math.max(0, Math.floor(Number(event.target.value) || 0));
-                      setConfig(prev => ({ ...prev, footerBytes: n }));
-                    }}
-                  />
+                  <div className="iw-field">
+                    <label className="t-caption" htmlFor={skipId} title="Leading header bytes to ignore before the first sample">Skip bytes</label>
+                    <div className="iw-inline-row">
+                      <input
+                        id={skipId}
+                        className="iw-input t-label"
+                        type="number"
+                        min={0}
+                        max={Math.max(0, buffer.byteLength - 2)}
+                        step={1}
+                        title="Number of leading header bytes to skip before reading samples"
+                        value={config.headerBytes}
+                        onChange={event => {
+                          const n = Math.max(0, Math.floor(Number(event.target.value) || 0));
+                          setHexPageOffset(null);
+                          setConfig(prev => ({ ...prev, headerBytes: n }));
+                        }}
+                      />
+                      <Btn
+                        small
+                        aria-label="Auto-skip header"
+                        title="Scan for WAV 'data' chunk or leading ASCII header block and jump Skip bytes past it"
+                        onClick={autoSkipHeader}
+                      >
+                        Auto
+                      </Btn>
+                    </div>
+                  </div>
                 </div>
-                <div className="iw-line">
-                  <label className="t-label t-muted" htmlFor={rateId} title="Sample rate in Hz for the time axis (supports k, M, G suffixes; 0 plots raw sample index)">Rate (Hz)</label>
-                  <input
-                    id={rateId}
-                    className="iw-input iw-input--mult t-label"
-                    type="text"
-                    inputMode="decimal"
-                    placeholder="e.g. 1M or 0"
-                    title="Sample rate in Hz (e.g. 100k, 2.4M, 1G; enter 0 to plot against sample index)"
-                    value={rateDraft}
-                    onChange={event => {
-                      const raw = event.target.value;
-                      setRateDraft(raw);
-                      const parsed = parseEngInput(raw, { baseUnit: 'Hz' });
-                      if (parsed.ok && parsed.value >= 0) {
-                        setConfig(prev => ({ ...prev, sampleRateHz: parsed.value }));
-                      }
-                    }}
-                    onBlur={() => setRateDraft(String(config.sampleRateHz))}
-                  />
-                </div>
+                <details className="iw-disclosure" open={Boolean((config.framePadBytes ?? 0) > 0 || (config.footerBytes ?? 0) > 0)}>
+                  <summary className="t-caption" title="Optional per-frame struct padding and trailing EOF footer bytes">
+                    Struct framing &amp; footer
+                  </summary>
+                  <div className="iw-disclosure-body iw-pair-grid">
+                    {config.layout !== 'planar' && (
+                      <div className="iw-field">
+                        <label className="t-caption" htmlFor={padId} title="Extra trailing bytes skipped after each sample frame (e.g. timestamps, flags, or CRC)">Frame pad (B)</label>
+                        <input
+                          id={padId}
+                          className="iw-input t-label"
+                          type="number"
+                          min={0}
+                          max={1024}
+                          step={1}
+                          title="Extra padding bytes to skip after each sample frame (0 = tightly packed)"
+                          value={config.framePadBytes ?? 0}
+                          onChange={event => {
+                            const n = Math.max(0, Math.floor(Number(event.target.value) || 0));
+                            setConfig(prev => ({ ...prev, framePadBytes: n }));
+                          }}
+                        />
+                      </div>
+                    )}
+                    <div className="iw-field">
+                      <label className="t-caption" htmlFor={footerId} title="Trailing bytes to ignore at the end of the file (e.g. EOF metadata or checksums)">Footer (B)</label>
+                      <input
+                        id={footerId}
+                        className="iw-input t-label"
+                        type="number"
+                        min={0}
+                        max={Math.max(0, buffer.byteLength - 2)}
+                        step={1}
+                        title="Number of trailing footer bytes to ignore at end-of-file (0 = read to end)"
+                        value={config.footerBytes ?? 0}
+                        onChange={event => {
+                          const n = Math.max(0, Math.floor(Number(event.target.value) || 0));
+                          setConfig(prev => ({ ...prev, footerBytes: n }));
+                        }}
+                      />
+                    </div>
+                  </div>
+                </details>
               </section>
             )}
 
             <section className="iw-group" aria-label="Sample window">
               <h3 className="t-section">Sample slice</h3>
-              <div className="iw-line">
-                <label className="t-label t-muted" htmlFor={startId} title="0-based sample index to start importing from">Start</label>
-                <input
-                  id={startId}
-                  className="iw-input iw-input--mult t-label"
-                  type="number"
-                  min={0}
-                  step={1}
-                  title="First sample index to read per channel (0 = start of waveform)"
-                  value={config.startSample}
-                  onChange={event => setConfig(prev => ({ ...prev, startSample: Math.max(0, Math.floor(Number(event.target.value) || 0)) }))}
-                />
-              </div>
-              <div className="iw-line">
-                <label className="t-label t-muted" htmlFor={countId} title="Maximum number of samples per channel to import (0 = all available)">Samples</label>
-                <input
-                  id={countId}
-                  className="iw-input iw-input--mult t-label"
-                  type="number"
-                  min={0}
-                  step={1}
-                  title="Maximum samples per channel to load (0 = import every sample from Start to end)"
-                  value={config.sampleCount}
-                  onChange={event => setConfig(prev => ({ ...prev, sampleCount: Math.max(0, Math.floor(Number(event.target.value) || 0)) }))}
-                />
+              <div className="iw-pair-grid">
+                <div className="iw-field">
+                  <label className="t-caption" htmlFor={startId} title="0-based sample index to start importing from">Start</label>
+                  <input
+                    id={startId}
+                    className="iw-input t-label"
+                    type="number"
+                    min={0}
+                    step={1}
+                    title="First sample index to read per channel (0 = start of waveform)"
+                    value={config.startSample}
+                    onChange={event => setConfig(prev => ({ ...prev, startSample: Math.max(0, Math.floor(Number(event.target.value) || 0)) }))}
+                  />
+                </div>
+                <div className="iw-field">
+                  <label className="t-caption" htmlFor={countId} title="Maximum number of samples per channel to import (0 = all available)">Samples</label>
+                  <input
+                    id={countId}
+                    className="iw-input t-label"
+                    type="number"
+                    min={0}
+                    step={1}
+                    title="Maximum samples per channel to load (0 = import every sample from Start to end)"
+                    value={config.sampleCount}
+                    onChange={event => setConfig(prev => ({ ...prev, sampleCount: Math.max(0, Math.floor(Number(event.target.value) || 0)) }))}
+                  />
+                </div>
               </div>
               <span className="t-caption">0 = all ({formatCount(preview.totalAvailableSamples)} available)</span>
             </section>
 
             <section className="iw-group" aria-label="Scaling and units">
-              <h3 className="t-section">{config.mode === 'auto-scope' ? 'Global scaling & X axis' : 'Scaling & Units'}</h3>
+              <h3 className="t-section">{config.mode === 'auto-scope' ? 'Global scaling & X axis' : 'Units & scaling'}</h3>
               <div className="iw-seg">
                 <div className="ui-segmented" role="radiogroup" aria-label="Y unit override">
                   {Y_QUICK.map(opt => {
@@ -1077,83 +1088,85 @@ export function BinaryWizardDialog({ entry, buffer, position, total, queue, prio
                   </Btn>
                 </div>
               </div>
-              <div className="iw-line">
-                <label className="t-label t-muted" htmlFor={multId} title="Multiply all vertical values by this factor (e.g. 10 for a 10× probe or -1 to invert)">Y scale ×</label>
-                <input
-                  id={multId}
-                  className="iw-input iw-input--mult t-label"
-                  type="text"
-                  inputMode="decimal"
-                  title="Global vertical multiplier (applied before Y offset)"
-                  value={yMultDraft}
-                  onChange={event => {
-                    const raw = event.target.value;
-                    setYMultDraft(raw);
-                    const n = Number(raw.trim());
-                    if (Number.isFinite(n) && n !== 0) setConfig(prev => ({ ...prev, yMult: n }));
-                  }}
-                  onBlur={() => setYMultDraft(formatCompactNum(config.yMult))}
-                />
-              </div>
-              <div className="iw-line">
-                <label className="t-label t-muted" htmlFor={offId} title="Add a constant DC offset to every sample after Y scale">Y offset</label>
-                <input
-                  id={offId}
-                  className="iw-input iw-input--mult t-label"
-                  type="text"
-                  inputMode="decimal"
-                  title="Constant vertical offset added after Y scale"
-                  value={yOffsetDraft}
-                  onChange={event => {
-                    const raw = event.target.value;
-                    setYOffsetDraft(raw);
-                    const n = Number(raw.trim());
-                    if (Number.isFinite(n)) setConfig(prev => ({ ...prev, yOffset: n }));
-                  }}
-                  onBlur={() => setYOffsetDraft(formatCompactNum(config.yOffset))}
-                />
-              </div>
-              <div className="iw-line">
-                <label className="t-label t-muted" htmlFor={xMultId} title="Multiply X axis (time/frequency) coordinates by this factor (fixes wrong scope timebase)">X scale ×</label>
-                <input
-                  id={xMultId}
-                  className="iw-input iw-input--mult t-label"
-                  type="text"
-                  inputMode="decimal"
-                  title="Horizontal scale multiplier (e.g. 0.5 or 2 if timebase is off)"
-                  value={xMultDraft}
-                  onChange={event => {
-                    const raw = event.target.value;
-                    setXMultDraft(raw);
-                    const n = Number(raw.trim());
-                    if (Number.isFinite(n) && n !== 0) setConfig(prev => ({ ...prev, xMult: n }));
-                  }}
-                  onBlur={() => setXMultDraft(formatCompactNum(config.xMult))}
-                />
-              </div>
-              <div className="iw-line">
-                <label className="t-label t-muted" htmlFor={xOffId} title="Shift the horizontal origin t₀ (e.g. -50u to centre a trigger)">X offset (t₀)</label>
-                <input
-                  id={xOffId}
-                  className="iw-input iw-input--mult t-label"
-                  type="text"
-                  inputMode="decimal"
-                  placeholder="e.g. -50u or 0"
-                  title="Horizontal trigger/origin shift (supports suffixes like n, u, m)"
-                  value={xOffsetDraft}
-                  onChange={event => {
-                    const raw = event.target.value;
-                    setXOffsetDraft(raw);
-                    const parsed = parseEngInput(raw, { baseUnit: 's' });
-                    if (parsed.ok) {
-                      setConfig(prev => ({ ...prev, xOffset: parsed.value }));
-                    } else {
+              <div className="iw-pair-grid">
+                <div className="iw-field">
+                  <label className="t-caption" htmlFor={multId} title="Multiply all vertical values by this factor (e.g. 10 for a 10× probe or -1 to invert)">Y scale ×</label>
+                  <input
+                    id={multId}
+                    className="iw-input t-label"
+                    type="text"
+                    inputMode="decimal"
+                    title="Global vertical multiplier (applied before Y offset)"
+                    value={yMultDraft}
+                    onChange={event => {
+                      const raw = event.target.value;
+                      setYMultDraft(raw);
                       const n = Number(raw.trim());
-                      if (Number.isFinite(n)) setConfig(prev => ({ ...prev, xOffset: n }));
-                    }
-                  }}
-                  onBlur={() => setXOffsetDraft(formatCompactNum(config.xOffset ?? 0))}
-                />
+                      if (Number.isFinite(n) && n !== 0) setConfig(prev => ({ ...prev, yMult: n }));
+                    }}
+                    onBlur={() => setYMultDraft(formatCompactNum(config.yMult))}
+                  />
+                </div>
+                <div className="iw-field">
+                  <label className="t-caption" htmlFor={offId} title="Add a constant DC offset to every sample after Y scale">Y offset</label>
+                  <input
+                    id={offId}
+                    className="iw-input t-label"
+                    type="text"
+                    inputMode="decimal"
+                    title="Constant vertical offset added after Y scale"
+                    value={yOffsetDraft}
+                    onChange={event => {
+                      const raw = event.target.value;
+                      setYOffsetDraft(raw);
+                      const n = Number(raw.trim());
+                      if (Number.isFinite(n)) setConfig(prev => ({ ...prev, yOffset: n }));
+                    }}
+                    onBlur={() => setYOffsetDraft(formatCompactNum(config.yOffset))}
+                  />
+                </div>
+                <div className="iw-field">
+                  <label className="t-caption" htmlFor={xMultId} title="Multiply X axis (time/frequency) coordinates by this factor (fixes wrong scope timebase)">X scale ×</label>
+                  <input
+                    id={xMultId}
+                    className="iw-input t-label"
+                    type="text"
+                    inputMode="decimal"
+                    title="Horizontal scale multiplier (e.g. 0.5 or 2 if timebase is off)"
+                    value={xMultDraft}
+                    onChange={event => {
+                      const raw = event.target.value;
+                      setXMultDraft(raw);
+                      const n = Number(raw.trim());
+                      if (Number.isFinite(n) && n !== 0) setConfig(prev => ({ ...prev, xMult: n }));
+                    }}
+                    onBlur={() => setXMultDraft(formatCompactNum(config.xMult))}
+                  />
+                </div>
+                <div className="iw-field">
+                  <label className="t-caption" htmlFor={xOffId} title="Shift the horizontal origin t₀ (e.g. -50u to centre a trigger)">X offset (t₀)</label>
+                  <input
+                    id={xOffId}
+                    className="iw-input t-label"
+                    type="text"
+                    inputMode="decimal"
+                    placeholder="e.g. -50u or 0"
+                    title="Horizontal trigger/origin shift (supports suffixes like n, u, m)"
+                    value={xOffsetDraft}
+                    onChange={event => {
+                      const raw = event.target.value;
+                      setXOffsetDraft(raw);
+                      const parsed = parseEngInput(raw, { baseUnit: 's' });
+                      if (parsed.ok) {
+                        setConfig(prev => ({ ...prev, xOffset: parsed.value }));
+                      } else {
+                        const n = Number(raw.trim());
+                        if (Number.isFinite(n)) setConfig(prev => ({ ...prev, xOffset: n }));
+                      }
+                    }}
+                    onBlur={() => setXOffsetDraft(formatCompactNum(config.xOffset ?? 0))}
+                  />
+                </div>
               </div>
             </section>
           </div>
@@ -1336,23 +1349,42 @@ export function BinaryWizardDialog({ entry, buffer, position, total, queue, prio
                 >
                   ▶
                 </Btn>
-                {hexDiffersFromSkip && (
-                  <Btn
-                    small
-                    variant="slate"
-                    title={`Set Skip bytes to ${preview.hexOffset} B (0x${preview.hexOffset.toString(16)})`}
-                    onClick={() => {
-                      const target = preview.hexOffset;
-                      setHexPageOffset(null);
-                      setConfig(prev => ({ ...prev, headerBytes: target }));
-                    }}
-                  >
-                    Use offset
-                  </Btn>
-                )}
               </div>
             </div>
             <pre className="iw-hex t-readout" data-testid="binary-wizard-hex">{preview.hexDump}</pre>
+            {config.mode === 'raw' && (
+              <div className="iw-hex-foot">
+                <div className="iw-nudges" aria-label="Header skip step">
+                  <span className="t-caption">Nudge skip:</span>
+                  {SKIP_NUDGES.map(item => (
+                    <Btn
+                      key={item.label}
+                      small
+                      aria-label={`Skip ${item.label} bytes`}
+                      title={item.title}
+                      onClick={() => nudgeSkip(item.delta)}
+                    >
+                      {item.label} B
+                    </Btn>
+                  ))}
+                </div>
+                <Btn
+                  small
+                  variant="slate"
+                  disabled={!hexDiffersFromSkip}
+                  title={hexDiffersFromSkip
+                    ? `Set Skip bytes to the current hex view offset (${formatCount(preview.hexOffset)} B / 0x${preview.hexOffset.toString(16)})`
+                    : 'Page the hex viewer to another offset, then click here to set Skip bytes to it'}
+                  onClick={() => {
+                    const target = preview.hexOffset;
+                    setHexPageOffset(null);
+                    setConfig(prev => ({ ...prev, headerBytes: target }));
+                  }}
+                >
+                  Set skip = {formatCount(preview.hexOffset)} B
+                </Btn>
+              </div>
+            )}
             {!blocker && (
               <p className="iw-result t-caption" data-testid="import-wizard-summary">
                 Will {editing ? 'show' : 'create'} {preview.channels.length} trace{preview.channels.length === 1 ? '' : 's'}:{' '}

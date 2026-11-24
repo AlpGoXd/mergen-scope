@@ -195,10 +195,18 @@ test('headerless binary .dat opens Binary Import Wizard with expandable hex insp
     expect(dialogBox.y + dialogBox.height).toBeLessThanOrEqual(900);
   }
   const hexBefore = await binWizard.getByTestId('binary-wizard-hex').boundingBox();
-  await binWizard.getByRole('button', { name: 'Next hex page' }).click();
+  const nextBtn = binWizard.getByRole('button', { name: 'Next hex page' });
+  const nextBoxBefore = await nextBtn.boundingBox();
+  await nextBtn.click();
   await expect(binWizard.getByTestId('binary-wizard-hex')).toContainText('0040');
   const hexAfter = await binWizard.getByTestId('binary-wizard-hex').boundingBox();
+  const nextBoxAfter = await nextBtn.boundingBox();
   expect(hexAfter?.y).toBeCloseTo(hexBefore?.y ?? -1, 0);
+  expect(nextBoxAfter?.x).toBeCloseTo(nextBoxBefore?.x ?? -1, 0);
+  expect(nextBoxAfter?.y).toBeCloseTo(nextBoxBefore?.y ?? -1, 0);
+  // Set skip button sits in the hex footer bar below the dump and becomes enabled once paged.
+  const setSkipBtn = binWizard.getByRole('button', { name: 'Set skip = 64 B' });
+  await expect(setSkipBtn).toBeEnabled();
   await binWizard.getByRole('button', { name: 'Previous hex page' }).click();
   // Expand hex inspector beyond 64 B to 256 B and page forward.
   await binWizard.getByRole('button', { name: '256 B' }).click();
