@@ -168,6 +168,7 @@ export function WizardSettings({ config, maxSkipRows, detected, headers, numeric
   const [showSecondSeparator, setShowSecondSeparator] = useState(() => Boolean(config.valueDelimiter));
   const [xMoreAnchor, setXMoreAnchor] = useState<HTMLElement | null>(null);
   const [yMoreAnchor, setYMoreAnchor] = useState<HTMLElement | null>(null);
+  const [cellAnchor, setCellAnchor] = useState<{ row: number; col: number; at: HTMLElement } | null>(null);
   const [xCustomPicked, setXCustomPicked] = useState(false);
   const [yCustomPicked, setYCustomPicked] = useState(false);
   const [z0Draft, setZ0Draft] = useState(() => String(config.network?.referenceOhms ?? 50));
@@ -252,34 +253,39 @@ export function WizardSettings({ config, maxSkipRows, detected, headers, numeric
 
   const updateCellMapping = (row: number, col: number, which: 'first' | 'second', colIndex: number) => {
     if (!network) return;
-    const existing = network.cells.find(cell => cell.row === row && cell.col === col);
-    const nextFirst = which === 'first' ? colIndex : (existing?.first ?? -1);
-    const nextSecond = which === 'second' ? colIndex : (existing?.second ?? -1);
-    const others = network.cells.filter(cell => !(cell.row === row && cell.col === col));
+    // Remove colIndex from any other slot if reassigned so the user isn't trapped in a duplicate-column state.
+    const cleaned = colIndex >= 0
+      ? network.cells
+        .map(cell => {
+          if (cell.row === row && cell.col === col) return cell;
+          const first = cell.first === colIndex ? -1 : cell.first;
+          const second = cell.second === colIndex ? -1 : cell.second;
+          return { ...cell, first, second };
+        })
+        .filter(cell => cell.first >= 0 || cell.second >= 0)
+      : network.cells;
+    const existing = cleaned.find(cell => cell.row === row && cell.col === col);
+    const otherSlot = which === 'first' ? (existing?.second ?? -1) : (existing?.first ?? -1);
+    const nextFirst = which === 'first' ? colIndex : (otherSlot === colIndex ? -1 : otherSlot);
+    const nextSecond = which === 'second' ? colIndex : (otherSlot === colIndex ? -1 : otherSlot);
+    const others = cleaned.filter(cell => !(cell.row === row && cell.col === col));
     const nextCells = nextFirst < 0 && nextSecond < 0
       ? others
       : [...others, { row, col, first: nextFirst, second: nextSecond }].sort((a, b) => (a.row - b.row) || (a.col - b.col));
     updateNetwork({ cells: nextCells });
   };
 
+  const clearCellMapping = (row: number, col: number) => {
+    if (!network) return;
+    updateNetwork({ cells: network.cells.filter(cell => !(cell.row === row && cell.col === col)) });
+  };
+
+  const activeCell = cellAnchor && network
+    ? network.cells.find(item => item.row === cellAnchor.row && item.col === cellAnchor.col)
+    : undefined;
+
   return (
     <div className="iw-settings">
-      <section className="iw-group" aria-label="Import kind">
-        <div className="iw-line">
-          <span className="t-label t-muted">Columns</span>
-          <div className="iw-seg">
-            <Segmented
-              label="Table import mode"
-              options={[
-                { value: 'traces', label: 'Traces', title: 'Import numeric columns as scalar traces' },
-                { value: 'network', label: 'S-parameters', title: 'Import paired columns as an S-parameter network' },
-              ]}
-              value={isNetwork ? 'network' : 'traces'}
-              onChange={switchMode}
-            />
-          </div>
-        </div>
-      </section>
       <section className="iw-group" aria-label="Format">
         <h3 className="t-section">Format</h3>
         <div className="iw-line">
@@ -324,6 +330,20 @@ export function WizardSettings({ config, maxSkipRows, detected, headers, numeric
           <label className="t-label t-muted" htmlFor={skipId}>Skip rows</label>
           <input id={skipId} className="iw-input t-label" type="number" min={0} max={maxSkipRows} step={1} value={config.skipRows} onChange={event => setSkip(Number(event.target.value))} />
         </div>
+        <div className="iw-line">
+          <span className="t-label t-muted">Data</span>
+          <div className="iw-seg">
+            <Segmented
+              label="Table import mode"
+              options={[
+                { value: 'traces', label: 'Traces', title: 'Import numeric columns as scalar traces' },
+                { value: 'network', label: 'S-parameters', title: 'Import paired columns as an S-parameter network' },
+              ]}
+              value={isNetwork ? 'network' : 'traces'}
+              onChange={mode => { setCellAnchor(null); switchMode(mode); }}
+            />
+          </div>
+        </div>
       </section>
 
       {network ? (
@@ -358,6 +378,7 @@ export function WizardSettings({ config, maxSkipRows, detected, headers, numeric
                   value={String(network.portCount) as '1' | '2' | '3' | '4'}
                   onChange={val => {
                     const portCount = Number(val) as 1 | 2 | 3 | 4;
+                    setCellAnchor(null);
                     updateNetwork({
                       portCount,
                       cells: network.cells.filter(cell => cell.row < portCount && cell.col < portCount),
@@ -411,52 +432,49 @@ export function WizardSettings({ config, maxSkipRows, detected, headers, numeric
                 }}
               />
             </div>
-            <div className="iw-chan-list">
+            <div
+              className="iw-sparam-matrix"
+              style={{ gridTemplateColumns: `repeat(${network.portCount}, minmax(0, 1fr))` }}
+              role="group"
+              aria-label="Mapped S-parameter matrix"
+            >
               {Array.from({ length: network.portCount }, (_, row) =>
                 Array.from({ length: network.portCount }, (_, col) => {
                   const cell = network.cells.find(item => item.row === row && item.col === col);
+                  const hasFirst = cell !== undefined && cell.first >= 0 && cell.first < colHeaders.length;
+                  const hasSecond = cell !== undefined && cell.second >= 0 && cell.second < colHeaders.length;
+                  const state = hasFirst && hasSecond ? 'mapped' : (hasFirst || hasSecond) ? 'partial' : 'empty';
                   const [firstLabel, secondLabel] = networkPairLabels(network.format);
                   const cellName = `S${row + 1}${col + 1}`;
+                  const isOpen = cellAnchor?.row === row && cellAnchor?.col === col;
+                  const firstColName = hasFirst && cell ? (colHeaders[cell.first] ?? `Col ${cell.first + 1}`) : '—';
+                  const secondColName = hasSecond && cell ? (colHeaders[cell.second] ?? `Col ${cell.second + 1}`) : '—';
+                  const tooltip = state === 'empty'
+                    ? `${cellName}: not mapped (click to assign columns)`
+                    : `${cellName}: ${firstLabel} = ${firstColName}, ${secondLabel} = ${secondColName}`;
                   return (
-                    <div key={cellName} className="iw-field">
-                      <span className="t-label">{cellName}</span>
-                      <div className="iw-pair-grid">
-                        <div className="iw-field">
-                          <span className="t-caption t-muted">{firstLabel}</span>
-                          <select
-                            className="ui-select t-label"
-                            aria-label={`${cellName} ${firstLabel}`}
-                            data-testid={`sparam-cell-${row}-${col}-first`}
-                            value={cell ? String(cell.first) : '-1'}
-                            onChange={event => updateCellMapping(row, col, 'first', Number(event.target.value))}
-                          >
-                            <option value="-1">—</option>
-                            {colHeaders.map((header, idx) => (
-                              <option key={idx} value={String(idx)}>{header}</option>
-                            ))}
-                          </select>
-                        </div>
-                        <div className="iw-field">
-                          <span className="t-caption t-muted">{secondLabel}</span>
-                          <select
-                            className="ui-select t-label"
-                            aria-label={`${cellName} ${secondLabel}`}
-                            data-testid={`sparam-cell-${row}-${col}-second`}
-                            value={cell ? String(cell.second) : '-1'}
-                            onChange={event => updateCellMapping(row, col, 'second', Number(event.target.value))}
-                          >
-                            <option value="-1">—</option>
-                            {colHeaders.map((header, idx) => (
-                              <option key={idx} value={String(idx)}>{header}</option>
-                            ))}
-                          </select>
-                        </div>
-                      </div>
-                    </div>
+                    <button
+                      key={cellName}
+                      type="button"
+                      className={`iw-sparam-cell t-label is-${state}${isOpen ? ' is-open' : ''}`}
+                      data-testid={`sparam-matrix-cell-${row}-${col}`}
+                      aria-haspopup="dialog"
+                      aria-expanded={isOpen}
+                      title={tooltip}
+                      onClick={event => {
+                        const at = event.currentTarget;
+                        setCellAnchor(current => (current?.row === row && current?.col === col ? null : { row, col, at }));
+                      }}
+                    >
+                      <span>{cellName}</span>
+                      {state === 'mapped' && <span className="iw-sparam-dot" aria-hidden="true" />}
+                      {state === 'partial' && <span className="iw-sparam-dot is-warn" aria-hidden="true" />}
+                    </button>
                   );
                 }),
               )}
             </div>
+            <span className="t-caption t-muted">Click a matrix cell or any table column chip to map.</span>
           </section>
         </>
       ) : (
@@ -595,6 +613,72 @@ export function WizardSettings({ config, maxSkipRows, detected, headers, numeric
           </ul>
         )}
       </section>
+
+      {cellAnchor && network && (() => {
+        const { row, col, at } = cellAnchor;
+        const cellName = `S${row + 1}${col + 1}`;
+        const [firstLabel, secondLabel] = networkPairLabels(network.format);
+        return (
+          <PopoverAt
+            label={`Map ${cellName}`}
+            at={at}
+            onClose={() => setCellAnchor(null)}
+            onEscape={() => { setCellAnchor(null); at.focus(); }}
+          >
+            <div className="iw-sparam-pop" role="dialog" aria-label={`Map ${cellName}`}>
+              <div className="iw-sparam-pop-head">
+                <span className="t-card-title">{cellName}</span>
+                {activeCell && (
+                  <Btn
+                    small
+                    onClick={() => {
+                      clearCellMapping(row, col);
+                      setCellAnchor(null);
+                      at.focus();
+                    }}
+                  >
+                    Clear
+                  </Btn>
+                )}
+              </div>
+              <div className="iw-field">
+                <span className="t-caption t-muted">{firstLabel} column</span>
+                <select
+                  className="ui-select t-label"
+                  aria-label={`${cellName} ${firstLabel}`}
+                  data-testid={`sparam-cell-${row}-${col}-first`}
+                  value={activeCell ? String(activeCell.first) : '-1'}
+                  onChange={event => updateCellMapping(row, col, 'first', Number(event.target.value))}
+                >
+                  <option value="-1">— not mapped</option>
+                  {colHeaders.map((header, idx) => (
+                    <option key={idx} value={String(idx)} disabled={idx === config.xCol || !numCols.includes(idx)}>
+                      {header}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="iw-field">
+                <span className="t-caption t-muted">{secondLabel} column</span>
+                <select
+                  className="ui-select t-label"
+                  aria-label={`${cellName} ${secondLabel}`}
+                  data-testid={`sparam-cell-${row}-${col}-second`}
+                  value={activeCell ? String(activeCell.second) : '-1'}
+                  onChange={event => updateCellMapping(row, col, 'second', Number(event.target.value))}
+                >
+                  <option value="-1">— not mapped</option>
+                  {colHeaders.map((header, idx) => (
+                    <option key={idx} value={String(idx)} disabled={idx === config.xCol || !numCols.includes(idx)}>
+                      {header}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </PopoverAt>
+        );
+      })()}
 
       {xMoreAnchor && (
         <PopoverAt

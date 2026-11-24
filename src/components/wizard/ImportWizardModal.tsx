@@ -217,19 +217,96 @@ function WizardDialog({ entry, position, total, others, queue, priorFile }: Wiza
   }, []);
 
   const mappedNetworkCols = useMemo(
-    () => new Set(config.network?.cells.flatMap(cell => [cell.first, cell.second]) ?? []),
+    () => new Set(config.network?.cells.flatMap(cell => [cell.first, cell.second].filter(idx => idx >= 0)) ?? []),
     [config.network],
   );
+  const networkCellKeepIds = useMemo(
+    () => (config.network?.cells ?? []).map(() => null),
+    [config.network?.cells.length],
+  );
+  const networkCellColors = useWizardTraceColors(networkCellKeepIds, []);
+  const networkPairLabels: readonly [string, string] = config.network?.format === 'DB'
+    ? ['dB', 'Ang']
+    : config.network?.format === 'MA'
+      ? ['Mag', 'Ang']
+      : ['Re', 'Im'];
   const roles: ColumnRole[] = config.network
     ? headers.map((_, col): ColumnRole => (col === config.xCol ? 'x' : mappedNetworkCols.has(col) ? 'y' : 'skip'))
     : headers.map((_, col) => columnRole(config, col));
+  const chipLabels: string[] | undefined = config.network
+    ? headers.map((_, col) => {
+      if (col === config.xCol) return 'Freq';
+      for (const cell of config.network?.cells ?? []) {
+        const name = `S${cell.row + 1}${cell.col + 1}`;
+        if (cell.first === col) return `${name} ${networkPairLabels[0]}`;
+        if (cell.second === col) return `${name} ${networkPairLabels[1]}`;
+      }
+      return '— skip';
+    })
+    : undefined;
   const names = config.network
     ? headers.map((header, col) => (col === config.xCol ? columnDisplayName(header, 'x', config) : header))
     : headers.map((header, col) => columnDisplayName(header, roles[col] ?? 'skip', config));
   const tableColors = config.network
-    ? headers.map((_, col) => (mappedNetworkCols.has(col) ? 'var(--accent)' : undefined))
+    ? headers.map((_, col) => {
+      const cells = config.network?.cells ?? [];
+      const cellIdx = cells.findIndex(cell => cell.first === col || cell.second === col);
+      return cellIdx >= 0 ? (networkCellColors[cellIdx] ?? 'var(--accent)') : undefined;
+    })
     : colors;
-  const plotColors = config.network ? ['var(--accent)'] : yColors;
+  const previewCellIdx = config.network
+    ? Math.max(0, config.network.cells.findIndex(cell => cell.row === 0 && cell.col === 0))
+    : 0;
+  const plotColors = config.network ? [networkCellColors[previewCellIdx] ?? 'var(--accent)'] : yColors;
+  const networkMenu = config.network
+    ? {
+      network: config.network,
+      onAssignFreq: (col: number) => setConfig(prev => {
+        if (!prev.network) return prev;
+        const cells = prev.network.cells
+          .map(cell => ({
+            ...cell,
+            first: cell.first === col ? -1 : cell.first,
+            second: cell.second === col ? -1 : cell.second,
+          }))
+          .filter(cell => cell.first >= 0 || cell.second >= 0);
+        return { ...prev, xCol: col, network: { ...prev.network, cells } };
+      }),
+      onClearCol: (col: number) => setConfig(prev => {
+        if (!prev.network) return prev;
+        const xCol = prev.xCol === col ? -1 : prev.xCol;
+        const cells = prev.network.cells
+          .map(cell => ({
+            ...cell,
+            first: cell.first === col ? -1 : cell.first,
+            second: cell.second === col ? -1 : cell.second,
+          }))
+          .filter(cell => cell.first >= 0 || cell.second >= 0);
+        return { ...prev, xCol, network: { ...prev.network, cells } };
+      }),
+      onAssignSlot: (col: number, row: number, sCol: number, which: 'first' | 'second') => setConfig(prev => {
+        if (!prev.network) return prev;
+        const xCol = prev.xCol === col ? -1 : prev.xCol;
+        const cleaned = prev.network.cells
+          .map(cell => {
+            if (cell.row === row && cell.col === sCol) return cell;
+            return {
+              ...cell,
+              first: cell.first === col ? -1 : cell.first,
+              second: cell.second === col ? -1 : cell.second,
+            };
+          })
+          .filter(cell => cell.first >= 0 || cell.second >= 0);
+        const existing = cleaned.find(cell => cell.row === row && cell.col === sCol);
+        const otherSlot = which === 'first' ? (existing?.second ?? -1) : (existing?.first ?? -1);
+        const nextFirst = which === 'first' ? col : (otherSlot === col ? -1 : otherSlot);
+        const nextSecond = which === 'second' ? col : (otherSlot === col ? -1 : otherSlot);
+        const others = cleaned.filter(cell => !(cell.row === row && cell.col === sCol));
+        const cells = [...others, { row, col: sCol, first: nextFirst, second: nextSecond }].sort((a, b) => (a.row - b.row) || (a.col - b.col));
+        return { ...prev, xCol, network: { ...prev.network, cells } };
+      }),
+    }
+    : undefined;
   const traceNames = yCols.map(col => names[col] ?? `Column ${col + 1}`);
   const mappedCellNames = config.network?.cells.map(cell => `S${cell.row + 1}${cell.col + 1}`) ?? [];
   const mainLabel = editing ? 'Apply' : config.network ? 'Import S-parameters' : `Add ${yCols.length} trace${yCols.length === 1 ? '' : 's'}`;
@@ -298,9 +375,11 @@ function WizardDialog({ entry, position, total, others, queue, priorFile }: Wiza
               headers={headers}
               names={names}
               roles={roles}
+              chipLabels={chipLabels}
+              networkMenu={networkMenu}
               colors={tableColors}
               numeric={layout.numeric}
-              onRole={(col, role) => setConfig(prev => prev.network ? (role === 'x' ? { ...prev, xCol: col } : prev) : setColumnRole(prev, col, role))}
+              onRole={(col, role) => setConfig(prev => setColumnRole(prev, col, role))}
             />
             <WizardPreviewPlot plot={plot} colors={plotColors} />
             {rangeText && (

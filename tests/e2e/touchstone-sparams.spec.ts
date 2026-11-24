@@ -73,9 +73,27 @@ test('imports CSV S-parameters via wizard auto-detection into Smith chart and su
 
   const wizard = page.getByTestId('import-wizard');
   await expect(wizard).toBeVisible();
-  // Auto-detects S-parameters mode inside Table / CSV and shows S-parameter summary.
+  // Auto-detects S-parameters mode inside Table / CSV Format section, shows table-chip roles and compact N×N matrix.
   await expect(wizard.getByRole('radiogroup', { name: 'Table import mode' }).getByRole('radio', { name: 'S-parameters' })).toBeChecked();
+  await expect(wizard.getByTestId('wizard-chip-0')).toHaveText('Freq');
+  await expect(wizard.getByTestId('wizard-chip-1')).toHaveText('S11 Re');
+  await expect(wizard.getByTestId('wizard-chip-2')).toHaveText('S11 Im');
+  await expect(wizard.getByTestId('wizard-chip-3')).toHaveText('S21 Re');
+  await expect(wizard.getByTestId('wizard-chip-4')).toHaveText('S21 Im');
+  await expect(wizard.getByTestId('sparam-matrix-cell-0-0')).toHaveClass(/is-mapped/);
+  await expect(wizard.getByTestId('sparam-matrix-cell-0-1')).toHaveClass(/is-empty/);
   await expect(wizard.getByTestId('import-wizard-summary')).toContainText('2-port S-parameters');
+
+  // Reassign S21 Re via the preview table chip popover to S12 Re and back.
+  await wizard.getByTestId('wizard-chip-3').click();
+  await page.locator('.iw-role-menu--sparam').getByRole('menuitemradio', { name: 'S12 Re' }).click();
+  await expect(wizard.getByTestId('wizard-chip-3')).toHaveText('S12 Re');
+  await expect(wizard.getByTestId('sparam-matrix-cell-0-1')).toHaveClass(/is-partial/);
+  await wizard.getByTestId('wizard-chip-3').click();
+  await page.locator('.iw-role-menu--sparam').getByRole('menuitemradio', { name: 'S21 Re' }).click();
+  await expect(wizard.getByTestId('wizard-chip-3')).toHaveText('S21 Re');
+  await expect(wizard.getByTestId('sparam-matrix-cell-0-1')).toHaveClass(/is-empty/);
+
   await wizard.getByTestId('import-wizard-confirm').click();
   await expect(wizard).toHaveCount(0);
 

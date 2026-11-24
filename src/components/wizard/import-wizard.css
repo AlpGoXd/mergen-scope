@@ -117,7 +117,30 @@
 .iw-menu-sep { height: 1px; margin: var(--space-1) 0; background: var(--border); }
 .iw-role-key { width: 3ch; color: var(--text-muted); }
 /* Popovers are portaled to body; they must sit above the dialog backdrop (z 150). */
-.ui-popover:has(> .iw-role-menu), .ui-popover:has(> .iw-unit-pop) { z-index: 160; }
+.ui-popover:has(> .iw-role-menu), .ui-popover:has(> .iw-unit-pop), .ui-popover:has(> .iw-sparam-pop) { z-index: 160; }
+
+/* Compact N×N mapped-cell matrix inside S-parameters settings (mirrors Touchstone matrix picker). */
+.iw-sparam-matrix { display: grid; gap: 4px; }
+.iw-sparam-cell { height: var(--control-sm-height); padding: 0 var(--space-1); display: inline-flex; align-items: center; justify-content: center; gap: 5px; border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--raised); color: var(--text-muted); cursor: pointer; font-variant-numeric: tabular-nums; }
+.iw-sparam-cell:hover { border-color: var(--border-strong); color: var(--text); }
+.iw-sparam-cell.is-mapped { background: var(--sel-bg); border-color: var(--sel-line); color: var(--sel-ink); }
+.iw-sparam-cell.is-partial { border-color: var(--warning-line); color: var(--text); }
+.iw-sparam-cell.is-open { border-color: var(--accent); }
+.iw-sparam-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); flex: none; }
+.iw-sparam-dot.is-warn { background: var(--warning-color); }
+
+/* Popover for mapping a single S_ij cell from the compact matrix. */
+.iw-sparam-pop { display: grid; gap: var(--space-2); width: 224px; padding: var(--space-1); }
+.iw-sparam-pop-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
+.iw-sparam-pop .ui-select { width: 100%; min-width: 0; }
+
+/* Compact S-parameter slot picker inside the Preview Table column-chip popover. */
+.iw-role-menu--sparam { min-width: 196px; }
+.iw-role-sparam-list { display: grid; gap: 2px; max-height: 220px; overflow-y: auto; }
+.iw-role-sparam-row { display: grid; grid-template-columns: 3.4ch minmax(0, 1fr) minmax(0, 1fr); align-items: center; gap: 4px; padding: 1px var(--space-1); }
+.iw-role-sparam-name { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.iw-role-menu .iw-role-sparam-slot { justify-content: center; padding: 3px var(--space-1); border: 1px solid var(--border); border-radius: var(--radius-input); background: var(--raised); color: var(--text); }
+.iw-role-menu .iw-role-sparam-slot[aria-checked=true] { background: var(--sel-bg); border-color: var(--sel-line); color: var(--sel-ink); }
 
 /* Preview plot: Y over X for the previewed rows, dashed grid, no axis text. */
 .iw-plot { display: block; width: 100%; height: 80px; border: 1px solid var(--border); border-radius: var(--radius-card); background: var(--raised); overflow: hidden; }
