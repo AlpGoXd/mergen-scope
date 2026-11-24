@@ -15,6 +15,7 @@ import { incrementFileCounter } from "./rs-dat.ts";
 import { normalizeTraceData } from "./helpers.ts";
 import { reduceBinarySeries } from "./binary-reduce.ts";
 import type { BinaryParseOptions, ScopeProbeResult } from "./binary-reduce.ts";
+import { decodeFloat16 } from "./binary-inspect.ts";
 import type { BinaryParseResult } from "./lecroy-trc.ts";
 
 const MAX_NPY_HEADER_BYTES = 1024 * 1024;
@@ -24,22 +25,6 @@ const MAX_PY_LITERAL_DEPTH = 16;
 const NPY_MAGIC = [0x93, 0x4e, 0x55, 0x4d, 0x50, 0x59] as const;
 
 const HOST_LITTLE_ENDIAN = new DataView(new Uint16Array([1]).buffer).getUint8(0) === 1;
-
-/** Decode an IEEE 754 binary16 (float16) 16-bit unsigned integer into a JS number. */
-function decodeFloat16(bits: number): number {
-  const sign = (bits & 0x8000) !== 0 ? -1 : 1;
-  const exp = (bits >> 10) & 0x1f;
-  const frac = bits & 0x03ff;
-
-  if (exp === 0) {
-    if (frac === 0) return sign < 0 ? -0 : 0;
-    return sign * (frac / 1024) * 2 ** -14;
-  }
-  if (exp === 0x1f) {
-    return frac === 0 ? sign * Number.POSITIVE_INFINITY : Number.NaN;
-  }
-  return sign * (1 + frac / 1024) * 2 ** (exp - 15);
-}
 
 // ---------------------------------------------------------------------------
 // Strict Python literal parser for .npy header dicts (no eval / Function)

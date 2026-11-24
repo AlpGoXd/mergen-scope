@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useFileDispatch } from '../../stores/file-store';
 import type { WizardEntry } from '../../stores/file-store';
 import { useOptionalAggregateWorkspace } from '../../stores/aggregate-workspace-store';
@@ -16,7 +16,6 @@ import {
   channelsPerFrame,
   defaultBinaryConfig,
   detectBinaryDataStart,
-  inspectBinaryCursor,
   parseBinarySettings,
   previewBinaryImport,
   rawTotalSamples,
@@ -33,9 +32,7 @@ import type {
   BinarySampleType,
 } from '../../domain/parsers/raw-binary';
 import { defaultBinaryReduction } from '../../domain/parsers/binary-reduce';
-import { formatBytes, pointBudget, recommendedDecimateFactor } from '../../domain/point-budget';
-import type { PointBudget, PointBudgetLevel } from '../../domain/point-budget';
-import { formatEngineeringValue } from '../../domain/format';
+import { pointBudget, recommendedDecimateFactor } from '../../domain/point-budget';
 import { formatCount } from '../../domain/import-wizard';
 import { parseEngInput } from '../../domain/units';
 import { useWizardTraceColors } from '../../hooks/use-wizard-trace-colors';
@@ -44,6 +41,9 @@ import { Icon, MessageBar, PopoverAt, Segmented } from '../shared/Controls';
 import { CaretDownIcon } from '../shared/Icons';
 import { CONFIDENCE_ICON, CONFIDENCE_LABEL } from './WizardSettings';
 import { WizardPreviewPlot } from './WizardPreviewPlot';
+import { BinaryPointBudgetBanner, DEFAULT_ENVELOPE_TARGET } from './BinaryPointBudgetBanner';
+import type { BinaryPointBudgetStats } from './BinaryPointBudgetBanner';
+import { BinaryHexInspector } from './BinaryHexInspector';
 
 const SAMPLE_TYPES: readonly { value: BinarySampleType; label: string; ariaLabel: string; title: string }[] = [
   { value: 'float32', label: 'f32', ariaLabel: 'Float 32-bit', title: 'IEEE-754 32-bit floating point (4 bytes/sample; standard for GNU Radio, Keysight, Rigol)' },
@@ -110,33 +110,10 @@ const EXPLICIT_PARSERS: readonly { value: BinaryFormat; label: string; title: st
   { value: 'npy', label: 'NumPy (.npy)', title: 'Force NumPy .npy binary array parser (1D/2D real or complex)' },
 ];
 
-const SKIP_NUDGES: readonly { delta: number; label: string; title: string }[] = [
-  { delta: -1, label: '−1', title: 'Move data start back by 1 byte to check alignment' },
-  { delta: 1, label: '+1', title: 'Advance data start by 1 byte to check alignment' },
-  { delta: 4, label: '+4', title: 'Advance data start by 4 bytes (one 32-bit word)' },
-  { delta: 16, label: '+16', title: 'Advance data start by 16 bytes (one hex row)' },
-];
-
-const HEX_SIZES: readonly { bytes: number; label: string; title: string }[] = [
-  { bytes: 64, label: '64 B', title: 'Show 64 bytes (4 rows) in the hex/ASCII inspector' },
-  { bytes: 256, label: '256 B', title: 'Show 256 bytes (16 rows) in the hex/ASCII inspector' },
-  { bytes: 512, label: '512 B', title: 'Show 512 bytes (32 rows) in the hex/ASCII inspector' },
-  { bytes: 1024, label: '1 KB', title: 'Show 1,024 bytes (64 rows) in the hex/ASCII inspector' },
-];
-
 function enterIsTaken(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
   if (target.isContentEditable || target.closest('.ui-popover')) return true;
   return target instanceof HTMLButtonElement || target instanceof HTMLSelectElement || target instanceof HTMLTextAreaElement;
-}
-
-const DEFAULT_ENVELOPE_TARGET = 16_000;
-
-interface BinaryPointBudgetStats {
-  readonly channelCount: number;
-  readonly perChannelSamples: number | null;
-  readonly totalPoints: number;
-  readonly budget: PointBudget;
 }
 
 function isChannelEnabled(index: number, config: BinaryImportConfig): boolean {
@@ -152,13 +129,6 @@ function readDeviceMemoryGb(): number | undefined {
   return typeof nav.deviceMemory === 'number' && Number.isFinite(nav.deviceMemory) && nav.deviceMemory > 0
     ? nav.deviceMemory
     : undefined;
-}
-
-function formatCompactPoints(points: number): string {
-  if (!Number.isFinite(points) || points <= 0) return '0';
-  if (points >= 1_000_000) return `${Number((points / 1_000_000).toFixed(2))} M`;
-  if (points >= 1_000) return `${Number((points / 1_000).toFixed(2))} k`;
-  return String(Math.round(points));
 }
 
 function computeBinaryPointStats(
@@ -204,57 +174,6 @@ function computeBinaryPointStats(
     totalPoints,
     budget: pointBudget(totalPoints),
   };
-}
-
-function formatBudgetSummaryLine(stats: BinaryPointBudgetStats): string {
-  const memText = formatBytes(stats.budget.estimatedBytes);
-  const channelWord = stats.channelCount === 1 ? 'channel' : 'channels';
-  if (stats.perChannelSamples !== null) {
-    return `${stats.channelCount} ${channelWord} \u00d7 ${formatCompactPoints(stats.perChannelSamples)} = ${formatCompactPoints(stats.totalPoints)} points. Keep all needs about ${memText} of memory.`;
-  }
-  return `${stats.channelCount} ${channelWord} \u00b7 ${formatCompactPoints(stats.totalPoints)} points total. Keep all needs about ${memText} of memory.`;
-}
-
-function keepAllWarningSubtext(level: PointBudgetLevel, estimatedBytes: number, deviceMemoryGb?: number): string {
-  if (level === 'large') {
-    return 'The app may be slower to zoom and analyse.';
-  }
-  if (level === 'very-large') {
-    const base = `Not recommended. Needs about ${formatBytes(estimatedBytes)} free.`;
-    return deviceMemoryGb !== undefined ? `${base} Your device reports ${deviceMemoryGb} GB.` : base;
-  }
-  return `Not recommended. About ${formatBytes(estimatedBytes)} is more than a browser tab can usually hold (about 4 GB, regardless of how much RAM your PC has). The tab will probably crash.`;
-}
-
-function isSampleIndexAxis(
-  mode: BinaryImportConfig['mode'],
-  hasScopeSignature: boolean,
-  rangeText: string | null,
-): boolean {
-  if (mode === 'raw' || !hasScopeSignature) return true;
-  if (!rangeText) return false;
-  const xPart = rangeText.split(' \u00b7 Y:')[0]?.trim() ?? '';
-  return /^X:\s*[-+\d.eE]+\s*\u2192\s*[-+\d.eE]+$/.test(xPart);
-}
-
-function decimatedRateInfo(
-  sampleRateHz: number | null,
-  factor: number,
-  totalPoints: number,
-  isSampleIndexX: boolean,
-): string {
-  const safeFactor = Math.max(2, Math.floor(factor));
-  const resultingPoints = Math.ceil(totalPoints / safeFactor);
-  const ptsText = `${formatCompactPoints(resultingPoints)} points`;
-  if (sampleRateHz !== null && Number.isFinite(sampleRateHz) && sampleRateHz > 0) {
-    const newRateHz = sampleRateHz / safeFactor;
-    const nyquistHz = newRateHz / 2;
-    return `New sample rate: ${formatEngineeringValue(newRateHz, 'Hz', 3)} \u00b7 Nyquist: ${formatEngineeringValue(nyquistHz, 'Hz', 3)} \u00b7 ${ptsText}`;
-  }
-  const ratePrefix = isSampleIndexX
-    ? 'Sample rate not set (X is sample index)'
-    : 'Sample rate unavailable';
-  return `${ratePrefix} \u00b7 ${ptsText}`;
 }
 
 function formatCompactNum(value: number): string {
@@ -635,39 +554,6 @@ export function BinaryWizardDialog({ entry, buffer, position, total, others = []
         ? prev
         : { ...prev, reduction: { mode: 'decimate', factor } }
     ));
-  };
-
-  const hexShown = Math.min(hexSize, Math.max(0, buffer.byteLength - preview.hexOffset));
-  const hexHeading = `Hex · 0x${preview.hexOffset.toString(16).padStart(4, '0')} (${formatCount(preview.hexOffset)} B · ${formatCount(hexShown)} B)`;
-  const canHexPrev = preview.hexOffset > 0;
-  const canHexNext = preview.hexOffset + hexSize < buffer.byteLength;
-  const hexTargetOffset = selectedHexByte !== null && selectedHexByte >= 0 && selectedHexByte < buffer.byteLength
-    ? selectedHexByte
-    : preview.hexOffset;
-  const hexDiffersFromSkip = config.mode === 'raw' && hexTargetOffset !== config.headerBytes;
-  const hexRows = useMemo(() => {
-    const out: { rowOffset: number; addr: string; bytes: number[]; ascii: string }[] = [];
-    if (hexShown <= 0) return out;
-    const view = new Uint8Array(buffer, preview.hexOffset, hexShown);
-    for (let row = 0; row < view.length; row += 16) {
-      const slice = view.subarray(row, Math.min(row + 16, view.length));
-      const rowOffset = preview.hexOffset + row;
-      const addr = rowOffset.toString(16).padStart(4, '0');
-      const bytes = Array.from(slice);
-      const ascii = bytes.map(b => (b >= 0x20 && b <= 0x7e ? String.fromCharCode(b) : '.')).join('');
-      out.push({ rowOffset, addr, bytes, ascii });
-    }
-    return out;
-  }, [buffer, preview.hexOffset, hexShown]);
-  const cursorReadings = useMemo(
-    () => (selectedHexByte !== null ? inspectBinaryCursor(buffer, selectedHexByte, config.endian) : null),
-    [buffer, selectedHexByte, config.endian],
-  );
-  const formatCursorFloat = (value: number | null): string => {
-    if (value === null) return '—';
-    if (Number.isNaN(value)) return 'NaN';
-    if (!Number.isFinite(value)) return value > 0 ? '+Inf' : '−Inf';
-    return formatCompactNum(value);
   };
 
   const mainLabel = editing ? 'Apply' : `Add ${preview.channels.length} trace${preview.channels.length === 1 ? '' : 's'}`;
@@ -1256,263 +1142,80 @@ export function BinaryWizardDialog({ entry, buffer, position, total, others = []
                 {preview.headerSummary}
               </div>
             )}
-            {pointStats.budget.level !== 'ok' && (
-              <section
-                className={`iw-budget is-${pointStats.budget.level}`}
-                data-testid="binary-wizard-budget"
-                data-budget-level={pointStats.budget.level}
-                aria-label="Capture size notice"
-              >
-                <div className="iw-budget-head">
-                  <span className={`iw-budget-icon is-${pointStats.budget.level}`}>
-                    <Icon name={pointStats.budget.level === 'exceeds-tab' ? 'error' : 'warning'} />
-                  </span>
-                  <p className="iw-budget-summary t-label" data-testid="binary-wizard-budget-summary">
-                    {formatBudgetSummaryLine(pointStats)}
-                  </p>
-                </div>
-                <div className="iw-budget-options" role="radiogroup" aria-label="Import reduction mode">
-                  <div className="iw-budget-option">
-                    <label className="iw-budget-label t-label">
-                      <input
-                        type="radio"
-                        name={reductionGroupName}
-                        value="full"
-                        checked={activeReductionMode === 'full'}
-                        onChange={() => {
-                          setUserPickedReduction(true);
-                          setConfig(prev => ({ ...prev, reduction: { mode: 'full' } }));
-                        }}
-                      />
-                      <span><strong>Keep all samples.</strong> Analysis exact.</span>
-                    </label>
-                    <span
-                      className={`t-caption iw-budget-warn${pointStats.budget.level === 'exceeds-tab' ? ' is-danger' : ''}`}
-                      data-testid="binary-wizard-keep-all-note"
-                    >
-                      {keepAllWarningSubtext(pointStats.budget.level, pointStats.budget.estimatedBytes, deviceMemoryGb)}
-                    </span>
-                  </div>
-
-                  <div className="iw-budget-option">
-                    <div className="iw-budget-row">
-                      <label className="iw-budget-label t-label">
-                        <input
-                          type="radio"
-                          name={reductionGroupName}
-                          value="decimate"
-                          checked={activeReductionMode === 'decimate'}
-                          onChange={selectDecimateReduction}
-                        />
-                        <span><strong>Decimate by</strong></span>
-                      </label>
-                      <input
-                        type="number"
-                        min={2}
-                        step={1}
-                        className="iw-input iw-budget-factor t-label"
-                        aria-label="Decimate factor"
-                        data-testid="binary-wizard-decimate-factor"
-                        value={decimateDraft}
-                        onFocus={selectDecimateReduction}
-                        onChange={event => {
-                          const raw = event.target.value;
-                          setDecimateDraft(raw);
-                          setUserPickedReduction(true);
-                          const trimmed = raw.trim();
-                          const parsed = /^\d+$/.test(trimmed) ? Number(trimmed) : Number.NaN;
-                          if (Number.isSafeInteger(parsed) && parsed >= 2) {
-                            setConfig(prev => ({ ...prev, reduction: { mode: 'decimate', factor: parsed } }));
-                          } else {
-                            setConfig(prev => (
-                              prev.reduction?.mode === 'decimate'
-                                ? prev
-                                : { ...prev, reduction: { mode: 'decimate', factor: recommendedFactor } }
-                            ));
-                          }
-                        }}
-                        onBlur={() => {
-                          const trimmed = decimateDraft.trim();
-                          const parsed = /^\d+$/.test(trimmed) ? Number(trimmed) : Number.NaN;
-                          if (Number.isSafeInteger(parsed) && parsed >= 2) {
-                            setDecimateDraft(String(parsed));
-                            setConfig(prev => ({ ...prev, reduction: { mode: 'decimate', factor: parsed } }));
-                          } else {
-                            const fallback = config.reduction?.mode === 'decimate' && config.reduction.factor >= 2
-                              ? Math.floor(config.reduction.factor)
-                              : recommendedFactor;
-                            setDecimateDraft(String(fallback));
-                            setConfig(prev => ({ ...prev, reduction: { mode: 'decimate', factor: fallback } }));
-                          }
-                        }}
-                      />
-                    </div>
-                    <span className="t-caption iw-budget-sub" data-testid="binary-wizard-decimate-info">
-                      {decimatedRateInfo(
-                        preview.sampleRateHz,
-                        displayDecimateFactor,
-                        pointStats.totalPoints,
-                        isSampleIndexAxis(config.mode, effectiveScope !== null, preview.rangeText),
-                      )}
-                    </span>
-                  </div>
-
-                  <div className="iw-budget-option">
-                    <label className="iw-budget-label t-label">
-                      <input
-                        type="radio"
-                        name={reductionGroupName}
-                        value="envelope"
-                        checked={activeReductionMode === 'envelope'}
-                        onChange={() => {
-                          setUserPickedReduction(true);
-                          setConfig(prev => ({
-                            ...prev,
-                            reduction: { mode: 'envelope', targetPoints: DEFAULT_ENVELOPE_TARGET },
-                          }));
-                        }}
-                      />
-                      <span><strong>Display envelope.</strong></span>
-                    </label>
-                    <span className="t-caption iw-budget-sub">
-                      Fast. Analysis tools and sample dots are off for this trace.
-                    </span>
-                  </div>
-                </div>
-                <p className="t-caption iw-budget-hint" data-testid="binary-wizard-budget-hint">
-                  Or narrow Start / Samples on the left to cut import size.
-                </p>
-              </section>
-            )}
-            <div className="iw-hex-head">
-              <h3 className="t-section iw-hex-title" data-testid="binary-wizard-hex-heading" title={hexHeading}>{hexHeading}</h3>
-              <div className="iw-hex-tools" aria-label="Hex inspector controls">
-                {HEX_SIZES.map(opt => (
-                  <Btn
-                    key={opt.bytes}
-                    small
-                    variant="slate"
-                    active={hexSize === opt.bytes}
-                    title={opt.title}
-                    onClick={() => setHexSize(opt.bytes)}
-                  >
-                    {opt.label}
-                  </Btn>
-                ))}
-                <Btn
-                  small
-                  disabled={!canHexPrev}
-                  aria-label="Previous hex page"
-                  title={`Jump back ${hexSize} bytes in the hex inspector`}
-                  onClick={() => {
-                    setSelectedHexByte(null);
-                    setHexPageOffset(Math.max(0, preview.hexOffset - hexSize));
-                  }}
-                >
-                  ◀
-                </Btn>
-                <Btn
-                  small
-                  disabled={!canHexNext}
-                  aria-label="Next hex page"
-                  title={`Jump forward ${hexSize} bytes in the hex inspector`}
-                  onClick={() => {
-                    setSelectedHexByte(null);
-                    setHexPageOffset(Math.min(Math.max(0, buffer.byteLength - 16), preview.hexOffset + hexSize));
-                  }}
-                >
-                  ▶
-                </Btn>
-              </div>
-            </div>
-            <div className="iw-hex t-readout" data-testid="binary-wizard-hex" role="region" aria-label="Hex inspector (click any byte to decode and set skip)">
-              {hexRows.length === 0 ? '(end of file)' : (
-                <div className="iw-hex-grid">
-                  {hexRows.map(row => (
-                    <div key={row.rowOffset} className="iw-hex-row">
-                      <span className="iw-hex-addr">{row.addr}</span>
-                      <span className="iw-hex-bytes">
-                        {row.bytes.map((byteVal, col) => {
-                          const absOffset = row.rowOffset + col;
-                          const hex = byteVal.toString(16).padStart(2, '0');
-                          const isSelected = selectedHexByte === absOffset;
-                          const isSkipStart = config.mode === 'raw' && config.headerBytes === absOffset;
-                          return (
-                            <Fragment key={absOffset}>
-                              {col > 0 ? ' ' : ''}
-                              <button
-                                type="button"
-                                className={`iw-hex-byte t-readout${isSelected ? ' is-selected' : ''}${isSkipStart ? ' is-skip-start' : ''}`}
-                                aria-pressed={isSelected}
-                                aria-label={`Byte ${absOffset} (0x${absOffset.toString(16).padStart(4, '0')}): ${hex}`}
-                                title={`Offset ${formatCount(absOffset)} B (0x${absOffset.toString(16).padStart(4, '0')}) — click to inspect decoded values`}
-                                onClick={() => setSelectedHexByte(prev => (prev === absOffset ? null : absOffset))}
-                              >
-                                {hex}
-                              </button>
-                            </Fragment>
-                          );
-                        })}
-                        {row.bytes.length < 16 ? ' '.repeat((16 - row.bytes.length) * 3) : ''}
-                      </span>
-                      <span className="iw-hex-ascii">{row.ascii}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-            {cursorReadings && cursorReadings.byteHex !== null && (
-              <div className="iw-hex-cursor t-caption" data-testid="binary-wizard-hex-cursor">
-                <div className="iw-hex-cursor-vals t-readout">
-                  <span>@{formatCount(cursorReadings.offset)} B (0x{cursorReadings.offset.toString(16).padStart(4, '0')} · {config.endian.toUpperCase()})</span>
-                  {cursorReadings.u8 !== null && <span>u8:{cursorReadings.u8}</span>}
-                  {cursorReadings.i16 !== null && <span>i16:{cursorReadings.i16}</span>}
-                  {cursorReadings.i24 !== null && <span>i24:{cursorReadings.i24}</span>}
-                  {cursorReadings.i32 !== null && <span>i32:{cursorReadings.i32}</span>}
-                  {cursorReadings.f16 !== null && <span>f16:{formatCursorFloat(cursorReadings.f16)}</span>}
-                  {cursorReadings.f32 !== null && <span>f32:{formatCursorFloat(cursorReadings.f32)}</span>}
-                  {cursorReadings.f64 !== null && <span>f64:{formatCursorFloat(cursorReadings.f64)}</span>}
-                </div>
-              </div>
-            )}
-            {config.mode === 'raw' && (
-              <div className="iw-hex-foot">
-                <div className="iw-nudges" aria-label="Header skip step">
-                  <span className="t-caption">Nudge skip:</span>
-                  {SKIP_NUDGES.map(item => (
-                    <Btn
-                      key={item.label}
-                      small
-                      aria-label={`Skip ${item.label} bytes`}
-                      title={item.title}
-                      onClick={() => {
-                        setSelectedHexByte(null);
-                        nudgeSkip(item.delta);
-                      }}
-                    >
-                      {item.label} B
-                    </Btn>
-                  ))}
-                </div>
-                <Btn
-                  small
-                  variant="slate"
-                  disabled={!hexDiffersFromSkip}
-                  title={hexDiffersFromSkip
-                    ? `Set Skip bytes to ${formatCount(hexTargetOffset)} B (0x${hexTargetOffset.toString(16)})`
-                    : 'Click any byte above or page the hex viewer to another offset, then click here to set Skip bytes'}
-                  onClick={() => {
-                    const target = hexTargetOffset;
-                    setSelectedHexByte(null);
-                    setHexPageOffset(null);
-                    setAutoSkipHint(null);
-                    setConfig(prev => ({ ...prev, headerBytes: target }));
-                  }}
-                >
-                  Set skip = {formatCount(hexTargetOffset)} B
-                </Btn>
-              </div>
-            )}
+            <BinaryPointBudgetBanner
+              pointStats={pointStats}
+              reductionGroupName={reductionGroupName}
+              activeReductionMode={activeReductionMode}
+              decimateDraft={decimateDraft}
+              displayDecimateFactor={displayDecimateFactor}
+              recommendedFactor={recommendedFactor}
+              deviceMemoryGb={deviceMemoryGb}
+              sampleRateHz={preview.sampleRateHz}
+              mode={config.mode}
+              hasScopeSignature={effectiveScope !== null}
+              rangeText={preview.rangeText}
+              currentReduction={config.reduction}
+              onSelectFull={() => {
+                setUserPickedReduction(true);
+                setConfig(prev => ({ ...prev, reduction: { mode: 'full' } }));
+              }}
+              onSelectDecimate={selectDecimateReduction}
+              onDecimateDraftChange={raw => {
+                setDecimateDraft(raw);
+                setUserPickedReduction(true);
+                const trimmed = raw.trim();
+                const parsed = /^\d+$/.test(trimmed) ? Number(trimmed) : Number.NaN;
+                if (Number.isSafeInteger(parsed) && parsed >= 2) {
+                  setConfig(prev => ({ ...prev, reduction: { mode: 'decimate', factor: parsed } }));
+                } else {
+                  setConfig(prev => (
+                    prev.reduction?.mode === 'decimate'
+                      ? prev
+                      : { ...prev, reduction: { mode: 'decimate', factor: recommendedFactor } }
+                  ));
+                }
+              }}
+              onDecimateBlur={() => {
+                const trimmed = decimateDraft.trim();
+                const parsed = /^\d+$/.test(trimmed) ? Number(trimmed) : Number.NaN;
+                if (Number.isSafeInteger(parsed) && parsed >= 2) {
+                  setDecimateDraft(String(parsed));
+                  setConfig(prev => ({ ...prev, reduction: { mode: 'decimate', factor: parsed } }));
+                } else {
+                  const fallback = config.reduction?.mode === 'decimate' && config.reduction.factor >= 2
+                    ? Math.floor(config.reduction.factor)
+                    : recommendedFactor;
+                  setDecimateDraft(String(fallback));
+                  setConfig(prev => ({ ...prev, reduction: { mode: 'decimate', factor: fallback } }));
+                }
+              }}
+              onSelectEnvelope={() => {
+                setUserPickedReduction(true);
+                setConfig(prev => ({
+                  ...prev,
+                  reduction: { mode: 'envelope', targetPoints: DEFAULT_ENVELOPE_TARGET },
+                }));
+              }}
+            />
+            <BinaryHexInspector
+              buffer={buffer}
+              mode={config.mode}
+              endian={config.endian}
+              headerBytes={config.headerBytes}
+              hexOffset={preview.hexOffset}
+              hexSize={hexSize}
+              selectedHexByte={selectedHexByte}
+              onHexSizeChange={setHexSize}
+              onPageOffsetChange={setHexPageOffset}
+              onSelectHexByte={setSelectedHexByte}
+              onNudgeSkip={nudgeSkip}
+              onApplySkipOffset={target => {
+                setSelectedHexByte(null);
+                setHexPageOffset(null);
+                setAutoSkipHint(null);
+                setConfig(prev => ({ ...prev, headerBytes: target }));
+              }}
+            />
             {!blocker && (
               <p className="iw-result t-caption" data-testid="import-wizard-summary">
                 Will {editing ? 'show' : 'create'} {preview.channels.length} trace{preview.channels.length === 1 ? '' : 's'}:{' '}

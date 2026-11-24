@@ -941,7 +941,17 @@ function FileTitleRow({
 }) {
   const [editing, setEditing] = useState(false);
   const extension = fileName.split('.').pop()?.toUpperCase() ?? '';
-  const format: FileFormat = /^S[0-9]+P$/.test(extension) ? extension as FileFormat : extension === 'CSV' || extension === 'TXT' || extension === 'DAT' ? extension : 'DAT';
+  const format: FileFormat = /^S[0-9]+P$/.test(extension)
+    ? extension as FileFormat
+    : extension === 'CSV' || extension === 'TXT' || extension === 'TSV' || extension === 'DAT'
+      || extension === 'BIN' || extension === 'TRC' || extension === 'ISF'
+      || extension === 'WAV' || extension === 'NPY' || extension === 'RAW'
+      ? extension as FileFormat
+      : /^(?:CF32|FC32|SC16|CS16|CI16|CU8|CS8|CFILE|IQ)$/.test(extension)
+        ? 'IQ'
+        : /^(?:F32|F64|I32|U32|I24|U24|I16|S16|U16|U8|PCM|WFM)$/.test(extension)
+          ? 'BIN'
+          : 'DAT';
   const actions: SidebarAction[] = [
     { label: 'Info', run: onInfo },
     ...(onReplace ? [{ label: 'Replace file\u2026', run: onReplace }] : []),

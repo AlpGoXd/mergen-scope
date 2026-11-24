@@ -275,6 +275,8 @@ test('unified Text/Binary toggle, clickable hex byte cursor, batch binary apply,
   ]);
   await expect(page.getByTestId('binary-wizard')).toHaveCount(0);
   await expect(page.locator('.lp-file--header')).toHaveCount(2);
+  await expect(page.locator('.lp-file--header .lp-badge').filter({ hasText: 'WAV' })).toHaveCount(1);
+  await expect(page.locator('.lp-file--header .lp-badge').filter({ hasText: 'NPY' })).toHaveCount(1);
   // 2 stereo WAV channels (time in s) in pane-1 + 1 NPY channel (sample index) -> 3 total traces
   await expect(page.locator('[data-testid^="trace-row-"]')).toHaveCount(3);
   await expect(page.getByTestId('chart-plot-pane-1').locator('.trace-source .recharts-line-curve')).toHaveCount(2);
