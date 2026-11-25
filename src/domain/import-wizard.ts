@@ -4,14 +4,15 @@
 // Column roles, why Add is unavailable, preview range summary, and Edit columns.
 // ============================================================================
 
-import type { ColumnIdentity, WizardConfig } from "../types/file.ts";
+import type { ColumnIdentity, WizardConfig, WizardNetworkCell, WizardNetworkConfig } from "../types/file.ts";
 import { sweepBands } from "./sweep-bands.ts";
 import type { TraceDomain, DataPoint } from "../types/trace.ts";
 import { baseXUnit, detectXUnit, detectYUnit, findXUnit, findYUnit, storedXUnit, storedYUnit } from "./import-units.ts";
 import { formatAdaptiveXAxisValue, formatScalarWithUnit } from "./format.ts";
-import { columnHeaders, contentLines, numericColumns, splitCells } from "./parsers/tabular-detect.ts";
+import { columnDecimalLayout, columnHeaders, contentLines, numericColumns, parseTabularNumber, splitCells, splitHeader } from "./parsers/tabular-detect.ts";
 import { normalizeTraceData } from "./parsers/helpers.ts";
 import { decimateMinMax } from "./trace-math.ts";
+import { touchstonePairToComplex } from "./touchstone-math.ts";
 
 export type ColumnRole = "x" | "y" | "skip";
 
@@ -75,6 +76,36 @@ export function wizardLayout(text: string, config: Pick<WizardConfig, "delimiter
 /** Why the main button is unavailable, or null when the settings can import. */
 export function wizardBlocker(config: WizardConfig, layout: WizardLayout): string | null {
   if (layout.numeric.length === 0) return "No numeric columns with these settings. Check the separators and skipped rows.";
+  if (config.network) {
+    if (config.xCol < 0 || config.xCol >= layout.headers.length) return "No frequency column. Click a column chip and pick X.";
+    if (!layout.numeric.includes(config.xCol)) return "The frequency column has no numbers. Pick another column.";
+    const net = config.network;
+    if (!Number.isFinite(net.referenceOhms) || net.referenceOhms <= 0) return "Reference impedance Z₀ must be greater than 0 Ω.";
+    if (net.cells.length === 0) return "Map at least one S-parameter cell.";
+    const seenCells = new Set<string>();
+    const usedCols = new Set<number>([config.xCol]);
+    for (const cell of net.cells) {
+      if (cell.row < 0 || cell.row >= net.portCount || cell.col < 0 || cell.col >= net.portCount) {
+        return `Cell S${cell.row + 1}${cell.col + 1} is out of range for ${net.portCount}-port network.`;
+      }
+      const key = `${cell.row}:${cell.col}`;
+      if (seenCells.has(key)) return `Duplicate mapping for S${cell.row + 1}${cell.col + 1}.`;
+      seenCells.add(key);
+      if (cell.first < 0 || cell.first >= layout.headers.length || cell.second < 0 || cell.second >= layout.headers.length) {
+        return `Select both columns for S${cell.row + 1}${cell.col + 1}.`;
+      }
+      if (!layout.numeric.includes(cell.first) || !layout.numeric.includes(cell.second)) {
+        return `Mapped columns for S${cell.row + 1}${cell.col + 1} must be numeric.`;
+      }
+      if (cell.first === cell.second) return `S${cell.row + 1}${cell.col + 1} uses the same column twice.`;
+      if (usedCols.has(cell.first) || usedCols.has(cell.second)) {
+        return `Column is used more than once in S${cell.row + 1}${cell.col + 1}.`;
+      }
+      usedCols.add(cell.first);
+      usedCols.add(cell.second);
+    }
+    return null;
+  }
   if (config.xCol < 0 || config.xCol >= layout.headers.length) return "No X column. Click a column chip and pick X.";
   if (!layout.numeric.includes(config.xCol)) return "The X column has no numbers. Pick another X column.";
   const yCols = config.yCols.filter((col) => col < layout.headers.length);
@@ -165,6 +196,8 @@ export function readNumericTable(lines: readonly string[], delimiter: string | P
   const stride = Math.max(1, Math.ceil(total / Math.max(1, maxRows)));
   const count = Math.ceil(total / stride);
   const columns = Array.from({ length: Math.max(0, width) }, () => new Float64Array(count).fill(Number.NaN));
+  const headerCells = start > 0 ? splitHeader(lines[start - 1] ?? "", delimiter, width) : undefined;
+  const colLayouts = columns.map((_, col) => columnDecimalLayout(delimiter, headerCells?.[col]));
   for (let row = 0; row < count; row++) {
     const line = lines[start + row * stride];
     if (line === undefined) continue;
@@ -173,7 +206,7 @@ export function readNumericTable(lines: readonly string[], delimiter: string | P
       const cell = cells[col]?.trim();
       const column = columns[col];
       if (!column || cell === undefined || cell === "") continue;
-      const value = Number(cell);
+      const value = parseTabularNumber(cell, colLayouts[col]);
       if (Number.isFinite(value)) column[row] = value;
     }
   }
@@ -235,6 +268,112 @@ export function overviewPlot(table: NumericTable, xCol: number, yCols: readonly 
   const yRange = Number.isFinite(y0) && Number.isFinite(y1) ? { min: y0, max: y1 } : null;
   return {
     series: reduced.map((bands) => bands.map((line) => line.map((point) => ({ x: sx(point.freq), y: sy(point.amp) })))),
+    band,
+    xRange: { min: x0, max: x1 },
+    yRange,
+  };
+}
+
+const RAD_TO_DEG = 180 / Math.PI;
+
+/** True when finite X values in the sampled numeric table fail to increase strictly. */
+export function hasNonIncreasingFrequencies(table: NumericTable, xCol: number): boolean {
+  const xs = table.columns[xCol];
+  if (!xs) return false;
+  let prev = -Infinity;
+  let seen = false;
+  for (let i = 0; i < xs.length; i++) {
+    const x = xs[i];
+    if (x === undefined || !Number.isFinite(x)) continue;
+    if (seen && x <= prev) return true;
+    prev = x;
+    seen = true;
+  }
+  return false;
+}
+
+/** The cell the preview plots: S11 when fully mapped, else the first fully mapped cell. */
+export function networkPreviewCell(network: WizardNetworkConfig): WizardNetworkCell | undefined {
+  const complete = network.cells.filter((cell) => cell.first >= 0 && cell.second >= 0);
+  return complete.find((cell) => cell.row === 0 && cell.col === 0) ?? complete[0];
+}
+
+/** "S21" for a zero-based cell. */
+export function networkCellName(cell: Pick<WizardNetworkCell, "row" | "col">): string {
+  return `S${cell.row + 1}${cell.col + 1}`;
+}
+
+/** Names of the S-parameter cells with no (or only half) mapped columns; they import as 0. */
+export function unmappedNetworkCells(network: WizardNetworkConfig): string[] {
+  const names: string[] = [];
+  for (let row = 0; row < network.portCount; row++) {
+    for (let col = 0; col < network.portCount; col++) {
+      const mapped = network.cells.some((cell) => cell.row === row && cell.col === col && cell.first >= 0 && cell.second >= 0);
+      if (!mapped) names.push(networkCellName({ row, col }));
+    }
+  }
+  return names;
+}
+
+/** Preview plot of |S11| in dB (or the first fully mapped S-parameter cell) in S-parameter wizard mode. */
+export function networkOverviewPlot(
+  table: NumericTable,
+  xCol: number,
+  network: WizardNetworkConfig,
+  tableRows: number,
+  buckets = PLOT_BUCKETS,
+): OverviewPlot {
+  const cell = networkPreviewCell(network);
+  const xs = table.columns[xCol];
+  const firstCol = cell ? table.columns[cell.first] : undefined;
+  const secondCol = cell ? table.columns[cell.second] : undefined;
+  if (!cell || !xs || !firstCol || !secondCol) {
+    return { series: [], band: null, xRange: null, yRange: null };
+  }
+
+  const toDeg = network.format !== "RI" && network.angleUnit === "rad";
+  const points: DataPoint[] = [];
+  for (let i = 0; i < xs.length; i++) {
+    const x = xs[i];
+    const a = firstCol[i];
+    const b = secondCol[i];
+    if (x === undefined || a === undefined || b === undefined) continue;
+    if (!Number.isFinite(x) || !Number.isFinite(a) || !Number.isFinite(b)) continue;
+    const z = touchstonePairToComplex(network.format, a, toDeg ? b * RAD_TO_DEG : b);
+    const mag = Math.hypot(z.re, z.im);
+    const db = mag > 0 ? 20 * Math.log10(mag) : -300;
+    points.push({ freq: x, amp: db });
+  }
+
+  const line = normalizeTraceData(points);
+  const first = line[0];
+  const last = line[line.length - 1];
+  if (!first || !last) return { series: [], band: null, xRange: null, yRange: null };
+  const x0 = first.freq;
+  const x1 = last.freq;
+  const reduced = decimateMinMax(line, x0, x1, buckets);
+  let y0 = Infinity;
+  let y1 = -Infinity;
+  for (const point of reduced) {
+    if (point.amp < y0) y0 = point.amp;
+    if (point.amp > y1) y1 = point.amp;
+  }
+  const sx = (x: number) => (x1 > x0 ? (x - x0) / (x1 - x0) : 0.5);
+  const sy = (y: number) => (y1 > y0 ? 1 - (y - y0) / (y1 - y0) : 0.5);
+
+  let from = Infinity;
+  let to = -Infinity;
+  const shown = Math.max(1, Math.ceil(tableRows / table.stride));
+  for (let i = 0; i < Math.min(shown, xs.length); i++) {
+    const x = xs[i];
+    if (x === undefined || !Number.isFinite(x)) continue;
+    if (x < from) from = x;
+    if (x > to) to = x;
+  }
+  const band = Number.isFinite(from) && Number.isFinite(to) ? { from: sx(from), to: sx(to) } : null;
+  const yRange = Number.isFinite(y0) && Number.isFinite(y1) ? { min: y0, max: y1 } : null;
+  return {
+    series: [[reduced.map((point) => ({ x: sx(point.freq), y: sy(point.amp) }))]],
     band,
     xRange: { min: x0, max: x1 },
     yRange,

@@ -422,6 +422,34 @@ const validControls = (v: unknown): boolean => object(v)
         String((v.activeViewByFamily as Record<string, unknown>)[key])
       )
   );
+const validWizardNetwork = (v: unknown, xCol: number): boolean => {
+  if (!object(v)) return false;
+  const portCount = Number(v.portCount);
+  if (!Number.isInteger(portCount) || ![1, 2, 3, 4].includes(portCount)) return false;
+  if (typeof v.format !== 'string' || !['RI', 'MA', 'DB'].includes(v.format)) return false;
+  if (typeof v.angleUnit !== 'string' || !['deg', 'rad'].includes(v.angleUnit)) return false;
+  if (!finite(v.referenceOhms) || Number(v.referenceOhms) <= 0) return false;
+  if (!Array.isArray(v.cells) || v.cells.length === 0) return false;
+  const seenCells = new Set<string>();
+  const usedCols = new Set<number>([xCol]);
+  for (const cell of v.cells) {
+    if (!object(cell)) return false;
+    const row = Number(cell.row);
+    const col = Number(cell.col);
+    const first = Number(cell.first);
+    const second = Number(cell.second);
+    if (!Number.isInteger(row) || row < 0 || row >= portCount) return false;
+    if (!Number.isInteger(col) || col < 0 || col >= portCount) return false;
+    if (!Number.isInteger(first) || first < 0 || !Number.isInteger(second) || second < 0) return false;
+    if (first === second || usedCols.has(first) || usedCols.has(second)) return false;
+    const key = `${row}:${col}`;
+    if (seenCells.has(key)) return false;
+    seenCells.add(key);
+    usedCols.add(first);
+    usedCols.add(second);
+  }
+  return true;
+};
 const validWizard = (v: unknown): boolean => object(v)
   && typeof v.delimiter === 'string'
   && (v.valueDelimiter === undefined || typeof v.valueDelimiter === 'string' && [',', ';', '\t', ' '].includes(v.valueDelimiter))
@@ -438,7 +466,8 @@ const validWizard = (v: unknown): boolean => object(v)
   && finite(v.confidence)
   && strings(v.headers)
   && (v.xUnit === undefined || typeof v.xUnit === 'string')
-  && (v.yUnit === undefined || typeof v.yUnit === 'string');
+  && (v.yUnit === undefined || typeof v.yUnit === 'string')
+  && (v.network === undefined || validWizardNetwork(v.network, Number(v.xCol)));
 const resultMap = (v: unknown, valid: (entry: unknown) => boolean): boolean => object(v) && Object.values(v).every(valid);
 
 // Compare independently serialized top-level and file-owned records without relying on property order.

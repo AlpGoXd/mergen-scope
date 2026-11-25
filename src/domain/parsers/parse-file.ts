@@ -5,11 +5,13 @@
 // ============================================================================
 
 import type { ParsedFile, FileClassification } from "../../types/file.ts";
-import { classify } from "./classifier.ts";
+import { classify, looksLikeTouchstoneText, TOUCHSTONE_OPTION_TOKEN } from "./classifier.ts";
 import { parseRSDat } from "./rs-dat.ts";
 import { parseTouchstoneFile } from "./touchstone.ts";
 import { parseTabularFile } from "./tabular.ts";
 import { contentLines, detectTabular } from "./tabular-detect.ts";
+
+export { looksLikeTouchstoneText, TOUCHSTONE_OPTION_TOKEN };
 
 // ---------------------------------------------------------------------------
 // Format detection helpers
@@ -17,33 +19,6 @@ import { contentLines, detectTabular } from "./tabular-detect.ts";
 
 function isTouchstoneFileName(fileName: string): boolean {
   return /\.(s\d+p)$/i.test(String(fileName ?? ""));
-}
-
-function getFirstNonCommentLine(text: string): string {
-  const lines = String(text ?? "").split(/\r?\n/);
-  for (const rawLine of lines) {
-    const line = rawLine.replace(/^\uFEFF/, "").trim();
-    if (!line) continue;
-    if (line.charAt(0) === "!") continue;
-    return line;
-  }
-  return "";
-}
-
-function looksLikeTouchstoneText(text: string): boolean {
-  const first = getFirstNonCommentLine(text);
-  if (!first) return false;
-  if (/^\[Version\]/i.test(first)) return true;
-  if (/^\[(Number of Ports|Reference|Network Data|Matrix Format|End)\]/i.test(first)) return true;
-  if (/^#/.test(first)) return isTouchstoneOptionLine(first);
-  return false;
-}
-
-// A bare "#" is a valid default option line; other "#..." lines (instrument comments) are not Touchstone.
-const TOUCHSTONE_OPTION_TOKEN = /^(hz|khz|mhz|ghz|s|y|z|h|g|db|ma|ri|r|[+-]?\d+(\.\d*)?(e[+-]?\d+)?)$/i;
-function isTouchstoneOptionLine(line: string): boolean {
-  const tokens = line.slice(1).replace(/!.*$/, "").trim().split(/\s+/).filter(Boolean);
-  return tokens.every((token) => TOUCHSTONE_OPTION_TOKEN.test(token));
 }
 
 function detectImportedFileFormat(text: string, fileName: string): string {

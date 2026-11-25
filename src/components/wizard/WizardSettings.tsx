@@ -1,10 +1,11 @@
 import { useEffect, useId, useState } from 'react';
-import type { WizardConfig } from '../../types/file';
+import type { WizardConfig, WizardNetworkConfig } from '../../types/file';
 import { Btn } from '../shared/Btn';
 import { Icon, MessageBar, PopoverAt, Segmented } from '../shared/Controls';
 import { CaretDownIcon } from '../shared/Icons';
 import { findXUnit, findYUnit } from '../../domain/import-units';
 import { hasCustomMultiplier, setXUnit, setYUnit } from '../../domain/import-wizard';
+import { detectSParameterNetwork } from '../../domain/parsers/tabular-detect';
 import type { ConfidenceLevel, WizardDelimiter } from '../../domain/parsers/tabular-detect';
 
 const DELIMITERS: readonly { value: WizardDelimiter; label: string; ariaLabel: string }[] = [
@@ -131,17 +132,60 @@ export interface WizardSettingsProps {
   config: WizardConfig;
   maxSkipRows: number;
   detected: WizardDetectedInfo;
+  headers?: readonly string[];
+  numeric?: readonly number[];
   onChange: (next: WizardConfig) => void;
   onLayout: (delimiter: string, skipRows: number, valueDelimiter?: WizardDelimiter) => void;
 }
 
-export function WizardSettings({ config, maxSkipRows, detected, onChange, onLayout }: WizardSettingsProps) {
+const NETWORK_PORTS: readonly { value: '1' | '2' | '3' | '4'; label: string }[] = [
+  { value: '1', label: '1' },
+  { value: '2', label: '2' },
+  { value: '3', label: '3' },
+  { value: '4', label: '4' },
+];
+
+const NETWORK_FORMATS: readonly { value: 'RI' | 'MA' | 'DB'; label: string; ariaLabel: string }[] = [
+  { value: 'RI', label: 'RI', ariaLabel: 'Real and Imaginary' },
+  { value: 'MA', label: 'MA', ariaLabel: 'Magnitude and Angle' },
+  { value: 'DB', label: 'DB', ariaLabel: 'dB and Angle' },
+];
+
+const NETWORK_ANGLES: readonly { value: 'deg' | 'rad'; label: string; ariaLabel: string }[] = [
+  { value: 'deg', label: 'deg', ariaLabel: 'Degrees' },
+  { value: 'rad', label: 'rad', ariaLabel: 'Radians' },
+];
+
+function networkPairLabels(format: WizardNetworkConfig['format']): readonly [string, string] {
+  if (format === 'RI') return ['Re', 'Im'];
+  if (format === 'DB') return ['dB', 'Ang'];
+  return ['Mag', 'Ang'];
+}
+
+export function WizardSettings({ config, maxSkipRows, detected, headers, numeric, onChange, onLayout }: WizardSettingsProps) {
   const skipId = useId();
+  const z0Id = useId();
   const [showSecondSeparator, setShowSecondSeparator] = useState(() => Boolean(config.valueDelimiter));
   const [xMoreAnchor, setXMoreAnchor] = useState<HTMLElement | null>(null);
   const [yMoreAnchor, setYMoreAnchor] = useState<HTMLElement | null>(null);
+  const [cellAnchor, setCellAnchor] = useState<{ row: number; col: number; at: HTMLElement } | null>(null);
   const [xCustomPicked, setXCustomPicked] = useState(false);
   const [yCustomPicked, setYCustomPicked] = useState(false);
+  const [z0Draft, setZ0Draft] = useState(() => String(config.network?.referenceOhms ?? 50));
+
+  useEffect(() => {
+    const ref = config.network?.referenceOhms;
+    if (ref === undefined) return;
+    const parsed = Number(z0Draft.trim());
+    if (!Number.isFinite(parsed) || parsed !== ref) {
+      setZ0Draft(String(ref));
+    }
+  }, [config.network?.referenceOhms]);
+
+  const colHeaders = headers ?? config.headers;
+  const numCols = numeric ?? colHeaders.map((_, idx) => idx);
+  const network = config.network;
+  const isNetwork = Boolean(network);
 
   const mixedOpen = showSecondSeparator || Boolean(config.valueDelimiter);
   const delimiter = DELIMITERS.some(item => item.value === config.delimiter) ? (config.delimiter as WizardDelimiter) : ',';
@@ -175,6 +219,70 @@ export function WizardSettings({ config, maxSkipRows, detected, onChange, onLayo
     setYMoreAnchor(null);
     onChange(setYUnit(config, unitId));
   };
+
+  const switchMode = (mode: 'traces' | 'network') => {
+    if (mode === 'network') {
+      if (config.network) return;
+      const suggested = detectSParameterNetwork(colHeaders, numCols, config.xCol);
+      const candidates = numCols.filter(col => col !== config.xCol);
+      const c0 = candidates[0];
+      const c1 = candidates[1];
+      const fallback: WizardNetworkConfig = {
+        portCount: 1,
+        format: 'RI',
+        angleUnit: 'deg',
+        referenceOhms: 50,
+        cells: c0 !== undefined && c1 !== undefined ? [{ row: 0, col: 0, first: c0, second: c1 }] : [],
+      };
+      const freqBase = config.domain === 'frequency' && xCategory === 'frequency'
+        ? { domain: 'frequency' as const, xUnit: config.xUnit ?? 'Hz', xMult: config.xMult }
+        : { domain: 'frequency' as const, xUnit: 'Hz', xMult: 1 };
+      onChange({ ...config, ...freqBase, network: suggested ?? fallback });
+      return;
+    }
+    if (!config.network) return;
+    const { network: _removed, ...rest } = config;
+    const yCols = rest.yCols.length > 0 ? rest.yCols : numCols.filter(col => col !== rest.xCol);
+    onChange({ ...rest, yCols });
+  };
+
+  const updateNetwork = (patch: Partial<WizardNetworkConfig>) => {
+    if (!network) return;
+    onChange({ ...config, network: { ...network, ...patch } });
+  };
+
+  const updateCellMapping = (row: number, col: number, which: 'first' | 'second', colIndex: number) => {
+    if (!network) return;
+    // Remove colIndex from any other slot if reassigned so the user isn't trapped in a duplicate-column state.
+    const cleaned = colIndex >= 0
+      ? network.cells
+        .map(cell => {
+          if (cell.row === row && cell.col === col) return cell;
+          const first = cell.first === colIndex ? -1 : cell.first;
+          const second = cell.second === colIndex ? -1 : cell.second;
+          return { ...cell, first, second };
+        })
+        .filter(cell => cell.first >= 0 || cell.second >= 0)
+      : network.cells;
+    const existing = cleaned.find(cell => cell.row === row && cell.col === col);
+    const otherSlot = which === 'first' ? (existing?.second ?? -1) : (existing?.first ?? -1);
+    const nextFirst = which === 'first' ? colIndex : (otherSlot === colIndex ? -1 : otherSlot);
+    const nextSecond = which === 'second' ? colIndex : (otherSlot === colIndex ? -1 : otherSlot);
+    const others = cleaned.filter(cell => !(cell.row === row && cell.col === col));
+    const nextCells = nextFirst < 0 && nextSecond < 0
+      ? others
+      : [...others, { row, col, first: nextFirst, second: nextSecond }].sort((a, b) => (a.row - b.row) || (a.col - b.col));
+    updateNetwork({ cells: nextCells });
+  };
+
+  const clearCellMapping = (row: number, col: number) => {
+    if (!network) return;
+    updateNetwork({ cells: network.cells.filter(cell => !(cell.row === row && cell.col === col)) });
+  };
+
+  const activeCell = cellAnchor && network
+    ? network.cells.find(item => item.row === cellAnchor.row && item.col === cellAnchor.col)
+    : undefined;
 
   return (
     <div className="iw-settings">
@@ -222,117 +330,266 @@ export function WizardSettings({ config, maxSkipRows, detected, onChange, onLayo
           <label className="t-label t-muted" htmlFor={skipId}>Skip rows</label>
           <input id={skipId} className="iw-input t-label" type="number" min={0} max={maxSkipRows} step={1} value={config.skipRows} onChange={event => setSkip(Number(event.target.value))} />
         </div>
-      </section>
-
-      <section className="iw-group" aria-label="X axis">
-        <h3 className="t-section">X axis</h3>
-        <div className="iw-seg">
-          <div className="ui-segmented" role="radiogroup" aria-label="X axis quantity">
-            {X_PRIMARY_GROUPS.map(group => {
-              const active = xIsPrimary && xCategory === group.value;
-              return (
-                <Btn
-                  key={group.value}
-                  role="radio"
-                  variant="slate"
-                  active={active}
-                  aria-checked={active}
-                  aria-label={group.ariaLabel}
-                  onClick={() => pickXUnit(active ? (config.xUnit ?? group.defaultUnit) : group.defaultUnit)}
-                >
-                  {group.label}
-                </Btn>
-              );
-            })}
-            <Btn
-              variant="slate"
-              active={!xIsPrimary || Boolean(xMoreAnchor)}
-              aria-label="More X units"
-              aria-haspopup="menu"
-              aria-expanded={Boolean(xMoreAnchor)}
-              onClick={event => {
-                const target = event.currentTarget;
-                setXMoreAnchor(current => (current ? null : target));
-              }}
-            >
-              <span className="iw-more-face">{xMoreFace}<CaretDownIcon /></span>
-            </Btn>
-          </div>
-        </div>
-        {xScaleRow && (
+        <div className="iw-line">
+          <span className="t-label t-muted">Data</span>
           <div className="iw-seg">
             <Segmented
-              label="X unit"
-              options={xScaleRow}
-              value={config.xUnit ?? xScaleRow[0]?.value ?? ''}
-              onChange={pickXUnit}
+              label="Table import mode"
+              options={[
+                { value: 'traces', label: 'Traces', title: 'Import numeric columns as scalar traces' },
+                { value: 'network', label: 'S-parameters', title: 'Import paired columns as an S-parameter network' },
+              ]}
+              value={isNetwork ? 'network' : 'traces'}
+              onChange={mode => { setCellAnchor(null); switchMode(mode); }}
             />
           </div>
-        )}
-        {xCustom && (
-          <MultiplierField
-            label="X in multiplier"
-            mult={config.xMult}
-            onMult={xMult => onChange({ ...config, xMult })}
-          />
-        )}
-        <label className="iw-check t-label">
-          <input
-            type="checkbox"
-            checked={config.breakSweepGaps ?? false}
-            onChange={event => onChange({ ...config, breakSweepGaps: event.target.checked })}
-          />
-          Break lines at sweep gaps
-        </label>
+        </div>
       </section>
 
-      <section className="iw-group" aria-label="Y axis">
-        <h3 className="t-section">Y axis</h3>
-        <div className="iw-seg">
-          <div className="ui-segmented" role="radiogroup" aria-label="Y unit">
-            {Y_QUICK_OPTIONS.map(option => {
-              const active = yQuickValue === option.value;
-              return (
-                <Btn
-                  key={option.value}
-                  role="radio"
-                  variant="slate"
-                  active={active}
-                  aria-checked={active}
-                  aria-label={option.ariaLabel}
-                  title={option.title}
-                  onClick={() => pickYUnit(option.value === '__header' ? undefined : option.value)}
-                >
-                  {option.label}
-                </Btn>
-              );
-            })}
-            <Btn
-              variant="slate"
-              active={yMoreActive || Boolean(yMoreAnchor)}
-              aria-label="More Y units"
-              aria-haspopup="menu"
-              aria-expanded={Boolean(yMoreAnchor)}
-              onClick={event => {
-                const target = event.currentTarget;
-                setYMoreAnchor(current => (current ? null : target));
-              }}
+      {network ? (
+        <>
+          <section className="iw-group" aria-label="Frequency axis">
+            <h3 className="t-section">Frequency</h3>
+            <div className="iw-seg">
+              <Segmented
+                label="Frequency unit"
+                options={X_SCALE_ROWS.frequency ?? []}
+                value={config.xUnit ?? 'Hz'}
+                onChange={pickXUnit}
+              />
+            </div>
+            {xCustom && (
+              <MultiplierField
+                label="X in multiplier"
+                mult={config.xMult}
+                onMult={xMult => onChange({ ...config, xMult })}
+              />
+            )}
+          </section>
+
+          <section className="iw-group" aria-label="S-parameters">
+            <h3 className="t-section">S-parameters</h3>
+            <div className="iw-line">
+              <span className="t-label t-muted">Ports</span>
+              <div className="iw-seg">
+                <Segmented
+                  label="Port count"
+                  options={NETWORK_PORTS}
+                  value={String(network.portCount) as '1' | '2' | '3' | '4'}
+                  onChange={val => {
+                    const portCount = Number(val) as 1 | 2 | 3 | 4;
+                    setCellAnchor(null);
+                    updateNetwork({
+                      portCount,
+                      cells: network.cells.filter(cell => cell.row < portCount && cell.col < portCount),
+                    });
+                  }}
+                />
+              </div>
+            </div>
+            <div className="iw-line">
+              <span className="t-label t-muted">Format</span>
+              <div className="iw-seg">
+                <Segmented
+                  label="Data format"
+                  options={NETWORK_FORMATS}
+                  value={network.format}
+                  onChange={format => updateNetwork({ format })}
+                />
+              </div>
+            </div>
+            {network.format !== 'RI' && (
+              <div className="iw-line">
+                <span className="t-label t-muted">Angle</span>
+                <div className="iw-seg">
+                  <Segmented
+                    label="Angle unit"
+                    options={NETWORK_ANGLES}
+                    value={network.angleUnit}
+                    onChange={angleUnit => updateNetwork({ angleUnit })}
+                  />
+                </div>
+              </div>
+            )}
+            <div className="iw-line">
+              <label className="t-label t-muted" htmlFor={z0Id}>Z₀ (Ω)</label>
+              <input
+                id={z0Id}
+                className="iw-input iw-input--mult t-label"
+                type="text"
+                inputMode="decimal"
+                aria-label="Reference impedance in ohms"
+                value={z0Draft}
+                onChange={event => {
+                  const raw = event.target.value;
+                  setZ0Draft(raw);
+                  const parsed = Number(raw.trim());
+                  if (Number.isFinite(parsed) && parsed > 0) updateNetwork({ referenceOhms: parsed });
+                }}
+                onBlur={() => {
+                  const parsed = Number(z0Draft.trim());
+                  if (!Number.isFinite(parsed) || parsed <= 0) setZ0Draft(String(network.referenceOhms));
+                }}
+              />
+            </div>
+            <div
+              className="iw-sparam-matrix"
+              style={{ gridTemplateColumns: `repeat(${network.portCount}, minmax(0, 1fr))` }}
+              role="group"
+              aria-label="Mapped S-parameter matrix"
             >
-              <span className="iw-more-face">{yMoreFace}<CaretDownIcon /></span>
-            </Btn>
-          </div>
-        </div>
-        {yCustom && (
-          <MultiplierField
-            label="Y in multiplier"
-            mult={config.yMult}
-            onMult={yMult => onChange({ ...config, yMult })}
-          />
-        )}
-        {config.yUnit === undefined && !yCustom && (
-          <span className="t-caption">Using each column&apos;s own header unit.</span>
-        )}
-      </section>
+              {Array.from({ length: network.portCount }, (_, row) =>
+                Array.from({ length: network.portCount }, (_, col) => {
+                  const cell = network.cells.find(item => item.row === row && item.col === col);
+                  const hasFirst = cell !== undefined && cell.first >= 0 && cell.first < colHeaders.length;
+                  const hasSecond = cell !== undefined && cell.second >= 0 && cell.second < colHeaders.length;
+                  const state = hasFirst && hasSecond ? 'mapped' : (hasFirst || hasSecond) ? 'partial' : 'empty';
+                  const [firstLabel, secondLabel] = networkPairLabels(network.format);
+                  const cellName = `S${row + 1}${col + 1}`;
+                  const isOpen = cellAnchor?.row === row && cellAnchor?.col === col;
+                  const firstColName = hasFirst && cell ? (colHeaders[cell.first] ?? `Col ${cell.first + 1}`) : '—';
+                  const secondColName = hasSecond && cell ? (colHeaders[cell.second] ?? `Col ${cell.second + 1}`) : '—';
+                  const tooltip = state === 'empty'
+                    ? `${cellName}: not mapped (click to assign columns)`
+                    : `${cellName}: ${firstLabel} = ${firstColName}, ${secondLabel} = ${secondColName}`;
+                  return (
+                    <button
+                      key={cellName}
+                      type="button"
+                      className={`iw-sparam-cell t-label is-${state}${isOpen ? ' is-open' : ''}`}
+                      data-testid={`sparam-matrix-cell-${row}-${col}`}
+                      aria-haspopup="dialog"
+                      aria-expanded={isOpen}
+                      title={tooltip}
+                      onClick={event => {
+                        const at = event.currentTarget;
+                        setCellAnchor(current => (current?.row === row && current?.col === col ? null : { row, col, at }));
+                      }}
+                    >
+                      <span>{cellName}</span>
+                      {state === 'mapped' && <span className="iw-sparam-dot" aria-hidden="true" />}
+                      {state === 'partial' && <span className="iw-sparam-dot is-warn" aria-hidden="true" />}
+                    </button>
+                  );
+                }),
+              )}
+            </div>
+            <span className="t-caption t-muted">Click a matrix cell or any table column chip to map.</span>
+          </section>
+        </>
+      ) : (
+        <>
+          <section className="iw-group" aria-label="X axis">
+            <h3 className="t-section">X axis</h3>
+            <div className="iw-seg">
+              <div className="ui-segmented" role="radiogroup" aria-label="X axis quantity">
+                {X_PRIMARY_GROUPS.map(group => {
+                  const active = xIsPrimary && xCategory === group.value;
+                  return (
+                    <Btn
+                      key={group.value}
+                      role="radio"
+                      variant="slate"
+                      active={active}
+                      aria-checked={active}
+                      aria-label={group.ariaLabel}
+                      onClick={() => pickXUnit(active ? (config.xUnit ?? group.defaultUnit) : group.defaultUnit)}
+                    >
+                      {group.label}
+                    </Btn>
+                  );
+                })}
+                <Btn
+                  variant="slate"
+                  active={!xIsPrimary || Boolean(xMoreAnchor)}
+                  aria-label="More X units"
+                  aria-haspopup="menu"
+                  aria-expanded={Boolean(xMoreAnchor)}
+                  onClick={event => {
+                    const target = event.currentTarget;
+                    setXMoreAnchor(current => (current ? null : target));
+                  }}
+                >
+                  <span className="iw-more-face">{xMoreFace}<CaretDownIcon /></span>
+                </Btn>
+              </div>
+            </div>
+            {xScaleRow && (
+              <div className="iw-seg">
+                <Segmented
+                  label="X unit"
+                  options={xScaleRow}
+                  value={config.xUnit ?? xScaleRow[0]?.value ?? ''}
+                  onChange={pickXUnit}
+                />
+              </div>
+            )}
+            {xCustom && (
+              <MultiplierField
+                label="X in multiplier"
+                mult={config.xMult}
+                onMult={xMult => onChange({ ...config, xMult })}
+              />
+            )}
+            <label className="iw-check t-label">
+              <input
+                type="checkbox"
+                checked={config.breakSweepGaps ?? false}
+                onChange={event => onChange({ ...config, breakSweepGaps: event.target.checked })}
+              />
+              Break lines at sweep gaps
+            </label>
+          </section>
+
+          <section className="iw-group" aria-label="Y axis">
+            <h3 className="t-section">Y axis</h3>
+            <div className="iw-seg">
+              <div className="ui-segmented" role="radiogroup" aria-label="Y unit">
+                {Y_QUICK_OPTIONS.map(option => {
+                  const active = yQuickValue === option.value;
+                  return (
+                    <Btn
+                      key={option.value}
+                      role="radio"
+                      variant="slate"
+                      active={active}
+                      aria-checked={active}
+                      aria-label={option.ariaLabel}
+                      title={option.title}
+                      onClick={() => pickYUnit(option.value === '__header' ? undefined : option.value)}
+                    >
+                      {option.label}
+                    </Btn>
+                  );
+                })}
+                <Btn
+                  variant="slate"
+                  active={yMoreActive || Boolean(yMoreAnchor)}
+                  aria-label="More Y units"
+                  aria-haspopup="menu"
+                  aria-expanded={Boolean(yMoreAnchor)}
+                  onClick={event => {
+                    const target = event.currentTarget;
+                    setYMoreAnchor(current => (current ? null : target));
+                  }}
+                >
+                  <span className="iw-more-face">{yMoreFace}<CaretDownIcon /></span>
+                </Btn>
+              </div>
+            </div>
+            {yCustom && (
+              <MultiplierField
+                label="Y in multiplier"
+                mult={config.yMult}
+                onMult={yMult => onChange({ ...config, yMult })}
+              />
+            )}
+            {config.yUnit === undefined && !yCustom && (
+              <span className="t-caption">Using each column&apos;s own header unit.</span>
+            )}
+          </section>
+        </>
+      )}
 
       <section className="iw-group" aria-label="Auto-detect confidence">
         <h3 className="t-section">Auto-detect</h3>
@@ -356,6 +613,84 @@ export function WizardSettings({ config, maxSkipRows, detected, onChange, onLayo
           </ul>
         )}
       </section>
+
+      {cellAnchor && network && (() => {
+        const { row, col, at } = cellAnchor;
+        const cellName = `S${row + 1}${col + 1}`;
+        const [firstLabel, secondLabel] = networkPairLabels(network.format);
+        // Columns already mapped to another cell: picking one here moves it, so say where it comes from.
+        const usedBy = new Map<number, string>();
+        for (const other of network.cells) {
+          if (other.row === row && other.col === col) continue;
+          const otherName = `S${other.row + 1}${other.col + 1}`;
+          if (other.first >= 0) usedBy.set(other.first, `${otherName} ${firstLabel}`);
+          if (other.second >= 0) usedBy.set(other.second, `${otherName} ${secondLabel}`);
+        }
+        const optionText = (header: string, idx: number) => {
+          const owner = usedBy.get(idx);
+          return owner ? `${header} (in use: ${owner})` : header;
+        };
+        return (
+          <PopoverAt
+            label={`Map ${cellName}`}
+            at={at}
+            onClose={() => setCellAnchor(null)}
+            onEscape={() => { setCellAnchor(null); at.focus(); }}
+          >
+            <div className="iw-sparam-pop" role="dialog" aria-label={`Map ${cellName}`}>
+              <div className="iw-sparam-pop-head">
+                <span className="t-card-title">{cellName}</span>
+                {activeCell && (
+                  <Btn
+                    small
+                    onClick={() => {
+                      clearCellMapping(row, col);
+                      setCellAnchor(null);
+                      at.focus();
+                    }}
+                  >
+                    Clear
+                  </Btn>
+                )}
+              </div>
+              <div className="iw-field">
+                <span className="t-caption t-muted">{firstLabel} column</span>
+                <select
+                  className="ui-select t-label"
+                  aria-label={`${cellName} ${firstLabel}`}
+                  data-testid={`sparam-cell-${row}-${col}-first`}
+                  value={activeCell ? String(activeCell.first) : '-1'}
+                  onChange={event => updateCellMapping(row, col, 'first', Number(event.target.value))}
+                >
+                  <option value="-1">— not mapped</option>
+                  {colHeaders.map((header, idx) => (
+                    <option key={idx} value={String(idx)} disabled={idx === config.xCol || !numCols.includes(idx)}>
+                      {optionText(header, idx)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="iw-field">
+                <span className="t-caption t-muted">{secondLabel} column</span>
+                <select
+                  className="ui-select t-label"
+                  aria-label={`${cellName} ${secondLabel}`}
+                  data-testid={`sparam-cell-${row}-${col}-second`}
+                  value={activeCell ? String(activeCell.second) : '-1'}
+                  onChange={event => updateCellMapping(row, col, 'second', Number(event.target.value))}
+                >
+                  <option value="-1">— not mapped</option>
+                  {colHeaders.map((header, idx) => (
+                    <option key={idx} value={String(idx)} disabled={idx === config.xCol || !numCols.includes(idx)}>
+                      {optionText(header, idx)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </PopoverAt>
+        );
+      })()}
 
       {xMoreAnchor && (
         <PopoverAt

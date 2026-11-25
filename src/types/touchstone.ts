@@ -100,6 +100,9 @@ export interface TouchstoneNetwork {
 
   /** Touchstone version (1 or 2). */
   readonly version: number;
+
+  /** Marker stamped by spec-compliant parsers to distinguish row-major matrices from legacy saved workspaces. */
+  readonly cellOrder?: "spec";
 }
 
 // ---------------------------------------------------------------------------

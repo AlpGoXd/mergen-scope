@@ -11,11 +11,13 @@ import { useMarkerState } from '../../stores/marker-store';
 import type { OpenChoice } from '../../types/open-files-plan';
 import type { WizardConfig } from '../../types/file';
 import { breaksFrequencyGaps } from '../../domain/sweep-bands';
-import { detectTabular } from '../../domain/parsers/tabular-detect';
+import { detectSParameterNetwork, detectTabular } from '../../domain/parsers/tabular-detect';
 import {
-  columnDisplayName, columnRole, hasColumnNames, importableYCols, listNames, matchPriorColumns, previewCaption,
-  overviewPlot, plotCaption, previewRangeSummary, readNumericTable, setColumnRole, wizardBlocker, wizardLayout,
+  columnDisplayName, columnRole, hasColumnNames, hasNonIncreasingFrequencies, importableYCols, listNames, matchPriorColumns,
+  networkCellName, networkOverviewPlot, networkPreviewCell, overviewPlot, plotCaption, previewCaption, previewRangeSummary,
+  readNumericTable, setColumnRole, unmappedNetworkCells, wizardBlocker, wizardLayout,
 } from '../../domain/import-wizard';
+import type { ColumnRole } from '../../domain/import-wizard';
 import { useWizardTraceColors } from '../../hooks/use-wizard-trace-colors';
 import { Btn } from '../shared/Btn';
 import { Icon, MessageBar, Segmented } from '../shared/Controls';
@@ -86,15 +88,31 @@ function WizardDialog({ entry, position, total, others, queue, priorFile }: Wiza
   const layout = useMemo(() => wizardLayout(entry.rawText, config), [entry.rawText, config.delimiter, config.valueDelimiter, config.skipRows]);
   const headers = layout.headers;
   const named = hasColumnNames(config, headers);
-  const blocker = wizardBlocker(config, layout);
   const yCols = importableYCols(config, layout);
   // Whole-file plot: numbers are read when the layout changes; roles only pick and re-reduce columns.
   const numericTable = useMemo(() => readNumericTable(layout.lines, config, config.skipRows, layout.headers.length), [layout, config.delimiter, config.valueDelimiter, config.skipRows]);
+  const baseBlocker = wizardBlocker(config, layout);
+  const blocker = baseBlocker ?? (config.network && hasNonIncreasingFrequencies(numericTable, config.xCol) ? 'Frequencies must be strictly increasing.' : null);
   // yCols is a fresh array each render; compare it by content.
   const yColsKey = yCols.join(',');
+  const networkKey = config.network
+    ? `${config.network.portCount}:${config.network.format}:${config.network.angleUnit}:${config.network.cells.map(c => `${c.row}.${c.col}.${c.first}.${c.second}`).join(',')}`
+    : '';
   const splitBands = breaksFrequencyGaps(config);
-  const plot = useMemo(() => overviewPlot(numericTable, config.xCol, yCols, PREVIEW_ROWS, undefined, splitBands), [numericTable, config.xCol, yColsKey, splitBands]);
-  const rangeText = useMemo(() => previewRangeSummary(plot, config), [plot, config.domain, config.xUnit, config.yUnit, config.xMult, config.yMult]);
+  const plot = useMemo(
+    () => config.network
+      ? networkOverviewPlot(numericTable, config.xCol, config.network, PREVIEW_ROWS)
+      : overviewPlot(numericTable, config.xCol, yCols, PREVIEW_ROWS, undefined, splitBands),
+    [numericTable, config.xCol, yColsKey, splitBands, networkKey],
+  );
+  const previewCell = config.network ? networkPreviewCell(config.network) : undefined;
+  const previewCellName = previewCell ? networkCellName(previewCell) : null;
+  const rangeText = useMemo(() => {
+    const range = config.network
+      ? previewRangeSummary(plot, { ...config, domain: 'frequency', yUnit: 'dB', yMult: 1 })
+      : previewRangeSummary(plot, config);
+    return range && previewCellName ? `|${previewCellName}| · ${range}` : range;
+  }, [plot, config.domain, config.xUnit, config.yUnit, config.xMult, config.yMult, Boolean(config.network), previewCellName]);
 
   // Import settings on an open file: which existing trace each Y column continues, and which traces go away.
   const prior = useMemo(() => {
@@ -119,6 +137,16 @@ function WizardDialog({ entry, position, total, others, queue, priorFile }: Wiza
     setConfig(prev => {
       const next = { ...prev, delimiter, valueDelimiter, skipRows };
       const nextLayout = wizardLayout(entry.rawText, next);
+      if (prev.network) {
+        const sameSep = prev.delimiter === delimiter && prev.valueDelimiter === valueDelimiter;
+        const xCol = sameSep && nextLayout.numeric.includes(prev.xCol) ? prev.xCol : (nextLayout.numeric[0] ?? 0);
+        const redetected = detectSParameterNetwork(nextLayout.headers, nextLayout.numeric, xCol);
+        const keptCells = prev.network.cells.filter(
+          cell => cell.first < nextLayout.headers.length && cell.second < nextLayout.headers.length,
+        );
+        const network = redetected ?? { ...prev.network, cells: keptCells };
+        return { ...next, xCol, yCols: nextLayout.numeric.filter(col => col !== xCol), headers: nextLayout.headers, network };
+      }
       // A new layout re-detects the roles when the old ones no longer fit.
       const fits = prev.delimiter === delimiter && prev.valueDelimiter === valueDelimiter && nextLayout.numeric.includes(prev.xCol) && prev.yCols.some(col => nextLayout.numeric.includes(col));
       const xCol = fits ? prev.xCol : nextLayout.numeric[0] ?? 0;
@@ -190,10 +218,101 @@ function WizardDialog({ entry, position, total, others, queue, priorFile }: Wiza
     return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
 
-  const roles = headers.map((_, col) => columnRole(config, col));
-  const names = headers.map((header, col) => columnDisplayName(header, roles[col] ?? 'skip', config));
+  const mappedNetworkCols = useMemo(
+    () => new Set(config.network?.cells.flatMap(cell => [cell.first, cell.second].filter(idx => idx >= 0)) ?? []),
+    [config.network],
+  );
+  const networkCellKeepIds = useMemo(
+    () => (config.network?.cells ?? []).map(() => null),
+    [config.network?.cells.length],
+  );
+  const networkCellColors = useWizardTraceColors(networkCellKeepIds, []);
+  const networkPairLabels: readonly [string, string] = config.network?.format === 'DB'
+    ? ['dB', 'Ang']
+    : config.network?.format === 'MA'
+      ? ['Mag', 'Ang']
+      : ['Re', 'Im'];
+  const roles: ColumnRole[] = config.network
+    ? headers.map((_, col): ColumnRole => (col === config.xCol ? 'x' : mappedNetworkCols.has(col) ? 'y' : 'skip'))
+    : headers.map((_, col) => columnRole(config, col));
+  const chipLabels: string[] | undefined = config.network
+    ? headers.map((_, col) => {
+      if (col === config.xCol) return 'Freq';
+      for (const cell of config.network?.cells ?? []) {
+        const name = `S${cell.row + 1}${cell.col + 1}`;
+        if (cell.first === col) return `${name} ${networkPairLabels[0]}`;
+        if (cell.second === col) return `${name} ${networkPairLabels[1]}`;
+      }
+      return '— skip';
+    })
+    : undefined;
+  const names = config.network
+    ? headers.map((header, col) => (col === config.xCol ? columnDisplayName(header, 'x', config) : header))
+    : headers.map((header, col) => columnDisplayName(header, roles[col] ?? 'skip', config));
+  const tableColors = config.network
+    ? headers.map((_, col) => {
+      const cells = config.network?.cells ?? [];
+      const cellIdx = cells.findIndex(cell => cell.first === col || cell.second === col);
+      return cellIdx >= 0 ? (networkCellColors[cellIdx] ?? 'var(--accent)') : undefined;
+    })
+    : colors;
+  const previewCellIdx = config.network
+    ? Math.max(0, config.network.cells.findIndex(cell => cell.row === 0 && cell.col === 0))
+    : 0;
+  const plotColors = config.network ? [networkCellColors[previewCellIdx] ?? 'var(--accent)'] : yColors;
+  const networkMenu = config.network
+    ? {
+      network: config.network,
+      onAssignFreq: (col: number) => setConfig(prev => {
+        if (!prev.network) return prev;
+        const cells = prev.network.cells
+          .map(cell => ({
+            ...cell,
+            first: cell.first === col ? -1 : cell.first,
+            second: cell.second === col ? -1 : cell.second,
+          }))
+          .filter(cell => cell.first >= 0 || cell.second >= 0);
+        return { ...prev, xCol: col, network: { ...prev.network, cells } };
+      }),
+      onClearCol: (col: number) => setConfig(prev => {
+        if (!prev.network) return prev;
+        const xCol = prev.xCol === col ? -1 : prev.xCol;
+        const cells = prev.network.cells
+          .map(cell => ({
+            ...cell,
+            first: cell.first === col ? -1 : cell.first,
+            second: cell.second === col ? -1 : cell.second,
+          }))
+          .filter(cell => cell.first >= 0 || cell.second >= 0);
+        return { ...prev, xCol, network: { ...prev.network, cells } };
+      }),
+      onAssignSlot: (col: number, row: number, sCol: number, which: 'first' | 'second') => setConfig(prev => {
+        if (!prev.network) return prev;
+        const xCol = prev.xCol === col ? -1 : prev.xCol;
+        const cleaned = prev.network.cells
+          .map(cell => {
+            if (cell.row === row && cell.col === sCol) return cell;
+            return {
+              ...cell,
+              first: cell.first === col ? -1 : cell.first,
+              second: cell.second === col ? -1 : cell.second,
+            };
+          })
+          .filter(cell => cell.first >= 0 || cell.second >= 0);
+        const existing = cleaned.find(cell => cell.row === row && cell.col === sCol);
+        const otherSlot = which === 'first' ? (existing?.second ?? -1) : (existing?.first ?? -1);
+        const nextFirst = which === 'first' ? col : (otherSlot === col ? -1 : otherSlot);
+        const nextSecond = which === 'second' ? col : (otherSlot === col ? -1 : otherSlot);
+        const others = cleaned.filter(cell => !(cell.row === row && cell.col === sCol));
+        const cells = [...others, { row, col: sCol, first: nextFirst, second: nextSecond }].sort((a, b) => (a.row - b.row) || (a.col - b.col));
+        return { ...prev, xCol, network: { ...prev.network, cells } };
+      }),
+    }
+    : undefined;
   const traceNames = yCols.map(col => names[col] ?? `Column ${col + 1}`);
-  const mainLabel = editing ? 'Apply' : `Add ${yCols.length} trace${yCols.length === 1 ? '' : 's'}`;
+  const mappedCellNames = config.network?.cells.filter(cell => cell.first >= 0 && cell.second >= 0).map(networkCellName) ?? [];
+  const unmappedCellNames = config.network ? unmappedNetworkCells(config.network) : [];
+  const mainLabel = editing ? 'Apply' : config.network ? 'Import S-parameters' : `Add ${yCols.length} trace${yCols.length === 1 ? '' : 's'}`;
   const removedNames = removed.map(item => item.identity.header ?? `Column ${item.identity.index + 1}`);
   const removedText = removedNames.length === 0 ? null
     : `${listNames(removedNames)} ${removedNames.length === 1 ? 'is no longer a Y column: its trace' : 'are no longer Y columns: their traces'}${removedMarkers ? ` and ${removedMarkers} marker${removedMarkers === 1 ? '' : 's'}` : ''} will be removed.`;
@@ -240,6 +359,8 @@ function WizardDialog({ entry, position, total, others, queue, priorFile }: Wiza
               level: detection.confidenceLevel,
               reasons: detection.confidenceReasons,
             }}
+            headers={headers}
+            numeric={layout.numeric}
             onChange={setConfig}
             onLayout={updateLayout}
           />
@@ -257,16 +378,23 @@ function WizardDialog({ entry, position, total, others, queue, priorFile }: Wiza
               headers={headers}
               names={names}
               roles={roles}
-              colors={colors}
+              chipLabels={chipLabels}
+              networkMenu={networkMenu}
+              colors={tableColors}
               numeric={layout.numeric}
               onRole={(col, role) => setConfig(prev => setColumnRole(prev, col, role))}
             />
-            <WizardPreviewPlot plot={plot} colors={yColors} />
+            <WizardPreviewPlot plot={plot} colors={plotColors} />
             {rangeText && (
               <div className="iw-plot-range t-readout" data-testid="import-wizard-range">{rangeText}</div>
             )}
             <div className="iw-result-row">
-              {blocker ? <span /> : (
+              {blocker ? <span /> : config.network ? (
+                <p className="iw-result t-caption" data-testid="import-wizard-summary">
+                  Will import {config.network.portCount}-port S-parameters ({mappedCellNames.join(', ')} mapped)
+                  {unmappedCellNames.length > 0 && <span className="t-muted"> · {listNames(unmappedCellNames)} not mapped, imported as 0</span>}
+                </p>
+              ) : (
                 <p className="iw-result t-caption" data-testid="import-wizard-summary">
                   Will {editing ? 'show' : 'create'} {yCols.length} trace{yCols.length === 1 ? '' : 's'}: <span className="t-card-title">{entry.fileName}</span>
                   {traceNames.map((name, index) => <span key={`${name}-${index}`}> · {name}</span>)}
