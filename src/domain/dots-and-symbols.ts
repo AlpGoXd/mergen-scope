@@ -13,6 +13,16 @@ export function sampleDotsVisible(pointsInView: number, plotWidthPx: number, min
     && (pointsInView - 1) * minSpacingPx <= plotWidthPx;
 }
 
+/**
+ * How many times the X span must shrink before the dots of `pointsInView` samples are spaced far enough apart to draw,
+ * rounded up to a whole factor (at least 2). 0 when they already show or there is nothing to show.
+ */
+export function sampleDotsZoomFactor(pointsInView: number, plotWidthPx: number, minSpacingPx = 3): number {
+  if (pointsInView <= 1 || !Number.isFinite(plotWidthPx) || plotWidthPx <= 0) return 0;
+  if (sampleDotsVisible(pointsInView, plotWidthPx, minSpacingPx)) return 0;
+  return Math.max(2, Math.ceil((pointsInView - 1) * minSpacingPx / plotWidthPx));
+}
+
 export function visibleSampleCount(data: readonly DataPoint[], range: readonly [number, number] | null): number {
   if (!range) return 0;
   const [left, right] = range;

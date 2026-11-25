@@ -144,6 +144,22 @@ export function centerXDomain(value: number, visibleSpan: number, bounds: { min:
   return { left, right: left + span };
 }
 
+/** Zoom an X window in by `factor` around its centre (the geometric centre on a log axis). */
+export function zoomXByFactor(window: ZoomWindow, factor: number, scale: AxisScale = 'linear'): ZoomWindow | null {
+  if (!(factor > 1) || !Number.isFinite(factor) || !(window.right > window.left)) return null;
+  if (scale === 'log') {
+    if (!(window.left > 0)) return null;
+    const lo = Math.log10(window.left);
+    const hi = Math.log10(window.right);
+    const mid = (lo + hi) / 2;
+    const half = (hi - lo) / (2 * factor);
+    return { left: 10 ** (mid - half), right: 10 ** (mid + half) };
+  }
+  const mid = (window.left + window.right) / 2;
+  const half = (window.right - window.left) / (2 * factor);
+  return { left: mid - half, right: mid + half };
+}
+
 /** Center Y on a reference line while keeping the visible span. */
 export function centerYDomain(value: number, min: number, max: number): YDomain {
   const half = Math.max(max - min, 1e-12) / 2;

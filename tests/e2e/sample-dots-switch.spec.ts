@@ -2,6 +2,8 @@ import { expect, test } from '@playwright/test';
 
 import { acceptImport } from './import-helpers';
 
+const DENSE_TITLE = /^Samples are on, but the points are too dense to draw at this zoom\. Zoom in about [\d\s]+× to see them\.$/;
+
 test('pane settings and the header keep sample dots in sync and undo', async ({ page }) => {
   await page.goto('/app.html');
   await page.getByTestId('app-open-input').setInputFiles({ name: 'samples.csv', mimeType: 'text/csv', buffer: Buffer.from('Time (s),CH1 (V)\n0,1\n0.5,2\n1,3\n') });
@@ -38,9 +40,15 @@ test('dense traces keep Samples pressed and reveal measured dots after zoom', as
   const lines = plot.getByTestId('lines-layer');
   await expect(lines).toHaveAttribute('data-x-domain', '0,4999');
   const button = pane.getByTestId('samples-toggle');
+  const callout = page.getByTestId('samples-callout');
+  await expect(button).toHaveAttribute('data-state', 'off');
   await button.click();
   await expect(button).toHaveAttribute('aria-pressed', 'true');
-  await expect(button).toHaveAttribute('title', 'Zoom in to see the sample points');
+  await expect(button).toHaveAttribute('data-state', 'dense');
+  await expect(button).toHaveAttribute('title', DENSE_TITLE);
+  // Switching Samples on while too dense explains it once, from the button.
+  await expect(callout).toBeVisible();
+  await expect(callout).toContainText(/too dense to draw at this zoom\. Zoom in about [\d\s]+× to see them/);
   const lineDots = plot.locator('.recharts-line-dot');
   await expect(lineDots).toHaveCount(0);
 
@@ -53,6 +61,8 @@ test('dense traces keep Samples pressed and reveal measured dots after zoom', as
   await page.mouse.move(x + 15, y, { steps: 8 });
   await page.mouse.up({ button: 'right' });
   await expect(button).toHaveAttribute('title', 'Show the measured sample points');
+  await expect(button).toHaveAttribute('data-state', 'on');
+  await expect(callout).toHaveCount(0);
   const [left, right] = (await lines.getAttribute('data-x-domain') ?? '').split(',').map(Number);
   if (left === undefined || right === undefined || !(right > left)) throw new Error('Chart zoom range unavailable');
   const measuredCount = Math.floor(right) - Math.ceil(left) + 1;
@@ -70,7 +80,77 @@ test('dense traces keep Samples pressed and reveal measured dots after zoom', as
 
   await plot.dblclick({ position: { x: box.width / 2, y: box.height / 2 } });
   await expect(lines).toHaveAttribute('data-x-domain', '0,4999');
-  await expect(button).toHaveAttribute('title', 'Zoom in to see the sample points');
+  await expect(button).toHaveAttribute('title', DENSE_TITLE);
+  await expect(button).toHaveAttribute('data-state', 'dense');
+  // Zooming back out does not reopen the callout: it only appears when Samples is switched on.
+  await expect(callout).toHaveCount(0);
   await expect(symbolDots).toHaveCount(0);
   await expect(plot.getByTestId('trace-symbol').first()).toBeVisible();
 });
+
+test('the too-dense callout zooms in far enough to draw the sample dots', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto('/app.html');
+  const rows = Array.from({ length: 5000 }, (_, i) => `${i},${Math.sin(i / 100)}`).join('\n');
+  await page.getByTestId('app-open-input').setInputFiles({
+    name: 'dense.csv', mimeType: 'text/csv', buffer: Buffer.from(`Time (s),CH1 (V)\n${rows}\n`),
+  });
+  await acceptImport(page);
+  const pane = page.getByTestId('chart-pane-pane-1');
+  const button = pane.getByTestId('samples-toggle');
+  const callout = page.getByTestId('samples-callout');
+  await button.click();
+  await expect(callout).toBeVisible();
+  await callout.getByRole('button', { name: 'Dismiss' }).click();
+  await expect(callout).toHaveCount(0);
+  await expect(button).toHaveAttribute('data-state', 'dense');
+  // Off and on again shows it again; its Zoom in button zooms X around the centre until the dots draw.
+  await button.click();
+  await button.click();
+  await expect(callout).toBeVisible();
+  await callout.getByRole('button', { name: /^Zoom in [\d\s]+×$/ }).click();
+  await expect(callout).toHaveCount(0);
+  await expect(button).toHaveAttribute('data-state', 'on');
+  await expect(pane.getByTestId('chart-plot-pane-1').locator('.recharts-line-dot').first()).toBeVisible();
+});
+
+for (const theme of ['light', 'dark'] as const) {
+  test(`Samples shows its state with a dot and stays neutral on the active header in ${theme}, normal and high contrast`, async ({ page }) => {
+    // No colour transitions, so each read sees the settled theme colours.
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.addInitScript(value => localStorage.setItem('mergen-theme-preference', value), theme);
+    await page.goto('/app.html');
+    await page.getByTestId('app-open-input').setInputFiles({ name: 'samples.csv', mimeType: 'text/csv', buffer: Buffer.from('Time (s),CH1 (V)\n0,1\n0.5,2\n1,3\n') });
+    await acceptImport(page);
+    const header = page.getByTestId('chart-pane-header-pane-1');
+    await expect(header).toHaveClass(/is-target/);
+    const button = header.getByTestId('samples-toggle');
+    const look = async () => button.evaluate(node => {
+      const dot = node.querySelector('.ph-samples-dot');
+      const head = node.closest('.ph');
+      return {
+        fill: getComputedStyle(node).backgroundColor,
+        header: head ? getComputedStyle(head).backgroundColor : '',
+        dot: dot ? getComputedStyle(dot).backgroundColor : '',
+      };
+    });
+    const transparent = 'rgba(0, 0, 0, 0)';
+    for (const contrast of ['Normal', 'High'] as const) {
+      await page.getByRole('button', { name: 'Settings', exact: true }).click();
+      const sheet = page.getByRole('dialog', { name: 'App settings' });
+      await sheet.getByRole('button', { name: contrast, exact: true }).click();
+      await sheet.getByRole('button', { name: 'Close settings' }).click();
+      await expect(button).toHaveAttribute('data-state', 'off');
+      const off = await look();
+      await button.click();
+      await expect(button).toHaveAttribute('data-state', 'on');
+      const on = await look();
+      // The button stays neutral (never the header's fill); the dot is hollow when off and filled when on.
+      expect(on.fill, contrast).toBe(off.fill);
+      expect(on.fill, contrast).not.toBe(on.header);
+      expect(off.dot, contrast).toBe(transparent);
+      expect(on.dot, contrast).not.toBe(transparent);
+      await button.click();
+    }
+  });
+}

@@ -118,7 +118,9 @@ test('binary point-budget notice, envelope gating, and Keep all 3M sample flow',
   await expect(samplesToggle).toHaveAttribute('title', 'Show the measured sample points');
   await samplesToggle.click();
   await expect(samplesToggle).toHaveAttribute('aria-pressed', 'true');
-  await expect(samplesToggle).toHaveAttribute('title', 'Zoom in to see the sample points');
+  await expect(samplesToggle).toHaveAttribute('data-state', 'dense');
+  await expect(samplesToggle).toHaveAttribute('title', /^Samples are on, but the points are too dense to draw at this zoom\. Zoom in about [\d\s]+× to see them\.$/);
+  await expect(page.getByTestId('samples-callout')).toContainText(/Zoom in about [\d\s]+× to see them/);
   await samplesToggle.click();
   await expect(samplesToggle).toHaveAttribute('aria-pressed', 'false');
 

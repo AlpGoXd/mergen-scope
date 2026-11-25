@@ -17,7 +17,7 @@ import {
   pickPlacementTraceIndex,
   withinXAxisTolerance,
 } from '../../domain/chart/marker-placement';
-import { centerXDomain, centerYDomain, dragZoomBox, isBoxZoomGesture, paddedYDomain, panXDomain, pixelToAxisValue, refLineYTolerance, wheelAxisDomain } from '../../domain/chart/plot-coords';
+import { centerXDomain, centerYDomain, dragZoomBox, zoomXByFactor, isBoxZoomGesture, paddedYDomain, panXDomain, pixelToAxisValue, refLineYTolerance, wheelAxisDomain } from '../../domain/chart/plot-coords';
 import { chartAxisData, isPhase, logXReason, logYReason, positiveDomain, suggestLog } from '../../domain/chart/axis-scale';
 import { chartGainView } from '../../domain/chart/gain-view';
 import { mergePaneData } from '../../domain/pane-data';
@@ -42,7 +42,8 @@ import { placeMarker } from '../../domain/markers';
 import { nextLineLabel } from '../../domain/ref-lines';
 import { makeNiceTicks, NICE_TICK_COUNT } from '../../domain/trace-math';
 import { isEnvelopeTrace } from '../../domain/trace-model';
-import { sampleDotsVisible, visibleSampleCount } from '../../domain/dots-and-symbols';
+import { sampleDotsZoomFactor, visibleSampleCount } from '../../domain/dots-and-symbols';
+import { formatCount } from '../../domain/import-wizard';
 import { allocateTraceColors } from '../../domain/trace-palette';
 import { Btn } from '../shared/Btn';
 import { ChartHoverLegend } from './ChartHoverLegend';
@@ -68,6 +69,7 @@ import { AxisScaleChoices, PaneSettingsPopover } from './PaneSettingsPopover';
 import type { PaneAxes } from './PaneSettingsPopover';
 import { AxisRangeControls } from './AxisRangeControls';
 import { PaneHeader, SamplesIcon } from './PaneHeader';
+import type { SamplesState } from './PaneHeader';
 import { PaneChartTypeControl } from './PaneChartTypeControl';
 import { XLinkChip } from './XLinkChip';
 import { fittedXBounds, linkedPeers } from '../../domain/x-link';
@@ -153,6 +155,8 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
   const [typeChange, setTypeChange] = useState<{ plan: TypeChangePlan; revision: number | undefined } | null>(null);
   const pendingType = typeChange?.plan ?? null;
   const [settingsAnchor, setSettingsAnchor] = useState<HTMLElement | null>(null);
+  // Shown once when Samples is switched on while the points are too dense to draw.
+  const [samplesCallout, setSamplesCallout] = useState<HTMLElement | null>(null);
   const [hoveredType, setHoveredType] = useState<PickerTileId | null>(null);
   const [focusedType, setFocusedType] = useState<PickerTileId | null>(null);
   const typeButtonRef = useRef<HTMLButtonElement>(null);
@@ -1193,6 +1197,19 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
     return paneTypeCompatibilityNote(paneName(panes, paneId), paneTypes[id].title, members.length, accepted);
   };
 
+  // How far to zoom in before the sample dots can be drawn (0 = they already show, or nothing to show).
+  const samplesZoomFactor = !allEnvelopes && !isRadial && !TableRenderer && plotView
+    ? paneTraces.reduce((most, trace) => isEnvelopeTrace(trace) ? most
+      : Math.max(most, sampleDotsZoomFactor(visibleSampleCount(trace.data, plotView.x), plotView.plot.width)), 0)
+    : 0;
+  const samplesState: SamplesState = !settings.showSampleDots || allEnvelopes ? 'off' : samplesZoomFactor > 0 ? 'dense' : 'on';
+  const showSamplesCallout = samplesCallout !== null && samplesState === 'dense';
+  useEffect(() => {
+    if (!showSamplesCallout) return;
+    const timer = window.setTimeout(() => setSamplesCallout(null), 8000);
+    return () => window.clearTimeout(timer);
+  }, [showSamplesCallout]);
+
   if (exportView) {
     return (
       <div data-testid={`export-pane-${paneId}`} style={{ position: 'relative', width: exportView.width, height: exportView.height, background: 'var(--bg)' }}>
@@ -1230,29 +1247,25 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
           onScaleClick={axes ? anchor => { setTypeAnchor(null); setSettingsAnchor(null); setAxisMenu(null); setScaleAnchor(current => current ? null : anchor); } : null}
           scaleOpen={scaleAnchor !== null}
           link={traceNamesInPane.length > 0 ? iconOnly => <XLinkChip paneId={paneId} iconOnly={iconOnly} /> : null}
-          samples={TableRenderer ? null : iconOnly => {
-            const denseNonEnvelope = settings.showSampleDots && !isRadial && plotView && plotView.plot.width > 0
-              && paneTraces.some(trace => {
-                if (isEnvelopeTrace(trace)) return false;
-                const points = visibleSampleCount(trace.data, plotView.x);
-                return points > 0 && !sampleDotsVisible(points, plotView.plot.width);
-              });
-            return (
-              <Btn
-                variant={settings.showSampleDots && !allEnvelopes ? 'armed' : 'neutral'}
-                tone="pane"
-                small
-                className={`ph-samples${iconOnly ? ' is-icon' : ''}`}
-                aria-label="Samples"
-                aria-pressed={settings.showSampleDots && !allEnvelopes}
-                disabled={allEnvelopes}
-                title={allEnvelopes ? ENVELOPE_SAMPLES_TITLE : denseNonEnvelope ? 'Zoom in to see the sample points' : 'Show the measured sample points'}
-                data-testid="samples-toggle"
-                onClick={e => { e.stopPropagation(); paneDispatch({ type: 'SET_PANE_SETTINGS', payload: { paneId, patch: { showSampleDots: !settings.showSampleDots } } }); }}>
-                {iconOnly ? <SamplesIcon /> : 'Samples'}
-              </Btn>
-            );
-          }}
+          samples={TableRenderer ? null : iconOnly => (
+            <Btn
+              small
+              className={`ph-samples${iconOnly ? ' is-icon' : ''}`}
+              data-state={samplesState}
+              aria-label="Samples"
+              aria-pressed={samplesState !== 'off'}
+              disabled={allEnvelopes}
+              title={allEnvelopes ? ENVELOPE_SAMPLES_TITLE : samplesState === 'dense' ? `Samples are on, but the points are too dense to draw at this zoom. Zoom in about ${formatCount(samplesZoomFactor)}× to see them.` : 'Show the measured sample points'}
+              data-testid="samples-toggle"
+              onClick={e => {
+                e.stopPropagation();
+                const turningOn = !settings.showSampleDots;
+                setSamplesCallout(turningOn && samplesZoomFactor > 0 ? e.currentTarget : null);
+                paneDispatch({ type: 'SET_PANE_SETTINGS', payload: { paneId, patch: { showSampleDots: turningOn } } });
+              }}>
+              {iconOnly ? <SamplesIcon state={samplesState} /> : <><span className="ph-samples-dot" aria-hidden="true" />Samples</>}
+            </Btn>
+          )}
           chip={fit => (
             <PaneChartTypeControl
               fit={fit} icon={paneTypes[currentType].iconKey} label={currentType === 'eye' ? 'Eye · CH1' : paneTypes[currentType].title}
@@ -1291,6 +1304,22 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
               onClose: panes.length > 1 ? closePane : null,
             }} />
         </PaneHeader>
+      )}
+
+      {showSamplesCallout && samplesCallout && (
+        <PopoverAt label="Samples too dense" at={samplesCallout} onClose={() => setSamplesCallout(null)}>
+          <div className="ph-samples-callout" data-testid="samples-callout" role="status">
+            <p className="t-body"><strong>Samples are on</strong>, but the points are too dense to draw at this zoom. Zoom in about {formatCount(samplesZoomFactor)}× to see them: right-drag across a narrower range.</p>
+            <div className="ph-samples-callout__actions">
+              <Btn small onClick={() => setSamplesCallout(null)}>Dismiss</Btn>
+              <Btn small variant="solid" onClick={() => {
+                const zoom = plotView?.x ? zoomXByFactor({ left: plotView.x[0], right: plotView.x[1] }, samplesZoomFactor * 1.1, xScale) : null;
+                if (zoom) paneDispatch({ type: 'SET_PANE_ZOOM', payload: { paneId, zoom } });
+                setSamplesCallout(null);
+              }}>Zoom in {formatCount(samplesZoomFactor)}×</Btn>
+            </div>
+          </div>
+        </PopoverAt>
       )}
 
       {/* overflow hidden: pane content must never paint over (and steal clicks from) the next pane's header */}

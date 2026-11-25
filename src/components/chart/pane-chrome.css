@@ -15,25 +15,47 @@
   overflow: hidden; white-space: nowrap; cursor: pointer;
   background: var(--raised); border-bottom: 1px solid var(--border);
 }
+/* Target pane. Normal contrast: a soft tint with an accent underline and the name in the accent (it stays easy to spot
+   in a dense grid of panes). High contrast: the solid accent header, with every bare item on it in the header ink.
+   Controls (type chip, X link, Samples, sliders) keep their own raised faces in both, so nothing inside them inverts. */
 .ph.is-target {
   height: calc(var(--pane-header-height) - 1px);
   background: var(--on-fill);
+  box-shadow: inset 0 -2px 0 var(--accent);
   cursor: default;
 }
-.ph.is-target > .ph-title { color: var(--on-ink); font-weight: var(--fw-bold); }
-.ph.is-target > :is(.ph-count, .ph-scale), .ph.is-target .ptc-prefix { color: var(--on-ink); opacity: .8; }
+.ph.is-target > .ph-title { color: var(--accent); font-weight: var(--fw-bold); }
+.ph.is-target > :is(.ph-count, .ph-scale) { color: var(--on-ink); opacity: .8; }
 :root[data-contrast="high"] .ph.is-target {
   height: calc(var(--pane-header-height) - .5px);
   background: var(--on-fill);
+  box-shadow: none;
 }
-:root[data-contrast="high"] .ph.is-target > :is(.ph-title, .ph-count, .ph-scale),
-:root[data-contrast="high"] .ph.is-target .ptc-prefix { color: var(--on-ink); opacity: 1; }
-:root[data-contrast="high"] .ph.is-target .ptc-prefix {
-  background: var(--on-fill);
-  border-right-color: var(--on-ink);
-  padding-left: 3px;
-  border-radius: var(--radius-input) 0 0 var(--radius-input);
+:root[data-contrast="high"] .ph.is-target > :is(.ph-title, .ph-count, .ph-scale, .t-caption, .ph-close) { color: var(--on-ink); opacity: 1; }
+/* Samples: a neutral button whose dot (or icon points) carries the state, so it reads the same in every tint and
+   contrast and never blends into the active header. Off = hollow, on = filled in the accent, too dense = half-filled. */
+.ph .ph-samples { gap: 5px; }
+.ph .ph-samples[aria-pressed="true"]:not(:disabled) { font-weight: var(--fw-semibold); border-color: var(--border-strong); }
+.ph-samples-dot { width: 7px; height: 7px; box-sizing: border-box; flex: none; border-radius: 50%; border: 1.5px solid currentColor; }
+.ph-samples[data-state="on"] .ph-samples-dot { background: var(--accent); border-color: var(--accent); }
+.ph-samples[data-state="dense"] .ph-samples-dot { border-color: var(--accent); background: linear-gradient(90deg, var(--accent) 50%, transparent 50%); }
+.ph-samples-icon circle { fill: none; }
+.ph-samples-icon[data-state="on"] circle { fill: var(--accent); stroke: var(--accent); }
+.ph-samples-icon[data-state="dense"] circle { stroke: var(--accent); }
+.ph-samples-icon[data-state="dense"] circle:first-of-type { fill: var(--accent); }
+/* High contrast paints every pressed button --on-fill (the active header's background): keep Samples neutral. */
+:root[data-contrast="high"] .ph .ph-samples[aria-pressed="true"]:not(:disabled) {
+  background: var(--raised) !important;
+  color: var(--text) !important;
+  border-color: var(--border-strong) !important;
 }
+/* The same rule would hide a linked X chip on the active header: keep its Pane tint, and ring other pressed buttons. */
+:root[data-contrast="high"] .ph .ui-btn--chip.is-active:not(:disabled) {
+  background: var(--chip-fill) !important;
+  border-color: var(--chip-line) !important;
+  color: var(--chip-ink) !important;
+}
+:root[data-contrast="high"] .ph.is-target .ui-btn.is-active:not(:disabled) { box-shadow: 0 0 0 2px var(--on-ink); }
 .ph > * { flex: none; }
 .ph > .ph-title { max-width: 16em; overflow: hidden; text-overflow: ellipsis; }
 .ph[data-level="5"] > .ph-title { flex: 0 1 auto; min-width: 3ch; }
@@ -53,6 +75,11 @@
 .ph .ph-close {
   display: inline-flex; align-items: center; justify-content: center; width: var(--control-sm-height); height: var(--control-sm-height);
 }
+
+/* Shown once when Samples is switched on while the points are too dense to draw (a shared-layer popover). */
+.ph-samples-callout { box-sizing: border-box; width: 280px; max-width: calc(100vw - 16px); padding: var(--space-1); display: grid; gap: var(--space-2); color: var(--text); white-space: normal; }
+.ph-samples-callout p { margin: 0; }
+.ph-samples-callout__actions { display: flex; justify-content: flex-end; gap: var(--space-2); }
 
 /* ---------- Pane settings popover ---------- */
 /* Capped to the room under a top-row pane header, so the popover opens below its button and scrolls inside. */
