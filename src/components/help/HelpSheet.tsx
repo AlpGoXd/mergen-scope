@@ -58,7 +58,7 @@ export function AboutPanel({ onClose }: { onClose: () => void }) {
     <div className="about-panel__body">
       <p className="t-label">Mergen Scope <span className="t-readout">{APP_VERSION}</span></p>
       <p className="t-label">Made by Alp Gökalp</p>
-      <p className="t-label">Made with love <span aria-hidden="true">♥</span></p>
+      <p className="t-label">Made with love &lt;3</p>
       <p className="t-caption">Licence: Apache-2.0 · <a href="https://github.com/AlpGoXd/mergen-scope" target="_blank" rel="noopener noreferrer">GitHub ↗</a></p>
     </div>
   </dialog>;
