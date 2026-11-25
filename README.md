@@ -27,6 +27,9 @@ No file at hand? [Load the demo workspace](https://mergenscope.com/app.html?demo
 | Rohde &amp; Schwarz (R&amp;S) `.dat` | Spectrum traces with span, RBW and detector metadata. Amplitude-only exports rebuild the X axis from Start/Stop. | R&amp;S FSVA3044 exports (`cascade_ip3_*.DAT`) |
 | Touchstone `.s1p` to `.s16p` (1.x and 2.0) | S-parameter networks from any VNA in RI, MA or dB/angle form, with S, Y, Z and (two-port) ABCD views, VSWR, return loss, group delay and a Z/Y Smith chart. | `cascaded chain.s2p` |
 | `.csv`, `.tsv`, `.txt`, tabular `.dat` | Time or frequency traces from oscilloscopes, spectrum analyzers or scripts. An import wizard maps delimiter (including mixed separators), header rows, X/Y columns, multipliers and units, and preserves sweep gaps. | Oscilloscope CSVs (`scope_1khz_sine_100ksps.csv`) |
+| Oscilloscope binary: Keysight/Agilent `AG` `.bin`, Rigol `RG` `.bin`, LeCroy `.trc`, Tektronix `.isf` and `.wfm` (`WFM#001`–`003`), OWON `.bin` | Calibrated voltage-against-time traces from the file header, opened directly. Captures above the point budget open in the binary wizard to pick a sample range or reduction. Tektronix FastFrame files open frame 1. Digital, I/Q and min/max `.wfm` waveforms are refused with the reason. | Tektronix MSO64 and 5 Series captures from Tektronix's `tm_data_types` (`tests/fixtures/tek-wfm/`); generated samples for the other formats (`keysight_dsox_sample.bin`, `rigol_dho804_sample.bin`, `lecroy_sample.trc`, `tektronix_sample.isf`, `owon_sample.bin`) |
+| WAV `.wav`, NumPy `.npy` | Audio, DAQ and array channels as traces. | Unit and browser tests |
+| Headerless binary and raw I/Q (`.bin`, `.raw`, `.cf32`, `.cs16`/`.sc16`, `.cs8`, `.cu8`, …) | A binary wizard sets sample type, byte order, channel layout, header skip, sample rate and calibration, with presets for GNU Radio, USRP/BladeRF, HackRF and RTL-SDR. I/Q files open as two separate traces, I and Q: there is no complex I/Q data type yet, so constellation and I/Q spectrum views are not available. | Unit and browser tests |
 | Workspace `.json` | A saved session: data, panes, markers, lines and analyses. | Round trip in the unit tests |
 
 Rohde &amp; Schwarz `.dat` is the primary tested spectrum instrument path. Generic tables may need manual column and unit mapping.
@@ -58,7 +61,7 @@ Up to four panes (an experimental eight-pane layout too). Drag traces onto panes
 
 - Detects the delimiter (comma, semicolon or tab) and the header rows, with a live table and plot preview.
 - Pick the X column and one or more Y columns, set units and multipliers, and choose the time or frequency domain.
-- Blank or non-numeric cells are skipped instead of becoming zeros, binary files are refused, files over 50 MB ask first and files over 500 MB are refused. More in the [CSV guide](docs/guide/oscilloscope-csv.md).
+- Blank or non-numeric cells are skipped instead of becoming zeros. Binary files open directly when the format is recognised, and in the binary wizard otherwise. Files over 50 MB ask first and files over 500 MB are refused. More in the [CSV guide](docs/guide/oscilloscope-csv.md).
 
 ### Markers and lines
 
@@ -170,7 +173,7 @@ src/
     settings/               Browser-local appearance preferences
     help/                   Help and shortcut reference
   domain/
-    parsers/                Format detection, R&S, tabular, and Touchstone parsing
+    parsers/                Format detection; R&S, tabular, Touchstone, oscilloscope binary and raw binary/I/Q parsing
     analysis/               Measurement functions and analysis tool registry
     chart/                  Pixel/axis mapping, zoom and pan, marker hit testing, drag state machine
     smith/                  Smith geometry, hit testing, and readouts
@@ -197,6 +200,7 @@ The aggregate workspace provider coordinates changes across files, traces, panes
 
 - Chart, Table, Smith and Polar panes exist. Constellation and spectrogram panes and the eye diagram are planned; see [docs/plan.md](docs/plan.md).
 - Network input is S-parameter Touchstone data. Stability and reciprocity/isolation are two-port only.
+- Raw I/Q files open as separate I and Q traces. A complex I/Q data type, and with it the constellation and I/Q spectrum views, is planned.
 - FFT, Waveform and Harmonics run on the main thread, so very large captures can be slow. Files over 50 MB ask before
   opening, and files over 500 MB are refused.
 - Live instrument connections and PWA installation are not implemented.

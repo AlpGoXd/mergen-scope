@@ -26,6 +26,7 @@ The empty-pane picker already shows Polar and Spectrogram as greyed tiles ("late
 ## Markers, tables and analysis
 
 - [ ] Marker tags avoid each other in narrow panes (touches `ChartPane.tsx`: run the chart e2e specs after the change)
+- [ ] Cap reference-line crossing dots on very dense traces: a horizontal line across a 1M-point trace draws about 4,000 crossing dots, so hovering takes 31–45 ms per move instead of 17 (production build). Show the count, or the first N crossings, instead of drawing every one
 - [ ] Marker right-click menu: Add Δ, Move to peak, Delete (Help must list it once it works)
 - [ ] Expression card in Analysis
 - [ ] Analysis card reorder
@@ -34,11 +35,15 @@ The empty-pane picker already shows Polar and Spectrogram as greyed tiles ("late
 
 ## File import and export
 
-- [ ] Binary-file import path in the wizard
-- [ ] WAV/MP3 import with FFT
+- [ ] Siglent SDS binary `.bin` (in progress; header versions covered by public SDS814X samples first)
+- [ ] Native I/Q data type: I and Q as one complex dataset with sample rate and centre frequency. Raw I/Q (cf32, cs16, cs8, cu8) already imports, but as two separate traces, so the IQ views above, including the constellation, need this first
+- [ ] SigMF support (`.sigmf-meta` + `.sigmf-data`; needs two-file import)
+- [ ] R&S RTE/RTO/RTP `.bin` + `.Wfm.bin` (on hold: needs two-file import, and only RTP samples are public; these scopes' CSV export already opens)
+- [ ] R&S I/Q files (`.iq.tar`, `.iqw`), after the native I/Q data type
+- [ ] Legacy Rigol `.wfm` (DS1000Z and older), as people ask for it
+- [ ] Tektronix `.wfm`: other FastFrame frames than frame 1, digital and I/Q waveforms
+- [ ] MP3 import
 - [ ] Audio metrics
-- [ ] IQ import (cf32, cs16, cu8)
-- [ ] SigMF support
 - [ ] Mixed-mode S-parameters
 - [ ] Saved import-wizard layouts ("format profiles"; design first)
 - [ ] More instrument file formats, as people send samples
