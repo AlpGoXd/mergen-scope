@@ -30,6 +30,7 @@ Browser RF/signal analysis app (R&S `.dat`, CSV/TSV, Touchstone `.sNp`). React 1
 | Unit tests (Vitest, `tests/unit/`, node by default) | `npm run test:unit` |
 | Only the unit tests related to changed files | `npx vitest related <file> [<file>…] --run` |
 | Browser tests (Playwright, `tests/e2e/`, starts dev server) | `npm run test:e2e` |
+| Browser tests without the `@slow` ones (the 3M-sample import flow, about 90 s alone) | `npm run test:e2e:fast` |
 | A few e2e specs | `npx playwright test tests/e2e/<a>.spec.ts tests/e2e/<b>.spec.ts` |
 | Build (`tsc` + Vite → `dist/`) | `npm run build` |
 | Built-bundle smoke (`tests/static/`, port 4173) | `npm run build && npm run test:static` |
@@ -38,13 +39,14 @@ There is no linter; `typecheck` is the static gate. Unit tests run in node; a te
 
 ### When to run what
 
-Run tests to catch a break right after the change that caused it, but scale the run to the change. The full e2e suite is about 280 browser tests; don't run it after every edit.
+Run tests to catch a break right after the change that caused it, but scale the run to the change. The full e2e suite is about 330 browser tests and takes roughly 4 minutes on 10 workers and about 10 minutes on 2 (2026-11-25 measurement); **CI is the full-suite gate, not the local machine.** Don't run it after every edit, and don't run it before every merge.
 
 | When | Run |
 |---|---|
 | While iterating | `typecheck` + the related unit tests (`vitest related`) + the 1–3 e2e specs that cover what you touched |
-| Before merging a branch into `dev`, or calling work done | `typecheck` + full `test:unit` + full `test:e2e`, **once**. Add `build` + `test:static` for build or asset changes |
-| After merging into `dev` | `typecheck` + `test:unit` + the specs the branch touched. The full e2e suite only if the merge had conflicts or touched shared code beyond what the branch was verified with |
+| Before merging a branch into `dev`, or calling work done | `typecheck` + full `test:unit` (about 30 s) + every e2e spec the branch touched or that covers the area it touched. Add `build` + `test:static` for build or asset changes. Run `test:e2e:fast` once only if the branch changed shared code: `ChartPane`, stores, layout, global CSS or tokens |
+| After merging into `dev` | `typecheck` + `test:unit` + the specs the branch touched. Nothing more unless the merge had conflicts |
+| Full `test:e2e` (including `@slow`) | CI on every push to `dev` and `main`. Locally only when the user asks, or to reproduce a CI failure (then run just the failing spec) |
 | Proving a flaky test is fixed | `--repeat-each=N` on that spec only, not repeated full runs |
 
 Don't run full suites in a loop or several times "to be sure": that is what CI is for. CI (`.github/workflows/ci.yml`) runs typecheck, unit, e2e, build and static on every push and pull request to `main` and `dev`, with 2 e2e retries.
@@ -59,7 +61,8 @@ npm with a committed `package-lock.json`. Ask before adding a dependency, and ne
 - Day-to-day work happens on the long-lived integration branch `dev`, in the single folder `gits/mergen-scope`. It is always branched from `main`; after a release, bring it back up to date with `git merge main`. Small changes are committed straight on `dev`; larger features get their own branch and are merged into it.
 - Branch names are `type/kebab-slug`: `feat/` for features, `fix/` for bug fixes, `chore/` for housekeeping, `codex/` for Codex jobs.
 - **Adding a feature:** branch from `dev` (`git switch -c feat/<slug> dev`), commit there, then merge it back with `git merge --no-ff feat/<slug>` and delete it with `git branch -d feat/<slug>`. Verify before and after the merge as in "When to run what".
-- **Releasing:** bump the version in `package.json`, merge `dev` into `main`, tag `v<version>` (for example `v1.0.0-beta.3`). The user pushes.
+- **Versioning (since 2026-11-25):** the product is "Mergen Scope 2.0"; the version number is separate. While in testing it is `0.MINOR.PATCH`: a feature release bumps MINOR (`0.5.0`), a hotfix bumps PATCH (`0.4.1`). The stable launch is `2.0.0`, after that `2.0.1` = hotfix, `2.1.0` = feature release. The old `v1.0.0-beta.1`–`4` tags are history; `0.4.0` is beta 4 relabelled. No `beta.N` counters any more.
+- **Releasing:** bump the version in these places together: `package.json`, `package-lock.json` (two entries), `APP_VERSION` in `src/components/help/shortcuts.ts` (a unit test checks it equals `package.json`), the static copies in `index.html` (`softwareVersion` and the two `data-version` spans; the build rewrites the spans) and `CITATION.cff`. Merge `dev` into `main`, tag `v<version>` (for example `v0.5.0`). The user pushes.
 - **One folder, no worktrees.** Do not create worktrees or extra copies of the repo under `gits/`. Switch branches in `gits/mergen-scope` instead, and keep the working tree clean before switching. Only one writer (Claude or a Codex job) edits the tree at a time. Create a worktree only if the user explicitly asks for parallel work, and remove it after the merge.
 - **Parallel mode** (the user asked for it on 2026-11-22): each writer owns one folder. `gits/mergen-scope` belongs to the user's agent; Claude and its Codex jobs use `gits/_worktrees/claude-dev` (with its own `npm ci` install), which normally has `dev` checked out. Only Claude merges into `dev`, from that worktree. Never write in the other writer's folder. Playwright in the worktree always runs with `PW_PORT=5183` (and `test:static` with `PW_STATIC_PORT=4183`), because e2e reuses whatever dev server already runs on its port, and 5173 belongs to the main folder. Before every write job, run `ListAgents` and `git worktree list`; if another writer could be in the folder, ask the user first.
 - **Writer lock** (`.githooks/pre-commit`): while a job runs, Claude writes `$(git rev-parse --git-dir)/mergen-writer.lock` in that folder (`owner=`, `branch=`, `paths=`). The hook then refuses commits on any other branch, or commits with staged files outside `paths`. Claude also runs a watcher that kills the job if the folder's branch changes. Remove the lock when the job ends. The hook is shared by all worktrees and is a no-op without a lock.
@@ -79,7 +82,7 @@ npm with a committed `package-lock.json`. Ask before adding a dependency, and ne
 ## Visual design work
 
 - Explore look and feel (palette, toolbar styling, layout mockups) in Claude Design first; once the user picks a direction, port the tokens/styles into `src/index.css` and the components.
-- Use the `frontend-design` plugin for UI changes. Visual changes still need the full `test:e2e` before merging, since styling can break chart interaction.
+- Use the `frontend-design` plugin for UI changes. Visual changes still need the e2e specs for the touched UI plus one `test:e2e:fast` run before merging, since styling can break chart interaction.
 - Codex is not the tool for visual taste; use it for review of interaction/logic changes only.
 
 ## Working with Antigravity (`agy`, since 2026-11-23)
@@ -140,7 +143,7 @@ Don't delegate trivial edits, one-file fixes Claude can verify in a minute, or a
 
 - **One writer per file.** Never let Claude and Codex (or two Codex jobs) edit the same files at the same time. Write-capable Codex runs happen in the main folder on their own branch, and Claude does not edit until the job finishes; then merge the branch into `dev` and delete it. Read-only runs may use the tree at any time.
 - **Claude creates the branch, Codex doesn't.** Before a write job, Claude makes sure the tree is clean and runs `git switch -c codex/<task> dev` itself (in parallel mode, inside `gits/_worktrees/claude-dev`), then writes the writer lock and starts the branch watcher. The prompt says the branch is already checked out, and that Codex must not create worktrees, copies of the repo, or a `node_modules` install. Codex has made worktrees on its own before (following an older AGENTS.md); after each job, check `git worktree list` and clean up anything it made.
-- Give Codex a self-contained prompt: goal, files involved, constraints from this file, and the verification to run, scaled per "When to run what" (targeted while iterating, the full e2e suite once at the end).
+- Give Codex a self-contained prompt: goal, files involved, constraints from this file, and the verification to run, scaled per "When to run what" (targeted specs while iterating and at the end; the full e2e suite is left to CI).
 - Treat Codex output as a proposal. Claude reads the diff, rejects what doesn't fit, merges the rest, then runs the verification commands above itself. Codex reporting "tests pass" is not enough.
 - Tell the user which model did what and what was accepted or rejected. Delete task branches once merged or abandoned.
 

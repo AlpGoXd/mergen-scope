@@ -5,6 +5,8 @@ import { traceXGroup } from '../../pane-placement';
 export const allowed: Capability = { allowed: true };
 export const anyTrace = (): Capability => allowed;
 export const denied = (reason: string): Capability => ({ allowed: false, reason });
+export const envelopeDenied = (originalCount: number): Capability =>
+  denied(`This trace is a display envelope of ${originalCount} samples. Re-import with Keep all or Decimate to analyse it.`);
 
 export function derived(trace: Trace, data: readonly DataPoint[], operationType: OperationType, parameters: Record<string, unknown>, sourceTraceIds: readonly string[] = [trace.id]): Trace {
   return { ...trace, kind: 'derived', operationType, parameters, sourceTraceIds, data };

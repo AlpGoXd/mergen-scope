@@ -15,13 +15,13 @@ export interface AnalysisOverlay {
   highlightedPeak?: number;
 }
 
-/** Compute the same output as the card for visible source traces in this pane. */
+/** Compute the same output as the card for visible source traces in this pane. Only the card's eye hides it; collapsing the card does not. */
 export function useAnalysisOverlays(paneId: string): AnalysisOverlay[] {
   const { analyses, highlightedPeak } = useAnalysisState();
   const ctx = useAnalysisContext();
   return useMemo(() => analyses.flatMap(instance => {
     const tool = getAnalysisTool(instance.toolId);
-    if (instance.overlay === false || instance.collapsed || !tool?.outputs.some(output => output.type === 'overlay' || output.type === 'shapes')) return [];
+    if (instance.overlay === false || !tool?.outputs.some(output => output.type === 'overlay' || output.type === 'shapes')) return [];
     const source = instance.source.traceId ? ctx.traceById.get(instance.source.traceId) : undefined;
     const candidates = instance.toolId === 'line-crossings' ? ctx.inputs.traces : source ? [source] : [];
     return candidates.flatMap(trace => {

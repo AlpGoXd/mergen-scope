@@ -3,6 +3,7 @@ import type { Locator, Page } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { footerHints, MOUSE_HINTS } from '../../src/domain/shortcuts';
+import { APP_VERSION } from '../../src/components/help/shortcuts';
 
 const DAT = 'test files/cascade_ip3_-12dBm.DAT';
 const S2P = 'test files/cascaded chain.s2p';
@@ -74,6 +75,17 @@ test('the footer is there with no file open', async ({ page }) => {
   await expect(hints(page)).toContainText('Drop files anywhere');
   await expect(hints(page)).toContainText('Ctrl+O open');
   for (const name of ['Local only', 'Feedback', 'Settings', 'Help']) await expect(footer(page).getByRole('button', { name, exact: true })).toBeVisible();
+  await expectOneCleanLine(page);
+});
+
+test('the footer shows the version at the start of the buttons (with "dev" on the dev server)', async ({ page }) => {
+  await page.goto('/app.html');
+  const badge = page.getByTestId('footer-version');
+  await expect(badge).toHaveText(`v${APP_VERSION} dev`);
+  const first = await footer(page).locator('.footer-actions').evaluate(el => (el.firstElementChild as HTMLElement | null)?.dataset['testid'] ?? null);
+  expect(first).toBe('footer-version');
+  const [version, local] = await Promise.all([badge.boundingBox(), footer(page).getByRole('button', { name: 'Local only', exact: true }).boundingBox()]);
+  expect(version && local && version.x + version.width <= local.x + 1).toBe(true);
   await expectOneCleanLine(page);
 });
 

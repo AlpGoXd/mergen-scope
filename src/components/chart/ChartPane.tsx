@@ -17,7 +17,7 @@ import {
   pickPlacementTraceIndex,
   withinXAxisTolerance,
 } from '../../domain/chart/marker-placement';
-import { centerXDomain, centerYDomain, dragZoomBox, isBoxZoomGesture, paddedYDomain, panXDomain, pixelToAxisValue, refLineYTolerance, wheelAxisDomain } from '../../domain/chart/plot-coords';
+import { centerXDomain, centerYDomain, dragZoomBox, zoomXByFactor, isBoxZoomGesture, paddedYDomain, panXDomain, pixelToAxisValue, refLineYTolerance, wheelAxisDomain } from '../../domain/chart/plot-coords';
 import { chartAxisData, isPhase, logXReason, logYReason, positiveDomain, suggestLog } from '../../domain/chart/axis-scale';
 import { chartGainView } from '../../domain/chart/gain-view';
 import { mergePaneData } from '../../domain/pane-data';
@@ -41,7 +41,9 @@ import { formatEngineeringValue, formatPerDivision, makeYAxisTickFormatter } fro
 import { placeMarker } from '../../domain/markers';
 import { nextLineLabel } from '../../domain/ref-lines';
 import { makeNiceTicks, NICE_TICK_COUNT } from '../../domain/trace-math';
-import { sampleDotsVisible, visibleSampleCount } from '../../domain/dots-and-symbols';
+import { isEnvelopeTrace } from '../../domain/trace-model';
+import { sampleDotsZoomFactor, visibleSampleCount } from '../../domain/dots-and-symbols';
+import { formatCount } from '../../domain/import-wizard';
 import { allocateTraceColors } from '../../domain/trace-palette';
 import { Btn } from '../shared/Btn';
 import { ChartHoverLegend } from './ChartHoverLegend';
@@ -67,6 +69,7 @@ import { AxisScaleChoices, PaneSettingsPopover } from './PaneSettingsPopover';
 import type { PaneAxes } from './PaneSettingsPopover';
 import { AxisRangeControls } from './AxisRangeControls';
 import { PaneHeader, SamplesIcon } from './PaneHeader';
+import type { SamplesState } from './PaneHeader';
 import { PaneChartTypeControl } from './PaneChartTypeControl';
 import { XLinkChip } from './XLinkChip';
 import { fittedXBounds, linkedPeers } from '../../domain/x-link';
@@ -88,6 +91,7 @@ export interface ChartPaneProps {
 const CHART_MARGIN_RIGHT = 20;
 const CHART_MARGIN_TOP = 10;
 const CHART_X_AXIS_HEIGHT = 35; // approximate height for x-axis ticks + label
+const ENVELOPE_SAMPLES_TITLE = 'This trace is a display envelope, not measured samples. Re-import with Keep all to see samples.';
 
 export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportView }: ChartPaneProps) {
   const isExport = exportView !== undefined;
@@ -151,6 +155,8 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
   const [typeChange, setTypeChange] = useState<{ plan: TypeChangePlan; revision: number | undefined } | null>(null);
   const pendingType = typeChange?.plan ?? null;
   const [settingsAnchor, setSettingsAnchor] = useState<HTMLElement | null>(null);
+  // Shown once when Samples is switched on while the points are too dense to draw.
+  const [samplesCallout, setSamplesCallout] = useState<HTMLElement | null>(null);
   const [hoveredType, setHoveredType] = useState<PickerTileId | null>(null);
   const [focusedType, setFocusedType] = useState<PickerTileId | null>(null);
   const typeButtonRef = useRef<HTMLButtonElement>(null);
@@ -229,6 +235,7 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
   const gainConverted = gain.traces !== paneMembers;
   const paneTraces = useMemo(() => gainConverted ? gain.traces.filter(trace => vis[trace.name]) : sourceTraces,
     [gainConverted, gain.traces, vis, sourceTraces]);
+  const allEnvelopes = paneTraces.length > 0 && paneTraces.every(isEnvelopeTrace);
   const mergedData = useMemo(() => gainConverted
     ? mergePaneData(paneTraces, currentXZoom, false) : sourceRows, [gainConverted, paneTraces, currentXZoom, sourceRows]);
   const xReason = useMemo(() => logXReason(paneTraces), [paneTraces]);
@@ -525,11 +532,19 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
     if (Array.isArray(yDomain) && yDomain[0] !== 'auto') {
       return { min: yDomain[0], max: yDomain[1] };
     }
-    const amps = mergedData.flatMap((row) =>
-      paneTraces.map((tr) => row[tr.name] as number | undefined).filter((v): v is number => v != null && Number.isFinite(v))
-    );
-    if (!amps.length) return null;
-    return paddedYDomain(Math.min(...amps), Math.max(...amps), 0.05);
+    let min = Infinity;
+    let max = -Infinity;
+    for (const row of mergedData) {
+      for (const tr of paneTraces) {
+        const v = row[tr.name];
+        if (v != null && Number.isFinite(v)) {
+          if (v < min) min = v;
+          if (v > max) max = v;
+        }
+      }
+    }
+    if (!Number.isFinite(min) || !Number.isFinite(max)) return null;
+    return paddedYDomain(min, max, 0.05);
   }, [mergedData, paneTraces, yDomain]);
 
   // The line layer reports the plot rectangle and the real scale domains: they feed the edge tags here and the rows' "off view" text.
@@ -1182,6 +1197,19 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
     return paneTypeCompatibilityNote(paneName(panes, paneId), paneTypes[id].title, members.length, accepted);
   };
 
+  // How far to zoom in before the sample dots can be drawn (0 = they already show, or nothing to show).
+  const samplesZoomFactor = !allEnvelopes && !isRadial && !TableRenderer && plotView
+    ? paneTraces.reduce((most, trace) => isEnvelopeTrace(trace) ? most
+      : Math.max(most, sampleDotsZoomFactor(visibleSampleCount(trace.data, plotView.x), plotView.plot.width)), 0)
+    : 0;
+  const samplesState: SamplesState = !settings.showSampleDots || allEnvelopes ? 'off' : samplesZoomFactor > 0 ? 'dense' : 'on';
+  const showSamplesCallout = samplesCallout !== null && samplesState === 'dense';
+  useEffect(() => {
+    if (!showSamplesCallout) return;
+    const timer = window.setTimeout(() => setSamplesCallout(null), 8000);
+    return () => window.clearTimeout(timer);
+  }, [showSamplesCallout]);
+
   if (exportView) {
     return (
       <div data-testid={`export-pane-${paneId}`} style={{ position: 'relative', width: exportView.width, height: exportView.height, background: 'var(--bg)' }}>
@@ -1220,13 +1248,22 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
           scaleOpen={scaleAnchor !== null}
           link={traceNamesInPane.length > 0 ? iconOnly => <XLinkChip paneId={paneId} iconOnly={iconOnly} /> : null}
           samples={TableRenderer ? null : iconOnly => (
-            <Btn variant={settings.showSampleDots ? 'armed' : 'neutral'} tone="pane" small className={`ph-samples${iconOnly ? ' is-icon' : ''}`} aria-label="Samples" aria-pressed={settings.showSampleDots}
-              title={settings.showSampleDots && !isRadial && plotView && plotView.plot.width > 0 && paneTraces.some(trace => {
-                const points = visibleSampleCount(trace.data, plotView.x);
-                return points > 0 && !sampleDotsVisible(points, plotView.plot.width);
-              }) ? 'Zoom in to see the sample points' : 'Show the measured sample points'} data-testid="samples-toggle"
-              onClick={e => { e.stopPropagation(); paneDispatch({ type: 'SET_PANE_SETTINGS', payload: { paneId, patch: { showSampleDots: !settings.showSampleDots } } }); }}>
-              {iconOnly ? <SamplesIcon /> : 'Samples'}
+            <Btn
+              small
+              className={`ph-samples${iconOnly ? ' is-icon' : ''}`}
+              data-state={samplesState}
+              aria-label="Samples"
+              aria-pressed={samplesState !== 'off'}
+              disabled={allEnvelopes}
+              title={allEnvelopes ? ENVELOPE_SAMPLES_TITLE : samplesState === 'dense' ? `Samples are on, but the points are too dense to draw at this zoom. Zoom in about ${formatCount(samplesZoomFactor)}× to see them.` : 'Show the measured sample points'}
+              data-testid="samples-toggle"
+              onClick={e => {
+                e.stopPropagation();
+                const turningOn = !settings.showSampleDots;
+                setSamplesCallout(turningOn && samplesZoomFactor > 0 ? e.currentTarget : null);
+                paneDispatch({ type: 'SET_PANE_SETTINGS', payload: { paneId, patch: { showSampleDots: turningOn } } });
+              }}>
+              {iconOnly ? <SamplesIcon state={samplesState} /> : <><span className="ph-samples-dot" aria-hidden="true" />Samples</>}
             </Btn>
           )}
           chip={fit => (
@@ -1253,6 +1290,7 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
             onAnchorChange={anchor => { setTypeChange(null); returnToTileRef.current = null; setTypeAnchor(null); setSettingsAnchor(anchor); if (anchor) typeTriggerRef.current = anchor; else { typeTriggerRef.current?.focus({ preventScroll: true }); typeTriggerRef.current = null; } }}
             onChoose={choosePaneType} onConfirm={confirmPaneType} onCancel={cancelTypeChange}
             table={TableRenderer ? { settings: tableView.settings, visible: tableView.visible } : null}
+            samplesDisabledReason={allEnvelopes ? ENVELOPE_SAMPLES_TITLE : undefined}
             axes={axes}
             resolvedPolarRadius={isPolar ? polarRadius((settings.polar ?? DEFAULT_POLAR_SETTINGS).radius, paneTraces) : undefined}
             onFit={isRadial && paneTraces.length > 0 ? () => setRadialFitRequest(value => value + 1) : null}
@@ -1266,6 +1304,22 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
               onClose: panes.length > 1 ? closePane : null,
             }} />
         </PaneHeader>
+      )}
+
+      {showSamplesCallout && samplesCallout && (
+        <PopoverAt label="Samples too dense" at={samplesCallout} onClose={() => setSamplesCallout(null)}>
+          <div className="ph-samples-callout" data-testid="samples-callout" role="status">
+            <p className="t-body"><strong>Samples are on</strong>, but the points are too dense to draw at this zoom. Zoom in about {formatCount(samplesZoomFactor)}× to see them: right-drag across a narrower range.</p>
+            <div className="ph-samples-callout__actions">
+              <Btn small onClick={() => setSamplesCallout(null)}>Dismiss</Btn>
+              <Btn small variant="solid" onClick={() => {
+                const zoom = plotView?.x ? zoomXByFactor({ left: plotView.x[0], right: plotView.x[1] }, samplesZoomFactor * 1.1, xScale) : null;
+                if (zoom) paneDispatch({ type: 'SET_PANE_ZOOM', payload: { paneId, zoom } });
+                setSamplesCallout(null);
+              }}>Zoom in {formatCount(samplesZoomFactor)}×</Btn>
+            </div>
+          </div>
+        </PopoverAt>
       )}
 
       {/* overflow hidden: pane content must never paint over (and steal clicks from) the next pane's header */}

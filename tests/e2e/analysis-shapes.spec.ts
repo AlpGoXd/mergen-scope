@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import { resolve } from 'node:path';
 import { addAnalysis } from './analysis-helpers';
 
-test('measure shapes follow the eye and card expansion', async ({ page }) => {
+test('measure shapes follow the eye, not card collapse', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/app.html');
   await page.getByTestId('app-open-input').setInputFiles(resolve('test files/cascade_ip3_-12dBm.DAT'));
@@ -18,7 +18,8 @@ test('measure shapes follow the eye and card expansion', async ({ page }) => {
   await peaks.locator('.an-icon-btn[aria-label="Show Peak Table on the chart"]').click();
   await expect(triangles).toHaveCount(count);
   await peaks.locator('.an-card__head').click();
-  await expect(triangles).toHaveCount(0);
+  await expect(peaks.locator('.an-card__head')).toHaveAttribute('aria-expanded', 'false');
+  await expect(triangles).toHaveCount(count);
   await peaks.locator('.an-card__head').click();
   await expect(triangles).toHaveCount(count);
   await addAnalysis(page, 'Bandwidth');

@@ -37,7 +37,8 @@ export function buildSeriesDatasetFromTrace(
     label: trace.file ? `${trace.file} ${trace.dn || trace.name}` : (trace.dn || trace.name),
     fileId,
     fileName,
-    isUniform: isUniformDataPoints(trace.data),
+    isUniform: trace.envelopeOf !== undefined ? false : isUniformDataPoints(trace.data),
+    ...(trace.envelopeOf !== undefined ? { envelopeOf: trace.envelopeOf } : {}),
     provenance: makeRootProvenance(datasetId),
     capabilities: makeDatasetCapabilities(family),
   };
@@ -61,7 +62,8 @@ export function buildSeriesDatasetFromTrace(
 
 export function buildScalarDisplayTraceFromSeriesDataset(dataset: SpectrumDataset | WaveformDataset, series: ScalarSeries, trace: Trace): ScalarDisplayTrace {
   const semantics = dataset.family === 'waveform' ? 'time-amplitude' : 'magnitude';
-  const points: ScalarDisplayPoint[] = series.samples.map((sample) => ({ x: sample.x, y: sample.y }));
+  const points: readonly ScalarDisplayPoint[] = series.samples;
+  const envelopeOf = trace.envelopeOf ?? dataset.envelopeOf;
   return {
     id: makeDisplayTraceId('display', trace.id),
     kind: 'dataset-projection',
@@ -69,6 +71,7 @@ export function buildScalarDisplayTraceFromSeriesDataset(dataset: SpectrumDatase
     datasetId: dataset.id,
     family: dataset.family,
     isUniform: dataset.isUniform ?? false,
+    ...(envelopeOf !== undefined ? { envelopeOf } : {}),
     interpolation: trace.interpolation,
     provenance: {
       parentDatasetId: dataset.id,

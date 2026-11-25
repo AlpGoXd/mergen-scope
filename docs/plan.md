@@ -11,7 +11,10 @@ The empty-pane picker already shows Polar and Spectrogram as greyed tiles ("late
 - [ ] IQ spectrum view
 - [ ] IQ time view (magnitude over time)
 - [ ] IQ constellation view (covers the Constellation pane)
-- [ ] Eye diagram (parked on purpose; an Analysis tool, not a pane type, so it never shows in the picker)
+- [ ] Eye diagram: an Analysis tool that owns its Eye pane, so it never shows in the picker. Designed 24 Nov; the guide is [design/eye-diagram.md](design/eye-diagram.md). Build in three steps:
+  - [ ] First version: card and Eye pane, Levels Auto / NRZ / PAM4, Auto and Manual bit timing with the bit lines in the source pane, Clock, UI shown, Range, Trace hue and Grey shading, Amplitude / Timing / ISI and equalization results, opening and crossing overlays, card messages, v5 workspace migration
+  - [ ] Next: all six shadings, PAM3 and PAM-N, masks (Custom, Import, sourced presets) with hits and margin, created traces (TIE, pulse response, jitter histogram and spectrum, level histogram), "UI" as an X unit, search shortcut
+  - [ ] Later: Statistics (RJ / DJ, TJ and width at BER), bathtub with a Log Y scale, BER contour, then an Equalizer Math card (CTLE / FFE)
 
 ## Smith chart
 

@@ -9,6 +9,7 @@
 - Normally work happens in **one folder**: `gits/mergen-scope`. There is no `gits/mergen-scope-beta-2` and no `beta-2` branch any more.
 - **Parallel mode** (only when the user asks for it): each writer owns exactly one folder. `gits/mergen-scope` belongs to the user's agent; Claude and its Codex jobs work in `gits/_worktrees/claude-dev`. Never edit, switch branches in, or run git commands that write in a folder you don't own. In parallel mode only Claude merges into `dev`.
 - `main` is the released line. Never commit on it, never touch it.
+- **Versions** are `0.MINOR.PATCH` while in testing (feature release bumps MINOR, hotfix bumps PATCH), then `2.0.0` for the stable "Mergen Scope 2.0" launch. No `beta.N` counters. Don't bump the version yourself; releases are the user's call, and Claude bumps every copy (see CLAUDE.md "Releasing").
 - `dev` is the integration branch. Task branches are made from `dev` and named `type/kebab-slug` (`feat/`, `fix/`, `chore/`, `codex/`).
 - **When you are given a task, your branch is already checked out** in the folder you were started in. Work and commit there. Check with `git branch --show-current` before you start and before you commit. If it is not the branch your task names, or it changes while you work, or files you didn't touch show up in `git status` or the index, **stop at once and report**. Don't work around it.
 - **Writer lock:** the folder may hold `$(git rev-parse --git-dir)/mergen-writer.lock`. While it exists, the pre-commit hook refuses commits on any other branch and commits with files outside your allowed paths. A refusal means something is wrong: stop and report. Never delete the lock and never bypass the hook (`--no-verify`).
@@ -28,15 +29,15 @@
 
 ## Tests: scale the run to the change
 
-The full e2e suite is about 280 browser tests and loads the machine heavily. Locally, Vitest and Playwright are capped at half the CPU cores.
+The full e2e suite is about 330 browser tests and loads the machine heavily (roughly 10 minutes on 2 workers). Locally, Vitest and Playwright are capped at half the CPU cores. CI is the full-suite gate.
 
 | When | Run |
 |---|---|
 | While iterating | `npm run typecheck` + `npx vitest related <changed files> --run` + the 1–3 e2e specs that cover your change (`npx playwright test tests/e2e/<spec>.spec.ts`) |
-| Once, at the end of the task | `npm run typecheck` + `npm run test:unit` + `npm run test:e2e`. Add `npm run build && npm run test:static` for build or asset changes |
+| Once, at the end of the task | `npm run typecheck` + `npm run test:unit` + every e2e spec your change touched or that covers its area. Add `npm run build && npm run test:static` for build or asset changes. Run `npm run test:e2e:fast` (skips `@slow` tests) once only for shared code: `ChartPane`, stores, layout, global CSS |
 | Proving a flaky test is fixed | `--repeat-each=N` on that spec only |
 
-Don't run the full suites repeatedly "to be sure"; CI runs everything on pushes to `main` and `dev`. Report real numbers (passed, failed, skipped) and the exact output of any failure. Don't just say "tests pass".
+Don't run the full e2e suite locally unless the user asks; don't run any full suite repeatedly "to be sure"; CI runs everything on pushes to `main` and `dev`. Report real numbers (passed, failed, skipped) and the exact output of any failure. Don't just say "tests pass".
 
 ## Code rules (short version; details in CLAUDE.md)
 

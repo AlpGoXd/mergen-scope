@@ -18,6 +18,8 @@ export interface PrepareOpenInput {
   readonly priorRawText?: string;
   readonly wizardConfig?: WizardConfig;
   readonly recognizedColumns?: boolean;
+  /** Re-importing via Import settings… or replacing a file whose traces were all hidden unhides matched traces. */
+  readonly unhideMatched?: boolean;
 }
 export type PreparedOpenInput = { readonly ok: false; readonly reason: string } | {
   readonly ok: true; readonly file: RawFileRecord; readonly rawText: string;
@@ -63,13 +65,16 @@ function legacyTabularDisplays(prior: RawFileRecord | undefined, columns: readon
   });
 }
 
+const BINARY_FORMATS = new Set(['wavebin', 'lecroy-trc', 'tek-isf', 'owon-bin', 'wav', 'npy', 'raw-binary']);
+const INDEXED_CHANNEL_FORMATS = new Set(['tabular', ...BINARY_FORMATS]);
+
 /** Resolve the same structural key used by replacement candidates; null means identity is unavailable. */
 export function getOpenProjectionKey(file: RawFileRecord, displayIndex: number): string | null {
   const displays = file.displayTraces ?? [];
   const display = displays[displayIndex];
   if (!display) return null;
   if (display.source.sourceType === 'network-parameter') return networkKey(display.source);
-  if (file.format === 'tabular') {
+  if (file.format && INDEXED_CHANNEL_FORMATS.has(file.format)) {
     if (!validColumns(file.columnIdentities, displays.length)) return null;
     const column = file.columnIdentities[displayIndex];
     return column ? columnKey(column) : null;
@@ -83,7 +88,12 @@ export function prepareOpenInput(input: PrepareOpenInput): PreparedOpenInput {
   const fail = (reason: string): PreparedOpenInput => ({ ok: false, reason });
   const { parsed, prior, fileId, fileName } = input;
   if (!fileId.trim() || !fileName.trim()) return fail('File ID and name are required.');
-  if (prior && prior.format !== parsed.format) return fail(`Cannot replace ${prior.format ?? 'unknown'} data with ${parsed.format} data: file kinds differ.`);
+  const bothBinary = prior?.format !== undefined && BINARY_FORMATS.has(prior.format) && BINARY_FORMATS.has(parsed.format);
+  const binaryToTabular = prior?.format !== undefined && BINARY_FORMATS.has(prior.format) && parsed.format === 'tabular';
+  const tabularToBinary = prior?.format === 'tabular' && BINARY_FORMATS.has(parsed.format);
+  const tabularNetworkSwitch = (prior?.format === 'tabular' && parsed.format === 'touchstone' && Boolean(input.wizardConfig?.network))
+    || (prior?.format === 'touchstone' && Boolean(prior.wizardConfig?.network) && parsed.format === 'tabular');
+  if (prior && prior.format !== parsed.format && !bothBinary && !binaryToTabular && !tabularToBinary && !tabularNetworkSwitch) return fail(`Cannot replace ${prior.format ?? 'unknown'} data with ${parsed.format} data: file kinds differ.`);
   const columns = parsed.columnIdentities;
   const legacyColumns = prior?.displayTraces?.length ? undefined : legacyTabularColumns(prior,input.priorRawText);
   const priorColumns = prior?.columnIdentities ?? legacyColumns;
@@ -101,11 +111,12 @@ export function prepareOpenInput(input: PrepareOpenInput): PreparedOpenInput {
   const oldTraceByKey = new Map<string, Trace>();
   const network = !!parsed.touchstoneNetwork;
   const tabular = parsed.format === 'tabular';
-  if (prior && tabular && !validColumns(priorColumns, oldDisplays.length)) return fail('Prior actual output column identities are unavailable or ambiguous.');
+  const indexedChannels = INDEXED_CHANNEL_FORMATS.has(parsed.format);
+  if (prior && indexedChannels && !validColumns(priorColumns, oldDisplays.length)) return fail('Prior actual output column identities are unavailable or ambiguous.');
   const usableColumns: boolean = validColumns(columns, parsed.traces.length);
   const uniqueIndices = !!columns && columns.length === parsed.traces.length && columns.every(column => Number.isInteger(column.index) && column.index >= 0) && new Set(columns.map(column => column.index)).size === columns.length;
-  if (tabular && (!uniqueIndices || (prior && !usableColumns))) return fail('Actual parsed output column identities are unavailable or ambiguous.');
-  if (prior && tabular && priorColumns && columns && (priorColumns[0]?.header === undefined) !== (columns[0]?.header === undefined)) return fail('Cannot safely match headerless and headered column identities.');
+  if (indexedChannels && (!uniqueIndices || (prior && !usableColumns))) return fail('Actual parsed output column identities are unavailable or ambiguous.');
+  if (prior && indexedChannels && priorColumns && columns && priorColumns.length > 0 && columns.length > 0 && (priorColumns[0]?.header === undefined) !== (columns[0]?.header === undefined)) return fail('Cannot safely match headerless and headered column identities.');
   for (let i = 0; i < oldDisplays.length; i++) {
     const display = oldDisplays[i]; if (!display) continue;
     const legacyColumn = prior?.format === 'tabular' && !prior.displayTraces?.length ? legacyColumns?.[i] : undefined;
@@ -115,16 +126,21 @@ export function prepareOpenInput(input: PrepareOpenInput): PreparedOpenInput {
     const matches = (prior?.traces ?? []).filter(t => t.id === display.id || (t.parameters?.displayTraceId === display.id) || (display.compat?.legacyTraceName && t.name === display.compat.legacyTraceName));
     if (matches.length > 1) return fail('Prior trace identity is ambiguous.');
     if (matches[0] && matches[0].id !== display.id) return fail('Prior trace and display IDs disagree.');
+    if (input.unhideMatched && display.hidden) continue;
     oldByKey.set(key, display); if (matches[0]) oldTraceByKey.set(key, matches[0]);
   }
-  if (prior?.traces.some(t => ![...oldTraceByKey.values()].includes(t))) return fail('A prior trace cannot be matched to a display projection.');
+  if (prior?.traces.some(t => {
+    const owner = oldDisplays.find(d => d.id === t.id || t.parameters?.displayTraceId === d.id || (d.compat?.legacyTraceName && t.name === d.compat.legacyTraceName));
+    if (input.unhideMatched && owner?.hidden) return false;
+    return ![...oldTraceByKey.values()].includes(t);
+  })) return fail('A prior trace cannot be matched to a display projection.');
   const datasets: Dataset[] = [];
   const displays: DisplayTrace[] = [];
   const traces: Trace[] = [];
   const refs = new Map<string, OpenTrace>();
   const add = (key: string, fresh: DisplayTrace): boolean => {
     const old = oldByKey.get(key); const oldTrace = oldTraceByKey.get(key);
-    const display: DisplayTrace = old ? { ...fresh, id: old.id, hidden: old.hidden, interpolation: old.interpolation,
+    const display: DisplayTrace = old ? { ...fresh, id: old.id, hidden: input.unhideMatched ? false : old.hidden, interpolation: old.interpolation,
       compat: { ...fresh.compat, legacyTraceName: oldTrace?.name ?? old.compat?.legacyTraceName, legacyDisplayName: oldTrace?.dn ?? old.compat?.legacyDisplayName, automaticDisplayName: old.compat?.automaticDisplayName } } : fresh;
     const adapted = adaptDisplayTraceToLegacyTrace(datasets, display, file);
     if (!adapted) return false;
@@ -170,10 +186,10 @@ export function prepareOpenInput(input: PrepareOpenInput): PreparedOpenInput {
     return { ok: true, file, rawText: input.rawText, selection, replacementMatches: [...oldByKey.keys()].flatMap(key => refs.get(key) ? [refs.get(key) as OpenTrace] : []), removedKeys };
   }
   if (oldDisplays.some(d => d.source.sourceType === 'network-parameter')) return fail('Prior and new source types do not match.');
-  if (!tabular && prior && (oldDisplays.length !== 1 || parsed.traces.length !== 1)) return fail('Multi-trace non-tabular replacement has ambiguous source identities.');
+  if (!indexedChannels && prior && (oldDisplays.length !== 1 || parsed.traces.length !== 1)) return fail('Multi-trace non-tabular replacement has ambiguous source identities.');
   for (let i = 0; i < parsed.traces.length; i++) {
     const sourceTrace = parsed.traces[i]; if (!sourceTrace) continue;
-    const key = tabular ? columnKey(usableColumns ? (parsed.columnIdentities?.[i] as ColumnIdentity) : {index:parsed.columnIdentities?.[i]?.index ?? -1}) : parsed.traces.length === 1 ? JSON.stringify(['single']) : JSON.stringify(['source-trace', i]);
+    const key = indexedChannels ? columnKey(usableColumns ? (parsed.columnIdentities?.[i] as ColumnIdentity) : {index:parsed.columnIdentities?.[i]?.index ?? -1}) : parsed.traces.length === 1 ? JSON.stringify(['single']) : JSON.stringify(['source-trace', i]);
     const trace = { ...sourceTrace, id: `${fileId}:${key}`, name: `${fileId}:${key}`, file: fileName };
     const dataset = buildSeriesDatasetFromTrace(trace, trace.domain === 'time' ? 'waveform' : 'spectrum', fileId, fileName);
     const series = dataset.series[0]; if (!series) return fail('Parsed trace has no series.');

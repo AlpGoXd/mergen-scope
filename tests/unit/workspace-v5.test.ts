@@ -3,7 +3,11 @@ import { readFileSync } from 'node:fs';
 import { initialWorkspaceState, workspaceReducer, snapshotFromWorkspace, workspaceFromSnapshot, traceView } from '../../src/stores/aggregate-workspace-store';
 import { parseTabularFile } from '../../src/domain/parsers/tabular';
 import { parseTouchstoneFile } from '../../src/domain/parsers/touchstone';
+import { defaultBinaryConfig, parseBinaryWithConfig } from '../../src/domain/parsers/raw-binary';
+import { isEnvelopeTrace } from '../../src/domain/trace-model';
 import { migrateWorkspaceV5 } from '../../src/domain/workspace-migrate-v5';
+import { parseForImport } from '../../src/domain/parsers/parse-file';
+import type { WizardConfig } from '../../src/types/file';
 import { makeTestTrace } from './helpers';
 
 it('accepts optional trace math alignment choices and rejects unknown choices', () => {
@@ -500,4 +504,224 @@ it('restores legacy packed-trace separators and round-trips mixed separators', (
   expect(migrateWorkspaceV5(saved)?.files[0]?.wizardConfig).toEqual(saved?.files[0]?.wizardConfig);
   expect(migrateWorkspaceV5(withConfig({ ...config, delimiter: ';', valueDelimiter: ',' }))?.files[0]?.wizardConfig?.valueDelimiter).toBe(',');
   expect(migrateWorkspaceV5(withConfig({ ...config, valueDelimiter: 'invalid' }))).toBeNull();
+});
+
+it('round-trips envelopeOf in v5 workspaces and rejects invalid or mismatched envelopeOf values', () => {
+  const base = migrateWorkspaceV5(fixture('workspace-v4-eight-pane-extension'));
+  if (!base) throw new Error('fixture');
+
+  // Absent envelopeOf means not an envelope trace.
+  const plainTrace = base.files[0]?.traces[0];
+  expect(plainTrace?.envelopeOf).toBeUndefined();
+  expect(isEnvelopeTrace(plainTrace)).toBe(false);
+
+  // Build a real envelope trace via binary workflow and round-trip through v5 save/restore.
+  let state = initialWorkspaceState();
+  const sampleCount = 1000;
+  const rawBuf = new ArrayBuffer(sampleCount * 4);
+  const view = new DataView(rawBuf);
+  for (let i = 0; i < sampleCount; i++) view.setFloat32(i * 4, Math.sin(i * 0.1), true);
+  const binRes = parseBinaryWithConfig(rawBuf, 'env.bin', {
+    ...defaultBinaryConfig('env.bin', rawBuf.byteLength, null),
+    reduction: { mode: 'envelope', targetPoints: 100 },
+  });
+  if (!binRes.ok) throw new Error(binRes.error);
+  state = workspaceReducer(state, {
+    slice: 'files',
+    action: { type: 'ADD_PARSED_FILE', payload: { id: 'bin-env', fileName: 'env.bin', text: binRes.summaryText, parsed: binRes.parsed } },
+  });
+  const saved = snapshotFromWorkspace(state);
+  if (!saved) throw new Error('snapshot');
+  const reloaded = migrateWorkspaceV5(JSON.parse(JSON.stringify(saved)));
+  expect(reloaded).not.toBeNull();
+  if (!reloaded) return;
+
+  expect(reloaded.files[0]?.traces[0]?.envelopeOf).toBe(sampleCount);
+  expect(reloaded.files[0]?.datasets?.[0]?.envelopeOf).toBe(sampleCount);
+  expect(reloaded.files[0]?.displayTraces?.[0]?.envelopeOf).toBe(sampleCount);
+  expect(reloaded.datasets[0]?.envelopeOf).toBe(sampleCount);
+  expect(reloaded.displayTraces[0]?.envelopeOf).toBe(sampleCount);
+
+  const restored = workspaceFromSnapshot(initialWorkspaceState(), reloaded);
+  expect(restored).not.toBeNull();
+  if (!restored) return;
+  const viewTrace = traceView(restored.files, restored.traces).allKnownTraces[0];
+  expect(viewTrace?.envelopeOf).toBe(sampleCount);
+  expect(isEnvelopeTrace(viewTrace)).toBe(true);
+  expect(viewTrace?.isUniform).toBe(false);
+
+  // Invalid envelopeOf rejected on dataset, displayTrace, and trace.
+  for (const bad of [0, -5, 1.5, '100', null]) {
+    expect(migrateWorkspaceV5({
+      ...reloaded,
+      datasets: reloaded.datasets.map((d) => ({ ...d, envelopeOf: bad })),
+      files: reloaded.files.map((f) => ({ ...f, datasets: f.datasets?.map((d) => ({ ...d, envelopeOf: bad })) })),
+    })).toBeNull();
+    expect(migrateWorkspaceV5({
+      ...reloaded,
+      displayTraces: reloaded.displayTraces.map((d) => ({ ...d, envelopeOf: bad })),
+      files: reloaded.files.map((f) => ({ ...f, displayTraces: f.displayTraces?.map((d) => ({ ...d, envelopeOf: bad })) })),
+    })).toBeNull();
+    expect(migrateWorkspaceV5({
+      ...reloaded,
+      files: reloaded.files.map((f) => ({ ...f, traces: f.traces.map((t) => ({ ...t, envelopeOf: bad })) })),
+    })).toBeNull();
+  }
+
+  // Mismatch between file-owned dataset and top-level dataset fails sameValue.
+  expect(migrateWorkspaceV5({
+    ...reloaded,
+    datasets: reloaded.datasets.map((d) => ({ ...d, envelopeOf: sampleCount + 1 })),
+  })).toBeNull();
+
+  // Legacy (< 5) payloads with invalid envelopeOf must also be rejected rather than passed through.
+  expect(migrateWorkspaceV5({ ...reloaded, version: 4 })).not.toBeNull();
+  expect(migrateWorkspaceV5({
+    ...reloaded,
+    version: 4,
+    files: reloaded.files.map((f) => ({ ...f, traces: f.traces.map((t) => ({ ...t, envelopeOf: -10 })) })),
+  })).toBeNull();
+  expect(migrateWorkspaceV5({
+    ...reloaded,
+    version: 4,
+    datasets: reloaded.datasets.map((d) => ({ ...d, envelopeOf: -10 })),
+    files: reloaded.files.map((f) => ({ ...f, datasets: f.datasets?.map((d) => ({ ...d, envelopeOf: -10 })) })),
+  })).toBeNull();
+  expect(migrateWorkspaceV5({
+    ...reloaded,
+    version: 4,
+    displayTraces: reloaded.displayTraces.map((d) => ({ ...d, envelopeOf: -10 })),
+    files: reloaded.files.map((f) => ({ ...f, displayTraces: f.displayTraces?.map((d) => ({ ...d, envelopeOf: -10 })) })),
+  })).toBeNull();
+
+  // Mismatched valid envelopeOf between top-level and file-owned collections in v4 must be rejected.
+  expect(migrateWorkspaceV5({
+    ...reloaded,
+    version: 4,
+    datasets: reloaded.datasets.map((d) => ({ ...d, envelopeOf: sampleCount * 2 })),
+  })).toBeNull();
+  expect(migrateWorkspaceV5({
+    ...reloaded,
+    version: 4,
+    displayTraces: reloaded.displayTraces.map((d) => ({ ...d, envelopeOf: sampleCount * 2 })),
+  })).toBeNull();
+
+  // Even when explicitCollections is false (e.g. displayTraces omitted), invalid or mismatched file-level envelopeOf is rejected.
+  const { displayTraces: _omitDisplays, ...v4NoDisplays } = reloaded;
+  expect(migrateWorkspaceV5({
+    ...v4NoDisplays,
+    version: 4,
+    files: reloaded.files.map((f) => ({ ...f, datasets: f.datasets?.map((d) => ({ ...d, envelopeOf: -10 })) })),
+  })).toBeNull();
+  expect(migrateWorkspaceV5({
+    ...v4NoDisplays,
+    version: 4,
+    files: reloaded.files.map((f) => ({ ...f, datasets: f.datasets?.map((d) => ({ ...d, envelopeOf: sampleCount * 2 })) })),
+  })).toBeNull();
+
+  // Any migrated v4 envelope snapshot (explicit collections or trace-only) round-trips cleanly through v5 validation.
+  const upgradedExplicit = migrateWorkspaceV5({ ...reloaded, version: 4 });
+  expect(upgradedExplicit).not.toBeNull();
+  expect(migrateWorkspaceV5(JSON.parse(JSON.stringify(upgradedExplicit)))).toEqual(upgradedExplicit);
+
+  const { datasets: _omitTopDatasets, displayTraces: _omitTopDisplays, ...v4TraceOnlyBase } = reloaded;
+  const upgradedTraceOnly = migrateWorkspaceV5({
+    ...v4TraceOnlyBase,
+    version: 4,
+    files: reloaded.files.map(({ datasets: _d, displayTraces: _dt, ...f }) => f),
+  });
+  expect(upgradedTraceOnly).not.toBeNull();
+  expect(upgradedTraceOnly?.datasets[0]?.envelopeOf).toBe(sampleCount);
+  expect(upgradedTraceOnly?.displayTraces[0]?.envelopeOf).toBe(sampleCount);
+  expect(migrateWorkspaceV5(JSON.parse(JSON.stringify(upgradedTraceOnly)))).toEqual(upgradedTraceOnly);
+});
+
+it('round-trips WizardConfig.network in v5 workspaces and rejects invalid network configs', () => {
+  const csv = [
+    'Frequency (GHz),S11 dB,S11 ang,S21 dB,S21 ang',
+    '1.0,-15,45,-1.2,-30',
+    '2.0,-18,20,-1.5,-60',
+  ].join('\n');
+  const openParsed = parseForImport(csv, 'amp.csv');
+  const networkConfig: WizardConfig = {
+    ...(openParsed.suggestedConfig ?? {
+      delimiter: ',',
+      skipRows: 1,
+      xCol: 0,
+      yCols: [1, 2, 3, 4],
+      xMult: 1e9,
+      yMult: 1,
+      xUnit: 'GHz',
+      domain: 'frequency',
+      confidence: 1,
+      headers: ['Frequency (GHz)', 'S11 dB', 'S11 ang', 'S21 dB', 'S21 ang'],
+    }),
+    network: {
+      portCount: 2,
+      format: 'DB',
+      angleUnit: 'deg',
+      referenceOhms: 50,
+      cells: [
+        { row: 0, col: 0, first: 1, second: 2 },
+        { row: 1, col: 0, first: 3, second: 4 },
+      ],
+    },
+  };
+
+  const state = initialWorkspaceState();
+  let resolved = workspaceReducer(state, {
+    slice: 'open-data',
+    inputs: [{ id: 'csv-net', name: 'amp.csv', text: csv, parsed: openParsed }],
+    limit: 4,
+  });
+  resolved = workspaceReducer(resolved, {
+    slice: 'files',
+    limit: 4,
+    action: { type: 'RESOLVE_WIZARD', payload: { id: 'csv-net', config: networkConfig } },
+  });
+
+  const saved = snapshotFromWorkspace(resolved);
+  if (!saved) throw new Error('expected snapshot');
+  const migrated = migrateWorkspaceV5(JSON.parse(JSON.stringify(saved)));
+  expect(migrated).not.toBeNull();
+  expect(migrated?.files[0]?.wizardConfig?.network).toEqual(networkConfig.network);
+  expect(migrated?.files[0]?.touchstoneNetwork?.cellOrder).toBe('spec');
+
+  const withNetwork = (network: unknown) => JSON.parse(JSON.stringify({
+    ...migrated,
+    files: migrated?.files.map((file, idx) => (idx === 0 ? {
+      ...file,
+      wizardConfig: file.wizardConfig ? { ...file.wizardConfig, network } : undefined,
+    } : file)),
+  }));
+
+  expect(migrateWorkspaceV5(withNetwork({ ...networkConfig.network, portCount: 5 }))).toBeNull();
+  expect(migrateWorkspaceV5(withNetwork({ ...networkConfig.network, format: 'XY' }))).toBeNull();
+  expect(migrateWorkspaceV5(withNetwork({ ...networkConfig.network, angleUnit: 'grad' }))).toBeNull();
+  expect(migrateWorkspaceV5(withNetwork({ ...networkConfig.network, referenceOhms: 0 }))).toBeNull();
+  expect(migrateWorkspaceV5(withNetwork({ ...networkConfig.network, cells: [] }))).toBeNull();
+  expect(migrateWorkspaceV5(withNetwork({
+    ...networkConfig.network,
+    cells: [{ row: 2, col: 0, first: 1, second: 2 }],
+  }))).toBeNull();
+  expect(migrateWorkspaceV5(withNetwork({
+    ...networkConfig.network,
+    cells: [
+      { row: 0, col: 0, first: 1, second: 2 },
+      { row: 0, col: 0, first: 3, second: 4 },
+    ],
+  }))).toBeNull();
+  expect(migrateWorkspaceV5(withNetwork({
+    ...networkConfig.network,
+    cells: [
+      { row: 0, col: 0, first: 0, second: 2 },
+    ],
+  }))).toBeNull();
+  expect(migrateWorkspaceV5(withNetwork({
+    ...networkConfig.network,
+    cells: [
+      { row: 0, col: 0, first: 1, second: 2 },
+      { row: 1, col: 0, first: 2, second: 3 },
+    ],
+  }))).toBeNull();
 });

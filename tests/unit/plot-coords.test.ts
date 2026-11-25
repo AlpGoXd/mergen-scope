@@ -3,6 +3,7 @@ import {
   axisValueToPixel,
   BOX_ZOOM_MIN_Y_PX,
   centerXDomain,
+  zoomXByFactor,
   centerYDomain,
   dragZoomBox,
   dragZoomXDomain,
@@ -193,5 +194,22 @@ describe('reference line reveal domains', () => {
   it('centers Y with the original span or the minimum span for a flat range', () => {
     expect(centerYDomain(20, -80, -40)).toEqual({ min: 0, max: 40 });
     expect(centerYDomain(0, 10, 10)).toEqual({ min: -5e-13, max: 5e-13 });
+  });
+});
+
+describe('zoomXByFactor', () => {
+  it('zooms a linear window in around its centre', () => {
+    expect(zoomXByFactor({ left: 0, right: 100 }, 4)).toEqual({ left: 37.5, right: 62.5 });
+  });
+  it('zooms a log window in around its geometric centre', () => {
+    const zoom = zoomXByFactor({ left: 1, right: 10_000 }, 2, 'log');
+    expect(zoom?.left).toBeCloseTo(10);
+    expect(zoom?.right).toBeCloseTo(1000);
+  });
+  it('refuses factors that would not zoom in and unusable windows', () => {
+    expect(zoomXByFactor({ left: 0, right: 100 }, 1)).toBeNull();
+    expect(zoomXByFactor({ left: 0, right: 100 }, Infinity)).toBeNull();
+    expect(zoomXByFactor({ left: 5, right: 5 }, 2)).toBeNull();
+    expect(zoomXByFactor({ left: 0, right: 100 }, 2, 'log')).toBeNull();
   });
 });

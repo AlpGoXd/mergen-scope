@@ -255,6 +255,7 @@ const matrix = (v: unknown, ports: number): boolean => Array.isArray(v)
 const references = (v: unknown, ports: number): boolean => Array.isArray(v) && v.length === ports && v.every(ref => finite(ref) && ref > 0);
 const sample = (v: unknown): boolean => numericFields(v, ['x','y']);
 const optionalBoolean = (v: unknown): boolean => v === undefined || typeof v === 'boolean';
+const optionalEnvelopeOf = (v: unknown): boolean => v === undefined || (Number.isSafeInteger(v) && Number(v) > 0);
 const interpolation = (v: unknown): boolean => v === undefined || ['auto', 'exact', 'linear', 'nearest', 'previous', 'next', 'cubic', 'snap', 'sinc'].includes(String(v));
 const nullableString = (v: unknown): boolean => v === null || typeof v === 'string';
 const validNetwork = (v: unknown): boolean => object(v)
@@ -274,6 +275,7 @@ const validDataset = (v: unknown): boolean => {
     !object(v)
       || !optionalBoolean(v.hidden)
       || !optionalBoolean(v.isUniform)
+      || !optionalEnvelopeOf(v.envelopeOf)
       || !(v.fileId === undefined || v.fileId === null || typeof v.fileId === 'string' || finite(v.fileId))
       || !(v.fileName === undefined || nullableString(v.fileName))
       || typeof v.id !== 'string'
@@ -370,6 +372,7 @@ const validDisplay = (v: unknown): boolean => {
     !object(v)
       || !optionalBoolean(v.hidden)
       || !optionalBoolean(v.isUniform)
+      || !optionalEnvelopeOf(v.envelopeOf)
       || !interpolation(v.interpolation)
       || typeof v.id !== 'string'
       || !v.id
@@ -419,6 +422,34 @@ const validControls = (v: unknown): boolean => object(v)
         String((v.activeViewByFamily as Record<string, unknown>)[key])
       )
   );
+const validWizardNetwork = (v: unknown, xCol: number): boolean => {
+  if (!object(v)) return false;
+  const portCount = Number(v.portCount);
+  if (!Number.isInteger(portCount) || ![1, 2, 3, 4].includes(portCount)) return false;
+  if (typeof v.format !== 'string' || !['RI', 'MA', 'DB'].includes(v.format)) return false;
+  if (typeof v.angleUnit !== 'string' || !['deg', 'rad'].includes(v.angleUnit)) return false;
+  if (!finite(v.referenceOhms) || Number(v.referenceOhms) <= 0) return false;
+  if (!Array.isArray(v.cells) || v.cells.length === 0) return false;
+  const seenCells = new Set<string>();
+  const usedCols = new Set<number>([xCol]);
+  for (const cell of v.cells) {
+    if (!object(cell)) return false;
+    const row = Number(cell.row);
+    const col = Number(cell.col);
+    const first = Number(cell.first);
+    const second = Number(cell.second);
+    if (!Number.isInteger(row) || row < 0 || row >= portCount) return false;
+    if (!Number.isInteger(col) || col < 0 || col >= portCount) return false;
+    if (!Number.isInteger(first) || first < 0 || !Number.isInteger(second) || second < 0) return false;
+    if (first === second || usedCols.has(first) || usedCols.has(second)) return false;
+    const key = `${row}:${col}`;
+    if (seenCells.has(key)) return false;
+    seenCells.add(key);
+    usedCols.add(first);
+    usedCols.add(second);
+  }
+  return true;
+};
 const validWizard = (v: unknown): boolean => object(v)
   && typeof v.delimiter === 'string'
   && (v.valueDelimiter === undefined || typeof v.valueDelimiter === 'string' && [',', ';', '\t', ' '].includes(v.valueDelimiter))
@@ -435,7 +466,8 @@ const validWizard = (v: unknown): boolean => object(v)
   && finite(v.confidence)
   && strings(v.headers)
   && (v.xUnit === undefined || typeof v.xUnit === 'string')
-  && (v.yUnit === undefined || typeof v.yUnit === 'string');
+  && (v.yUnit === undefined || typeof v.yUnit === 'string')
+  && (v.network === undefined || validWizardNetwork(v.network, Number(v.xCol)));
 const resultMap = (v: unknown, valid: (entry: unknown) => boolean): boolean => object(v) && Object.values(v).every(valid);
 
 // Compare independently serialized top-level and file-owned records without relying on property order.
@@ -747,6 +779,7 @@ function validCurrent(body: Record<string, unknown>): boolean {
     if (
       (trace.automaticDisplayName !== undefined && typeof trace.automaticDisplayName !== 'string')
         || !optionalBoolean(trace.isUniform)
+        || !optionalEnvelopeOf(trace.envelopeOf)
         || !interpolation(trace.interpolation)
         || !['raw','derived'].includes(String(trace.kind))
         || !['time','frequency'].includes(String(trace.domain))
@@ -958,6 +991,42 @@ function migrateWorkspaceV5Body(raw: unknown): WorkspaceSnapshotV5 | null {
     };
   }
   try {
+    if (
+      (body.datasets !== undefined && body.datasets.some(d => !object(d) || !optionalEnvelopeOf(d.envelopeOf)))
+        || (body.displayTraces !== undefined && (!Array.isArray(body.displayTraces) || body.displayTraces.some(d => !object(d) || !optionalEnvelopeOf(d.envelopeOf))))
+        || (body.derivedTraces !== undefined && (!Array.isArray(body.derivedTraces) || body.derivedTraces.some(t => !object(t) || !optionalEnvelopeOf(t.envelopeOf))))
+        || (Array.isArray(body.files) && body.files.some(
+          file => !object(file)
+            || !Array.isArray(file.traces)
+            || file.traces.some(t => !object(t) || !optionalEnvelopeOf(t.envelopeOf))
+            || (file.datasets !== undefined && (!Array.isArray(file.datasets) || file.datasets.some(d => !object(d) || !optionalEnvelopeOf(d.envelopeOf))))
+            || (file.displayTraces !== undefined && (!Array.isArray(file.displayTraces) || file.displayTraces.some(d => !object(d) || !optionalEnvelopeOf(d.envelopeOf)))),
+        ))
+    ) return null;
+    if (Array.isArray(body.files)) {
+      if (Array.isArray(body.datasets)) {
+        const topDatasets = new Map<string, unknown>();
+        for (const d of body.datasets) if (object(d) && typeof d.id === 'string') topDatasets.set(d.id, d.envelopeOf);
+        for (const file of body.files) {
+          if (object(file) && Array.isArray(file.datasets)) {
+            for (const d of file.datasets) {
+              if (object(d) && typeof d.id === 'string' && topDatasets.has(d.id) && topDatasets.get(d.id) !== d.envelopeOf) return null;
+            }
+          }
+        }
+      }
+      if (Array.isArray(body.displayTraces)) {
+        const topDisplays = new Map<string, unknown>();
+        for (const d of body.displayTraces) if (object(d) && typeof d.id === 'string') topDisplays.set(d.id, d.envelopeOf);
+        for (const file of body.files) {
+          if (object(file) && Array.isArray(file.displayTraces)) {
+            for (const d of file.displayTraces) {
+              if (object(d) && typeof d.id === 'string' && topDisplays.has(d.id) && topDisplays.get(d.id) !== d.envelopeOf) return null;
+            }
+          }
+        }
+      }
+    }
     let normalized = migrateWorkspaceSnapshot(body);
     // Old trace-only files can mix domains. Build one canonical series per source
     // trace instead of assigning all of them to the legacy normalizer's one
@@ -1083,6 +1152,16 @@ function migrateWorkspaceV5Body(raw: unknown): WorkspaceSnapshotV5 | null {
     const results = object(body.analysisResults) ? body.analysisResults : {};
     if (body.analyses !== undefined && !validAnalyses(body.analyses, legacy.derivedTraces)) return null;
     if (body.droppedViews !== undefined && (!Number.isSafeInteger(body.droppedViews) || Number(body.droppedViews) < 0)) return null;
+    if (
+      legacy.files.some(
+        file => file.traces.some(trace => !object(trace) || !optionalEnvelopeOf(trace.envelopeOf))
+          || (file.datasets ?? []).some(dataset => !object(dataset) || !optionalEnvelopeOf(dataset.envelopeOf))
+          || (file.displayTraces ?? []).some(display => !object(display) || !optionalEnvelopeOf(display.envelopeOf)),
+      )
+        || legacy.datasets.some(dataset => !object(dataset) || !optionalEnvelopeOf(dataset.envelopeOf))
+        || legacy.displayTraces.some(display => !object(display) || !optionalEnvelopeOf(display.envelopeOf))
+        || legacy.derivedTraces.some(trace => !object(trace) || !optionalEnvelopeOf(trace.envelopeOf))
+    ) return null;
     const snapshot: WorkspaceSnapshotV5 = {
       ...base,
       version: 5,
@@ -1132,7 +1211,39 @@ function migrateWorkspaceV5Body(raw: unknown): WorkspaceSnapshotV5 | null {
       ...(body.analyses !== undefined ? { analyses: withoutLegacyLive(body.analyses as AnalysisInstance[], legacy.derivedTraces) } : {}),
       ...(body.droppedViews !== undefined ? { droppedViews: Number(body.droppedViews) } : {}),
     };
-    return snapshot.analyses === undefined ? { ...snapshot, ...legacyAnalyses(snapshot) } : snapshot;
+    const result = snapshot.analyses === undefined ? { ...snapshot, ...legacyAnalyses(snapshot) } : snapshot;
+    const v5TraceIds = new Set<string>();
+    const v5TraceNames = new Set<string>();
+    for (const file of result.files) {
+      for (const trace of file.traces) {
+        if (
+          !object(trace)
+            || typeof trace.id !== 'string'
+            || !trace.id
+            || v5TraceIds.has(trace.id)
+            || typeof trace.name !== 'string'
+            || !trace.name
+            || v5TraceNames.has(trace.name)
+        ) return null;
+        v5TraceIds.add(trace.id);
+        v5TraceNames.add(trace.name);
+      }
+    }
+    for (const trace of result.derivedTraces) {
+      if (
+        !object(trace)
+          || typeof trace.id !== 'string'
+          || !trace.id
+          || v5TraceIds.has(trace.id)
+          || typeof trace.name !== 'string'
+          || !trace.name
+          || v5TraceNames.has(trace.name)
+      ) return null;
+      v5TraceIds.add(trace.id);
+      v5TraceNames.add(trace.name);
+    }
+    if (!validGraph(result as unknown as Record<string, unknown>, v5TraceIds, v5TraceNames)) return null;
+    return result;
   } catch {
     return null;
   }

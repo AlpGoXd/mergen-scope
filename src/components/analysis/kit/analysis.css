@@ -68,12 +68,21 @@
 .an-card__drag-handle::before { content: '⠿'; }
 .an-card__drag-handle:active { cursor: grabbing; }
 .an-card__kind { flex: none; width: 14px; display: inline-flex; justify-content: center; color: var(--analysis-ink); }
-.an-card__title { flex: none; font-weight: var(--fw-semibold); white-space: nowrap; }
+/* The eye / ··· / × buttons always stay inside the card: the source or collapsed summary shrinks with an ellipsis,
+   and the title keeps its width up to what is left after the fixed items (drag 10 + kind 14 + swatch 8 + three
+   18 px buttons + seven 6 px gaps = 128 px) and a 3ch summary. */
+.an-card__title { flex: none; max-width: calc(100% - 128px - 3ch); overflow: hidden; text-overflow: ellipsis; font-weight: var(--fw-semibold); white-space: nowrap; }
 .an-card__source {
   flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   font-size: var(--font-caption); color: var(--text-muted);
 }
-.an-card__summary { flex: none; font-size: var(--font-caption); font-weight: var(--fw-semibold); font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* Collapsed with a summary: the source shows only its swatch (full name in its tooltip), the summary sits next to the buttons. */
+.an-card.has-summary .an-card__source { flex: none; }
+.an-card.has-summary .an-card__source .an-swatch { margin-right: 0; }
+.an-card__summary {
+  flex: 0 1 auto; min-width: 3ch; margin-left: auto; overflow: hidden; text-overflow: ellipsis;
+  font-size: var(--font-caption); font-weight: var(--fw-semibold); font-variant-numeric: tabular-nums; white-space: nowrap;
+}
 .an-card__body { padding: 6px 8px 8px; display: flex; flex-direction: column; gap: 6px; }
 
 /* key / value rows: labels small and muted, values a step larger, semibold, full ink */

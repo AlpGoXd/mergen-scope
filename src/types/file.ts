@@ -21,8 +21,16 @@ export type FileFormat =
   | "touchstone"
   | "rs-dat"
   | "tabular"
+  | "wavebin"
+  | "lecroy-trc"
+  | "tek-isf"
+  | "owon-bin"
+  | "wav"
+  | "npy"
+  | "raw-binary"
   | "binary"
   | "needs-import-wizard"
+  | "needs-binary-wizard"
   | "unknown";
 
 /** Result of classifying a file before parsing. */
@@ -148,6 +156,23 @@ export interface RawFileRecord {
 // Import wizard configuration
 // ---------------------------------------------------------------------------
 
+/** One cell mapping in tabular S-parameter import mode (0-based matrix coordinates and column indices). */
+export interface WizardNetworkCell {
+  readonly row: number;
+  readonly col: number;
+  readonly first: number;
+  readonly second: number;
+}
+
+/** Optional S-parameter network configuration for tabular import. */
+export interface WizardNetworkConfig {
+  readonly portCount: 1 | 2 | 3 | 4;
+  readonly format: "RI" | "MA" | "DB";
+  readonly angleUnit: "deg" | "rad";
+  readonly referenceOhms: number;
+  readonly cells: readonly WizardNetworkCell[];
+}
+
 /** Configuration for the tabular import wizard. */
 export interface WizardConfig {
   /** Separator after the first field, or between all fields when valueDelimiter is absent. */
@@ -190,4 +215,7 @@ export interface WizardConfig {
 
   /** Parsed headers. */
   readonly headers: readonly string[];
+
+  /** Optional S-parameter network mapping (absent = scalar trace mode). */
+  readonly network?: WizardNetworkConfig;
 }

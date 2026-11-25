@@ -7,9 +7,9 @@
 //   noise bandwidth per bin is unknown, so SNR, SINAD, ENOB and THD+N are not given.
 
 export interface ToneSpectrum {
-  readonly freqs: readonly number[];
+  readonly freqs: ArrayLike<number>;
   /** Linear power per bin, in any consistent reference. */
-  readonly power: readonly number[];
+  readonly power: ArrayLike<number>;
   /** Present when the spectrum is an FFT made by this app. */
   readonly fft: { readonly enbw: number; readonly lobe: number; readonly sampleRate: number; readonly binHz: number } | null;
 }

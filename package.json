@@ -1,6 +1,6 @@
 {
   "name": "mergen-scope",
-  "version": "1.0.0-beta.4",
+  "version": "0.5.0",
   "description": "Browser-based RF signal analysis tool",
   "type": "module",
   "scripts": {
@@ -13,6 +13,7 @@
     "test:unit": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
+    "test:e2e:fast": "playwright test --grep-invert @slow",
     "test:static": "playwright test --config=playwright.static.config.ts",
     "capture:landing": "node scripts/refresh-landing-assets.mjs",
     "test": "npm run test:unit && npm run test:e2e"

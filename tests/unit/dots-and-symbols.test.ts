@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { planDotsAndSymbols, sampleDotsVisible, visibleSampleCount } from '../../src/domain/dots-and-symbols';
+import { planDotsAndSymbols, sampleDotsVisible, sampleDotsZoomFactor, visibleSampleCount } from '../../src/domain/dots-and-symbols';
 
 it('allows dots at 3 px per sample gap and hides them below that spacing', () => {
   expect(sampleDotsVisible(11, 30)).toBe(true);
@@ -13,6 +13,22 @@ it('allows a lone visible sample and requires a nonempty plot', () => {
   expect(sampleDotsVisible(0, 800)).toBe(false);
   expect(sampleDotsVisible(1, 0)).toBe(false);
   expect(sampleDotsVisible(400, Infinity)).toBe(false);
+});
+
+it('says how far to zoom in before dense sample dots can be drawn', () => {
+  expect(sampleDotsZoomFactor(11, 30)).toBe(0);
+  expect(sampleDotsZoomFactor(1, 2)).toBe(0);
+  expect(sampleDotsZoomFactor(0, 800)).toBe(0);
+  expect(sampleDotsZoomFactor(400, 0)).toBe(0);
+  expect(sampleDotsZoomFactor(400, Infinity)).toBe(0);
+  // Just past the 3 px limit still asks for at least 2×.
+  expect(sampleDotsZoomFactor(12, 30)).toBe(2);
+  // 5000 samples over 800 px: 4999 gaps × 3 px / 800 px = 18.7 → 19×.
+  expect(sampleDotsZoomFactor(5000, 800)).toBe(19);
+  expect(sampleDotsZoomFactor(3_000_000, 1000)).toBe(9000);
+  // The zoom it names is enough.
+  const factor = sampleDotsZoomFactor(5000, 800);
+  expect(sampleDotsVisible(Math.floor(5000 / factor), 800)).toBe(true);
 });
 
 it('counts only measured samples within the inclusive visible range', () => {

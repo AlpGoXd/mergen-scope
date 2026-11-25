@@ -36,8 +36,8 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
   );
 }
 
-function Chip({ on, label, onToggle, testId }: { on: boolean; label: string; onToggle: () => void; testId?: string }) {
-  return <Btn variant="chip" tone="pane" small active={on} aria-pressed={on} data-testid={testId} onClick={onToggle}>{label}</Btn>;
+function Chip({ on, label, onToggle, testId, disabled, title }: { on: boolean; label: string; onToggle: () => void; testId?: string; disabled?: boolean; title?: string }) {
+  return <Btn variant="chip" tone="pane" small active={on} aria-pressed={on} data-testid={testId} disabled={disabled} title={title} onClick={onToggle}>{label}</Btn>;
 }
 
 function NumInput({ label, value, min, max, step, onChange }: { label: string; value: number; min: number; max: number; step: number; onChange: (v: number) => void }) {
@@ -141,7 +141,7 @@ export interface PaneActions {
  * then a row of actions: Copy image · Download image · Download SVG · Copy as LaTeX · Export data (CSV)… · Export… · Close pane. Changes apply at once; there is no OK.
  */
 export function PaneSettingsPopover({
-  paneId, settings, sections, paneName, current, tiles, pending, anchor, onAnchorChange, onChoose, onConfirm, onCancel, contentRef, axes, onFit, actions, table = null, resolvedPolarRadius = 'linear',
+  paneId, settings, sections, paneName, current, tiles, pending, anchor, onAnchorChange, onChoose, onConfirm, onCancel, contentRef, axes, onFit, actions, table = null, resolvedPolarRadius = 'linear', samplesDisabledReason,
 }: {
   paneId: string;
   settings: PaneSettings;
@@ -163,6 +163,7 @@ export function PaneSettingsPopover({
   actions: PaneActions;
   table?: PaneTableOptions | null;
   resolvedPolarRadius?: PolarRadius;
+  samplesDisabledReason?: string;
 }) {
   const paneDispatch = usePaneDispatch();
   const patch = (p: Partial<PaneSettings>) => paneDispatch({ type: 'SET_PANE_SETTINGS', payload: { paneId, patch: p } });
@@ -203,7 +204,20 @@ export function PaneSettingsPopover({
 
             {sections.includes('display') && <Section title="Display">
               <Row label="Show">
-                <Chip on={settings.showSampleDots} label="Samples" testId="sample-dots-toggle" onToggle={() => patch({ showSampleDots: !settings.showSampleDots })} />
+                {(() => {
+                  const samplesDisabled = Boolean(samplesDisabledReason);
+                  const chip = (
+                    <Chip
+                      on={settings.showSampleDots && !samplesDisabled}
+                      label="Samples"
+                      testId="sample-dots-toggle"
+                      disabled={samplesDisabled}
+                      title={samplesDisabledReason}
+                      onToggle={() => patch({ showSampleDots: !settings.showSampleDots })}
+                    />
+                  );
+                  return samplesDisabledReason ? <Tooltip text={samplesDisabledReason}>{chip}</Tooltip> : chip;
+                })()}
                 <Chip on={settings.showMarkers} label="Markers" onToggle={() => patch({ showMarkers: !settings.showMarkers })} />
                 <Chip on={settings.showMarkerLabels} label="Marker tags" onToggle={() => patch({ showMarkerLabels: !settings.showMarkerLabels })} />
                 {!smith && !polar && <Chip on={settings.showReferenceLines} label="Lines" onToggle={() => patch({ showReferenceLines: !settings.showReferenceLines })} />}

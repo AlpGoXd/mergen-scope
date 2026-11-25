@@ -270,3 +270,42 @@ test('Switching a pane export to CSV defaults to all panes and allows exporting 
   expect(csv).toMatch(/^Pane 1,/m);
   expect(csv).not.toMatch(/^Pane 2,/m);
 });
+
+for (const theme of ['light', 'dark'] as const) {
+  test(`the target header marks itself without inverting its controls, and empty headers stay readable, in ${theme}`, async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.addInitScript(value => localStorage.setItem('mergen-theme-preference', value), theme);
+    await chartAndSmith(page);
+    await page.getByRole('button', { name: '+ Pane', exact: true }).click();
+    const colours = (n: number) => header(page, n).evaluate(el => {
+      const css = (selector: string, prop: 'color' | 'backgroundColor' | 'boxShadow') => {
+        const node = selector ? el.querySelector(selector) : el;
+        return node ? getComputedStyle(node)[prop] : '';
+      };
+      return {
+        fill: css('', 'backgroundColor'), shadow: css('', 'boxShadow'),
+        caption: css('.t-caption', 'color'), close: css('.ph-close', 'color'),
+        chip: css('.ptc', 'backgroundColor'), prefix: css('.ptc-prefix', 'backgroundColor'),
+      };
+    });
+    // Normal contrast: tint + accent underline.
+    await pane(page, 3).click({ position: { x: 40, y: 80 } });
+    await expect(header(page, 3)).toHaveClass(/is-target/);
+    expect((await colours(3)).shadow).toMatch(/inset/);
+    // High contrast: solid header; the bare "Empty" caption and × take the header ink; the type chip prefix keeps the chip face.
+    await page.getByRole('button', { name: 'Settings', exact: true }).click();
+    const sheet = page.getByRole('dialog', { name: 'App settings' });
+    await sheet.getByRole('button', { name: 'High', exact: true }).click();
+    await sheet.getByRole('button', { name: 'Close settings' }).click();
+    const empty = await colours(3);
+    expect(empty.caption).not.toBe(empty.fill);
+    expect(empty.close).toBe(empty.caption);
+    // Same ink as the pane name on the solid header.
+    expect(empty.caption).toBe(await header(page, 3).locator('.ph-title').evaluate(el => getComputedStyle(el).color));
+    await header(page, 1).locator('.ph-title').click();
+    await expect(header(page, 1)).toHaveClass(/is-target/);
+    const chart = await colours(1);
+    expect(chart.prefix).toBe('rgba(0, 0, 0, 0)');
+    expect(chart.chip).not.toBe(chart.fill);
+  });
+}

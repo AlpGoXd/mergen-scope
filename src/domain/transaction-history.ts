@@ -224,11 +224,34 @@ function summarizeGraph(root: object): LiveGraphSummary {
     if (value === null || typeof value !== 'object' || objects.has(value)) continue;
     objects.add(value);
     if (Array.isArray(value)) {
-      for (let i = 0; i < value.length; i++) stack.push(value[i]);
+      for (let i = 0; i < value.length; i++) {
+        const child = value[i];
+        if (typeof child === 'string') {
+          strings.add(child);
+        } else if (child !== null && typeof child === 'object') {
+          if (!Array.isArray(child)
+            && Object.getPrototypeOf(child) === Object.prototype
+            && Object.getOwnPropertySymbols(child).length === 0) {
+            if (!objects.has(child)) {
+              objects.add(child);
+              for (const key in child) {
+                const nested = (child as Record<string, unknown>)[key];
+                if (typeof nested === 'string') strings.add(nested);
+                else if (nested !== null && typeof nested === 'object') stack.push(nested);
+              }
+            }
+          } else {
+            stack.push(child);
+          }
+        }
+      }
     } else {
       for (const key of Reflect.ownKeys(value)) {
         const descriptor = Object.getOwnPropertyDescriptor(value, key);
-        if (descriptor && 'value' in descriptor) stack.push(descriptor.value);
+        if (!descriptor || !('value' in descriptor)) continue;
+        const child = descriptor.value;
+        if (typeof child === 'string') strings.add(child);
+        else if (child !== null && typeof child === 'object') stack.push(child);
       }
     }
   }

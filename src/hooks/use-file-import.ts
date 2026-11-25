@@ -7,13 +7,21 @@ import { useAggregateWorkspace } from '../stores/aggregate-workspace-store';
 import type { OpenDataCommand } from '../stores/aggregate-workspace-store';
 import { useAsk } from '../stores/dialog-store';
 import { replaceWorkspaceText, sameNameText, warnLargeFileText } from '../domain/confirm-text';
-import { classifyReadFile, maxTraceSerial, workspaceCounts } from '../domain/open-file-read';
+import { classifyReadBinary, classifyReadFile, maxTraceSerial, workspaceCounts } from '../domain/open-file-read';
+import { BINARY_SNIFF_BYTES, BINARY_TEXT_SNIFF_BYTES, detectBinarySignature } from '../domain/parsers/binary-detect';
+import { isStrictRawBinaryExtension } from '../domain/parsers/raw-binary';
 import { copyName } from '../domain/open-files-plan';
 import { classifyFileSize, refuseLargeFileMessage } from '../domain/file-size-policy';
 import { usePaneLimit } from '../stores/pane-store';
 import type { OpenChoice } from '../types/open-files-plan';
 
-export const DATA_FILE_ACCEPT = ['.csv', '.tsv', '.txt', '.dat', ...Array.from({ length: 16 }, (_, i) => `.s${i + 1}p`)].join(',');
+export const DATA_FILE_ACCEPT = [
+  '.csv', '.tsv', '.txt', '.dat',
+  '.bin', '.trc', '.isf', '.wav', '.npy', '.wfm', '.raw', '.pcm', '.sigmf-data',
+  '.cfile', '.cf32', '.fc32', '.sc16', '.cs16', '.cu8', '.cs8', '.iq', '.f32', '.f64', '.i32', '.u32', '.i16', '.s16', '.u16', '.u8',
+  ...Array.from({ length: 16 }, (_, i) => `.s${i + 1}p`),
+  '.ts',
+].join(',');
 let issuedImportId = 0;
 function nextImportId(): string { issuedImportId += 1; return `import-${Date.now()}-${issuedImportId}`; }
 
@@ -48,7 +56,19 @@ export function useFileImport() {
     const read = await Promise.all(accepted.map(async file => {
       const id=nextImportId();
       try {
+        if (!workspaceRoute && typeof file.slice === 'function' && typeof file.arrayBuffer === 'function') {
+          const sniffBytes = new Uint8Array(await file.slice(0, BINARY_TEXT_SNIFF_BYTES).arrayBuffer());
+          const head = sniffBytes.subarray(0, Math.min(sniffBytes.byteLength, BINARY_SNIFF_BYTES));
+          const hasBinaryBytes = sniffBytes.some(byte => byte === 0 || (byte < 0x20 && byte !== 0x09 && byte !== 0x0a && byte !== 0x0d));
+          const isJsonLike = /\.json$/i.test(file.name);
+          if (detectBinarySignature(head) || isStrictRawBinaryExtension(file.name) || (!isJsonLike && hasBinaryBytes)) {
+            return classifyReadBinary(file.name, await file.arrayBuffer(), id);
+          }
+        }
         const text=await file.text();
+        if (!workspaceRoute && !/\.json$/i.test(file.name) && text.includes(String.fromCharCode(0)) && typeof file.arrayBuffer === 'function') {
+          return classifyReadBinary(file.name, await file.arrayBuffer(), id);
+        }
         return classifyReadFile(file.name, text, workspaceRoute, id);
       } catch(error) {
         if (/\.json$/i.test(file.name) || workspaceRoute) return {kind:'invalid-workspace' as const,name:file.name};

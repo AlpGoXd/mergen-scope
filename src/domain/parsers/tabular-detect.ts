@@ -6,7 +6,7 @@
 // ============================================================================
 
 import type { TraceDomain } from "../../types/trace.ts";
-import type { WizardConfig } from "../../types/file.ts";
+import type { WizardConfig, WizardNetworkCell, WizardNetworkConfig } from "../../types/file.ts";
 import {
   baseXUnit,
   detectElectricalXUnit,
@@ -55,7 +55,29 @@ export function contentLines(text: string): string[] {
 }
 
 function splitFields(text: string, delimiter: string): string[] {
-  return delimiter === " " ? text.trim().split(/\s+/) : text.split(delimiter).map((cell) => cell.trim());
+  if (delimiter === " ") return text.trim().split(/\s+/);
+  if (!text.includes('"')) return text.split(delimiter).map((cell) => cell.trim());
+  const out: string[] = [];
+  let current = "";
+  let inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text.charAt(i);
+    if (ch === '"') {
+      if (inQuotes && text.charAt(i + 1) === '"') {
+        current += '"';
+        i += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (ch === delimiter && !inQuotes) {
+      out.push(current.trim());
+      current = "";
+    } else {
+      current += ch;
+    }
+  }
+  out.push(current.trim());
+  return out;
 }
 
 /** Only the first physical field uses the first separator in a mixed row. */
@@ -70,6 +92,48 @@ export function splitCells(line: string, layout: RowLayout): string[] {
   return [row.slice(0, boundary).trim(), ...splitFields(delimiter === " " ? rest.trimStart() : rest, values)];
 }
 
+const DECIMAL_COMMA_RE = /^[+-]?(?:\d+,\d*|\d*,\d+)(?:[eE][+-]?\d+)?$/;
+
+/** True when a column header looks like unsplit comma-separated column names (e.g. "Left (V),Right (V)"),
+ * ignoring commas inside parentheses/brackets such as "S(1,1) dB". */
+function hasPackedCommaHeader(header: string | undefined): boolean {
+  if (!header || !header.includes(",")) return false;
+  const stripped = header.replace(/[([][^)\]]*[)\]]/g, "");
+  return /,(?!\s)/.test(stripped);
+}
+
+/** True when semicolon field separation allows decimal commas inside numeric cells. */
+export function allowsDecimalComma(layout?: RowLayout): boolean {
+  if (!layout) return false;
+  if (typeof layout === "string") return layout === ";";
+  return layout.delimiter === ";" && layout.valueDelimiter !== ",";
+}
+
+/** Layout to use for numeric cell parsing in a column, disabling decimal-comma fallback
+ * when the column's header is clearly unsplit comma-separated column names. */
+export function columnDecimalLayout(layout: RowLayout | undefined, header: string | undefined): RowLayout | undefined {
+  if (!allowsDecimalComma(layout)) return layout;
+  return hasPackedCommaHeader(header) ? undefined : layout;
+}
+
+/** Parse a numeric table cell, accepting decimal commas when delimiter is ';'. */
+export function parseTabularNumber(cell: string, layout?: RowLayout): number {
+  const trimmed = cell.trim();
+  if (trimmed === "") return Number.NaN;
+  const direct = Number(trimmed);
+  if (Number.isFinite(direct)) return direct;
+  if (allowsDecimalComma(layout) && DECIMAL_COMMA_RE.test(trimmed)) {
+    const normalized = Number(trimmed.replace(",", "."));
+    if (Number.isFinite(normalized)) return normalized;
+  }
+  return Number.NaN;
+}
+
+/** True when a trimmed cell parses as a finite number under the given row layout. */
+export function isTabularNumber(cell: string, layout?: RowLayout): boolean {
+  return Number.isFinite(parseTabularNumber(cell, layout));
+}
+
 /** A cell is a number only if, once trimmed, it is non-empty and finite (Number("") is 0, so it needs the guard). */
 export function isNumber(cell: string): boolean {
   const trimmed = cell.trim();
@@ -77,11 +141,11 @@ export function isNumber(cell: string): boolean {
 }
 
 /** A data row: at least two numeric cells, and every non-empty cell numeric. */
-function isDataRow(cells: readonly string[]): boolean {
+function isDataRow(cells: readonly string[], layout?: RowLayout): boolean {
   let numeric = 0;
   for (const cell of cells) {
     if (cell === "") continue;
-    if (!isNumber(cell)) return false;
+    if (!isTabularNumber(cell, layout)) return false;
     numeric += 1;
   }
   return numeric >= 2;
@@ -98,7 +162,7 @@ export function detectSeparators(lines: readonly string[]): Separators {
   let bestWidth = 0;
   for (const delimiter of WIZARD_DELIMITERS) {
     const records = sample.map((line) => splitCells(line, delimiter));
-    const numeric = records.filter(isDataRow);
+    const numeric = records.filter((cells) => isDataRow(cells));
     const rows = numeric.length;
     const width = Math.max(0, ...(rows ? numeric : records).map((cells) => cells.length));
     if (delimiter === " " && !rows) continue;
@@ -115,7 +179,7 @@ export function detectSeparators(lines: readonly string[]): Separators {
       const counts = new Map<number, number>();
       for (const line of sample) {
         const cells = splitCells(line, layout);
-        if (cells.length < 3 || !isNumber(cells[0] ?? "") || !isDataRow(cells)) continue;
+        if (cells.length < 3 || !isTabularNumber(cells[0] ?? "") || !isDataRow(cells)) continue;
         counts.set(cells.length, (counts.get(cells.length) ?? 0) + 1);
       }
       const matches = Math.max(0, ...counts.values());
@@ -123,6 +187,23 @@ export function detectSeparators(lines: readonly string[]): Separators {
         best = layout;
         bestRows = matches;
       }
+    }
+  }
+
+  // Semicolon CSV with decimal commas (e.g. "1000000;-10,5;45,0" or 2-column "0;1,5" under a 2-col header).
+  const semicolonDecimalRows = sample.filter((line) => isDataRow(splitCells(line, ";"), ";")).length;
+  if (semicolonDecimalRows >= 1 && bestRows <= 0) {
+    return { delimiter: ";" };
+  }
+  if (semicolonDecimalRows >= 2 && best.delimiter === ";" && best.valueDelimiter === ",") {
+    const headerLine = sample.find((line) => !isDataRow(splitCells(line, ";"), ";"));
+    const headerWidth = headerLine !== undefined ? splitCells(headerLine, ";").length : 0;
+    const twoColDecimal = sample.every((line) => {
+      const cells = splitCells(line, ";");
+      return !isDataRow(cells, ";") || cells.length === 2;
+    });
+    if (headerLine !== undefined && headerWidth === 2 && !headerLine.includes(",") && twoColDecimal) {
+      return { delimiter: ";" };
     }
   }
   return best;
@@ -135,18 +216,18 @@ export function detectSkipRows(lines: readonly string[], delimiter: RowLayout): 
     const line = lines[i];
     if (line === undefined) continue;
     const cells = splitCells(line, delimiter);
-    if (!isDataRow(cells)) continue;
+    if (!isDataRow(cells, delimiter)) continue;
     const next = lines[i + 1];
-    if (next === undefined || isDataRow(splitCells(next, delimiter))) return i;
+    if (next === undefined || isDataRow(splitCells(next, delimiter), delimiter)) return i;
     // Handle a corrupted/blank second data row right after a matching-width column header.
     if (i > 0) {
       const prevCells = splitCells(lines[i - 1] ?? "", delimiter);
-      const matchingHeader = prevCells.length === cells.length && prevCells.some((cell) => cell !== "" && !isNumber(cell));
+      const matchingHeader = prevCells.length === cells.length && prevCells.some((cell) => cell !== "" && !isTabularNumber(cell, delimiter));
       if (matchingHeader) {
         const lookahead = Math.min(lines.length, i + 6);
         for (let j = i + 2; j < lookahead; j++) {
           const later = lines[j];
-          if (later !== undefined && isDataRow(splitCells(later, delimiter))) return i;
+          if (later !== undefined && isDataRow(splitCells(later, delimiter), delimiter)) return i;
         }
       }
     }
@@ -168,7 +249,7 @@ export function columnHeaders(lines: readonly string[], delimiter: RowLayout, sk
   const width = Math.max(0, ...lines.slice(skipRows, skipRows + 20).map((line) => splitCells(line, delimiter).length));
   const row = skipRows > 0 ? lines[skipRows - 1] : undefined;
   const cells = row !== undefined ? splitHeader(row, delimiter, width) : [];
-  const named = cells.some((cell) => cell !== "" && !isNumber(cell));
+  const named = cells.some((cell) => cell !== "" && !isTabularNumber(cell, delimiter));
   if (skipRows === 0 && typeof delimiter !== "string" && delimiter.valueDelimiter) {
     return Array.from({ length: width }, (_, idx) => (idx === 0 ? "Column 1" : `Trace ${idx}`));
   }
@@ -179,15 +260,17 @@ export function columnHeaders(lines: readonly string[], delimiter: RowLayout, sk
 /** Columns whose data cells are mostly numbers (empty cells don't count against them). */
 export function numericColumns(lines: readonly string[], delimiter: RowLayout, skipRows: number, width: number): number[] {
   const rows = lines.slice(skipRows, skipRows + 50).map((line) => splitCells(line, delimiter));
+  const headerCells = skipRows > 0 ? splitHeader(lines[skipRows - 1] ?? "", delimiter, width) : undefined;
   const out: number[] = [];
   for (let col = 0; col < width; col++) {
+    const colLayout = columnDecimalLayout(delimiter, headerCells?.[col]);
     let filled = 0;
     let numeric = 0;
     for (const row of rows) {
       const cell = row[col];
       if (cell === undefined || cell === "") continue;
       filled += 1;
-      if (isNumber(cell)) numeric += 1;
+      if (isTabularNumber(cell, colLayout)) numeric += 1;
     }
     if (filled > 0 && (numeric / filled >= 0.8 || (numeric >= 2 && numeric / filled >= 0.6))) out.push(col);
   }
@@ -278,6 +361,139 @@ function electricalXFromHeader(header: string, isFirstNumeric: boolean): XHeader
   return null;
 }
 
+type SParamPart = "ri-re" | "ri-im" | "db-mag" | "ma-mag" | "angle";
+
+interface SParamHeaderMatch {
+  readonly row: number;
+  readonly col: number;
+  readonly part: SParamPart;
+  readonly isRad: boolean;
+}
+
+const S_CELL_RE = /(?:^|[^a-z0-9])s(?:\(\s*([1-9])\s*,\s*([1-9])\s*\)|([1-9])([1-9]))(?=$|[^a-z0-9]|(?:re|real|im|imag|db|log|logmag|mag|lin|linmag|ang|angle|phase|deg|arg|rad)\b)/i;
+
+function parseSParamHeader(header: string): SParamHeaderMatch | null {
+  const match = S_CELL_RE.exec(header);
+  if (!match || match.index === undefined) return null;
+  const rStr = match[1] ?? match[3];
+  const cStr = match[2] ?? match[4];
+  if (!rStr || !cStr) return null;
+  const row = Number(rStr) - 1;
+  const col = Number(cStr) - 1;
+  if (!Number.isInteger(row) || !Number.isInteger(col) || row < 0 || col < 0) return null;
+
+  const sOffset = match[0].search(/s/i);
+  const start = match.index + Math.max(0, sOffset);
+  const rest = `${header.slice(0, start)} ${header.slice(match.index + match[0].length)}`;
+  const tokens = rest.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+  if (tokens.length === 0) return null;
+
+  const hasRe = tokens.some((t) => t === "re" || t === "real");
+  const hasIm = tokens.some((t) => t === "im" || t === "imag");
+  const hasDb = tokens.some((t) => t === "db" || t === "log" || t === "logmag");
+  const hasMa = !hasDb && tokens.some((t) => t === "mag" || t === "lin" || t === "linmag");
+  const isRad = tokens.some((t) => t === "rad" || t === "radian" || t === "radians");
+  const hasAngle = isRad || tokens.some((t) => t === "ang" || t === "angle" || t === "phase" || t === "deg" || t === "arg");
+
+  const found: SParamPart[] = [];
+  if (hasRe) found.push("ri-re");
+  if (hasIm) found.push("ri-im");
+  if (hasDb) found.push("db-mag");
+  if (hasMa) found.push("ma-mag");
+  if (hasAngle) found.push("angle");
+
+  if (found.length !== 1) return null;
+  const part = found[0];
+  if (!part) return null;
+  return { row, col, part, isRad };
+}
+
+/** Recognize S-parameter column pairs from column headers and build a suggested WizardNetworkConfig. */
+export function detectSParameterNetwork(
+  headers: readonly string[],
+  numeric: readonly number[],
+  xCol: number,
+): WizardNetworkConfig | undefined {
+  interface CellAccum {
+    readonly row: number;
+    readonly col: number;
+    riRe?: number;
+    riIm?: number;
+    dbMag?: number;
+    maMag?: number;
+    angle?: number;
+    angleRad?: boolean;
+  }
+
+  const byCell = new Map<string, CellAccum>();
+  let maxPort = 0;
+
+  for (const colIdx of numeric) {
+    if (colIdx === xCol) continue;
+    const header = headers[colIdx];
+    if (!header) continue;
+    const parsed = parseSParamHeader(header);
+    if (!parsed) continue;
+    maxPort = Math.max(maxPort, parsed.row + 1, parsed.col + 1);
+    if (parsed.row >= 4 || parsed.col >= 4) continue;
+    const key = `${parsed.row}:${parsed.col}`;
+    const entry = byCell.get(key) ?? { row: parsed.row, col: parsed.col };
+    if (parsed.part === "ri-re" && entry.riRe === undefined) entry.riRe = colIdx;
+    else if (parsed.part === "ri-im" && entry.riIm === undefined) entry.riIm = colIdx;
+    else if (parsed.part === "db-mag" && entry.dbMag === undefined) entry.dbMag = colIdx;
+    else if (parsed.part === "ma-mag" && entry.maMag === undefined) entry.maMag = colIdx;
+    else if (parsed.part === "angle" && entry.angle === undefined) {
+      entry.angle = colIdx;
+      entry.angleRad = parsed.isRad;
+    }
+    byCell.set(key, entry);
+  }
+
+  if (byCell.size === 0) return undefined;
+
+  const entries = [...byCell.values()].sort((a, b) => (a.row - b.row) || (a.col - b.col));
+  const candidates: readonly ("RI" | "DB" | "MA")[] = ["RI", "DB", "MA"];
+  let bestFormat: "RI" | "MA" | "DB" = "RI";
+  let bestCells: WizardNetworkCell[] = [];
+  let bestAngleUnit: "deg" | "rad" = "deg";
+
+  for (const fmt of candidates) {
+    const usedCols = new Set<number>();
+    const cells: WizardNetworkCell[] = [];
+    let anyRad = false;
+    for (const entry of entries) {
+      const first = fmt === "RI" ? entry.riRe : fmt === "DB" ? entry.dbMag : entry.maMag;
+      const second = fmt === "RI" ? entry.riIm : entry.angle;
+      if (first === undefined || second === undefined || first === second) continue;
+      if (usedCols.has(first) || usedCols.has(second)) continue;
+      usedCols.add(first);
+      usedCols.add(second);
+      if (fmt !== "RI" && entry.angleRad) anyRad = true;
+      cells.push({ row: entry.row, col: entry.col, first, second });
+    }
+    if (cells.length > bestCells.length) {
+      bestFormat = fmt;
+      bestCells = cells;
+      bestAngleUnit = fmt === "RI" ? "deg" : anyRad ? "rad" : "deg";
+    }
+  }
+
+  if (bestCells.length === 0) return undefined;
+  const maxMapped = bestCells.reduce((acc, cell) => Math.max(acc, cell.row + 1, cell.col + 1), 1);
+  const rawPortCount = Math.min(4, Math.max(1, maxPort || maxMapped, maxMapped));
+  const portCount = (rawPortCount === 1 || rawPortCount === 2 || rawPortCount === 3 || rawPortCount === 4)
+    ? rawPortCount
+    : 1;
+
+  return {
+    portCount,
+    format: bestFormat,
+    angleUnit: bestAngleUnit,
+    referenceOhms: 50,
+    cells: bestCells,
+  };
+}
+
 function evaluateStructure(
   lines: readonly string[],
   separators: Separators,
@@ -294,7 +510,7 @@ function evaluateStructure(
   const widthCounts = new Map<number, number>();
   for (const line of sample) {
     const cells = splitCells(line, separators);
-    if (isDataRow(cells)) {
+    if (isDataRow(cells, separators)) {
       cleanRows += 1;
       widthCounts.set(cells.length, (widthCounts.get(cells.length) ?? 0) + 1);
     }
@@ -328,7 +544,9 @@ function evaluateDataSanity(
   const limit = Math.min(lines.length, skipRows + 200);
   for (let i = skipRows; i < limit; i++) {
     const cell = splitCells(lines[i] ?? "", separators)[xCol];
-    if (cell !== undefined && isNumber(cell)) xs.push(Number(cell));
+    if (cell === undefined) continue;
+    const val = parseTabularNumber(cell, separators);
+    if (Number.isFinite(val)) xs.push(val);
   }
   if (xs.length < 2) {
     reasons.push("X column has fewer than two numeric values");
@@ -388,10 +606,18 @@ export function detectTabular(text: string): TabularDetection {
     }
   }
 
-  const domainConfidence: "high" | "low" = xMatch ? "high" : "low";
-  const guessedDomain = xMatch ? xMatch.domain : guessDomainFromValues(lines, separators, skipRows, xCol, headers);
+  const network = hasNames ? detectSParameterNetwork(headers, numeric, xCol) : undefined;
+  const freqXMatch = xMatch && xMatch.domain === "frequency" ? xMatch : null;
+  const domainConfidence: "high" | "low" = network ? "high" : xMatch ? "high" : "low";
+  const guessedDomain = network
+    ? "frequency"
+    : xMatch
+      ? xMatch.domain
+      : guessDomainFromValues(lines, separators, skipRows, xCol, headers);
   const domain: TraceDomain = guessedDomain;
-  const xUnitId = xMatch ? xMatch.unitId : baseXUnit(domain);
+  const xUnitId = network
+    ? (freqXMatch ? freqXMatch.unitId : "Hz")
+    : (xMatch ? xMatch.unitId : baseXUnit(domain));
   const xUnit = findXUnit(xUnitId) ?? {
     id: baseXUnit(domain),
     factor: 1,
@@ -400,7 +626,9 @@ export function detectTabular(text: string): TabularDetection {
     category: domain === "time" ? ("time" as const) : ("frequency" as const),
     domain,
   };
-  const detectedXLabel = xMatch ? xMatch.quantityLabel : (domain === "time" ? "Time" : "Frequency");
+  const detectedXLabel = network
+    ? (freqXMatch ? freqXMatch.quantityLabel : "Frequency")
+    : (xMatch ? xMatch.quantityLabel : (domain === "time" ? "Time" : "Frequency"));
 
   const yCols = numeric.filter((col) => col !== xCol && !(hasNames && INDEX_NAME.test(headers[col] ?? "")));
 
@@ -438,7 +666,9 @@ export function detectTabular(text: string): TabularDetection {
   }
 
   let yAxis: number;
-  if (yCols.length === 0) {
+  if (network) {
+    yAxis = 1.0;
+  } else if (yCols.length === 0) {
     yAxis = 0;
     reasons.push("No numeric Y columns found");
   } else if (!hasNames) {
@@ -455,7 +685,7 @@ export function detectTabular(text: string): TabularDetection {
   const data = evaluateDataSanity(lines, separators, skipRows, xCol, hasGaps, reasons);
 
   let score = 0.25 * structure + 0.40 * xAxis + 0.15 * yAxis + 0.20 * data;
-  if (yCols.length === 0) score = Math.min(score, 0.15);
+  if (!network && yCols.length === 0) score = Math.min(score, 0.15);
   else if (structure < 0.5) score = Math.min(score, 0.45);
   else if (xAxis <= 0.35) score = Math.min(score, hasNames ? 0.48 : 0.40);
   else if (xAxis <= 0.65 || structure <= 0.6) score = Math.min(score, 0.78);
@@ -470,7 +700,7 @@ export function detectTabular(text: string): TabularDetection {
     confidenceFactors: { structure, xAxis, yAxis, data },
     config: {
       ...separators,
-      ...(hasGaps ? { breakSweepGaps: true } : {}),
+      ...(hasGaps && !network ? { breakSweepGaps: true } : {}),
       skipRows,
       xCol,
       yCols,
@@ -481,6 +711,7 @@ export function detectTabular(text: string): TabularDetection {
       domain,
       confidence,
       headers,
+      ...(network ? { network } : {}),
     },
   };
 }
@@ -492,8 +723,9 @@ function hasSeparatedBands(lines: readonly string[], layout: Separators, start: 
   const similar = (a: number, b: number) => Math.abs(a - b) <= Math.abs(a) * 0.05;
   for (let i = start; i < lines.length; i++) {
     const cell = splitCells(lines[i] ?? "", layout)[xCol];
-    if (!cell || !isNumber(cell)) continue;
-    const x = Number(cell);
+    if (!cell) continue;
+    const x = parseTabularNumber(cell, layout);
+    if (!Number.isFinite(x)) continue;
     if (lastX !== undefined) {
       steps.push(x - lastX);
       if (steps.length > 5) steps.shift();
@@ -520,7 +752,9 @@ function guessDomainFromValues(lines: readonly string[], delimiter: RowLayout, s
   const xs: number[] = [];
   for (const line of lines.slice(skipRows, skipRows + 50)) {
     const cell = splitCells(line, delimiter)[xCol];
-    if (cell !== undefined && isNumber(cell)) xs.push(Number(cell));
+    if (cell === undefined) continue;
+    const val = parseTabularNumber(cell, delimiter);
+    if (Number.isFinite(val)) xs.push(val);
   }
   const first = xs[0];
   const last = xs[xs.length - 1];

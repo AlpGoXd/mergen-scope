@@ -31,7 +31,7 @@ import { oklchHue } from '../../domain/color-hue';
 import { parseEngInput } from '../../domain/units';
 import { paneName } from '../../domain/line-view';
 import type { AnalysisInstance } from '../../types/analysis-instance';
-import type { AnalysisTool, ParameterField, ParameterSchema, ParameterValue } from '../../types/registry-contract';
+import type { AnalysisInputs, AnalysisTool, ParameterField, ParameterSchema, ParameterValue } from '../../types/registry-contract';
 import type { Trace } from '../../types/trace';
 import type { TraceMathOp } from '../../domain/trace-math-units';
 
@@ -103,11 +103,60 @@ export function AnalysisInstanceCard({ instance, dropTarget, dragHandle }: { ins
   const line = instance.source.lineId != null ? ctx.refLines.find(item => item.id === instance.source.lineId) : undefined;
   // A Math tool that also reads values (FFT) keeps computing after it has made its trace.
   const hasNumbers = tool?.outputs.some(item => item.type === 'numbers') ?? false;
+  const needsCompute = tool?.kind === 'measure' || (tool?.kind === 'math' && (!instance.outputTraceId || hasNumbers));
+  const usesGlobalInputs = instance.toolId === 'line-crossings' || instance.toolId === 'ip3';
+  const usesTouchstone = instance.toolId === 'stability' || instance.toolId === 'reciprocity-isolation';
+  const usesActiveRange = instance.toolId === 'range-stats';
+  const usesSourcePaneRange = instance.toolId === 'waveform' || (instance.toolId === 'fft' && instance.params['range'] !== 'all');
+  const sourcePaneId = useMemo(() => {
+    if (!usesSourcePaneRange || !source) return undefined;
+    return ctx.inputs.tracePaneMap?.[source.name]?.find(paneId => {
+      const range = ctx.inputs.paneRanges?.[paneId];
+      return range !== undefined && Number.isFinite(range.left) && Number.isFinite(range.right) && range.left < range.right;
+    });
+  }, [usesSourcePaneRange, source, ctx.inputs.tracePaneMap, ctx.inputs.paneRanges]);
+  const sourcePaneRange = sourcePaneId ? ctx.inputs.paneRanges?.[sourcePaneId] : undefined;
+  const rangeLeft = sourcePaneRange?.left;
+  const rangeRight = sourcePaneRange?.right;
+  const scopedInputs = useMemo<AnalysisInputs>(() => {
+    if (usesGlobalInputs) return ctx.inputs;
+    if (usesTouchstone) return { traces: source ? [source] : [], touchstone: ctx.inputs.touchstone ?? null };
+    if (usesActiveRange) return { traces: source ? [source] : [], visibleRange: ctx.inputs.visibleRange ?? null };
+    const traces = [source, second].filter((trace): trace is Trace => trace !== undefined);
+    if (source && sourcePaneId && rangeLeft !== undefined && rangeRight !== undefined) {
+      return {
+        traces,
+        tracePaneMap: { [source.name]: [sourcePaneId] },
+        paneRanges: { [sourcePaneId]: { left: rangeLeft, right: rangeRight } },
+      };
+    }
+    return { traces };
+  }, [
+    usesGlobalInputs,
+    usesTouchstone,
+    usesActiveRange,
+    ctx.inputs,
+    source,
+    second,
+    sourcePaneId,
+    rangeLeft,
+    rangeRight,
+  ]);
+  const traceMathOutputId = instance.toolId === 'trace-math' ? instance.outputTraceId : null;
+  const computeTarget = useMemo<AnalysisInstance>(
+    () => ({
+      id: instance.id,
+      toolId: instance.toolId,
+      params: instance.params,
+      source: instance.source,
+      collapsed: false,
+      outputTraceId: traceMathOutputId,
+    }),
+    [instance.id, instance.toolId, instance.params, instance.source, traceMathOutputId]
+  );
   const result = useMemo<InstanceResult>(
-    () => tool?.kind === 'measure' || (tool?.kind === 'math' && (!instance.outputTraceId || hasNumbers))
-      ? computeInstance(instance, ctx.inputs)
-      : { outputs: [] },
-    [instance, ctx.inputs, tool, hasNumbers]
+    () => needsCompute ? computeInstance(computeTarget, scopedInputs) : { outputs: [] },
+    [needsCompute, computeTarget, scopedInputs]
   );
   const units: CardUnits = { x: source?.units.x ?? ctx.targetTrace?.units.x ?? 'Hz', y: source?.units.y ?? ctx.targetTrace?.units.y };
   const paneTitle = (paneId: string): string => paneName(ctx.panes, paneId);

@@ -226,12 +226,48 @@ describe("Touchstone parser deep-dive contracts", () => {
     )).toThrow(/port count does not match/i);
   });
 
+  it("reads decimal-comma numbers from a localized NanoVNA-App export", () => {
+    const text = [
+      "! NanoVNA-App",
+      "! S-Parameter data: F S11",
+      "# Hz S RI R 50",
+      "!        Frequency           S11_Real           S11_Imag",
+      "         1000000    9,271579981e-01   -3,546805382e-01",
+      "         1008125    9,253313541e-01   -3,590022624e-01",
+      "",
+    ].join("\r\n");
+    const network = networkOf(parseTouchstone(text, "nanovna-h4_2026-11-23_09-11-59.s1p"));
+    expectNetworkShape(network, { portCount: 1, dataFormat: "RI", freqUnit: "Hz", referenceOhms: [50], sampleCount: 2 });
+    expect(network.samples[1]?.freq).toBe(1008125);
+    expect(network.samples[0]?.sMatrix[0]?.[0]?.re).toBeCloseTo(0.9271579981, 12);
+    expect(network.samples[0]?.sMatrix[0]?.[0]?.im).toBeCloseTo(-0.3546805382, 12);
+  });
+
+  it("throws on an unreadable number instead of shifting later values", () => {
+    expect(() => parseTouchstone("# Hz S RI R 50\n1000 0.1 abc\n", "bad-token.s1p")).toThrow(/line 2 has an unreadable number 'abc'/i);
+    expect(() => parseTouchstone("# Hz S RI R 50\n1000,0,1,0,2\n", "ambiguous-commas.s1p")).toThrow(/unreadable number/i);
+  });
+
+  it("handles comma-space delimiters and comma delimiters with dot decimals", () => {
+    const commaSpace = networkOf(parseTouchstone("# Hz S RI R 50\n1e9, 0.25, -0.5\n", "comma-space.s1p"));
+    expect(commaSpace.samples[0]?.freq).toBe(1e9);
+    expectComplexClose(cell(commaSpace, 0, 0, 0), { re: 0.25, im: -0.5 });
+
+    const commaDot = networkOf(parseTouchstone("# Hz S RI R 50\n1000,0.1,0.2\n", "comma-dot.s1p"));
+    expect(commaDot.samples[0]?.freq).toBe(1000);
+    expectComplexClose(cell(commaDot, 0, 0, 0), { re: 0.1, im: 0.2 });
+  });
+
   it("throws on incomplete network data rows", () => {
     expect(() => parseTouchstone("# Hz S RI R 50\n1000 0.1 0 0.2 0\n", "incomplete.s2p")).toThrow(/incomplete touchstone network data/i);
   });
 
-  it("throws on unsupported parameter types", () => {
-    expect(() => parseTouchstone("# Hz Y RI R 50\n1000 0.1 0\n", "unsupported.s1p")).toThrow(/unsupported touchstone parameter type/i);
+  it("converts Y-parameters to S and rejects H/G on non-2-port networks", () => {
+    const parsedY = parseTouchstone("# Hz Y RI R 50\n1000 0.02 0\n", "admittance.s1p");
+    expect(parsedY.meta["Parameter Type"]).toBe("Y (converted to S)");
+    expect(networkOf(parsedY).parameterType).toBe("S");
+    expect(() => parseTouchstone("# Hz H RI R 50\n1000 0.1 0\n", "hybrid-1port.s1p")).toThrow(/only defined for 2-port/i);
+    expect(() => parseTouchstone("# Hz G RI R 50\n1000 0.1 0\n", "hybrid-g-1port.s1p")).toThrow(/only defined for 2-port/i);
   });
 
   it("throws on unsupported mixed-mode order", () => {

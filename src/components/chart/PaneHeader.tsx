@@ -15,12 +15,16 @@ export function chipFitForLevel(level: number): ChartTypeChipFit {
   return level >= 4 ? 'icon' : level >= 3 ? 'value' : 'full';
 }
 
-export function SamplesIcon() {
+/** Samples state: off, on, or on but too dense to draw at this zoom. */
+export type SamplesState = 'off' | 'on' | 'dense';
+
+/** Icon-only Samples button face: the points are hollow when off, filled when on, half-filled when too dense. */
+export function SamplesIcon({ state = 'on' }: { state?: SamplesState }) {
   return (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" aria-hidden="true">
+    <svg className="ph-samples-icon" data-state={state} width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" aria-hidden="true">
       <path d="M1.5 10.5 5 5.5l4 3 3.5-5" />
-      <circle cx="5" cy="5.5" r="1.5" fill="currentColor" stroke="none" />
-      <circle cx="9" cy="8.5" r="1.5" fill="currentColor" stroke="none" />
+      <circle cx="5" cy="5.5" r="1.7" />
+      <circle cx="9" cy="8.5" r="1.7" />
     </svg>
   );
 }
