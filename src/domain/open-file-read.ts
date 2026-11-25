@@ -2,10 +2,14 @@ import type { OpenDataCommand, WorkspaceState } from '../stores/workspace/worksp
 import type { WorkspaceSnapshotV5 } from '../types/workspace-v5';
 import type { WorkspaceCounts } from './confirm-text';
 import { BINARY_SNIFF_BYTES, detectBinarySignature } from './parsers/binary-detect';
+import type { BinaryFormat } from './parsers/binary-detect';
+import type { BinaryParseResult } from './parsers/lecroy-trc';
+import type { ScopeProbeResult } from './parsers/binary-reduce';
 import { parseForImport } from './parsers/parse-file';
 import { parseWavebin, probeWavebinPoints } from './parsers/wavebin';
 import { parseLeCroyTrc, probeLeCroyTrcPoints } from './parsers/lecroy-trc';
 import { parseTekIsf, probeTekIsfPoints } from './parsers/tek-isf';
+import { parseTekWfm, probeTekWfmPoints } from './parsers/tek-wfm';
 import { parseOwonBin, probeOwonBinPoints } from './parsers/owon-bin';
 import { parseWavBin, probeWavBinPoints } from './parsers/wav-bin';
 import { parseNpyBin, probeNpyBinPoints } from './parsers/npy-bin';
@@ -46,9 +50,35 @@ export function classifyReadFile(fileName: string, text: string, workspaceRoute:
   return { kind: 'data', input: { id, name: fileName, text, parsed: parseForImport(text, fileName) } };
 }
 
+// Exhaustive over BinaryFormat: a new format without a case here is a type error.
+function probeBinaryFormat(format: BinaryFormat, buffer: ArrayBuffer): ScopeProbeResult {
+  switch (format) {
+    case 'wavebin': return probeWavebinPoints(buffer);
+    case 'lecroy-trc': return probeLeCroyTrcPoints(buffer);
+    case 'tek-isf': return probeTekIsfPoints(buffer);
+    case 'tek-wfm': return probeTekWfmPoints(buffer);
+    case 'owon-bin': return probeOwonBinPoints(buffer);
+    case 'wav': return probeWavBinPoints(buffer);
+    case 'npy': return probeNpyBinPoints(buffer);
+  }
+}
+
+function parseBinaryFormat(format: BinaryFormat, buffer: ArrayBuffer, fileName: string): BinaryParseResult {
+  switch (format) {
+    case 'wavebin': return parseWavebin(buffer, fileName);
+    case 'lecroy-trc': return parseLeCroyTrc(buffer, fileName);
+    case 'tek-isf': return parseTekIsf(buffer, fileName);
+    case 'tek-wfm': return parseTekWfm(buffer, fileName);
+    case 'owon-bin': return parseOwonBin(buffer, fileName);
+    case 'wav': return parseWavBin(buffer, fileName);
+    case 'npy': return parseNpyBin(buffer, fileName);
+  }
+}
+
 /**
  * Parse a binary measurement file:
- * - Recognized oscilloscope formats (Keysight AG / Rigol RG .bin, LeCroy .trc, Tektronix .isf, OWON .bin)
+ * - Recognized oscilloscope formats (Keysight AG / Rigol RG .bin, LeCroy .trc, Tektronix .isf and .wfm, OWON .bin,
+ *   RIFF/WAV, NumPy .npy)
  *   import directly while retaining their raw buffer so users can re-run Import settings… anytime.
  * - Unrecognized or headerless binary/SDR files (.bin, .cfile, .cf32, .sc16, .cu8, .iq, etc.) — or a
  *   recognized scope header that failed auto-parse — route into the Binary Import Wizard.
@@ -58,12 +88,7 @@ export function classifyReadBinary(fileName: string, buffer: ArrayBuffer, id: st
   let binaryWarning: string | undefined;
 
   if (signature !== null) {
-    const probe = signature === 'wavebin' ? probeWavebinPoints(buffer)
-      : signature === 'lecroy-trc' ? probeLeCroyTrcPoints(buffer)
-      : signature === 'tek-isf' ? probeTekIsfPoints(buffer)
-      : signature === 'owon-bin' ? probeOwonBinPoints(buffer)
-      : signature === 'wav' ? probeWavBinPoints(buffer)
-      : probeNpyBinPoints(buffer);
+    const probe = probeBinaryFormat(signature, buffer);
 
     if (probe.ok) {
       const budget = pointBudget(probe.totalPoints);
@@ -90,12 +115,7 @@ export function classifyReadBinary(fileName: string, buffer: ArrayBuffer, id: st
         };
       }
 
-      const result = signature === 'wavebin' ? parseWavebin(buffer, fileName)
-        : signature === 'lecroy-trc' ? parseLeCroyTrc(buffer, fileName)
-        : signature === 'tek-isf' ? parseTekIsf(buffer, fileName)
-        : signature === 'owon-bin' ? parseOwonBin(buffer, fileName)
-        : signature === 'wav' ? parseWavBin(buffer, fileName)
-        : parseNpyBin(buffer, fileName);
+      const result = parseBinaryFormat(signature, buffer, fileName);
 
       if (result.ok) {
         return {

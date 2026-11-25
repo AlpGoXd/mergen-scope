@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 // Presentational props for the left-panel kit. No store types: the app maps its state onto these.
 
-export type FileFormat = `S${number}P` | 'DAT' | 'CSV' | 'TXT' | 'TSV' | 'BIN' | 'TRC' | 'ISF' | 'WAV' | 'NPY' | 'IQ' | 'RAW';
+export type FileFormat = `S${number}P` | 'DAT' | 'CSV' | 'TXT' | 'TSV' | 'BIN' | 'TRC' | 'ISF' | 'WFM' | 'WAV' | 'NPY' | 'IQ' | 'RAW';
 export type MatrixFamily = 'S' | 'Y' | 'Z' | 'ABCD';
 export type MatrixView = 'dB' | 'Mag' | 'Phase' | 'Re' | 'Im' | 'VSWR' | 'Return loss' | 'Group delay';
 export type Interp = 'Auto' | 'Exact' | 'Lin' | 'Near' | 'Prev' | 'Next' | 'Cub' | 'Sinc';

@@ -151,6 +151,16 @@ test('opens shipped binary oscilloscope fixtures (Keysight, Rigol, LeCroy, Tektr
   await expect(page.getByTestId('chart-plot-pane-1').locator('.trace-source .recharts-line-curve')).toHaveCount(7);
 });
 
+test('opens a Tektronix .wfm reference waveform directly as one trace', async ({ page }) => {
+  await page.goto('/app.html');
+  await page.getByTestId('app-open-input').setInputFiles(resolve('tests/fixtures/tek-wfm/analog_waveform.wfm'));
+
+  await expect(page.getByTestId('import-wizard')).toHaveCount(0);
+  await expect(page.locator('.lp-file--header')).toHaveCount(1);
+  await expect(page.locator('[data-testid^="trace-row-"]')).toHaveCount(1);
+  await expect(page.getByTestId('chart-plot-pane-1').locator('.trace-source .recharts-line-curve')).toHaveCount(1);
+});
+
 test('Close all files… removes linked derived child traces (e.g. FFT) alongside their parent files and is undoable', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/app.html');

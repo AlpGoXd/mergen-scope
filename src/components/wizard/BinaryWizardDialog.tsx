@@ -122,6 +122,7 @@ const EXPLICIT_PARSERS: readonly { value: BinaryFormat; label: string; title: st
   { value: 'wavebin', label: 'Keysight / Rigol (.bin)', title: 'Force Keysight/Agilent (AG) or Rigol (RG) binary waveform parser' },
   { value: 'lecroy-trc', label: 'LeCroy (.trc)', title: 'Force Teledyne LeCroy WAVEDESC / LECROY_2_3 parser' },
   { value: 'tek-isf', label: 'Tektronix (.isf)', title: 'Force Tektronix Internal Save Format (:WFMPRE: + :CURVE #) parser' },
+  { value: 'tek-wfm', label: 'Tektronix (.wfm)', title: 'Force Tektronix reference waveform (.wfm, WFM#001–003) parser' },
   { value: 'owon-bin', label: 'OWON (.bin)', title: 'Force OWON SPBXDS + JSON header parser' },
   { value: 'wav', label: 'RIFF / WAV (.wav)', title: 'Force RIFF/WAVE PCM or IEEE Float audio/DAQ/IQ parser' },
   { value: 'npy', label: 'NumPy (.npy)', title: 'Force NumPy .npy binary array parser (1D/2D real or complex)' },

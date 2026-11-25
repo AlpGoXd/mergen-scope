@@ -944,12 +944,12 @@ function FileTitleRow({
   const format: FileFormat = /^S[0-9]+P$/.test(extension)
     ? extension as FileFormat
     : extension === 'CSV' || extension === 'TXT' || extension === 'TSV' || extension === 'DAT'
-      || extension === 'BIN' || extension === 'TRC' || extension === 'ISF'
+      || extension === 'BIN' || extension === 'TRC' || extension === 'ISF' || extension === 'WFM'
       || extension === 'WAV' || extension === 'NPY' || extension === 'RAW'
       ? extension as FileFormat
       : /^(?:CF32|FC32|SC16|CS16|CI16|CU8|CS8|CFILE|IQ)$/.test(extension)
         ? 'IQ'
-        : /^(?:F32|F64|I32|U32|I24|U24|I16|S16|U16|U8|PCM|WFM)$/.test(extension)
+        : /^(?:F32|F64|I32|U32|I24|U24|I16|S16|U16|U8|PCM)$/.test(extension)
           ? 'BIN'
           : 'DAT';
   const actions: SidebarAction[] = [

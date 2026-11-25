@@ -24,6 +24,7 @@ export type FileFormat =
   | "wavebin"
   | "lecroy-trc"
   | "tek-isf"
+  | "tek-wfm"
   | "owon-bin"
   | "wav"
   | "npy"
