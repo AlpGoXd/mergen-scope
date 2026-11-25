@@ -3,7 +3,7 @@
 // ============================================================================
 // Pure domain module (no React, no DOM) that:
 //   1. Re-parses oscilloscope binaries (Keysight AG, Rigol RG, LeCroy .trc,
-//      Tektronix .isf / .wfm, OWON .bin) with explicit parser selection, per-channel
+//      Tektronix .isf / .wfm, Siglent SDS .bin, OWON .bin) with explicit parser selection, per-channel
 //      enable/unit/scale/offset overrides, X scale/offset, and pre-decimation
 //      full-resolution sample slicing.
 //   2. Parses headerless raw binary / GNU Radio IQ files (.bin, .cfile, .cf32,
@@ -32,6 +32,7 @@ import { parseWavebin } from "./wavebin.ts";
 import { parseLeCroyTrc } from "./lecroy-trc.ts";
 import { parseTekIsf } from "./tek-isf.ts";
 import { parseTekWfm } from "./tek-wfm.ts";
+import { parseSiglentBin } from "./siglent-bin.ts";
 import { parseOwonBin } from "./owon-bin.ts";
 import { parseWavBin } from "./wav-bin.ts";
 import { parseNpyBin } from "./npy-bin.ts";
@@ -157,7 +158,7 @@ export interface BinarySettingsProfile {
 
 const VALID_SAMPLE_TYPES = new Set<BinarySampleType>(["float32", "float64", "float16", "int32", "uint32", "int24", "uint24", "int16", "uint16", "int8", "uint8"]);
 const VALID_LAYOUTS = new Set<BinaryChannelLayout>(["real", "iq", "interleaved", "planar"]);
-const VALID_PARSERS = new Set<BinaryParserChoice>(["auto", "wavebin", "lecroy-trc", "tek-isf", "tek-wfm", "owon-bin", "wav", "npy"]);
+const VALID_PARSERS = new Set<BinaryParserChoice>(["auto", "wavebin", "lecroy-trc", "tek-isf", "tek-wfm", "siglent-bin", "owon-bin", "wav", "npy"]);
 
 /** Serialize a BinaryImportConfig into a portable JSON profile for saving/sharing lab formats. */
 export function serializeBinarySettings(config: BinaryImportConfig): string {
@@ -514,6 +515,7 @@ function parseDetectedScope(
     case "lecroy-trc": return parseLeCroyTrc(buffer, fileName, options);
     case "tek-isf": return parseTekIsf(buffer, fileName, options);
     case "tek-wfm": return parseTekWfm(buffer, fileName, options);
+    case "siglent-bin": return parseSiglentBin(buffer, fileName, options);
     case "owon-bin": return parseOwonBin(buffer, fileName, options);
     case "wav": return parseWavBin(buffer, fileName, options);
     case "npy": return parseNpyBin(buffer, fileName, options);

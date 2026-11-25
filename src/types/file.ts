@@ -25,6 +25,7 @@ export type FileFormat =
   | "lecroy-trc"
   | "tek-isf"
   | "tek-wfm"
+  | "siglent-bin"
   | "owon-bin"
   | "wav"
   | "npy"
