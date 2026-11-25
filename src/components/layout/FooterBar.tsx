@@ -10,6 +10,7 @@ import { useTraceState } from '../../stores/trace-store';
 import { usePointerReadout } from '../../stores/pointer-readout-store';
 import { useShortcut } from '../../stores/shortcut-store';
 import { AboutPanel, FeedbackLinks, HelpSheet } from '../help/HelpSheet';
+import { APP_VERSION } from '../help/shortcuts';
 import { SettingsSheet } from '../settings/SettingsSheet';
 import { PopoverAt } from '../shared/Controls';
 import { FooterIcon } from './footer-icons';
@@ -101,6 +102,7 @@ export function FooterBar({ workspaceRef }: { workspaceRef: RefObject<HTMLDivEle
         {hints.map((hint, index) => <span key={hint.action} className="footer-hint" data-i={index}><span className="footer-action">{hint.action}</span> {hint.effect}</span>)}
       </span>
       <span className="footer-actions">
+        <span className="footer-version t-readout" data-testid="footer-version" title={import.meta.env.DEV ? `Mergen Scope v${APP_VERSION} (development server)` : `Mergen Scope v${APP_VERSION}`}>v{APP_VERSION}{import.meta.env.DEV ? ' dev' : ''}</span>
         <button type="button" className="footer-btn t-caption" aria-label="Local only" title="Local only: your files are read in this browser and never uploaded" aria-expanded={localOnly !== null} onClick={event => { setLocalOnly(localOnly ? null : event.currentTarget); setFeedback(null); setSheet(null); }}><FooterIcon name="shield" /><span className="footer-word">Local only</span></button>
         <button type="button" className="footer-btn t-caption" aria-label="Feedback" title="Feedback: report a problem or suggest an idea" aria-haspopup="menu" aria-expanded={feedback !== null} onClick={event => { setFeedback(feedback ? null : event.currentTarget); setLocalOnly(null); setSheet(null); }}><FooterIcon name="feedback" /><span className="footer-word">Feedback</span></button>
         <button type="button" className="footer-btn t-caption" aria-label="Settings" title={`App settings (${shortcutText('settings')})`} aria-expanded={sheet === 'settings'} onClick={() => open(sheet === 'settings' ? null : 'settings')}><FooterIcon name="settings" /><span className="footer-word">Settings</span></button>

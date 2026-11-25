@@ -20,6 +20,8 @@
 .footer-readout[data-kind="smith"] { min-width: 32ch; }
 .footer-sep.is-empty { visibility: hidden; }
 .footer-spacer { flex: 1 1 0 !important; min-width: 0; }
+/* Quiet version text at the start of the right-hand buttons; the dev server appends " dev" (FooterBar.tsx). */
+.footer-row .footer-version { padding: 0 var(--panel-padding) 0 var(--gap); color: var(--text-muted); user-select: all; }
 
 .footer-hints { display: flex; align-items: center; }
 .footer-row .footer-hint { color: var(--text-muted); }
@@ -45,5 +47,5 @@
 /* Narrowing, in order. */
 .footer-row[data-fit="1"] .footer-hint[data-i="2"], .footer-row[data-fit="1"] .footer-hint[data-i="3"] { display: none; }
 .footer-row:is([data-fit="2"], [data-fit="3"], [data-fit="4"]) .footer-hints { display: none; }
-.footer-row:is([data-fit="3"], [data-fit="4"]) .footer-word { display: none; }
+.footer-row:is([data-fit="3"], [data-fit="4"]) :is(.footer-word, .footer-version) { display: none; }
 .footer-row[data-fit="4"] .footer-trace { display: none; }
