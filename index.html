@@ -15,14 +15,14 @@
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://mergenscope.com/">
 <meta property="og:title" content="Mergen Scope – Free Spectrum, Scope &amp; Touchstone Viewer">
-<meta property="og:description" content="Open spectrum analyzer, VNA Touchstone (.s1p–.s16p) and oscilloscope CSV captures in your browser. Free, open source, nothing uploaded.">
+<meta property="og:description" content="Open spectrum analyzer, VNA Touchstone (any .sNp) and oscilloscope captures, CSV or binary (.bin), in your browser. Free, open source, nothing uploaded.">
 <meta property="og:image" content="https://mergenscope.com/mergen-scope-preview.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:image:alt" content="Mergen Scope workspace showing RF and waveform plots">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Mergen Scope – Free Spectrum, Scope &amp; Touchstone Viewer">
-<meta name="twitter:description" content="Open spectrum analyzer, VNA Touchstone (.s1p–.s16p) and oscilloscope CSV captures in your browser. Free, open source, nothing uploaded.">
+<meta name="twitter:description" content="Open spectrum analyzer, VNA Touchstone (any .sNp) and oscilloscope captures, CSV or binary (.bin), in your browser. Free, open source, nothing uploaded.">
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -40,11 +40,12 @@
   },
   "license": "https://www.apache.org/licenses/LICENSE-2.0",
   "codeRepository": "https://github.com/AlpGoXd/mergen-scope",
-  "description": "Free, open-source, zero-upload browser workspace for spectrum analyzer files (including Rohde & Schwarz .dat and CSV sweeps), VNA Touchstone (.s1p–.s16p) S-parameter files, and oscilloscope CSV captures.",
+  "description": "Free, open-source, zero-upload browser workspace for spectrum analyzer files (including Rohde & Schwarz .dat and CSV sweeps), VNA Touchstone S-parameter files (any .sNp), and oscilloscope captures in CSV or binary form (Keysight, Rigol, LeCroy, Tektronix, OWON, WAV, NumPy and SDR IQ).",
   "featureList": [
     "Spectrum analyzer trace files including Rohde & Schwarz (R&S) .dat and CSV/TSV/TXT sweeps",
-    "VNA Touchstone S-parameter .s1p through .s16p files with S, Y, Z and two-port ABCD views and Z/Y Smith chart",
-    "Oscilloscope CSV, TSV and TXT waveform and column data with live import wizard",
+    "VNA Touchstone S-parameter .sNp files (.s1p, .s2p and up; Touchstone 1.x, 2.0 and 2.1, including Y, Z, H and G parameter files) with S, Y, Z and two-port ABCD views and Z/Y Smith chart",
+    "Oscilloscope CSV, TSV and TXT waveform and column data with live import wizard, including S-parameters mapped from CSV columns",
+    "Binary oscilloscope and SDR files: Keysight and Rigol .bin, LeCroy .trc, Tektronix .isf, OWON .bin, WAV, NumPy .npy and raw IQ (.cf32, .sc16, .cu8), with a Binary Import Wizard, detection confidence score, SDR presets and hex inspector",
     "Antenna far-field polar plots (beamwidth, peak bearing, front-to-back ratio, sidelobes)",
     "Linked X axes across multi-pane layouts",
     "Noise PSD",
@@ -79,7 +80,7 @@
   ],
   "screenshot": "https://mergenscope.com/mergen-scope-preview.png",
   "isAccessibleForFree": true,
-  "keywords": "Touchstone viewer, s2p viewer, s1p viewer, VNA viewer, Smith chart online, spectrum analyzer viewer, Rohde & Schwarz dat viewer, R&S FSV dat viewer, oscilloscope CSV viewer, S-parameters, RF analysis, antenna polar plot, pgfplots TikZ LaTeX export"
+  "keywords": "Touchstone viewer, s2p viewer, s1p viewer, VNA viewer, Smith chart online, spectrum analyzer viewer, Rohde & Schwarz dat viewer, R&S FSV dat viewer, oscilloscope CSV viewer, oscilloscope binary file viewer, .bin viewer, Keysight bin viewer, Rigol bin viewer, LeCroy trc viewer, Tektronix isf viewer, SDR IQ file viewer, snp viewer, S-parameters, RF analysis, antenna polar plot, pgfplots TikZ LaTeX export"
 }
 </script>
 <script type="application/ld+json">
@@ -110,15 +111,15 @@
       "name": "Can I view a Touchstone .s2p file and its Smith chart online?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Yes. Open the app and drop in the .s2p file to view its S-parameters and Smith chart."
+        "text": "Yes. Open the app and drop in the .s2p file (or any other .sNp file, from .s1p up) to view its S-parameters and Smith chart."
       }
     },
     {
       "@type": "Question",
-      "name": "Can I open Rohde & Schwarz FSV or FSVA .dat files in my browser?",
+      "name": "Can I open spectrum analyzer and handheld VNA files, like tinySA or NanoVNA?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Yes. Drop an ASCII Rohde & Schwarz spectrum analyzer .dat export into Mergen Scope to inspect traces along with span, RBW and detector metadata locally in your browser, with no upload."
+        "text": "Yes. Mergen Scope reads what is inside the file, not the brand: Rohde & Schwarz .dat, tinySA sweeps (including packed multi-band traces), CSV or TXT sweeps from other analyzers, and Touchstone files from benchtop and handheld VNAs such as the NanoVNA. Drop the file in; if one does not open, send a sample."
       }
     },
     {
@@ -126,7 +127,7 @@
       "name": "Is Mergen Scope tied to one instrument brand?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "No. Any VNA that exports Touchstone (.s1p through .s16p) files and any spectrum analyzer or oscilloscope that exports CSV, TSV, TXT or ASCII .dat tables can be opened, with the import wizard handling delimiters, columns and units."
+        "text": "No. Any VNA that exports Touchstone (.sNp) files, and any spectrum analyzer or oscilloscope that exports CSV, TSV, TXT, ASCII .dat tables or binary captures, can be opened, with the import wizards handling delimiters, columns, units and binary layouts."
       }
     },
     {
@@ -142,7 +143,15 @@
       "name": "Which instruments and file formats work?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Mergen Scope accepts spectrum analyzer files (including Rohde & Schwarz .dat and tabular CSV/TXT sweeps), VNA Touchstone .s1p through .s16p files, and oscilloscope CSV, TSV and TXT column data. R&S .dat has been tested with FSVA3044 exports; generic tables may need column and unit mapping."
+        "text": "Mergen Scope accepts spectrum analyzer files (including Rohde & Schwarz .dat and tabular CSV/TXT sweeps), VNA Touchstone .sNp files of any port count, oscilloscope CSV, TSV and TXT column data, and binary captures (Keysight, Rigol, LeCroy, Tektronix and OWON scope files, WAV, NumPy .npy and raw SDR IQ). R&S .dat has been tested with FSVA3044 exports; generic tables and unknown binary files may need column, unit or layout mapping."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Can I open binary .bin oscilloscope files and SDR recordings?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. Keysight, Rigol, LeCroy (.trc), Tektronix (.isf) and OWON scope files, WAV and NumPy .npy files open directly. Any other binary file, such as a headerless .bin or .dat or an SDR IQ recording (.cf32, .sc16, .cu8), opens in the Binary Import Wizard, where you set the data type, byte order and channel layout while watching a live preview. Files are read in your browser and are never uploaded."
       }
     },
     {
@@ -158,7 +167,7 @@
       "name": "Can I use Mergen Scope offline in an air-gapped lab?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Yes. The production build is a single self-contained app.html file with no CDN requests or server backend, so a local copy opened from disk works completely offline."
+        "text": "Yes. Download the latest app.html from the GitHub releases page (github.com/AlpGoXd/mergen-scope/releases/latest), copy it into the lab and open it from disk. It is a single self-contained file with no CDN requests or server backend, so it works completely offline; only PDF export needs a local web server."
       }
     },
     {
@@ -223,7 +232,7 @@
 <section id="top" class="hero wrap">
 <div class="hero-top">
 <div class="intro">
-<span class="kicker mono">.dat · .s1p … .sNp · scope .csv · any columns</span>
+<span class="kicker mono">.dat · .s1p … .sNp · scope .csv · .bin · any columns</span>
 <h1>Open spectrum analyzer, oscilloscope and S-parameter files in your browser.</h1>
 <p class="lead">Compare traces, drop markers and run measurements (IP3, channel power, occupied bandwidth, VSWR) in one workspace. Free, open source, and your files never leave your computer.</p>
 <p class="audience">For RF and measurement engineers, students and radio amateurs.</p>
@@ -271,7 +280,7 @@
 </div>
 <div class="rows">
 <div class="row">
-<div class="row-head"><span class="ext mono">.dat</span><h3>Spectrum analyzer</h3><p>Tested with Rohde &amp; Schwarz (R&amp;S) FSVA3044 exports; tabular CSV/TXT sweeps open too. Another instrument? <a href="https://github.com/AlpGoXd/mergen-scope/issues/new?template=01-file-not-opening.yml">Send a sample.</a></p></div>
+<div class="row-head"><span class="ext mono">.dat</span><h3>Spectrum analyzer</h3><p>Rohde &amp; Schwarz .dat exports, tinySA sweeps, and CSV/TXT sweeps from other analyzers. Another instrument? <a href="https://github.com/AlpGoXd/mergen-scope/issues/new?template=01-file-not-opening.yml">Send a sample.</a></p></div>
 <pre class="raw">Type;FSVA3044;
 Center Freq;1420405000.000000;Hz
 Span;1000000.000000;Hz
@@ -281,7 +290,7 @@ Detector;AUTOPEAK;</pre>
 <ul class="chips" aria-label="What the app reads"><li>Spectrum</li><li>centre 1.420405 GHz</li><li>span 1 MHz</li><li>RBW 3 kHz</li><li>AUTOPEAK</li><li>dBm</li></ul>
 </div>
 <div class="row">
-<div class="row-head"><span class="ext mono">.s1p … .s16p</span><h3>S-parameters from any VNA</h3><p>Touchstone files, including .s1p and .s2p. S, Y, Z, ABCD; dB, magnitude, phase; Z/Y Smith chart.</p></div>
+<div class="row-head"><span class="ext mono">.s1p … .sNp</span><h3>S-parameters from any VNA</h3><p>Touchstone files of any port count, from .s1p and .s2p up (versions 1.x, 2.0 and 2.1; Y, Z, H and G files convert to S). S, Y, Z, ABCD; dB, magnitude, phase; Z/Y Smith chart.</p></div>
 <pre class="raw">#  HZ   S   RI   R     50.00
 ! freq[Hz]  re:S11  im:S11  re:S21  im:S21 …
  1.000000000000000E4  1.062620232310890 …</pre>
@@ -296,6 +305,14 @@ Detector;AUTOPEAK;</pre>
 0.000200,0.951057,0.587785</pre>
 <svg class="arrow" width="28" height="16" viewBox="0 0 28 16" aria-hidden="true"><path d="M2 8h22M18 3l6 5-6 5"/></svg>
 <ul class="chips" aria-label="What the app reads"><li>Time domain</li><li>2 channels</li><li>100 samples</li><li>0 – 9.9 ms</li></ul>
+</div>
+<div class="row">
+<div class="row-head"><span class="ext mono">.bin · .trc · .isf · .wav · .npy</span><h3>Binary scope and SDR captures</h3><p>Keysight, Rigol, LeCroy, Tektronix and OWON waveforms open directly, as do WAV and NumPy files. Raw IQ (.cf32, .sc16, .cu8) and any unknown binary file open in the Binary Import Wizard, with a confidence score, one-click SDR presets and a hex inspector.</p></div>
+<pre class="raw">00000000: 4147 3130 3c41 0000  AG10&lt;A..
+00000008: 0200 0000 8c00 0000  ........
+00000010: 0100 0000 0100 0000  ........</pre>
+<svg class="arrow" width="28" height="16" viewBox="0 0 28 16" aria-hidden="true"><path d="M2 8h22M18 3l6 5-6 5"/></svg>
+<ul class="chips" aria-label="What the app reads"><li>Header recognised</li><li>Keysight / Rigol .bin</li><li>Scope metadata</li><li>Live preview</li></ul>
 </div>
 </div>
 <div class="after">
@@ -358,6 +375,7 @@ Detector;AUTOPEAK;</pre>
 <div><h3>No server</h3><p>The app reads your files in the browser. There is nowhere to upload to.</p></div>
 <div><h3>No cookies, trackers or account</h3><p>Settings such as the theme stay in your browser.</p></div>
 <div><h3>Check it yourself</h3><p>Open the Network tab, then open a file. No request is made.</p></div>
+<div><h3>Works in air-gapped labs</h3><p>Download the latest <a href="https://github.com/AlpGoXd/mergen-scope/releases/latest">app.html</a> from the releases page, copy it in and open it from disk. No network needed.</p></div>
 </div>
 <p class="body">Mergen Scope never uploads your files. If you attach a file to a GitHub issue, it becomes public.</p>
 </div>
@@ -374,13 +392,14 @@ Detector;AUTOPEAK;</pre>
 <div class="sub"><h2 id="faq-title">Frequently asked questions</h2></div>
 <div class="pfacts">
 <div><h3>How do I open an oscilloscope CSV file in my browser?</h3><p>Open the app and drop the CSV file into the workspace. The import wizard lets you map columns and units if needed.</p></div>
-<div><h3>Can I view a Touchstone .s2p file and its Smith chart online?</h3><p>Yes. Open the app and drop in the .s2p file to view its S-parameters and Smith chart.</p></div>
-<div><h3>Can I open Rohde &amp; Schwarz FSV or FSVA .dat files in my browser?</h3><p>Yes. Drop an ASCII Rohde &amp; Schwarz spectrum analyzer .dat export into Mergen Scope to inspect traces along with span, RBW and detector metadata locally in your browser, with no upload.</p></div>
-<div><h3>Is Mergen Scope tied to one instrument brand?</h3><p>No. Any VNA that exports Touchstone (.s1p through .s16p) files and any spectrum analyzer or oscilloscope that exports CSV, TSV, TXT or ASCII .dat tables can be opened, with the import wizard handling delimiters, columns and units.</p></div>
+<div><h3>Can I view a Touchstone .s2p file and its Smith chart online?</h3><p>Yes. Open the app and drop in the .s2p file (or any other .sNp file, from .s1p up) to view its S-parameters and Smith chart.</p></div>
+<div><h3>Can I open spectrum analyzer and handheld VNA files, like tinySA or NanoVNA?</h3><p>Yes. Mergen Scope reads what is inside the file, not the brand: Rohde &amp; Schwarz .dat, tinySA sweeps (including packed multi-band traces), CSV or TXT sweeps from other analyzers, and Touchstone files from benchtop and handheld VNAs such as the NanoVNA. Drop the file in; if one does not open, send a sample.</p></div>
+<div><h3>Is Mergen Scope tied to one instrument brand?</h3><p>No. Any VNA that exports Touchstone (.sNp) files, and any spectrum analyzer or oscilloscope that exports CSV, TSV, TXT, ASCII .dat tables or binary captures, can be opened, with the import wizards handling delimiters, columns, units and binary layouts.</p></div>
 <div><h3>Are my files uploaded anywhere?</h3><p>Files are read and processed in your browser and are not uploaded. Settings such as the theme stay in your browser.</p></div>
-<div><h3>Which instruments and file formats work?</h3><p>Mergen Scope accepts spectrum analyzer files (including Rohde &amp; Schwarz .dat and tabular CSV/TXT sweeps), VNA Touchstone .s1p through .s16p files, and oscilloscope CSV, TSV and TXT column data. R&amp;S .dat has been tested with FSVA3044 exports; generic tables may need column and unit mapping.</p></div>
+<div><h3>Which instruments and file formats work?</h3><p>Mergen Scope accepts spectrum analyzer files (including Rohde &amp; Schwarz .dat and tabular CSV/TXT sweeps), VNA Touchstone .sNp files of any port count, oscilloscope CSV, TSV and TXT column data, and binary captures (Keysight, Rigol, LeCroy, Tektronix and OWON scope files, WAV, NumPy .npy and raw SDR IQ). R&amp;S .dat has been tested with FSVA3044 exports; generic tables and unknown binary files may need column, unit or layout mapping.</p></div>
+<div><h3>Can I open binary .bin oscilloscope files and SDR recordings?</h3><p>Yes. Keysight, Rigol, LeCroy (.trc), Tektronix (.isf) and OWON scope files, WAV and NumPy .npy files open directly. Any other binary file, such as a headerless .bin or .dat or an SDR IQ recording (.cf32, .sc16, .cu8), opens in the Binary Import Wizard, where you set the data type, byte order and channel layout while watching a live preview. Files are read in your browser and are never uploaded.</p></div>
 <div><h3>Does Mergen Scope require installation or an account?</h3><p>No installation or account is required. Open the app in your browser to use it.</p></div>
-<div><h3>Can I use Mergen Scope offline in an air-gapped lab?</h3><p>Yes. The production build is a single self-contained app.html file with no CDN requests or server backend, so a local copy opened from disk works completely offline.</p></div>
+<div><h3>Can I use Mergen Scope offline in an air-gapped lab?</h3><p>Yes. Download the latest app.html from the GitHub releases page (github.com/AlpGoXd/mergen-scope/releases/latest), copy it into the lab and open it from disk. It is a single self-contained file with no CDN requests or server backend, so it works completely offline; only PDF export needs a local web server.</p></div>
 <div><h3>Is Mergen Scope free?</h3><p>Yes. Mergen Scope is free and open source under the Apache-2.0 license.</p></div>
 <div><h3>Can I export plots for a paper or LaTeX?</h3><p>Plots can be exported as PNG, SVG, PDF or LaTeX (TikZ); CSV data export is also available.</p></div>
 <div><h3>Can I compare traces or do trace math?</h3><p>Yes. You can compare traces and use trace math to add, subtract, multiply or divide two traces.</p></div>

@@ -6,13 +6,11 @@ import { useSheetFocus } from '../../hooks/use-sheet-focus';
 import { useCenteredDialog } from '../../hooks/use-centered-dialog';
 import { CloseIcon } from '../shared/Icons';
 
-/** Feedback destinations shared by the footer menu, the Help sheet and About. */
+/** Feedback destinations for the footer Feedback menu. */
 export function FeedbackLinks({ menu = false }: { menu?: boolean }) {
   const role = menu ? 'menuitem' : undefined;
   return <><a role={role} href="https://github.com/AlpGoXd/mergen-scope/issues/new/choose" target="_blank" rel="noopener noreferrer">Report a problem ↗</a><a role={role} href="https://github.com/AlpGoXd/mergen-scope/discussions" target="_blank" rel="noopener noreferrer">Suggest an idea ↗</a><a role={role} href="https://tally.so/r/jeoN9x" target="_blank" rel="noopener noreferrer">Feedback without a GitHub account ↗</a></>;
 }
-
-const PRIVACY = 'Your files never leave this browser.';
 
 /** Key chips; alternatives separated by "/". */
 function Keys({ keys }: { keys: readonly (readonly string[])[] }) {
@@ -47,24 +45,21 @@ export function HelpSheet({ onClose, onAbout, focus = 'top' }: { onClose: () => 
     </div>
     <footer className="help-sheet__foot t-caption">
       <span>Mergen Scope {APP_VERSION}</span><span aria-hidden="true">·</span>
-      <button type="button" className="help-link" onClick={onAbout}>About</button><span aria-hidden="true">·</span>
-      <FeedbackLinks /><span aria-hidden="true">·</span>
-      <span>{PRIVACY}</span>
+      <button type="button" className="help-link" onClick={onAbout}>About</button>
     </footer>
   </div>;
 }
 
-/** About: name, version, licence, GitHub link, the feedback links and the privacy sentence. */
+/** About: name, version, author, licence and the GitHub link. Feedback and privacy live in the footer. */
 export function AboutPanel({ onClose }: { onClose: () => void }) {
   const dialog = useCenteredDialog();
   return <dialog ref={dialog} className="ui-dialog about-panel" role="dialog" aria-modal="true" aria-label="About Mergen Scope" data-testid="about-panel" onCancel={event => { event.preventDefault(); onClose(); }}>
     <header className="about-panel__head"><span className="t-title">About Mergen Scope</span><button type="button" className="help-close" onClick={onClose} aria-label="Close about"><CloseIcon /></button></header>
     <div className="about-panel__body">
       <p className="t-label">Mergen Scope <span className="t-readout">{APP_VERSION}</span></p>
-      <p className="t-label">Licence: Apache-2.0</p>
-      <p className="t-label"><a href="https://github.com/AlpGoXd/mergen-scope" target="_blank" rel="noopener noreferrer">GitHub ↗</a></p>
-      <p className="t-label about-panel__links"><FeedbackLinks /></p>
-      <p className="t-caption">{PRIVACY}</p>
+      <p className="t-label">Made by Alp Gökalp</p>
+      <p className="t-label">Made with love &lt;3</p>
+      <p className="t-caption">Licence: Apache-2.0 · <a href="https://github.com/AlpGoXd/mergen-scope" target="_blank" rel="noopener noreferrer">GitHub ↗</a></p>
     </div>
   </dialog>;
 }

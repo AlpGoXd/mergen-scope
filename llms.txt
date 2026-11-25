@@ -1,6 +1,6 @@
 # Mergen Scope
 
-> Mergen Scope (mergenscope.com) is a free, open-source (Apache-2.0), zero-upload browser workspace for viewing and analyzing spectrum analyzer, VNA S-parameter (Touchstone) and oscilloscope measurement files. Built for RF and measurement engineers, students, researchers and radio amateurs.
+> Mergen Scope (mergenscope.com) is a free, open-source (Apache-2.0), zero-upload browser workspace for viewing and analyzing spectrum analyzer, VNA S-parameter (Touchstone) and oscilloscope measurement files, in text and binary form. Built for RF and measurement engineers, students, researchers and radio amateurs.
 
 ## Full LLM reference
 
@@ -8,12 +8,14 @@
 
 ## Supported files
 
-- Spectrum analyzer exports: Rohde & Schwarz (R&S) ASCII `.dat` traces with span, RBW and detector metadata (tested with FSVA3044 exports; amplitude-only exports rebuild the X axis from Start/Stop), plus tabular `.dat`, `.csv`, `.txt` and `.tsv` spectrum sweeps (including packed sweeps with sweep gaps preserved).
-- VNA Touchstone `.s1p` through `.s16p` (1.x and 2.0): S-parameter networks from any VNA in RI, MA or dB/angle form. Views include S, Y, Z and, for two-port networks, ABCD; VSWR, return loss, group delay and an interactive Z/Y/Z+Y Smith chart.
-- `.csv`, `.txt` and `.tsv`: oscilloscope waveforms and any other time or frequency column data, using comma, semicolon, tab or mixed delimiters via the built-in import wizard.
+- Spectrum analyzer exports: Rohde & Schwarz (R&S) ASCII `.dat` traces with span, RBW and detector metadata (tested with FSVA3044 exports; amplitude-only exports rebuild the X axis from Start/Stop), plus tabular `.dat`, `.csv`, `.txt` and `.tsv` spectrum sweeps (including packed multi-band sweeps from handheld analyzers such as the tinySA, with sweep gaps preserved).
+- VNA Touchstone `.sNp` (any port count, `.s1p`, `.s2p` and up; Touchstone 1.x, 2.0 and 2.1): S-parameter networks from any VNA, benchtop or handheld (NanoVNA exports included), in RI, MA or dB/angle form, and Y, Z, H or G parameter files, which are converted to S. Views include S, Y, Z and, for two-port networks, ABCD; VSWR, return loss, group delay and an interactive Z/Y/Z+Y Smith chart.
+- `.csv`, `.txt` and `.tsv`: oscilloscope waveforms and any other time or frequency column data, using comma, semicolon, tab or mixed delimiters via the built-in import wizard, which scores its own detection. Columns can also be mapped to S-parameters (RI, MA or dB) and opened as a Touchstone network.
+- Binary oscilloscope files, opened directly: Keysight and Rigol `.bin`, LeCroy `.trc`, Tektronix `.isf` and OWON `.bin`, with the scope metadata shown in the file info. Also WAV and NumPy `.npy`.
+- Raw and unknown binary files, including SDR IQ recordings (`.cf32`, `.sc16`, `.cs16`, `.cu8`, `.iq`) and headerless `.bin` or `.dat`: they open in the Binary Import Wizard with a detection confidence score, one-click presets (GNU Radio cf32, USRP/BladeRF sc16, HackRF cs8, RTL-SDR cu8), 11 sample types, either byte order, real, IQ, interleaved or planar layouts, header-skip detection, an expandable hex inspector and a live preview plot. Settings can be saved and loaded as JSON profiles and applied to several files at once. Captures above 2 million points offer keep-all, decimate or display-envelope loading.
 - Workspace `.json`: saved session containing data, panes, markers, lines and analyses (version 5 with migration from v1–v4).
 
-Not tied to one instrument brand: any VNA exporting Touchstone files and any spectrum analyzer, oscilloscope or script exporting a text table (CSV, TXT, TSV or ASCII `.dat`) can be opened. Proprietary binary formats are not read; export as ASCII CSV, text or Touchstone first.
+Not tied to one instrument brand: any VNA exporting Touchstone files and any spectrum analyzer, oscilloscope, SDR or script exporting a text table (CSV, TXT, TSV or ASCII `.dat`) or a binary capture can be opened. The file contents decide how a file is read, not its extension. Proprietary containers that have no built-in parser (for example Tektronix `.wfm` or binary R&S files) are not decoded; export CSV, text or Touchstone from the instrument, or open the raw samples in the Binary Import Wizard.
 
 ## Analysis tools
 
@@ -30,7 +32,7 @@ Not tied to one instrument brand: any VNA exporting Touchstone files and any spe
 
 ## Privacy and offline use
 
-Files are read and processed locally in the browser and are never uploaded (0 bytes transferred). No cookies, trackers or account. The production build is a single self-contained `app.html` with no CDN dependencies, so a local copy opened from disk works offline in air-gapped or NDA-restricted labs (only PDF export needs a local web server).
+Files are read and processed locally in the browser and are never uploaded (0 bytes transferred). No cookies, trackers or account. The production build is a single self-contained `app.html` with no CDN dependencies, so a local copy opened from disk works offline in air-gapped or NDA-restricted labs (only PDF export needs a local web server). For an air-gapped lab, download `app.html` from the latest release at https://github.com/AlpGoXd/mergen-scope/releases/latest, copy it in and open it from disk.
 
 ## How to use
 
