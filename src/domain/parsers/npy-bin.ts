@@ -404,6 +404,10 @@ interface NpyInspectedHeader {
   readonly dataOffset: number;
 }
 
+/** One number is a value, not a waveform (for example a SPICE operating-point result saved one file per signal). */
+const SINGLE_VALUE_MESSAGE = "This .npy file holds a single value, so it can't be drawn as a trace: a trace needs at least 2 samples. "
+  + "Open the array it belongs to (the sweep, time or frequency axis and the signals measured along it) instead.";
+
 function inspectNpyBin(buffer: ArrayBuffer): { readonly ok: true; readonly info: NpyInspectedHeader } | { readonly ok: false; readonly error: string } {
   const bytes = new Uint8Array(buffer);
   if (bytes.byteLength < 10) {
@@ -483,7 +487,7 @@ function inspectNpyBin(buffer: ArrayBuffer): { readonly ok: true; readonly info:
   }
 
   if (shape.length === 0) {
-    return { ok: false, error: "0D scalar .npy arrays are not supported." };
+    return { ok: false, error: SINGLE_VALUE_MESSAGE };
   }
   if (shape.length > 2) {
     return { ok: false, error: `${shape.length}D .npy arrays are not supported (expected 1D or 2D).` };
@@ -496,7 +500,7 @@ function inspectNpyBin(buffer: ArrayBuffer): { readonly ok: true; readonly info:
   if (shape.length === 1) {
     const n = shape[0] ?? 0;
     if (n < 2) {
-      return { ok: false, error: `1D .npy array must contain at least 2 samples (got ${n}).` };
+      return { ok: false, error: n === 1 ? SINGLE_VALUE_MESSAGE : "This .npy array is empty, so there is nothing to plot." };
     }
     channelCount = 1;
     sampleCount = n;
@@ -520,7 +524,9 @@ function inspectNpyBin(buffer: ArrayBuffer): { readonly ok: true; readonly info:
       return { ok: false, error: `2D .npy array has ${channelCount} channels (maximum supported is ${MAX_CHANNELS}).` };
     }
     if (sampleCount < 2) {
-      return { ok: false, error: `2D .npy array must contain at least 2 samples (got ${sampleCount}).` };
+      return { ok: false, error: sampleCount === 1
+        ? "This 2D .npy array has a single sample per channel, so it can't be drawn as a trace: a trace needs at least 2 samples."
+        : "This 2D .npy array is empty, so there is nothing to plot." };
     }
   }
 

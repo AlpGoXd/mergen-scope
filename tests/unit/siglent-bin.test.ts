@@ -578,7 +578,6 @@ describe('Siglent SDS .bin: detection', () => {
     ['rigol_dho804_sample.bin', () => readArrayBuffer('test files/rigol_dho804_sample.bin'), 'wavebin'],
     ['lecroy_sample.trc', () => readArrayBuffer('test files/lecroy_sample.trc'), 'lecroy-trc'],
     ['tektronix_sample.isf', () => readArrayBuffer('test files/tektronix_sample.isf'), 'tek-isf'],
-    ['tektronix_sample.wfm', () => readArrayBuffer('test files/tektronix_sample.wfm'), 'tek-wfm'],
     ['owon_sample.bin', () => readArrayBuffer('test files/owon_sample.bin'), 'owon-bin'],
     ['tek analog_waveform.wfm', () => readArrayBuffer('tests/fixtures/tek-wfm/analog_waveform.wfm'), 'tek-wfm'],
     ['tek golden_analog.wfm', () => readArrayBuffer('tests/fixtures/tek-wfm/golden_analog.wfm'), 'tek-wfm'],

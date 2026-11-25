@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { classifyReadBinary } from '../../src/domain/open-file-read';
 import { parseNpyBin, probeNpyBinPoints } from '../../src/domain/parsers/npy-bin';
 import { resetParserFileCounter } from '../../src/domain/parsers/rs-dat';
 
@@ -488,5 +489,46 @@ describe('NumPy .npy binary parser (npy-bin)', () => {
     const truncated = buildNpyBuffer({ descr: '<f8', shapeText: '(10,)', payloadBytes: 40 });
     expect(parseNpyBin(truncated, 'trunc.npy').ok).toBe(false);
     expect(probeNpyBinPoints(truncated).ok).toBe(false);
+  });
+});
+
+describe('.npy files that hold a single value', () => {
+  const messageOf = (buffer: ArrayBuffer): string => {
+    const result = parseNpyBin(buffer, 'one.npy');
+    if (result.ok) throw new Error('expected a failure');
+    return result.error;
+  };
+
+  it('explains that one float64 (a SPICE operating-point file, shape (1,)) is a value, not a trace', () => {
+    const buffer = buildNpyBuffer({ descr: '<f8', shapeText: '(1,)', payloadBytes: 8 });
+    const message = messageOf(buffer);
+    expect(message).toContain('single value');
+    expect(message).toContain('at least 2 samples');
+    const probe = probeNpyBinPoints(buffer);
+    expect(probe.ok).toBe(false);
+    if (!probe.ok) expect(probe.error).toBe(message);
+  });
+
+  it('gives a bare 0D scalar the same explanation', () => {
+    expect(messageOf(buildNpyBuffer({ descr: '<f4', shapeText: '()', payloadBytes: 4 }))).toContain('single value');
+  });
+
+  it('says an empty array is empty, and a one-sample 2D array has one sample per channel', () => {
+    // A (0,) array whose file has bytes after the header; with none at all the existing "no sample data" check answers first.
+    expect(messageOf(buildNpyBuffer({ descr: '<f4', shapeText: '(0,)', payloadBytes: 8 }))).toContain('empty');
+    expect(messageOf(buildNpyBuffer({ descr: '<f4', shapeText: '(1, 2)', payloadBytes: 8 }))).toContain('single sample per channel');
+  });
+
+  it('still sends such a file to the binary wizard with that message', () => {
+    const buffer = buildNpyBuffer({ descr: '<f8', shapeText: '(1,)', payloadBytes: 8 });
+    const read = classifyReadBinary('p0v0.npy', buffer, 'import-1');
+    expect(read.kind).toBe('data');
+    if (read.kind !== 'data') return;
+    expect(read.input.parsed?.format).toBe('needs-binary-wizard');
+    expect(read.input.binaryWarning).toContain('single value');
+  });
+
+  it('still opens a two-sample array', () => {
+    expect(parseNpyBin(buildNpyBuffer({ descr: '<f8', shapeText: '(2,)', payloadBytes: 16 }), 'two.npy').ok).toBe(true);
   });
 });
