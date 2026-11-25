@@ -7,7 +7,7 @@
 
 import type { ConfidenceLevel } from "./tabular-detect.ts";
 
-export type BinaryFormat = "wavebin" | "lecroy-trc" | "tek-isf" | "tek-wfm" | "owon-bin" | "wav" | "npy";
+export type BinaryFormat = "wavebin" | "lecroy-trc" | "tek-isf" | "tek-wfm" | "siglent-bin" | "owon-bin" | "wav" | "npy";
 
 /** Minimum header prefix bytes needed to sniff any supported binary signature. */
 export const BINARY_SNIFF_BYTES = 64;
@@ -27,6 +27,7 @@ export function scopeFormatLabel(format: BinaryFormat | null): string {
     case "lecroy-trc": return "LeCroy (.trc)";
     case "tek-isf": return "Tektronix (.isf)";
     case "tek-wfm": return "Tektronix (.wfm)";
+    case "siglent-bin": return "Siglent SDS (.bin)";
     case "owon-bin": return "OWON (.bin)";
     case "wav": return "RIFF / WAV (.wav)";
     case "npy": return "NumPy (.npy)";
@@ -210,6 +211,32 @@ function looksLikeTekWfm(bytes: Uint8Array): boolean {
   return matchesAscii(bytes, 2, ":WFM#");
 }
 
+/**
+ * Siglent SDS "Binary Format V4.0" .bin: no magic string, so the check is purely structural and
+ * strict, using only the first 64 bytes (ends exactly after the CH1 V/div record). Requires
+ * version == 4 (u32 LE), data offset >= 0x1000, CH1..CH4 enable flags that are each 0 or 1, and a
+ * CH1 volts/div "Data With Unit" record: finite f64 value, magnitude index <= 16, basic unit
+ * word <= 12 and the six unit-power words <= 64. Headerless float/int dumps essentially never
+ * satisfy all of these at once. The file extension is never consulted.
+ */
+function looksLikeSiglentBin(bytes: Uint8Array): boolean {
+  if (bytes.byteLength < 0x18 + 40) return false;
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  if (view.getUint32(0x00, true) !== 4) return false;
+  if (view.getUint32(0x04, true) < 0x1000) return false;
+  for (let i = 0; i < 4; i++) {
+    const flag = view.getInt32(0x08 + 4 * i, true);
+    if (flag !== 0 && flag !== 1) return false;
+  }
+  if (!Number.isFinite(view.getFloat64(0x18, true))) return false;
+  if (view.getUint32(0x20, true) > 16) return false;
+  if (view.getUint32(0x24, true) > 12) return false;
+  for (let i = 1; i < 7; i++) {
+    if (view.getUint32(0x24 + 4 * i, true) > 64) return false;
+  }
+  return true;
+}
+
 /** OWON XDS/SDS .bin: starts with 6-byte magic "SPBXDS" followed by uint32 JSON length. */
 function looksLikeOwonBin(bytes: Uint8Array): boolean {
   return bytes.byteLength >= 12 && matchesAscii(bytes, 0, "SPBXDS");
@@ -235,5 +262,7 @@ export function detectBinarySignature(bytes: Uint8Array): BinaryFormat | null {
   if (looksLikeOwonBin(bytes)) return "owon-bin";
   if (looksLikeWav(bytes)) return "wav";
   if (looksLikeNpy(bytes)) return "npy";
+  // Last: it has no magic string, so every signature-bearing format gets first refusal.
+  if (looksLikeSiglentBin(bytes)) return "siglent-bin";
   return null;
 }

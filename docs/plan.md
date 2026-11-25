@@ -35,7 +35,7 @@ The empty-pane picker already shows Polar and Spectrogram as greyed tiles ("late
 
 ## File import and export
 
-- [ ] Siglent SDS binary `.bin` (in progress; header versions covered by public SDS814X samples first)
+- [ ] Siglent SDS binary formats other than V4.0 (V0.x–V3 for older models, V5/V6), as samples become available
 - [ ] Native I/Q data type: I and Q as one complex dataset with sample rate and centre frequency. Raw I/Q (cf32, cs16, cs8, cu8) already imports, but as two separate traces, so the IQ views above, including the constellation, need this first
 - [ ] SigMF support (`.sigmf-meta` + `.sigmf-data`; needs two-file import)
 - [ ] R&S RTE/RTO/RTP `.bin` + `.Wfm.bin` (on hold: needs two-file import, and only RTP samples are public; these scopes' CSV export already opens)

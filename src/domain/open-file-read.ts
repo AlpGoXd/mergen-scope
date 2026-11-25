@@ -10,6 +10,7 @@ import { parseWavebin, probeWavebinPoints } from './parsers/wavebin';
 import { parseLeCroyTrc, probeLeCroyTrcPoints } from './parsers/lecroy-trc';
 import { parseTekIsf, probeTekIsfPoints } from './parsers/tek-isf';
 import { parseTekWfm, probeTekWfmPoints } from './parsers/tek-wfm';
+import { parseSiglentBin, probeSiglentBinPoints } from './parsers/siglent-bin';
 import { parseOwonBin, probeOwonBinPoints } from './parsers/owon-bin';
 import { parseWavBin, probeWavBinPoints } from './parsers/wav-bin';
 import { parseNpyBin, probeNpyBinPoints } from './parsers/npy-bin';
@@ -57,6 +58,7 @@ function probeBinaryFormat(format: BinaryFormat, buffer: ArrayBuffer): ScopeProb
     case 'lecroy-trc': return probeLeCroyTrcPoints(buffer);
     case 'tek-isf': return probeTekIsfPoints(buffer);
     case 'tek-wfm': return probeTekWfmPoints(buffer);
+    case 'siglent-bin': return probeSiglentBinPoints(buffer);
     case 'owon-bin': return probeOwonBinPoints(buffer);
     case 'wav': return probeWavBinPoints(buffer);
     case 'npy': return probeNpyBinPoints(buffer);
@@ -69,6 +71,7 @@ function parseBinaryFormat(format: BinaryFormat, buffer: ArrayBuffer, fileName: 
     case 'lecroy-trc': return parseLeCroyTrc(buffer, fileName);
     case 'tek-isf': return parseTekIsf(buffer, fileName);
     case 'tek-wfm': return parseTekWfm(buffer, fileName);
+    case 'siglent-bin': return parseSiglentBin(buffer, fileName);
     case 'owon-bin': return parseOwonBin(buffer, fileName);
     case 'wav': return parseWavBin(buffer, fileName);
     case 'npy': return parseNpyBin(buffer, fileName);
@@ -77,7 +80,7 @@ function parseBinaryFormat(format: BinaryFormat, buffer: ArrayBuffer, fileName: 
 
 /**
  * Parse a binary measurement file:
- * - Recognized oscilloscope formats (Keysight AG / Rigol RG .bin, LeCroy .trc, Tektronix .isf and .wfm, OWON .bin,
+ * - Recognized oscilloscope formats (Keysight AG / Rigol RG .bin, LeCroy .trc, Tektronix .isf and .wfm, Siglent SDS .bin, OWON .bin,
  *   RIFF/WAV, NumPy .npy)
  *   import directly while retaining their raw buffer so users can re-run Import settings… anytime.
  * - Unrecognized or headerless binary/SDR files (.bin, .cfile, .cf32, .sc16, .cu8, .iq, etc.) — or a
