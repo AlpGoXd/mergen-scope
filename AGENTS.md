@@ -29,15 +29,15 @@
 
 ## Tests: scale the run to the change
 
-The full e2e suite is about 280 browser tests and loads the machine heavily. Locally, Vitest and Playwright are capped at half the CPU cores.
+The full e2e suite is about 330 browser tests and loads the machine heavily (roughly 10 minutes on 2 workers). Locally, Vitest and Playwright are capped at half the CPU cores. CI is the full-suite gate.
 
 | When | Run |
 |---|---|
 | While iterating | `npm run typecheck` + `npx vitest related <changed files> --run` + the 1–3 e2e specs that cover your change (`npx playwright test tests/e2e/<spec>.spec.ts`) |
-| Once, at the end of the task | `npm run typecheck` + `npm run test:unit` + `npm run test:e2e`. Add `npm run build && npm run test:static` for build or asset changes |
+| Once, at the end of the task | `npm run typecheck` + `npm run test:unit` + every e2e spec your change touched or that covers its area. Add `npm run build && npm run test:static` for build or asset changes. Run `npm run test:e2e:fast` (skips `@slow` tests) once only for shared code: `ChartPane`, stores, layout, global CSS |
 | Proving a flaky test is fixed | `--repeat-each=N` on that spec only |
 
-Don't run the full suites repeatedly "to be sure"; CI runs everything on pushes to `main` and `dev`. Report real numbers (passed, failed, skipped) and the exact output of any failure. Don't just say "tests pass".
+Don't run the full e2e suite locally unless the user asks; don't run any full suite repeatedly "to be sure"; CI runs everything on pushes to `main` and `dev`. Report real numbers (passed, failed, skipped) and the exact output of any failure. Don't just say "tests pass".
 
 ## Code rules (short version; details in CLAUDE.md)
 

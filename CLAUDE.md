@@ -30,6 +30,7 @@ Browser RF/signal analysis app (R&S `.dat`, CSV/TSV, Touchstone `.sNp`). React 1
 | Unit tests (Vitest, `tests/unit/`, node by default) | `npm run test:unit` |
 | Only the unit tests related to changed files | `npx vitest related <file> [<file>…] --run` |
 | Browser tests (Playwright, `tests/e2e/`, starts dev server) | `npm run test:e2e` |
+| Browser tests without the `@slow` ones (the 3M-sample import flow, about 90 s alone) | `npm run test:e2e:fast` |
 | A few e2e specs | `npx playwright test tests/e2e/<a>.spec.ts tests/e2e/<b>.spec.ts` |
 | Build (`tsc` + Vite → `dist/`) | `npm run build` |
 | Built-bundle smoke (`tests/static/`, port 4173) | `npm run build && npm run test:static` |
@@ -38,13 +39,14 @@ There is no linter; `typecheck` is the static gate. Unit tests run in node; a te
 
 ### When to run what
 
-Run tests to catch a break right after the change that caused it, but scale the run to the change. The full e2e suite is about 280 browser tests; don't run it after every edit.
+Run tests to catch a break right after the change that caused it, but scale the run to the change. The full e2e suite is about 330 browser tests and takes roughly 4 minutes on 10 workers and about 10 minutes on 2 (2026-11-25 measurement); **CI is the full-suite gate, not the local machine.** Don't run it after every edit, and don't run it before every merge.
 
 | When | Run |
 |---|---|
 | While iterating | `typecheck` + the related unit tests (`vitest related`) + the 1–3 e2e specs that cover what you touched |
-| Before merging a branch into `dev`, or calling work done | `typecheck` + full `test:unit` + full `test:e2e`, **once**. Add `build` + `test:static` for build or asset changes |
-| After merging into `dev` | `typecheck` + `test:unit` + the specs the branch touched. The full e2e suite only if the merge had conflicts or touched shared code beyond what the branch was verified with |
+| Before merging a branch into `dev`, or calling work done | `typecheck` + full `test:unit` (about 30 s) + every e2e spec the branch touched or that covers the area it touched. Add `build` + `test:static` for build or asset changes. Run `test:e2e:fast` once only if the branch changed shared code: `ChartPane`, stores, layout, global CSS or tokens |
+| After merging into `dev` | `typecheck` + `test:unit` + the specs the branch touched. Nothing more unless the merge had conflicts |
+| Full `test:e2e` (including `@slow`) | CI on every push to `dev` and `main`. Locally only when the user asks, or to reproduce a CI failure (then run just the failing spec) |
 | Proving a flaky test is fixed | `--repeat-each=N` on that spec only, not repeated full runs |
 
 Don't run full suites in a loop or several times "to be sure": that is what CI is for. CI (`.github/workflows/ci.yml`) runs typecheck, unit, e2e, build and static on every push and pull request to `main` and `dev`, with 2 e2e retries.
@@ -80,7 +82,7 @@ npm with a committed `package-lock.json`. Ask before adding a dependency, and ne
 ## Visual design work
 
 - Explore look and feel (palette, toolbar styling, layout mockups) in Claude Design first; once the user picks a direction, port the tokens/styles into `src/index.css` and the components.
-- Use the `frontend-design` plugin for UI changes. Visual changes still need the full `test:e2e` before merging, since styling can break chart interaction.
+- Use the `frontend-design` plugin for UI changes. Visual changes still need the e2e specs for the touched UI plus one `test:e2e:fast` run before merging, since styling can break chart interaction.
 - Codex is not the tool for visual taste; use it for review of interaction/logic changes only.
 
 ## Working with Antigravity (`agy`, since 2026-11-23)
@@ -141,7 +143,7 @@ Don't delegate trivial edits, one-file fixes Claude can verify in a minute, or a
 
 - **One writer per file.** Never let Claude and Codex (or two Codex jobs) edit the same files at the same time. Write-capable Codex runs happen in the main folder on their own branch, and Claude does not edit until the job finishes; then merge the branch into `dev` and delete it. Read-only runs may use the tree at any time.
 - **Claude creates the branch, Codex doesn't.** Before a write job, Claude makes sure the tree is clean and runs `git switch -c codex/<task> dev` itself (in parallel mode, inside `gits/_worktrees/claude-dev`), then writes the writer lock and starts the branch watcher. The prompt says the branch is already checked out, and that Codex must not create worktrees, copies of the repo, or a `node_modules` install. Codex has made worktrees on its own before (following an older AGENTS.md); after each job, check `git worktree list` and clean up anything it made.
-- Give Codex a self-contained prompt: goal, files involved, constraints from this file, and the verification to run, scaled per "When to run what" (targeted while iterating, the full e2e suite once at the end).
+- Give Codex a self-contained prompt: goal, files involved, constraints from this file, and the verification to run, scaled per "When to run what" (targeted specs while iterating and at the end; the full e2e suite is left to CI).
 - Treat Codex output as a proposal. Claude reads the diff, rejects what doesn't fit, merges the rest, then runs the verification commands above itself. Codex reporting "tests pass" is not enough.
 - Tell the user which model did what and what was accepted or rejected. Delete task branches once merged or abandoned.
 

@@ -17,7 +17,7 @@ function makeFloat32SineBuffer(sampleCount = SAMPLE_COUNT): Buffer {
   return buf;
 }
 
-test('binary point-budget notice, envelope gating, and Keep all 3M sample flow', async ({ page }) => {
+test('binary point-budget notice, envelope gating, and Keep all 3M sample flow', { tag: '@slow' }, async ({ page }) => {
   test.setTimeout(180_000);
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/app.html');
