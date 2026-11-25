@@ -65,7 +65,7 @@ function legacyTabularDisplays(prior: RawFileRecord | undefined, columns: readon
   });
 }
 
-const BINARY_FORMATS = new Set(['wavebin', 'lecroy-trc', 'tek-isf', 'tek-wfm', 'owon-bin', 'wav', 'npy', 'raw-binary']);
+const BINARY_FORMATS = new Set(['wavebin', 'lecroy-trc', 'tek-isf', 'tek-wfm', 'siglent-bin', 'owon-bin', 'wav', 'npy', 'raw-binary']);
 const INDEXED_CHANNEL_FORMATS = new Set(['tabular', ...BINARY_FORMATS]);
 
 /** Resolve the same structural key used by replacement candidates; null means identity is unavailable. */

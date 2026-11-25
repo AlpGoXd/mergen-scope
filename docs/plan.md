@@ -35,8 +35,10 @@ The empty-pane picker already shows Polar and Spectrogram as greyed tiles ("late
 
 ## File import and export
 
-- [ ] Siglent SDS binary `.bin` (in progress; header versions covered by public SDS814X samples first)
+- [ ] Siglent SDS binary formats other than V4.0 (V0.x–V3 for older models, V5/V6), as samples become available
 - [ ] Native I/Q data type: I and Q as one complex dataset with sample rate and centre frequency. Raw I/Q (cf32, cs16, cs8, cu8) already imports, but as two separate traces, so the IQ views above, including the constellation, need this first
+- [ ] Import several files as one, with a metadata file that names them. First real case: a SPICE export (ngspice, for example a Sky130 design) saved as `__meta__.npy` plus one `p<analysis>v<signal>.npy` per signal. The meta file (a JSON text stored as an array) lists the analyses and signal names; each analysis becomes one file with named traces, `p1v0` / `p2v0` supply the frequency / time axis, AC signals arrive complex (magnitude and phase), and the operating-point values (one number per file) go into a table of scalars. Today each `.npy` opens alone: no names, no shared axis, and one-value files are refused. The same grouping step is what SigMF and the R&S RTx files need. Goal: paste a whole SPICE result folder and analyse it
+- [ ] Table view for scalar values (SPICE operating point, other one-number results): a name / value table in the file's info or a table pane, not a chart
 - [ ] SigMF support (`.sigmf-meta` + `.sigmf-data`; needs two-file import)
 - [ ] R&S RTE/RTO/RTP `.bin` + `.Wfm.bin` (on hold: needs two-file import, and only RTP samples are public; these scopes' CSV export already opens)
 - [ ] R&S I/Q files (`.iq.tar`, `.iqw`), after the native I/Q data type
