@@ -28,4 +28,3 @@
 .help-sheet .help-close:hover, .about-panel .help-close:hover { background: var(--panel); border-color: var(--border); color: var(--text); }
 .about-panel__body { display: grid; gap: var(--space-2); padding: var(--space-3); }
 .about-panel__body p { margin: 0; }
-.about-panel__links { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-2); }
