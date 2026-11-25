@@ -1,4 +1,5 @@
 import { nearestIndexByFreq } from '../markers';
+import { countInXRange } from '../trace-math';
 import { pixelToAxisValue } from './plot-coords';
 import type { ZoomWindow } from '../../types/marker';
 import type { DataPoint } from '../../types/trace';
@@ -108,7 +109,7 @@ export function computeNearestPixelDist(
   if (!nearest || domainRight <= domainLeft || plotWidth <= 0) return Infinity;
 
   const pxPerUnit = plotWidth / (toAxisSpace(domainRight, scale) - toAxisSpace(domainLeft, scale));
-  const pointsInView = data.filter(point => point.freq >= domainLeft && point.freq <= domainRight).length;
+  const pointsInView = countInXRange(data, domainLeft, domainRight);
   // At less than 20px average spacing, a 10px snap threshold would hide interpolation.
   const avgSpacingPx = pointsInView > 1 ? plotWidth / (pointsInView - 1) : Infinity;
   if (avgSpacingPx < 20) return Infinity;

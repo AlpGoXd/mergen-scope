@@ -92,6 +92,11 @@ export function Sidebar({ width = 280, hidden = false, onOpenFiles, onDropFiles,
       siblingsById: new Map([...childrenByParent.values()].flatMap(siblings => siblings.map(id => [id, siblings] as const))),
     };
   }, [allTraces, listOrder]);
+  // A crossing scans the whole trace: recompute when the lines, traces or panes change, not on every render.
+  const lineCrossings = useMemo(
+    () => new Map(refLines.map(line => [line.id, computeLineIntersections(line, refLines, allTraces, tracePaneMap, vis)] as const)),
+    [refLines, allTraces, tracePaneMap, vis],
+  );
   const changeTraceOrder = (source: number, index: number, siblings: readonly string[]) => {
     const next = [...siblings];
     const [moved] = next.splice(source, 1);
@@ -874,7 +879,7 @@ export function Sidebar({ width = 280, hidden = false, onOpenFiles, onDropFiles,
               {(() => {
                 return refLines
                   .map((refLine) => {
-                    const intersections = computeLineIntersections(refLine, refLines, allTraces, tracePaneMap, vis);
+                    const intersections = lineCrossings.get(refLine.id) ?? [];
                     return (
                       <LiveLineRow
                         key={refLine.id}

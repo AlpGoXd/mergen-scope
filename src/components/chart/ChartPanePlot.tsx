@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import type { ComponentRef, ReactElement, RefObject } from 'react';
 import {
   CartesianGrid, Customized, Line, LineChart, ReferenceArea, ReferenceDot, ReferenceLine,
@@ -100,6 +101,13 @@ export function ChartPanePlot({
   const isExport = exportView !== undefined;
   const appearance = exportView?.appearance;
   const logX = axisSettings.x === 'log', logY = axisSettings.y === 'log';
+  // Each crossing scans the whole trace. A hover redraws this chart on every mouse move, so only recompute when the lines or traces change.
+  const crossingPoints = useMemo(() => !settings.showReferenceLines ? [] : paneRefLines.flatMap((line) => {
+    const intersections = line.type === 'v'
+      ? computeVerticalIntersections(line.value, paneTraces, paneId)
+      : computeHorizontalIntersections(line.value, paneTraces, paneId);
+    return intersections.map((ix, i) => ({ key: `rl-${line.id}-ix-${i}`, x: ix.freq, y: ix.amp, color: resolveTraceColor(ix.traceName) }));
+  }), [settings.showReferenceLines, paneRefLines, paneTraces, paneId, resolveTraceColor]);
   const lineChart = (
     <LineChart
       ref={lineChartRef}
@@ -297,12 +305,7 @@ export function ChartPanePlot({
         );
       })}
       {settings.showReferenceLines && (
-        <Customized component={<CrossingsLayer points={paneRefLines.flatMap((line) => {
-          const intersections = line.type === 'v'
-            ? computeVerticalIntersections(line.value, paneTraces, paneId)
-            : computeHorizontalIntersections(line.value, paneTraces, paneId);
-          return intersections.map((ix, i) => ({ key: `rl-${line.id}-ix-${i}`, x: ix.freq, y: ix.amp, color: resolveTraceColor(ix.traceName) }));
-        })} />} />
+        <Customized component={<CrossingsLayer points={crossingPoints} />} />
       )}
       {/* Zoom indicators ignore the pointer: on Linux and macOS contextmenu fires while the right button is down, and it must reach the line label underneath. */}
       {dragStart !== null && dragCurrent !== null && dragBoxY !== null && dragStart !== dragCurrent && (

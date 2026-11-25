@@ -9,7 +9,7 @@ import { useMarkerState } from '../../../stores/marker-store';
 import { useRefLineState } from '../../../stores/ref-line-store';
 import { useOptionalToast } from '../../../stores/toast-store';
 import { useShortcut } from '../../../stores/shortcut-store';
-import { usePaneData } from '../../../hooks/use-pane-data';
+import { usePaneTraces } from '../../../hooks/use-pane-data';
 import { useTraceColors } from '../../../hooks/use-trace-colors';
 import { useTraceSymbols } from '../../../hooks/use-trace-symbols';
 import { forcesHollowTraceSymbol } from '../../../domain/trace-colors';
@@ -263,7 +263,7 @@ function ExportStage({ job, onDone }: { job: Job; onDone: (id: number) => void }
   const paperAppearance = job.pdf ? { ...job.document, paperFont: 'serif' as const, paperText: job.document?.paperText ?? 8 } : job.document;
   const colorTheme = colorThemeOf(theme);
   const names = useMemo(() => Object.entries(tracePaneMap).filter(([, ids]) => ids.includes(job.paneId)).map(([name]) => name), [tracePaneMap, job.paneId]);
-  const { paneTraces } = usePaneData(names, null);
+  const paneTraces = usePaneTraces(names);
   const paneMembers = useMemo(() => allTraces.filter(trace => names.includes(trace.name)), [allTraces, names]);
   const paperTone = !!job.document && geometry.paper;
   const color = useTraceColors(colorTheme, paperTone);
@@ -380,8 +380,8 @@ function ExportStage({ job, onDone }: { job: Job; onDone: (id: number) => void }
 }
 
 interface StageSnapshot {
-  readonly paneTraces: ReturnType<typeof usePaneData>['paneTraces'];
-  readonly paneMembers: ReturnType<typeof usePaneData>['paneTraces'];
+  readonly paneTraces: ReturnType<typeof usePaneTraces>;
+  readonly paneMembers: ReturnType<typeof usePaneTraces>;
   readonly color: ReturnType<typeof useTraceColors>;
   readonly symbol: ReturnType<typeof useTraceSymbols>;
   readonly markers: ReturnType<typeof useMarkerState>['markers'];

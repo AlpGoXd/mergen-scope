@@ -64,9 +64,43 @@ export function traceBound(data: readonly DataPoint[], x: number, upper = false)
   return lo;
 }
 
-/** Preserve extrema in equal-width frequency buckets, including neighboring points. */
+const ascendingCache = new WeakMap<readonly DataPoint[], boolean>();
+
+/**
+ * True when every x is finite and no x is smaller than the one before it, so binary search on x is exact.
+ * The answer is cached per array; trace data is never edited in place.
+ */
+export function isAscendingX(data: readonly DataPoint[]): boolean {
+  const cached = ascendingCache.get(data);
+  if (cached !== undefined) return cached;
+  let ascending = true;
+  let previous = -Infinity;
+  for (let i = 0; i < data.length; i += 1) {
+    const point = data[i];
+    if (!point || !Number.isFinite(point.freq) || point.freq < previous) { ascending = false; break; }
+    previous = point.freq;
+  }
+  ascendingCache.set(data, ascending);
+  return ascending;
+}
+
+/** How many points have x in [left, right]. Binary search on ascending data, a plain scan otherwise. */
+export function countInXRange(data: readonly DataPoint[], left: number, right: number): number {
+  if (!(left <= right)) return 0;
+  if (isAscendingX(data)) return traceBound(data, right, true) - traceBound(data, left);
+  let count = 0;
+  for (const point of data) if (point.freq >= left && point.freq <= right) count += 1;
+  return count;
+}
+
+/**
+ * Preserve extrema in equal-width frequency buckets, including neighboring points.
+ * A NaN amp, or a point `plottable` rejects (such as a value that a log axis cannot show), is a gap: it never wins a bucket's
+ * min or max, and the first point of each such run is kept so the line still breaks there.
+ */
 export function decimateMinMax(
   data: readonly DataPoint[], left: number, right: number, buckets: number,
+  plottable?: (point: DataPoint) => boolean,
 ): DataPoint[] {
   if (!data.length || !Number.isFinite(left) || !Number.isFinite(right) || right < left) return [];
   const count = Number.isFinite(buckets) ? Math.max(1, Math.floor(buckets)) : 1;
@@ -82,29 +116,34 @@ export function decimateMinMax(
   indices.add(start);
   indices.add(end - 1);
   let bucket = -1;
-  let minIndex = start;
-  let maxIndex = start;
+  let minIndex = -1;
+  let maxIndex = -1;
+  let inGap = false;
   const flush = () => {
-    if (bucket >= 0) {
-      indices.add(minIndex);
-      indices.add(maxIndex);
-    }
+    if (minIndex >= 0) indices.add(minIndex);
+    if (maxIndex >= 0) indices.add(maxIndex);
   };
+  const span = right - left;
   for (let i = start; i < end; i += 1) {
     const point = data[i];
     if (!point) continue;
-    const nextBucket = right === left ? 0 : Math.min(count - 1, Math.floor(((point.freq - left) / (right - left)) * count));
+    const nextBucket = right === left ? 0 : Math.min(count - 1, Math.floor(((point.freq - left) / span) * count));
     if (nextBucket !== bucket) {
       flush();
       bucket = nextBucket;
-      minIndex = i;
-      maxIndex = i;
-    } else {
-      const min = data[minIndex];
-      const max = data[maxIndex];
-      if (min && point.amp < min.amp) minIndex = i;
-      if (max && point.amp > max.amp) maxIndex = i;
+      minIndex = -1;
+      maxIndex = -1;
     }
+    if (Number.isNaN(point.amp) || (plottable !== undefined && !plottable(point))) {
+      if (!inGap) indices.add(i);
+      inGap = true;
+      continue;
+    }
+    inGap = false;
+    const min = minIndex >= 0 ? data[minIndex] : undefined;
+    const max = maxIndex >= 0 ? data[maxIndex] : undefined;
+    if (!min || point.amp < min.amp) minIndex = i;
+    if (!max || point.amp > max.amp) maxIndex = i;
   }
   flush();
   return Array.from(indices).sort((a, b) => a - b).flatMap(i => {

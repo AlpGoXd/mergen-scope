@@ -20,9 +20,9 @@ import {
 import { centerXDomain, centerYDomain, dragZoomBox, zoomXByFactor, isBoxZoomGesture, paddedYDomain, panXDomain, pixelToAxisValue, refLineYTolerance, wheelAxisDomain } from '../../domain/chart/plot-coords';
 import { chartAxisData, isPhase, logXReason, logYReason, positiveDomain, suggestLog } from '../../domain/chart/axis-scale';
 import { chartGainView } from '../../domain/chart/gain-view';
-import { mergePaneData } from '../../domain/pane-data';
+import { ampRangeInX, mergePaneData, paneExtent, plotBuckets } from '../../domain/pane-data';
 import { useTheme } from '../../hooks/use-theme';
-import { usePaneData } from '../../hooks/use-pane-data';
+import { usePaneTraces } from '../../hooks/use-pane-data';
 import { useTableView } from '../../hooks/use-table-view';
 import { useAnalysisOverlays } from '../../hooks/use-analysis-overlays';
 import { useTraceColors } from '../../hooks/use-trace-colors';
@@ -139,6 +139,8 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
     ...(appearance ? { gridMajor: appearance.grid, showMarkerLabels: appearance.include.markerTags, showReferenceLines: appearance.include.refLines } : {}),
   };
 
+  // The line layer reports the plot rectangle and the real scale domains: they feed the edge tags here and the rows' "off view" text.
+  const [plotView, setPlotView] = useState<PlotView | null>(null);
   const [radialFitRequest, setRadialFitRequest] = useState(0);
   // Radial panes keep their own viewport.
   useEffect(() => {
@@ -226,8 +228,7 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
 
   // Panes in one X link group hold the same zoom; the store applies a zoom to the whole group.
   const currentXZoom = paneXZooms[paneId] || null;
-  const xRange = currentXZoom ? { left: currentXZoom.left, right: currentXZoom.right } : null;
-  const { paneTraces: sourceTraces, mergedData: sourceRows, plotData: sourcePlotRows } = usePaneData(traceNamesInPane, xRange);
+  const sourceTraces = usePaneTraces(traceNamesInPane);
   const configuredAxes = settings.axes ?? DEFAULT_CHART_AXES;
   const paneMembers = useMemo(() => allTraces.filter(trace => traceNamesInPane.includes(trace.name)), [allTraces, traceNamesInPane]);
   const gain = useMemo(() => chartGainView(paneMembers, !isRadial && !TableRenderer ? configuredAxes.gain : undefined),
@@ -236,19 +237,25 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
   const paneTraces = useMemo(() => gainConverted ? gain.traces.filter(trace => vis[trace.name]) : sourceTraces,
     [gainConverted, gain.traces, vis, sourceTraces]);
   const allEnvelopes = paneTraces.length > 0 && paneTraces.every(isEnvelopeTrace);
-  const mergedData = useMemo(() => gainConverted
-    ? mergePaneData(paneTraces, currentXZoom, false) : sourceRows, [gainConverted, paneTraces, currentXZoom, sourceRows]);
+  // What the traces span in the visible range, without building a row per sample.
+  const zoomLeft = currentXZoom?.left, zoomRight = currentXZoom?.right;
+  const extent = useMemo(() => paneExtent(paneTraces, zoomLeft === undefined || zoomRight === undefined ? null : { left: zoomLeft, right: zoomRight }),
+    [paneTraces, zoomLeft, zoomRight]);
   const xReason = useMemo(() => logXReason(paneTraces), [paneTraces]);
   const yReason = useMemo(() => logYReason(gain.traces), [gain.traces]);
   const xScale = xReason ? 'linear' : configuredAxes.x;
   const yScale = yReason ? 'linear' : configuredAxes.y;
+  // Drawing only: the plot gets about one pair of points (min and max) per pixel column. Everything that measures reads the full traces.
+  const buckets = plotBuckets(plotView?.plot.width);
   const { displayTraces, byTrace, omitted, logYFit } = useMemo(
     () => chartAxisData(paneTraces, { x: xScale, y: yScale, phase: configuredAxes.phase },
-      currentXZoom ? { left: currentXZoom.left, right: currentXZoom.right } : null),
-    [paneTraces, xScale, yScale, configuredAxes.phase, currentXZoom],
+      zoomLeft === undefined || zoomRight === undefined ? null : { left: zoomLeft, right: zoomRight }, buckets),
+    [paneTraces, xScale, yScale, configuredAxes.phase, zoomLeft, zoomRight, buckets],
   );
-  const displayPlotData = useMemo(() => displayTraces === sourceTraces ? sourcePlotRows : mergePaneData(displayTraces, currentXZoom, true),
-    [displayTraces, sourceTraces, sourcePlotRows, currentXZoom]);
+  const displayPlotData = useMemo(
+    () => mergePaneData(displayTraces, zoomLeft === undefined || zoomRight === undefined ? null : { left: zoomLeft, right: zoomRight }, true, { buckets }),
+    [displayTraces, zoomLeft, zoomRight, buckets],
+  );
   const shownCount = TableRenderer ? tableView.traces.length : paneTraces.length;
   const currentYZoom = paneYZooms[paneId] ?? null;
   // A fitted linked pane shows the data range of its whole group, so every pane of the group shows the same X range.
@@ -274,12 +281,8 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
   }, [paneTraces, currentXZoom, linkedFit]);
 
   const yDiv = useMemo(() => {
-    let lo = Infinity, hi = -Infinity;
-    for (const t of paneTraces) {
-      for (const p of t.data) {
-        if (Number.isFinite(p.amp)) { lo = Math.min(lo, p.amp); hi = Math.max(hi, p.amp); }
-      }
-    }
+    const fullY = paneExtent(paneTraces, null)?.y;
+    const lo = fullY?.min ?? Infinity, hi = fullY?.max ?? -Infinity;
     const defaultYDomain = Number.isFinite(lo) && Number.isFinite(hi) && hi > lo
       ? { min: lo - (hi - lo) * 0.05, max: hi + (hi - lo) * 0.05 }
       : null;
@@ -291,8 +294,9 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
     return formatPerDivision(second - first, paneTraces[0]?.units.y);
   }, [paneTraces, currentYZoom]);
 
-  const axisInfo = useMemo(() => deriveAxisInfo(gain.traces, vis, selectedTraceName, null, mergedData.length > 0),
-    [gain.traces, vis, selectedTraceName, mergedData.length]);
+  const hasRows = extent !== null;
+  const axisInfo = useMemo(() => deriveAxisInfo(gain.traces, vis, selectedTraceName, null, hasRows),
+    [gain.traces, vis, selectedTraceName, hasRows]);
 
   const paneMarkers = useMemo(() => {
     return markers.flatMap((marker, index) => {
@@ -303,12 +307,13 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
   }, [markers, traceNamesInPane, gainConverted, gain.traces]);
 
   const yZoom = paneYZooms[paneId];
-  const yDomain: [number, number] | ['auto', 'auto'] = yScale === 'log'
+  // Stable between renders: a hover re-renders this pane on every mouse move, and everything that depends on the Y domain would rerun.
+  const yDomain = useMemo((): [number, number] | ['auto', 'auto'] => yScale === 'log'
     ? [yZoom && yZoom.min > 0 ? yZoom.min : logYFit.min, yZoom && yZoom.min > 0 ? yZoom.max : logYFit.max]
-    : yZoom ? [yZoom.min, yZoom.max] : ['auto', 'auto'];
+    : yZoom ? [yZoom.min, yZoom.max] : ['auto', 'auto'], [yScale, yZoom, logYFit]);
   const visibleXSpan = currentXZoom
     ? Math.max(currentXZoom.right - currentXZoom.left, 1e-12)
-    : Math.max((mergedData[mergedData.length - 1]?.fs ?? 0) - (mergedData[0]?.fs ?? 0), 1e-12);
+    : Math.max((extent?.xMax ?? 0) - (extent?.xMin ?? 0), 1e-12);
 
   const paneRefLines = useMemo(() => {
     return refLines.filter(l => l.paneIds.includes(paneId))
@@ -346,8 +351,8 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
   }, [paneHLines]);
 
   const xDomain = useMemo(() => {
-    const min = currentXZoom?.left ?? linkedFit?.min ?? mergedData[0]?.fs ?? null;
-    const max = currentXZoom?.right ?? linkedFit?.max ?? mergedData[mergedData.length - 1]?.fs ?? null;
+    const min = currentXZoom?.left ?? linkedFit?.min ?? extent?.xMin ?? null;
+    const max = currentXZoom?.right ?? linkedFit?.max ?? extent?.xMax ?? null;
     if (xScale === 'log') {
       const first = Math.min(...paneTraces.map(trace => trace.data[0]?.freq ?? Infinity));
       return positiveDomain(min && min > 0 ? min : first, max ?? first) ?? { min: 1, max: 10 };
@@ -356,7 +361,7 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
       return null;
     }
     return { min, max };
-  }, [currentXZoom, linkedFit, mergedData, paneTraces, xScale]);
+  }, [currentXZoom, linkedFit, extent, paneTraces, xScale]);
   const [axisMenu, setAxisMenu] = useState<{ axis: 'x' | 'y'; at: { x: number; y: number } } | null>(null);
   const [scaleAnchor, setScaleAnchor] = useState<HTMLElement | null>(null);
 
@@ -389,7 +394,7 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
   const chartAreaRef = React.useRef<HTMLDivElement | null>(null);
   const [plotHeight, setPlotHeight] = useState(0);
   const [paneDragOver, setPaneDragOver] = useState(false);
-  const hasChart = !isRadial && traceNamesInPane.length > 0 && mergedData.length > 0;
+  const hasChart = !isRadial && traceNamesInPane.length > 0 && extent !== null;
   useEffect(() => {
     const el = chartAreaRef.current;
     if (!el) return;
@@ -418,8 +423,6 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
   const lastCtrlPanRef = React.useRef(false);
   const yAxisMapRef = React.useRef<Record<string, unknown> | null>(null);
   const lineChartRef = React.useRef<React.ComponentRef<typeof LineChart>>(null);
-  const latestMergedDataRef = React.useRef(mergedData);
-  latestMergedDataRef.current = mergedData;
   const latestPaneTracesRef = React.useRef(paneTraces);
   latestPaneTracesRef.current = paneTraces;
 
@@ -459,15 +462,8 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
     if (Array.isArray(yDomain) && yDomain[0] !== 'auto') {
       return { min: yDomain[0], max: yDomain[1] };
     }
-    let lo = Infinity, hi = -Infinity;
-    for (const row of mergedData) {
-      for (const tr of paneTraces) {
-        const v = row[tr.name] as number | undefined;
-        if (v != null && Number.isFinite(v)) { if (v < lo) lo = v; if (v > hi) hi = v; }
-      }
-    }
-    return Number.isFinite(lo) && Number.isFinite(hi) ? { min: lo, max: hi } : null;
-  }, [mergedData, paneTraces, yDomain]);
+    return extent?.y ?? null;
+  }, [extent, yDomain]);
 
   const formatYTick = useMemo(
     () => makeYAxisTickFormatter(yValueRange, activePaneTrace?.units.y),
@@ -516,8 +512,8 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
   ): number | null => {
     const chartEl = chartAreaRef.current;
     const geometry = plotGeometry();
-    const domainLeft = domainOverride?.left ?? (geometry ? plotView?.x?.[0] : undefined) ?? currentXZoom?.left ?? mergedData[0]?.fs ?? null;
-    const domainRight = domainOverride?.right ?? (geometry ? plotView?.x?.[1] : undefined) ?? currentXZoom?.right ?? mergedData[mergedData.length - 1]?.fs ?? null;
+    const domainLeft = domainOverride?.left ?? (geometry ? plotView?.x?.[0] : undefined) ?? currentXZoom?.left ?? extent?.xMin ?? null;
+    const domainRight = domainOverride?.right ?? (geometry ? plotView?.x?.[1] : undefined) ?? currentXZoom?.right ?? extent?.xMax ?? null;
     if (!chartEl || domainLeft == null || domainRight == null || domainRight <= domainLeft) return null;
     if (geometry) {
       const { left, width } = geometry.plot;
@@ -532,23 +528,9 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
     if (Array.isArray(yDomain) && yDomain[0] !== 'auto') {
       return { min: yDomain[0], max: yDomain[1] };
     }
-    let min = Infinity;
-    let max = -Infinity;
-    for (const row of mergedData) {
-      for (const tr of paneTraces) {
-        const v = row[tr.name];
-        if (v != null && Number.isFinite(v)) {
-          if (v < min) min = v;
-          if (v > max) max = v;
-        }
-      }
-    }
-    if (!Number.isFinite(min) || !Number.isFinite(max)) return null;
-    return paddedYDomain(min, max, 0.05);
-  }, [mergedData, paneTraces, yDomain]);
+    return extent?.y ? paddedYDomain(extent.y.min, extent.y.max, 0.05) : null;
+  }, [extent, yDomain]);
 
-  // The line layer reports the plot rectangle and the real scale domains: they feed the edge tags here and the rows' "off view" text.
-  const [plotView, setPlotView] = useState<PlotView | null>(null);
   const drawnYDomain = plotView?.y ? { min: plotView.y[0], max: plotView.y[1] } : null;
   const handlePlotView = React.useCallback((view: PlotView) => {
     setPlotView(prev => prev && prev.x?.[0] === view.x?.[0] && prev.x?.[1] === view.x?.[1] && prev.y?.[0] === view.y?.[0] && prev.y?.[1] === view.y?.[1]
@@ -646,8 +628,8 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
       && typeof e.offset?.left === 'number' && Number.isFinite(e.offset.left)
       && typeof e.offset?.width === 'number' && Number.isFinite(e.offset.width)
     ) {
-      const domainLeft = currentXZoom?.left ?? mergedData[0]?.fs ?? null;
-      const domainRight = currentXZoom?.right ?? mergedData[mergedData.length - 1]?.fs ?? null;
+      const domainLeft = currentXZoom?.left ?? extent?.xMin ?? null;
+      const domainRight = currentXZoom?.right ?? extent?.xMax ?? null;
       if (domainLeft != null && domainRight != null && domainRight > domainLeft && e.offset.width > 0) {
         return pixelToAxisValue(e.chartX, e.offset.left, e.offset.width, domainLeft, domainRight, false, xScale);
       }
@@ -1064,20 +1046,8 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
             paneDispatch({ type: 'SET_PANE_Y_ZOOM', payload: { paneId, zoom: box.y } });
           } else {
             // Flat horizontal right-drag: auto-fit Y to the new X window
-            const md = latestMergedDataRef.current;
-            const pt = latestPaneTracesRef.current;
-            let lo = Infinity, hi = -Infinity;
-            for (const row of md) {
-              if (row.freq < left || row.freq > right) continue;
-              for (const tr of pt) {
-                const v = row[tr.name] as number | undefined;
-                if (v != null && Number.isFinite(v)) {
-                  if (v < lo) lo = v;
-                  if (v > hi) hi = v;
-                }
-              }
-            }
-            const yZoom = yScale === 'linear' && configuredAxes.phase === 'wrapped' ? paddedYDomain(lo, hi, 0.08) : null;
+            const fit = ampRangeInX(latestPaneTracesRef.current, left, right);
+            const yZoom = yScale === 'linear' && configuredAxes.phase === 'wrapped' ? paddedYDomain(fit?.min ?? Infinity, fit?.max ?? -Infinity, 0.08) : null;
             if (yZoom || yScale === 'log' || configuredAxes.phase === 'unwrapped') {
               paneDispatch({ type: 'SET_PANE_Y_ZOOM', payload: { paneId, zoom: yZoom } });
             }
@@ -1330,7 +1300,7 @@ export function ChartPane({ paneId, hideXTicks: hideXTicksProp = false, exportVi
           <RadialRenderer paneId={paneId} fitRequest={radialFitRequest} />
         ) : traceNamesInPane.length === 0 ? (
           <EmptyChartPane mode={allTraces.length > 0 ? 'traces' : 'files'} paneId={paneId} compact={panes.length > 2} types={Object.values(paneTypes)} currentType={currentType} displayState={displayState} onSelectType={selectPaneType} />
-        ) : mergedData.length === 0 ? (
+        ) : extent === null ? (
           <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--dim)', fontSize: 'var(--font-title)' }}>No visible traces in this pane.</div>
         ) : (
           <div data-testid={`chart-plot-${paneId}`} data-line-labels={settings.showLineLabels ? 'on' : 'off'} ref={chartAreaRef} onWheel={handleWheel} onMouseDownCapture={(e) => { lastPointerClientXRef.current = e.clientX; lastPointerClientYRef.current = e.clientY; lastPointerButtonRef.current = e.button; lastCtrlPanRef.current = e.button === 0 && e.ctrlKey; }} onDoubleClick={handleDoubleClick} onMouseMoveCapture={(e) => { lastPointerClientXRef.current = e.clientX; lastPointerClientYRef.current = e.clientY; legendDodge.onPointerMove(e.clientX, e.clientY, hoverRows.map(row => ({ x: row.placement.freq, y: row.placement.amp }))); }} onMouseDown={handleContainerMouseDown} style={{ height: '100%', background: 'var(--plot)', cursor: draggingRefLineId !== null ? 'grabbing' : hoveredRefLineId !== null ? (refLines.find(l => l.id === hoveredRefLineId)?.type === 'h' ? 'ns-resize' : 'ew-resize') : undefined }}>

@@ -6,6 +6,7 @@ import { nearestBand, traceBands } from './sweep-bands';
 // ============================================================================
 
 import { getResolvedInterpolationStrategy, resolveValue } from "./interpolation.ts";
+import { isAscendingX, traceBound } from "./trace-math.ts";
 import type {
   Marker,
   MarkerPlacement,
@@ -32,16 +33,10 @@ export const IP3_ROLE_LABELS: Readonly<Record<string, IP3RoleLabel>> = {
 };
 
 // ---------------------------------------------------------------------------
-// Nearest index (binary-style search)
+// Nearest index (binary search on ascending data, linear scan otherwise)
 // ---------------------------------------------------------------------------
 
-/** Find the index of the data point nearest to the given frequency. */
-export function nearestIndexByFreq(
-  data: readonly DataPoint[],
-  freq: number,
-): number {
-  const first = data[0];
-  if (!first || !Number.isFinite(freq)) return -1;
+function nearestIndexLinear(data: readonly DataPoint[], freq: number, first: DataPoint): number {
   let bestIdx = 0;
   let bestDf = Math.abs(first.freq - freq);
   for (let i = 1; i < data.length; i++) {
@@ -54,6 +49,37 @@ export function nearestIndexByFreq(
     }
   }
   return bestIdx;
+}
+
+/** Same answer as the linear scan: the first index at the smallest distance, so a tie goes to the lower index. */
+function nearestIndexAscending(data: readonly DataPoint[], freq: number): number {
+  const above = traceBound(data, freq);
+  if (above === 0) return 0;
+  const below = data[above - 1];
+  const next = data[above];
+  if (!below) return 0;
+  const belowDistance = Math.abs(below.freq - freq);
+  if (next && Math.abs(next.freq - freq) < belowDistance) return above;
+  // Distances only shrink toward `above`, but rounding can make several samples equally far: take the first of them.
+  let lo = 0;
+  let hi = above - 1;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    const point = data[mid];
+    if (point && Math.abs(point.freq - freq) <= belowDistance) hi = mid;
+    else lo = mid + 1;
+  }
+  return lo;
+}
+
+/** Find the index of the data point nearest to the given frequency. */
+export function nearestIndexByFreq(
+  data: readonly DataPoint[],
+  freq: number,
+): number {
+  const first = data[0];
+  if (!first || !Number.isFinite(freq)) return -1;
+  return isAscendingX(data) ? nearestIndexAscending(data, freq) : nearestIndexLinear(data, freq, first);
 }
 
 function hasExactSample(traceData: readonly DataPoint[], targetFreq: number): boolean {

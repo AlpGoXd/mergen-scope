@@ -5,6 +5,7 @@
 // ============================================================================
 
 import type { DataPoint } from "../../types/trace.ts";
+import { nearestIndexByFreq } from "../markers.ts";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -14,20 +15,6 @@ function finiteData(data: readonly DataPoint[]): DataPoint[] {
   return data.filter(
     (p) => p && Number.isFinite(p.freq) && Number.isFinite(p.amp),
   );
-}
-
-function nearestIndexByFreq(data: readonly DataPoint[], freq: number): number {
-  const first = data[0];
-  if (!first || !Number.isFinite(freq)) return -1;
-  let bestIdx = 0;
-  let bestDelta = Math.abs(first.freq - freq);
-  for (let i = 1; i < data.length; i++) {
-    const point = data[i];
-    if (!point) continue;
-    const delta = Math.abs(point.freq - freq);
-    if (delta < bestDelta) { bestDelta = delta; bestIdx = i; }
-  }
-  return bestIdx;
 }
 
 function interpolateFreqAtLevel(

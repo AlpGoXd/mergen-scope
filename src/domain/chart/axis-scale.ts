@@ -4,7 +4,7 @@ import { formatEngineeringValue } from '../format';
 import { makeNiceTicks, NICE_TICK_COUNT } from '../trace-math';
 import { isLogUnit } from '../units';
 import { traceBands } from '../sweep-bands';
-import { mergePaneData } from '../pane-data';
+import { dataBounds, mergePaneData } from '../pane-data';
 import type { MergedPaneRow } from '../pane-data';
 
 export function toAxisSpace(value: number, scale: AxisScale): number {
@@ -26,7 +26,7 @@ export function isPhase(trace: Trace): boolean {
 }
 
 export function logXReason(traces: readonly Trace[]): string | undefined {
-  return traces.some(trace => trace.data.some(point => point.freq <= 0)) ? 'X has values ≤ 0' : undefined;
+  return traces.some(trace => dataBounds(trace.data).xMin <= 0) ? 'X has values ≤ 0' : undefined;
 }
 
 export function logYReason(traces: readonly Trace[]): string | undefined {
@@ -68,7 +68,7 @@ export function logSample(point: DataPoint, x: AxisScale, y: AxisScale): boolean
   return (x !== 'log' || point.freq > 0) && (y !== 'log' || point.amp > 0);
 }
 
-export function chartAxisData(traces: Trace[], settings: ChartAxesSettings, range: { left: number; right: number } | null) {
+export function chartAxisData(traces: Trace[], settings: ChartAxesSettings, range: { left: number; right: number } | null, buckets?: number) {
   const displayTraces = settings.phase === 'wrapped' ? traces : traces.map(trace => isPhase(trace) ? {
     ...trace,
     data: unwrapPhase(trace.data, /^rad/i.test(trace.units.y ?? '') ? 2 * Math.PI : 360),
@@ -83,7 +83,11 @@ export function chartAxisData(traces: Trace[], settings: ChartAxesSettings, rang
     if (!logY && bands.length === 1) continue;
     const rows: MergedPaneRow[] = [];
     for (const band of bands) {
-      const samples = mergePaneData([{ name: trace.name, data: band }], range, !logY);
+      // A log axis cannot show x or y <= 0: those samples stay out of every pixel column's min and max.
+      const samples = mergePaneData([{ name: trace.name, data: band }], range, true, {
+        ...(buckets === undefined ? {} : { buckets }),
+        ...(logY ? { plottable: (point: DataPoint) => logSample(point, settings.x, settings.y) } : {}),
+      });
       const previous = rows.at(-1);
       const first = samples[0];
       if (previous && first) {
