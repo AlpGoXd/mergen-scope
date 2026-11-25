@@ -118,11 +118,10 @@ Anything you attach to a GitHub issue is public, so share only data you are allo
 - Attachments on GitHub issues are public.
 
 ## Why I built this
+Mergen Scope grew out of a practical problem I encountered while building a radio telescope for my graduation project. While working on [Mergen-21](https://github.com/AlpGoXd/mergen-21), a low-cost 21 cm hydrogen-line radio telescope that made its first on-sky H I detection in April 2026, I wanted a single place to open, visualize, and analyze spectrum analyzer sweeps, oscilloscope captures, and VNA measurements without installing additional software or sending data off my machine.
 
-Mergen Scope started as the data viewer for [Mergen-21](https://github.com/AlpGoXd/mergen-21), my graduation project: a low-cost 21 cm hydrogen-line radio telescope that made its first on-sky H I detection in April 2026. I wanted one place to open spectrum analyzer sweeps, scope captures and VNA files from the bench without installing anything or moving data off my machine. It grew into a general RF measurement workspace.
+The name comes from [Mergen](https://en.wikipedia.org/wiki/Mergen), a figure in Turkic mythology associated with wisdom, precision, and skilled marksmanship. Thought like a fitting name for a telescope. What began as a data viewer for my own experiments gradually evolved into a general-purpose RF measurement and analysis workspace.
 
-<details>
-<summary><strong>Development</strong></summary>
 
 ### Setup
 
