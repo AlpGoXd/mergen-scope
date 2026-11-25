@@ -1,6 +1,6 @@
 {
   "name": "mergen-scope",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Browser-based RF signal analysis tool",
   "type": "module",
   "scripts": {
