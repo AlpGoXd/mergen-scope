@@ -452,76 +452,108 @@ export function convertYMatrixToSMatrix(
   return matrixMultiply(minus, plusInv);
 }
 
-/**
- * Convert a 2-port H-matrix to a 2-port Z-matrix:
- * Z11 = (h11*h22 - h12*h21) / h22, Z12 = h12 / h22, Z21 = -h21 / h22, Z22 = 1 / h22.
- * Returns null if not 2-port or if h22 is singular.
- */
-export function convertHMatrixToZMatrix(hMatrix: ComplexMatrix): Complex[][] | null {
-  if (!Array.isArray(hMatrix) || hMatrix.length !== 2) return null;
-  const r0 = hMatrix[0];
-  const r1 = hMatrix[1];
-  const h11 = r0?.[0];
-  const h12 = r0?.[1];
-  const h21 = r1?.[0];
-  const h22 = r1?.[1];
-  if (!h11 || !h12 || !h21 || !h22) return null;
-  if (abs(h22) <= 1e-15) return null;
-
-  const deltaH = sub(mul(h11, h22), mul(h12, h21));
-  const z11 = div(deltaH, h22);
-  const z12 = div(h12, h22);
-  const z21 = div(sub(cx(0, 0), h21), h22);
-  const z22 = div(cx(1, 0), h22);
-  if (!z11 || !z12 || !z21 || !z22) return null;
-  return [[z11, z12], [z21, z22]];
+/** Read the four entries of a 2×2 matrix as [m11, m12, m21, m22], or null when malformed. */
+function readTwoByTwo(matrix: ComplexMatrix): [Complex, Complex, Complex, Complex] | null {
+  if (!Array.isArray(matrix) || matrix.length !== 2) return null;
+  const m11 = matrix[0]?.[0];
+  const m12 = matrix[0]?.[1];
+  const m21 = matrix[1]?.[0];
+  const m22 = matrix[1]?.[1];
+  if (!m11 || !m12 || !m21 || !m22) return null;
+  return [m11, m12, m21, m22];
 }
 
+const isNonZeroDenominator = (d: Complex): boolean => {
+  const mag = abs2(d);
+  return Number.isFinite(mag) && mag > 1e-30;
+};
+
 /**
- * Convert a 2-port G-matrix to a 2-port Z-matrix:
- * Z11 = 1 / g11, Z12 = -g12 / g11, Z21 = g21 / g11, Z22 = (g11*g22 - g12*g21) / g11.
- * Returns null if not 2-port or if g11 is singular.
+ * Convert a 2-port H-matrix to an S-matrix with a direct closed form (no H→Z step),
+ * so h22 = 0 (ideal current-source output) stays finite. With power-wave normalized h:
+ *   D = (1 + h11)(1 + h22) - h12 h21
+ *   S11 = ((h11 - 1)(1 + h22) - h12 h21) / D     S12 = 2 h12 / D
+ *   S21 = -2 h21 / D                              S22 = ((1 + h11)(1 - h22) + h12 h21) / D
+ * Unnormalized (Touchstone v2) values are normalized first: h11/R1, h12·√(R2/R1), h21·√(R2/R1), h22·R2.
+ * Returns null if not 2-port or if D = 0.
  */
-export function convertGMatrixToZMatrix(gMatrix: ComplexMatrix): Complex[][] | null {
-  if (!Array.isArray(gMatrix) || gMatrix.length !== 2) return null;
-  const r0 = gMatrix[0];
-  const r1 = gMatrix[1];
-  const g11 = r0?.[0];
-  const g12 = r0?.[1];
-  const g21 = r1?.[0];
-  const g22 = r1?.[1];
-  if (!g11 || !g12 || !g21 || !g22) return null;
-  if (abs(g11) <= 1e-15) return null;
-
-  const deltaG = sub(mul(g11, g22), mul(g12, g21));
-  const z11 = div(cx(1, 0), g11);
-  const z12 = div(sub(cx(0, 0), g12), g11);
-  const z21 = div(g21, g11);
-  const z22 = div(deltaG, g11);
-  if (!z11 || !z12 || !z21 || !z22) return null;
-  return [[z11, z12], [z21, z22]];
-}
-
-/** Convert a 2-port H-matrix to an S-matrix via closed-form H→Z followed by Z→S. */
 export function convertHMatrixToSMatrix(
   hMatrix: ComplexMatrix,
   referenceOhms: number | readonly number[],
   normalized = false,
 ): Complex[][] | null {
-  const zMatrix = convertHMatrixToZMatrix(hMatrix);
-  if (!zMatrix) return null;
-  return convertZMatrixToSMatrix(zMatrix, referenceOhms, normalized);
+  const entries = readTwoByTwo(hMatrix);
+  if (!entries) return null;
+  let [h11, h12, h21, h22] = entries;
+  if (!normalized) {
+    const refs = normalizeReferenceArray(referenceOhms, 2);
+    const r1 = refs?.[0];
+    const r2 = refs?.[1];
+    if (r1 === undefined || r2 === undefined || !(r1 > 0) || !(r2 > 0)) return null;
+    const ratio = Math.sqrt(r2 / r1);
+    h11 = mul(h11, cx(1 / r1, 0));
+    h12 = mul(h12, cx(ratio, 0));
+    h21 = mul(h21, cx(ratio, 0));
+    h22 = mul(h22, cx(r2, 0));
+  }
+
+  const one = cx(1, 0);
+  const cross = mul(h12, h21);
+  const onePlus11 = add(one, h11);
+  const onePlus22 = add(one, h22);
+  const d = sub(mul(onePlus11, onePlus22), cross);
+  if (!isNonZeroDenominator(d)) return null;
+
+  const s11 = div(sub(mul(sub(h11, one), onePlus22), cross), d);
+  const s12 = div(mul(cx(2, 0), h12), d);
+  const s21 = div(mul(cx(-2, 0), h21), d);
+  const s22 = div(add(mul(onePlus11, sub(one, h22)), cross), d);
+  if (!s11 || !s12 || !s21 || !s22) return null;
+  return [[s11, s12], [s21, s22]];
 }
 
-/** Convert a 2-port G-matrix to an S-matrix via closed-form G→Z followed by Z→S. */
+/**
+ * Convert a 2-port G-matrix to an S-matrix with a direct closed form (no G→Z step),
+ * so g11 = 0 (infinite input impedance) stays finite. With power-wave normalized g:
+ *   D = (1 + g11)(1 + g22) - g12 g21
+ *   S11 = ((1 - g11)(1 + g22) + g12 g21) / D     S12 = -2 g12 / D
+ *   S21 = 2 g21 / D                               S22 = ((1 + g11)(g22 - 1) - g12 g21) / D
+ * Unnormalized (Touchstone v2) values are normalized first: g11·R1, g12·√(R1/R2), g21·√(R1/R2), g22/R2.
+ * Returns null if not 2-port or if D = 0.
+ */
 export function convertGMatrixToSMatrix(
   gMatrix: ComplexMatrix,
   referenceOhms: number | readonly number[],
   normalized = false,
 ): Complex[][] | null {
-  const zMatrix = convertGMatrixToZMatrix(gMatrix);
-  if (!zMatrix) return null;
-  return convertZMatrixToSMatrix(zMatrix, referenceOhms, normalized);
+  const entries = readTwoByTwo(gMatrix);
+  if (!entries) return null;
+  let [g11, g12, g21, g22] = entries;
+  if (!normalized) {
+    const refs = normalizeReferenceArray(referenceOhms, 2);
+    const r1 = refs?.[0];
+    const r2 = refs?.[1];
+    if (r1 === undefined || r2 === undefined || !(r1 > 0) || !(r2 > 0)) return null;
+    const ratio = Math.sqrt(r1 / r2);
+    g11 = mul(g11, cx(r1, 0));
+    g12 = mul(g12, cx(ratio, 0));
+    g21 = mul(g21, cx(ratio, 0));
+    g22 = mul(g22, cx(1 / r2, 0));
+  }
+
+  const one = cx(1, 0);
+  const cross = mul(g12, g21);
+  const onePlus11 = add(one, g11);
+  const onePlus22 = add(one, g22);
+  const d = sub(mul(onePlus11, onePlus22), cross);
+  if (!isNonZeroDenominator(d)) return null;
+
+  const s11 = div(add(mul(sub(one, g11), onePlus22), cross), d);
+  const s12 = div(mul(cx(-2, 0), g12), d);
+  const s21 = div(mul(cx(2, 0), g21), d);
+  const s22 = div(sub(mul(onePlus11, sub(g22, one)), cross), d);
+  if (!s11 || !s12 || !s21 || !s22) return null;
+  return [[s11, s12], [s21, s22]];
 }
 
 // ---------------------------------------------------------------------------

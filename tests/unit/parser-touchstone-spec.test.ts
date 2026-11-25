@@ -371,6 +371,14 @@ describe("Touchstone 2.1 specification conformance", () => {
         ),
       ).toThrow(/noise data on line 4 must have 5 values/i);
 
+      // A network-width row whose frequency does not increase is an unsorted file, not a noise block.
+      expect(() =>
+        parseTS(
+          "# GHz S MA R 50\n2 0.95 -26 3.57 157 0.04 76 0.66 -14\n1 0.60 -144 1.30 40 0.14 40 0.56 -85\n",
+          "unsorted-v1.s2p",
+        ),
+      ).toThrow(/frequencies must increase: line 3/i);
+
       expect(() =>
         parseTS(
           "[Version] 2.1\n# Hz S RI\n[Number of Ports] 2\n[Number of Frequencies] 1\n[Number of Noise Frequencies] 2\n[Network Data]\n1 0 0 0 0 0 0 0 0\n[Noise Data]\n1 0.5 0.1 20 10\n[End]",
@@ -474,6 +482,44 @@ describe("Touchstone 2.1 specification conformance", () => {
       expectMatricesClose(parseTS(wrapV23p("Y", y3Actual), "y3.s3p").touchstoneNetwork?.samples[0]?.sMatrix, s3, 9);
     });
 
+    it("converts H with h22 = 0 and G with g11 = 0 directly, where an H/G to Z step has no solution", () => {
+      // Ideal current-source output: h22 = 0, so Z does not exist but S is finite. v2 values, R = 50 / 75.
+      const sH = parseTS(
+        [
+          "[Version] 2.1",
+          "# Hz H RI",
+          "[Number of Ports] 2",
+          "[Two-Port Data Order] 12_21",
+          "[Number of Frequencies] 1",
+          "[Reference] 50 75",
+          "[Network Data]",
+          "1000 1000 0 0.5 0 -20 0 0 0",
+          "[End]",
+        ].join("\n"),
+        "h22-zero.s2p",
+      ).touchstoneNetwork?.samples[0]?.sMatrix;
+      expect(sH).toBeDefined();
+      // Normalize: h11/R1, h12*sqrt(R2/R1), h21*sqrt(R2/R1), h22*R2.
+      const ratio = Math.sqrt(75 / 50);
+      const h11n = 1000 / 50;
+      const h12n = 0.5 * ratio;
+      const h21n = -20 * ratio;
+      const dH = (1 + h11n) - h12n * h21n;
+      expect(sH?.[0]?.[0]?.re).toBeCloseTo(((h11n - 1) - h12n * h21n) / dH, 9);
+      expect(sH?.[0]?.[1]?.re).toBeCloseTo((2 * h12n) / dH, 9);
+      expect(sH?.[1]?.[0]?.re).toBeCloseTo((-2 * h21n) / dH, 9);
+      expect(sH?.[1]?.[1]?.re).toBeCloseTo(((1 + h11n) + h12n * h21n) / dH, 9);
+
+      // Ideal buffer: g11 = 0 (infinite input impedance). v1 normalized, file order 21_12: g11, g21, g12, g22.
+      const sG = parseTS("# GHz G RI R 50\n1.0 0 0 0.9 0 0.01 0 10 0\n", "g11-zero.s2p").touchstoneNetwork?.samples[0]?.sMatrix;
+      expect(sG).toBeDefined();
+      const dG = 11 - 0.01 * 0.9;
+      expect(sG?.[0]?.[0]?.re).toBeCloseTo((11 + 0.01 * 0.9) / dG, 9);
+      expect(sG?.[0]?.[1]?.re).toBeCloseTo((-2 * 0.01) / dG, 9);
+      expect(sG?.[1]?.[0]?.re).toBeCloseTo((2 * 0.9) / dG, 9);
+      expect(sG?.[1]?.[1]?.re).toBeCloseTo((9 - 0.01 * 0.9) / dG, 9);
+    });
+
     it("throws a clear error naming the frequency on singular Z/Y/H/G matrices and rejects 3-port H/G", () => {
       // 1-port Z = -50 ohms (v2) => z + 1 = -1 + 1 = 0 (singular)
       expect(() =>
@@ -483,14 +529,14 @@ describe("Touchstone 2.1 specification conformance", () => {
         ),
       ).toThrow(/singular matrix at frequency 250 MHz/i);
 
-      // 2-port H with h22 = 0
+      // 2-port H with (1 + h11)(1 + h22) - h12 h21 = 0 (h11 = h22 = -1)
       expect(() =>
-        parseTS("# GHz H RI R 50\n3.5 1 0 0 0 0 0 0 0\n", "singular-h.s2p"),
+        parseTS("# GHz H RI R 50\n3.5 -1 0 0 0 0 0 -1 0\n", "singular-h.s2p"),
       ).toThrow(/singular matrix at frequency 3\.5 GHz/i);
 
-      // 2-port G with g11 = 0
+      // 2-port G with (1 + g11)(1 + g22) - g12 g21 = 0 (g11 = g22 = -1)
       expect(() =>
-        parseTS("# GHz G RI R 50\n4.2 0 0 0 0 0 0 1 0\n", "singular-g.s2p"),
+        parseTS("# GHz G RI R 50\n4.2 -1 0 0 0 0 0 -1 0\n", "singular-g.s2p"),
       ).toThrow(/singular matrix at frequency 4\.2 GHz/i);
 
       // 3-port H and G rejected

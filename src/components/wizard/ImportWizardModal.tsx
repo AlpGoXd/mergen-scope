@@ -14,8 +14,8 @@ import { breaksFrequencyGaps } from '../../domain/sweep-bands';
 import { detectSParameterNetwork, detectTabular } from '../../domain/parsers/tabular-detect';
 import {
   columnDisplayName, columnRole, hasColumnNames, hasNonIncreasingFrequencies, importableYCols, listNames, matchPriorColumns,
-  networkOverviewPlot, overviewPlot, plotCaption, previewCaption, previewRangeSummary, readNumericTable, setColumnRole,
-  wizardBlocker, wizardLayout,
+  networkCellName, networkOverviewPlot, networkPreviewCell, overviewPlot, plotCaption, previewCaption, previewRangeSummary,
+  readNumericTable, setColumnRole, unmappedNetworkCells, wizardBlocker, wizardLayout,
 } from '../../domain/import-wizard';
 import type { ColumnRole } from '../../domain/import-wizard';
 import { useWizardTraceColors } from '../../hooks/use-wizard-trace-colors';
@@ -105,12 +105,14 @@ function WizardDialog({ entry, position, total, others, queue, priorFile }: Wiza
       : overviewPlot(numericTable, config.xCol, yCols, PREVIEW_ROWS, undefined, splitBands),
     [numericTable, config.xCol, yColsKey, splitBands, networkKey],
   );
-  const rangeText = useMemo(
-    () => config.network
+  const previewCell = config.network ? networkPreviewCell(config.network) : undefined;
+  const previewCellName = previewCell ? networkCellName(previewCell) : null;
+  const rangeText = useMemo(() => {
+    const range = config.network
       ? previewRangeSummary(plot, { ...config, domain: 'frequency', yUnit: 'dB', yMult: 1 })
-      : previewRangeSummary(plot, config),
-    [plot, config.domain, config.xUnit, config.yUnit, config.xMult, config.yMult, Boolean(config.network)],
-  );
+      : previewRangeSummary(plot, config);
+    return range && previewCellName ? `|${previewCellName}| · ${range}` : range;
+  }, [plot, config.domain, config.xUnit, config.yUnit, config.xMult, config.yMult, Boolean(config.network), previewCellName]);
 
   // Import settings on an open file: which existing trace each Y column continues, and which traces go away.
   const prior = useMemo(() => {
@@ -308,7 +310,8 @@ function WizardDialog({ entry, position, total, others, queue, priorFile }: Wiza
     }
     : undefined;
   const traceNames = yCols.map(col => names[col] ?? `Column ${col + 1}`);
-  const mappedCellNames = config.network?.cells.map(cell => `S${cell.row + 1}${cell.col + 1}`) ?? [];
+  const mappedCellNames = config.network?.cells.filter(cell => cell.first >= 0 && cell.second >= 0).map(networkCellName) ?? [];
+  const unmappedCellNames = config.network ? unmappedNetworkCells(config.network) : [];
   const mainLabel = editing ? 'Apply' : config.network ? 'Import S-parameters' : `Add ${yCols.length} trace${yCols.length === 1 ? '' : 's'}`;
   const removedNames = removed.map(item => item.identity.header ?? `Column ${item.identity.index + 1}`);
   const removedText = removedNames.length === 0 ? null
@@ -389,6 +392,7 @@ function WizardDialog({ entry, position, total, others, queue, priorFile }: Wiza
               {blocker ? <span /> : config.network ? (
                 <p className="iw-result t-caption" data-testid="import-wizard-summary">
                   Will import {config.network.portCount}-port S-parameters ({mappedCellNames.join(', ')} mapped)
+                  {unmappedCellNames.length > 0 && <span className="t-muted"> · {listNames(unmappedCellNames)} not mapped, imported as 0</span>}
                 </p>
               ) : (
                 <p className="iw-result t-caption" data-testid="import-wizard-summary">

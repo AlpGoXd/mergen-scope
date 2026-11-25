@@ -618,6 +618,18 @@ export function WizardSettings({ config, maxSkipRows, detected, headers, numeric
         const { row, col, at } = cellAnchor;
         const cellName = `S${row + 1}${col + 1}`;
         const [firstLabel, secondLabel] = networkPairLabels(network.format);
+        // Columns already mapped to another cell: picking one here moves it, so say where it comes from.
+        const usedBy = new Map<number, string>();
+        for (const other of network.cells) {
+          if (other.row === row && other.col === col) continue;
+          const otherName = `S${other.row + 1}${other.col + 1}`;
+          if (other.first >= 0) usedBy.set(other.first, `${otherName} ${firstLabel}`);
+          if (other.second >= 0) usedBy.set(other.second, `${otherName} ${secondLabel}`);
+        }
+        const optionText = (header: string, idx: number) => {
+          const owner = usedBy.get(idx);
+          return owner ? `${header} (in use: ${owner})` : header;
+        };
         return (
           <PopoverAt
             label={`Map ${cellName}`}
@@ -653,7 +665,7 @@ export function WizardSettings({ config, maxSkipRows, detected, headers, numeric
                   <option value="-1">— not mapped</option>
                   {colHeaders.map((header, idx) => (
                     <option key={idx} value={String(idx)} disabled={idx === config.xCol || !numCols.includes(idx)}>
-                      {header}
+                      {optionText(header, idx)}
                     </option>
                   ))}
                 </select>
@@ -670,7 +682,7 @@ export function WizardSettings({ config, maxSkipRows, detected, headers, numeric
                   <option value="-1">— not mapped</option>
                   {colHeaders.map((header, idx) => (
                     <option key={idx} value={String(idx)} disabled={idx === config.xCol || !numCols.includes(idx)}>
-                      {header}
+                      {optionText(header, idx)}
                     </option>
                   ))}
                 </select>

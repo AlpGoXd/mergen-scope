@@ -639,6 +639,12 @@ export function parseTouchstoneFile(text: string, fileName: string): ParsedFile 
       }
       if (inV1Noise) {
         if (nums.length !== 5) {
+          // A network-width row here means the frequency simply went backwards, not a malformed noise block.
+          if (nums.length === expectedPerSample) {
+            throw new Error(
+              `Touchstone 2-port frequencies must increase: line ${lineNum} (${nums[0]} ${state.freqUnit}) is not above the previous frequency (${lastNetworkFreqRaw} ${state.freqUnit}). A line that does not increase starts the noise block, which needs 5 values per line (got ${nums.length}).`,
+            );
+          }
           throw new Error(`Touchstone noise data on line ${lineNum} must have 5 values (got ${nums.length}).`);
         }
         noiseCount += 1;

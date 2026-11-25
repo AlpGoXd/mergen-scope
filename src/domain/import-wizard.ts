@@ -4,7 +4,7 @@
 // Column roles, why Add is unavailable, preview range summary, and Edit columns.
 // ============================================================================
 
-import type { ColumnIdentity, WizardConfig, WizardNetworkConfig } from "../types/file.ts";
+import type { ColumnIdentity, WizardConfig, WizardNetworkCell, WizardNetworkConfig } from "../types/file.ts";
 import { sweepBands } from "./sweep-bands.ts";
 import type { TraceDomain, DataPoint } from "../types/trace.ts";
 import { baseXUnit, detectXUnit, detectYUnit, findXUnit, findYUnit, storedXUnit, storedYUnit } from "./import-units.ts";
@@ -292,7 +292,30 @@ export function hasNonIncreasingFrequencies(table: NumericTable, xCol: number): 
   return false;
 }
 
-/** Preview plot of |S11| in dB (or the first mapped S-parameter cell) in S-parameter wizard mode. */
+/** The cell the preview plots: S11 when fully mapped, else the first fully mapped cell. */
+export function networkPreviewCell(network: WizardNetworkConfig): WizardNetworkCell | undefined {
+  const complete = network.cells.filter((cell) => cell.first >= 0 && cell.second >= 0);
+  return complete.find((cell) => cell.row === 0 && cell.col === 0) ?? complete[0];
+}
+
+/** "S21" for a zero-based cell. */
+export function networkCellName(cell: Pick<WizardNetworkCell, "row" | "col">): string {
+  return `S${cell.row + 1}${cell.col + 1}`;
+}
+
+/** Names of the S-parameter cells with no (or only half) mapped columns; they import as 0. */
+export function unmappedNetworkCells(network: WizardNetworkConfig): string[] {
+  const names: string[] = [];
+  for (let row = 0; row < network.portCount; row++) {
+    for (let col = 0; col < network.portCount; col++) {
+      const mapped = network.cells.some((cell) => cell.row === row && cell.col === col && cell.first >= 0 && cell.second >= 0);
+      if (!mapped) names.push(networkCellName({ row, col }));
+    }
+  }
+  return names;
+}
+
+/** Preview plot of |S11| in dB (or the first fully mapped S-parameter cell) in S-parameter wizard mode. */
 export function networkOverviewPlot(
   table: NumericTable,
   xCol: number,
@@ -300,7 +323,7 @@ export function networkOverviewPlot(
   tableRows: number,
   buckets = PLOT_BUCKETS,
 ): OverviewPlot {
-  const cell = network.cells.find((item) => item.row === 0 && item.col === 0) ?? network.cells[0];
+  const cell = networkPreviewCell(network);
   const xs = table.columns[xCol];
   const firstCol = cell ? table.columns[cell.first] : undefined;
   const secondCol = cell ? table.columns[cell.second] : undefined;

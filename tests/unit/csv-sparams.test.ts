@@ -5,11 +5,15 @@ import { detectSParameterNetwork, detectTabular } from "../../src/domain/parsers
 import { parseTouchstoneFile } from "../../src/domain/parsers/touchstone";
 import {
   hasNonIncreasingFrequencies,
+  networkCellName,
   networkOverviewPlot,
+  networkPreviewCell,
   readNumericTable,
+  unmappedNetworkCells,
   wizardBlocker,
   wizardLayout,
 } from "../../src/domain/import-wizard";
+import type { WizardNetworkConfig } from "../../src/types/file";
 import { initialWorkspaceEngine, workspaceEngineReducer } from "../../src/stores/aggregate-workspace-store";
 import type { WizardConfig } from "../../src/types/file";
 
@@ -400,5 +404,35 @@ describe("wizard preview and workspace edit integration for S-parameters", () =>
     const editEntry = engine.present.files.wizardQueue[0];
     expect(editEntry?.mode).toBe("edit");
     expect(editEntry?.suggestedConfig?.network).toEqual(suggested.network);
+  });
+});
+
+describe("S-parameter wizard preview helpers", () => {
+  const network = (cells: WizardNetworkConfig["cells"], portCount: WizardNetworkConfig["portCount"] = 2): WizardNetworkConfig => ({
+    portCount,
+    format: "RI",
+    angleUnit: "deg",
+    referenceOhms: 50,
+    cells,
+  });
+
+  it("names the plotted cell: S11 when fully mapped, else the first fully mapped cell", () => {
+    const s11 = { row: 0, col: 0, first: 1, second: 2 };
+    const s21 = { row: 1, col: 0, first: 3, second: 4 };
+    expect(networkPreviewCell(network([s21, s11]))).toEqual(s11);
+    expect(networkCellName(networkPreviewCell(network([s21]))!)).toBe("S21");
+    // A half-mapped S11 cannot be plotted, so the preview falls through to the next complete cell.
+    expect(networkPreviewCell(network([{ row: 0, col: 0, first: 1, second: -1 }, s21]))).toEqual(s21);
+    expect(networkPreviewCell(network([]))).toBeUndefined();
+  });
+
+  it("lists cells that import as zero", () => {
+    const cells = [
+      { row: 0, col: 0, first: 1, second: 2 },
+      { row: 1, col: 0, first: 3, second: 4 },
+      { row: 0, col: 1, first: 5, second: -1 },
+    ];
+    expect(unmappedNetworkCells(network(cells))).toEqual(["S12", "S22"]);
+    expect(unmappedNetworkCells(network([], 1))).toEqual(["S11"]);
   });
 });
