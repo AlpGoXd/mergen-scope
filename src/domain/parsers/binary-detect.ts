@@ -7,7 +7,7 @@
 
 import type { ConfidenceLevel } from "./tabular-detect.ts";
 
-export type BinaryFormat = "wavebin" | "lecroy-trc" | "tek-isf" | "owon-bin" | "wav" | "npy";
+export type BinaryFormat = "wavebin" | "lecroy-trc" | "tek-isf" | "tek-wfm" | "owon-bin" | "wav" | "npy";
 
 /** Minimum header prefix bytes needed to sniff any supported binary signature. */
 export const BINARY_SNIFF_BYTES = 64;
@@ -26,6 +26,7 @@ export function scopeFormatLabel(format: BinaryFormat | null): string {
     case "wavebin": return "Keysight / Rigol (.bin)";
     case "lecroy-trc": return "LeCroy (.trc)";
     case "tek-isf": return "Tektronix (.isf)";
+    case "tek-wfm": return "Tektronix (.wfm)";
     case "owon-bin": return "OWON (.bin)";
     case "wav": return "RIFF / WAV (.wav)";
     case "npy": return "NumPy (.npy)";
@@ -197,6 +198,18 @@ function looksLikeTekIsf(bytes: Uint8Array): boolean {
   return /^\s*:?(?:WFMP(?:RE)?|WFMO(?:UTPRE)?):/i.test(prefix);
 }
 
+/**
+ * Tektronix .wfm reference waveform: u16 byte-order marker (0x0F0F little-endian or 0xF0F0
+ * big-endian; both bytes equal) followed by the 8-byte version tag ":WFM#001" / "#002" / "#003".
+ * The binary marker keeps it distinct from the ASCII ":WFMPRE:" preamble of .isf files.
+ */
+function looksLikeTekWfm(bytes: Uint8Array): boolean {
+  if (bytes.byteLength < 10) return false;
+  const order = bytes[0];
+  if (bytes[1] !== order || (order !== 0x0f && order !== 0xf0)) return false;
+  return matchesAscii(bytes, 2, ":WFM#");
+}
+
 /** OWON XDS/SDS .bin: starts with 6-byte magic "SPBXDS" followed by uint32 JSON length. */
 function looksLikeOwonBin(bytes: Uint8Array): boolean {
   return bytes.byteLength >= 12 && matchesAscii(bytes, 0, "SPBXDS");
@@ -218,6 +231,7 @@ export function detectBinarySignature(bytes: Uint8Array): BinaryFormat | null {
   if (looksLikeWavebin(bytes)) return "wavebin";
   if (looksLikeLeCroyTrc(bytes)) return "lecroy-trc";
   if (looksLikeTekIsf(bytes)) return "tek-isf";
+  if (looksLikeTekWfm(bytes)) return "tek-wfm";
   if (looksLikeOwonBin(bytes)) return "owon-bin";
   if (looksLikeWav(bytes)) return "wav";
   if (looksLikeNpy(bytes)) return "npy";
