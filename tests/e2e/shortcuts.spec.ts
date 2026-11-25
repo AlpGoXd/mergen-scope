@@ -239,7 +239,8 @@ test('Help lists every registry shortcut and the mouse hints; App settings opens
   for (const shortcut of SHORTCUTS) await expect(keyboard.locator(`[data-shortcut="${shortcut.id}"]`)).toContainText(shortcut.label);
   await expect(sheet.locator('dl[aria-label="Keyboard"] .kbd').first()).toBeVisible();
   await expect(sheet.locator('dl[aria-label="Mouse"]')).toContainText('Right-drag');
-  for (const text of [`Mergen Scope ${APP_VERSION}`, 'About', 'Report a problem ↗', 'Suggest an idea ↗', 'Your files never leave this browser.']) await expect(sheet.locator('footer')).toContainText(text);
+  for (const text of [`Mergen Scope ${APP_VERSION}`, 'About']) await expect(sheet.locator('footer')).toContainText(text);
+  for (const text of ['Report a problem', 'Suggest an idea', 'Your files never leave this browser.']) await expect(sheet.locator('footer')).not.toContainText(text);
   await expect(sheet).not.toContainText('M / S / L / P');
   await sheet.getByRole('button', { name: 'Close help' }).click();
   await expect(sheet).toHaveCount(0);
@@ -262,9 +263,10 @@ test('Help lists every registry shortcut and the mouse hints; App settings opens
   await settings.getByRole('button', { name: /About/ }).click();
   const about = page.getByTestId('about-panel');
   await expect(about).toBeVisible();
-  for (const text of ['Mergen Scope', APP_VERSION, 'Apache-2.0', 'GitHub', 'Your files never leave this browser.']) await expect(about).toContainText(text);
+  for (const text of ['Mergen Scope', APP_VERSION, 'Made by Alp Gökalp', 'Made with love', 'Apache-2.0', 'GitHub']) await expect(about).toContainText(text);
   await expect(about.getByRole('link', { name: 'GitHub ↗', exact: true })).toHaveAttribute('href', 'https://github.com/AlpGoXd/mergen-scope');
-  await expect(about.getByRole('link', { name: 'Report a problem ↗' })).toHaveAttribute('target', '_blank');
+  await expect(about.getByRole('link', { name: 'GitHub ↗', exact: true })).toHaveAttribute('target', '_blank');
+  await expect(about).not.toContainText('Report a problem');
 });
 
 test('the pane settings button shows sliders; the gear is only on App settings', async ({ page }) => {
